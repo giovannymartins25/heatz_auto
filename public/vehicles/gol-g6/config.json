@@ -1,0 +1,67 @@
+{
+  "id": "gol-g6",
+  "info": {
+    "name": "Gol G6 1.6 MSI",
+    "brand": "Volkswagen",
+    "model": "Gol",
+    "year": 2016,
+    "category": "car",
+    "weight": 1075,
+    "wheelDiameter": 0.59,
+    "description": "Hatch compacto brasileiro com motor 1.6 MSI flex de 120 cv."
+  },
+  "engine": {
+    "maxPower": 120,
+    "maxPowerRpm": 6000,
+    "maxTorque": 165,
+    "maxTorqueRpm": 3500,
+    "maxRpm": 6500,
+    "idleRpm": 850,
+    "revLimiter": 6400,
+    "flywheelMass": 8.5,
+    "engineBrakeFactor": 0.3,
+    "torqueCurve": [
+      { "rpm": 850,  "torque": 55 },
+      { "rpm": 1500, "torque": 95 },
+      { "rpm": 2000, "torque": 120 },
+      { "rpm": 2500, "torque": 140 },
+      { "rpm": 3000, "torque": 155 },
+      { "rpm": 3500, "torque": 165 },
+      { "rpm": 4000, "torque": 160 },
+      { "rpm": 4500, "torque": 152 },
+      { "rpm": 5000, "torque": 143 },
+      { "rpm": 5500, "torque": 132 },
+      { "rpm": 6000, "torque": 120 },
+      { "rpm": 6500, "torque": 95 }
+    ]
+  },
+  "transmission": {
+    "type": "manual",
+    "gearCount": 5,
+    "gearRatios": [
+      { "gear": 1, "ratio": 3.727 },
+      { "gear": 2, "ratio": 2.048 },
+      { "gear": 3, "ratio": 1.393 },
+      { "gear": 4, "ratio": 1.029 },
+      { "gear": 5, "ratio": 0.795 }
+    ],
+    "reverseRatio": 3.167,
+    "finalDrive": 4.062,
+    "hasClutch": true
+  },
+  "audio": {
+    "useSamples": false,
+    "synthConfig": {
+      "baseFrequency": 65,
+      "harmonics": [1, 2, 3, 4.02, 6],
+      "gainIdle": 0.15,
+      "gainMax": 0.7
+    }
+  },
+  "dashboard": {
+    "type": "default",
+    "tachometerMax": 8000,
+    "speedometerMax": 220,
+    "redlineStart": 6000
+  }
+}

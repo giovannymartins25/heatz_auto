@@ -1,0 +1,70 @@
+{
+  "id": "cb1000r",
+  "info": {
+    "name": "Honda CB1000R",
+    "brand": "Honda",
+    "model": "CB1000R",
+    "year": 2022,
+    "category": "motorcycle",
+    "weight": 212,
+    "wheelDiameter": 0.63,
+    "description": "Naked esportiva com motor 4 cilindros em linha de 143 cv e design Neo Sports Café."
+  },
+  "engine": {
+    "maxPower": 143,
+    "maxPowerRpm": 10500,
+    "maxTorque": 104,
+    "maxTorqueRpm": 8250,
+    "maxRpm": 11500,
+    "idleRpm": 1100,
+    "revLimiter": 11300,
+    "flywheelMass": 3.2,
+    "engineBrakeFactor": 0.25,
+    "torqueCurve": [
+      { "rpm": 1100,  "torque": 28 },
+      { "rpm": 2000,  "torque": 42 },
+      { "rpm": 3000,  "torque": 56 },
+      { "rpm": 4000,  "torque": 68 },
+      { "rpm": 5000,  "torque": 78 },
+      { "rpm": 6000,  "torque": 88 },
+      { "rpm": 7000,  "torque": 96 },
+      { "rpm": 8000,  "torque": 102 },
+      { "rpm": 8250,  "torque": 104 },
+      { "rpm": 9000,  "torque": 100 },
+      { "rpm": 10000, "torque": 92 },
+      { "rpm": 10500, "torque": 86 },
+      { "rpm": 11000, "torque": 72 },
+      { "rpm": 11500, "torque": 55 }
+    ]
+  },
+  "transmission": {
+    "type": "manual",
+    "gearCount": 6,
+    "gearRatios": [
+      { "gear": 1, "ratio": 2.571 },
+      { "gear": 2, "ratio": 1.894 },
+      { "gear": 3, "ratio": 1.500 },
+      { "gear": 4, "ratio": 1.240 },
+      { "gear": 5, "ratio": 1.074 },
+      { "gear": 6, "ratio": 0.965 }
+    ],
+    "reverseRatio": 0,
+    "finalDrive": 2.625,
+    "hasClutch": true
+  },
+  "audio": {
+    "useSamples": false,
+    "synthConfig": {
+      "baseFrequency": 82,
+      "harmonics": [1, 2, 3.01, 4, 5, 6.02],
+      "gainIdle": 0.12,
+      "gainMax": 0.8
+    }
+  },
+  "dashboard": {
+    "type": "default",
+    "tachometerMax": 12000,
+    "speedometerMax": 240,
+    "redlineStart": 10500
+  }
+}

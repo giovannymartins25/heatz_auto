@@ -1,0 +1,18 @@
+{
+  "vehicles": [
+    {
+      "id": "gol-g6",
+      "name": "Gol G6 1.6 MSI",
+      "brand": "Volkswagen",
+      "category": "car",
+      "configPath": "/vehicles/gol-g6/config.json"
+    },
+    {
+      "id": "cb1000r",
+      "name": "Honda CB1000R",
+      "brand": "Honda",
+      "category": "motorcycle",
+      "configPath": "/vehicles/cb1000r/config.json"
+    }
+  ]
+}

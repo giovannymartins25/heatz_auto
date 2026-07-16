@@ -1,0 +1,159 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens do Heatz Auto
+ * Tema dark automotivo inspirado em painéis de veículos premium.
+ * Todas as cores, espaçamentos e tipografia definidos aqui.
+ */
+
+@theme {
+  /* ─── Cores base ─── */
+  --color-bg-primary: #0a0a0b;
+  --color-bg-secondary: #111113;
+  --color-bg-tertiary: #1a1a1e;
+  --color-bg-card: #161619;
+  --color-bg-elevated: #1e1e22;
+
+  /* ─── Cores de superfície (gauges, painel) ─── */
+  --color-surface-gauge: #0d0d0f;
+  --color-surface-dial: #141417;
+  --color-surface-needle: #e63e3e;
+
+  /* ─── Cores de texto ─── */
+  --color-text-primary: #f0f0f2;
+  --color-text-secondary: #8a8a96;
+  --color-text-muted: #55555f;
+  --color-text-accent: #e63e3e;
+
+  /* ─── Accent (vermelho automotivo) ─── */
+  --color-accent: #e63e3e;
+  --color-accent-hover: #f04848;
+  --color-accent-muted: #e63e3e33;
+
+  /* ─── Cores funcionais ─── */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #3b82f6;
+
+  /* ─── Cores do painel ─── */
+  --color-gauge-mark: #3a3a42;
+  --color-gauge-text: #c8c8d0;
+  --color-gauge-redzone: #e63e3e;
+  --color-rpm-glow: #e63e3e40;
+  --color-speed-glow: #3b82f640;
+
+  /* ─── Tipografia ─── */
+  --font-display: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* ─── Bordas ─── */
+  --color-border: #ffffff0d;
+  --color-border-subtle: #ffffff08;
+  --color-border-accent: #e63e3e33;
+
+  /* ─── Raios ─── */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+}
+
+/* ─── Reset global ─── */
+*,
+*::before,
+*::after {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-display);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Previne pull-to-refresh no PWA */
+html, body {
+  overscroll-behavior: none;
+}
+
+/* Root container */
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Utilitários customizados ─── */
+
+/* Texto gradiente para destaques */
+.text-gradient {
+  background: linear-gradient(135deg, var(--color-accent) 0%, #ff6b4a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow sutil para elementos de destaque */
+.glow-accent {
+  box-shadow: 0 0 20px var(--color-accent-muted),
+              0 0 60px var(--color-accent-muted);
+}
+
+/* Glass effect para cards */
+.glass {
+  background: rgba(22, 22, 25, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+}
+
+/* Animação do ponteiro do gauge */
+.gauge-needle {
+  transform-origin: center bottom;
+  transition: transform 0.08s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+/* Safe area padding para dispositivos com notch */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Scroll suave */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Desabilita seleção de texto em controles touch */
+.touch-none {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Esconde scrollbar mantendo scroll funcional */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
