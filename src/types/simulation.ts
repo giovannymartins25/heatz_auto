@@ -3,12 +3,16 @@
  * Representam o estado instantâneo do motor e veículo em runtime.
  */
 
+export type EngineStatus = 'off' | 'starting' | 'running' | 'stalled'
+
 /** Estado instantâneo do motor */
 export interface EngineState {
   rpm: number
   throttle: number          // 0-1 (posição do acelerador)
   brake: number             // 0-1 (posição do freio)
   isRunning: boolean
+  isStalled: boolean
+  status: EngineStatus
   isRevLimiting: boolean    // Se está no limitador
 }
 

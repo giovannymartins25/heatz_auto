@@ -1,6 +1,7 @@
 export type {
   VehicleCategory,
   TransmissionType,
+  DrivingMode,
   TorqueCurvePoint,
   EngineConfig,
   GearRatio,
@@ -10,6 +11,7 @@ export type {
   SampleAudioConfig,
   AudioLayerConfig,
   DashboardConfig,
+  DashboardTheme,
   VehicleInfo,
   VehicleConfig,
   VehicleManifest,

@@ -8,6 +8,8 @@ export type VehicleCategory = 'car' | 'motorcycle' | 'truck' | 'bus' | 'tractor'
 
 export type TransmissionType = 'manual' | 'automatic' | 'sequential' | 'cvt' | 'dct'
 
+export type DrivingMode = 'eco' | 'normal' | 'sport'
+
 /** Ponto na curva de torque: RPM → torque em Nm */
 export interface TorqueCurvePoint {
   rpm: number
@@ -16,7 +18,7 @@ export interface TorqueCurvePoint {
 
 /** Configuração do motor */
 export interface EngineConfig {
-  maxPower: number           // cv
+  maxPower: number           // cv / hp
   maxPowerRpm: number        // RPM onde atinge potência máxima
   maxTorque: number          // Nm
   maxTorqueRpm: number       // RPM onde atinge torque máximo
@@ -34,14 +36,26 @@ export interface GearRatio {
   ratio: number
 }
 
+/** Configuração do TCS */
+export interface TcsConfig {
+  enabled: boolean
+  slipThreshold?: number     // Tolerância de escorregamento
+  torqueReduction?: number   // Percentual de corte de torque (0-1)
+}
+
 /** Configuração da transmissão */
 export interface TransmissionConfig {
   type: TransmissionType
   gearCount: number
   gearRatios: GearRatio[]
   reverseRatio: number
-  finalDrive: number        // Relação do diferencial
+  finalDrive: number         // Relação do diferencial
   hasClutch: boolean
+  isSimulatedGears?: boolean // Ex: relações virtuais no CVT
+  hasManualMode?: boolean    // Permite trocar manualmente (borboletas / alavanca)
+  defaultMode?: 'automatic' | 'manual'
+  supportedModes?: DrivingMode[]
+  tcs?: TcsConfig
 }
 
 /** Configuração de áudio (preparada para amostras reais e sintetizador) */
@@ -73,13 +87,19 @@ export interface AudioLayerConfig {
   baseRpm: number            // RPM de referência do sample
 }
 
+export type DashboardTheme = 'classic' | 'modern' | 'motorcycle' | 'default'
+
 /** Configuração do painel visual */
 export interface DashboardConfig {
   type: 'default' | 'custom'
+  theme?: DashboardTheme
   customSvgPath?: string     // SVG customizado do painel
   tachometerMax: number      // RPM máximo no conta-giros
   speedometerMax: number     // Velocidade máxima no velocímetro
   redlineStart: number       // Onde começa a zona vermelha
+  shiftLightOffsetRpm?: number // RPM antes do redline para acionar o shift light (default 500)
+  fuelCapacity?: number      // Litros do tanque de combustível
+  coolantTempTarget?: number // Temperatura operacional nominal em °C (default 90)
 }
 
 /** Dados do veículo */
@@ -93,6 +113,8 @@ export interface VehicleInfo {
   wheelDiameter: number      // metros
   description?: string
   thumbnailPath?: string
+  powerHp?: string | number  // Ex: "106 / 110 HP" ou 120
+  torqueKgfm?: number        // Ex: 14.3
 }
 
 /** Configuração completa de um veículo */
@@ -114,7 +136,19 @@ export interface VehicleManifestEntry {
   id: string
   name: string
   brand: string
+  model?: string
+  year: number
   category: VehicleCategory
+  powerHp: string | number
+  torqueKgfm: number
+  transmissionType: TransmissionType
+  transmissionLabel: string
+  gearCount: number
+  isSimulatedGears?: boolean
+  hasManualMode?: boolean
+  supportedModes?: DrivingMode[]
+  hasTcs?: boolean
+  hasClutchPedal?: boolean
   thumbnailPath?: string
   configPath: string
 }

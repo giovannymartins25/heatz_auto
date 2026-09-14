@@ -63,8 +63,12 @@
   },
   "dashboard": {
     "type": "default",
+    "theme": "motorcycle",
     "tachometerMax": 12000,
     "speedometerMax": 240,
-    "redlineStart": 10500
+    "redlineStart": 10500,
+    "shiftLightOffsetRpm": 800,
+    "fuelCapacity": 16.2,
+    "coolantTempTarget": 90
   }
 }

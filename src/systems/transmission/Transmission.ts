@@ -111,6 +111,24 @@ export class Transmission {
     this._currentGear = 0
   }
 
+  /**
+   * Verifica se a troca para uma marcha alvo é segura contra over-rev.
+   */
+  canShiftTo(targetGear: number, currentSpeedKmh: number, maxRpm: number): boolean {
+    if (targetGear <= 0) return true
+    if (targetGear > this.config.gearCount) return false
+    const projectedRpm = this.calculator.speedToRpm(currentSpeedKmh, targetGear)
+    return projectedRpm <= maxRpm * 0.95
+  }
+
+  /**
+   * Verifica se uma redução (downshift) é segura contra over-rev.
+   */
+  canShiftDown(currentSpeedKmh: number, maxRpm: number): boolean {
+    if (this._currentGear <= 1) return false
+    return this.canShiftTo(this._currentGear - 1, currentSpeedKmh, maxRpm)
+  }
+
   /** Reseta o estado da transmissão */
   reset(): void {
     this._currentGear = 0

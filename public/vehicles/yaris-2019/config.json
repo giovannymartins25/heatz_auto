@@ -1,0 +1,84 @@
+{
+  "id": "yaris-2019",
+  "info": {
+    "name": "Toyota Yaris 1.5 XLS",
+    "brand": "Toyota",
+    "model": "Yaris",
+    "year": 2019,
+    "category": "car",
+    "weight": 1130,
+    "wheelDiameter": 0.60,
+    "powerHp": "106 / 110 HP",
+    "torqueKgfm": 14.9,
+    "description": "Hatch compacto premium com motor 1.5 16V Dual VVT-i Flex e câmbio Multidrive CVT de 7 relações simuladas."
+  },
+  "engine": {
+    "maxPower": 110,
+    "maxPowerRpm": 5600,
+    "maxTorque": 146,
+    "maxTorqueRpm": 4000,
+    "maxRpm": 6400,
+    "idleRpm": 750,
+    "revLimiter": 6300,
+    "flywheelMass": 7.5,
+    "engineBrakeFactor": 0.25,
+    "torqueCurve": [
+      { "rpm": 750,  "torque": 60 },
+      { "rpm": 1500, "torque": 105 },
+      { "rpm": 2000, "torque": 122 },
+      { "rpm": 2500, "torque": 133 },
+      { "rpm": 3000, "torque": 140 },
+      { "rpm": 3500, "torque": 144 },
+      { "rpm": 4000, "torque": 146 },
+      { "rpm": 4500, "torque": 142 },
+      { "rpm": 5000, "torque": 138 },
+      { "rpm": 5600, "torque": 132 },
+      { "rpm": 6000, "torque": 120 },
+      { "rpm": 6400, "torque": 98 }
+    ]
+  },
+  "transmission": {
+    "type": "cvt",
+    "isSimulatedGears": true,
+    "hasManualMode": true,
+    "defaultMode": "automatic",
+    "gearCount": 7,
+    "gearRatios": [
+      { "gear": 1, "ratio": 2.480 },
+      { "gear": 2, "ratio": 1.620 },
+      { "gear": 3, "ratio": 1.180 },
+      { "gear": 4, "ratio": 0.920 },
+      { "gear": 5, "ratio": 0.740 },
+      { "gear": 6, "ratio": 0.610 },
+      { "gear": 7, "ratio": 0.510 }
+    ],
+    "reverseRatio": 2.600,
+    "finalDrive": 5.100,
+    "hasClutch": false,
+    "supportedModes": ["eco", "normal", "sport"],
+    "tcs": {
+      "enabled": true,
+      "slipThreshold": 0.15,
+      "torqueReduction": 0.4
+    }
+  },
+  "audio": {
+    "useSamples": false,
+    "synthConfig": {
+      "baseFrequency": 58,
+      "harmonics": [1, 2, 2.98, 4, 5.96],
+      "gainIdle": 0.14,
+      "gainMax": 0.68
+    }
+  },
+  "dashboard": {
+    "type": "default",
+    "theme": "modern",
+    "tachometerMax": 8000,
+    "speedometerMax": 220,
+    "redlineStart": 6200,
+    "shiftLightOffsetRpm": 400,
+    "fuelCapacity": 45,
+    "coolantTempTarget": 90
+  }
+}

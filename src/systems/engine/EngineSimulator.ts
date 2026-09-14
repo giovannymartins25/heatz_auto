@@ -1,5 +1,6 @@
 import type { EngineConfig } from '@/types'
 import type { EngineTickInput, EngineTickResult } from '@/types'
+import type { EngineStatus } from '@/types/simulation'
 import { TorqueCurve } from './TorqueCurve'
 import { clamp } from '@/utils/math'
 import {
@@ -10,172 +11,217 @@ import {
   IDLE_CONTROLLER_GAIN,
 } from './constants'
 
+/** Duração do processo de partida (cranking) pelo motor de arranque em segundos */
+const CRANKING_DURATION = 0.45
+
+/** Rotação crítica de estol em RPM — abaixo disso o motor apaga */
+const STALL_RPM_THRESHOLD = 380
+
 /**
- * EngineSimulator — Simulação física do motor.
+ * EngineSimulator — Simulação física do motor a combustão.
  *
- * Modela o motor como um corpo rotacional (volante do motor / flywheel).
- * O RPM nunca é "setado" diretamente — ele é calculado a cada tick
- * como resultado das forças atuando no volante:
- *
- *   Torque líquido = Torque do motor × throttle
- *                   - Atrito interno
- *                   - Freio motor
- *                   - Carga da transmissão
- *
- *   Aceleração angular = Torque líquido / Momento de inércia
- *   Velocidade angular += Aceleração angular × deltaTime
- *   RPM = Velocidade angular × (60 / 2π)
- *
- * Isso produz comportamento realista:
- * - Motor leve (moto) sobe RPM rápido
- * - Motor pesado (caminhão) sobe RPM devagar
- * - Cada marcha altera a carga no motor
+ * Estados:
+ * - OFF: Desligado (RPM 0)
+ * - STARTING: Dando partida com motor de arranque girando até idle
+ * - RUNNING: Em funcionamento normal produzindo torque
+ * - STALLED: Motor afogou / estolou por excesso de carga ou sub-rotação
  */
 export class EngineSimulator {
   private readonly config: EngineConfig
   private readonly torqueCurve: TorqueCurve
   private readonly momentOfInertia: number
 
-  /** Velocidade angular em rad/s (estado interno) */
-  private angularVelocity: number
-  private isRunning: boolean
+  /** Velocidade angular em rad/s */
+  private angularVelocity: number = 0
+  private status: EngineStatus = 'off'
+  private startingElapsed: number = 0
+  private lastTorqueOutput: number = 0
 
   constructor(config: EngineConfig) {
     this.config = config
     this.torqueCurve = new TorqueCurve(config.torqueCurve)
 
-    // Momento de inércia: I = m × r²
-    // flywheelMass em kg, FLYWHEEL_RADIUS em metros
+    // Momento de inércia do volante: I = m * r²
     this.momentOfInertia = config.flywheelMass * FLYWHEEL_RADIUS * FLYWHEEL_RADIUS
-
-    // Iniciar parado
-    this.angularVelocity = 0
-    this.isRunning = false
   }
 
-  /** Liga o motor — seta o RPM na marcha lenta */
+  getStatus(): EngineStatus {
+    return this.status
+  }
+
+  getIsRunning(): boolean {
+    return this.status === 'running'
+  }
+
+  getIsStalled(): boolean {
+    return this.status === 'stalled'
+  }
+
+  getRpm(): number {
+    return Math.max(0, this.angularVelocity * RAD_S_TO_RPM)
+  }
+
+  getAngularVelocity(): number {
+    return this.angularVelocity
+  }
+
+  getTorqueOutput(): number {
+    return this.lastTorqueOutput
+  }
+
+  /**
+   * Inicia o processo de partida (cranking).
+   * Se já estiver em funcionamento, ignora.
+   * Se estiver parado ou estolado, aciona o motor de arranque.
+   */
   start(): void {
-    this.isRunning = true
-    this.angularVelocity = this.config.idleRpm * RPM_TO_RAD_S
+    if (this.status === 'running' || this.status === 'starting') return
+
+    this.status = 'starting'
+    this.startingElapsed = 0
+    this.angularVelocity = Math.max(this.angularVelocity, 100 * RPM_TO_RAD_S)
   }
 
   /** Desliga o motor */
   stop(): void {
-    this.isRunning = false
-    this.angularVelocity = 0
-  }
-
-  /** Retorna o RPM atual */
-  getRpm(): number {
-    return this.angularVelocity * RAD_S_TO_RPM
-  }
-
-  /** Retorna se o motor está ligado */
-  getIsRunning(): boolean {
-    return this.isRunning
+    this.status = 'off'
+    this.startingElapsed = 0
   }
 
   /**
-   * Executa um tick da simulação física.
-   * Chamado a cada passo do fixed timestep (120Hz).
+   * Executa um tick da simulação do motor (120Hz).
    */
   tick(input: EngineTickInput): EngineTickResult {
-    if (!this.isRunning) {
+    const { throttle, loadTorque, deltaTime } = input
+
+    // ─── 1. ESTADO: OFF ou STALLED ───
+    if (this.status === 'off' || this.status === 'stalled') {
+      // O motor perde rotação por atrito até parar
+      const decayTorque = ENGINE_FRICTION_COEFFICIENT * this.angularVelocity + 15
+      const decel = decayTorque / this.momentOfInertia
+      this.angularVelocity = Math.max(0, this.angularVelocity - decel * deltaTime)
+
       return {
-        rpm: 0,
+        rpm: this.getRpm(),
         torqueOutput: 0,
         isRevLimiting: false,
-        angularVelocity: 0,
+        angularVelocity: this.angularVelocity,
+        isStalled: this.status === 'stalled',
+        status: this.status,
       }
     }
 
+    // ─── 2. ESTADO: STARTING (Cranking) ───
+    if (this.status === 'starting') {
+      this.startingElapsed += deltaTime
+
+      // Durante o cranking, qualquer carga de transmissão é ignorada:
+      // o motor de arranque gira sozinho sem estar acoplado ao drivetrain
+      const progress = clamp(this.startingElapsed / CRANKING_DURATION, 0, 1)
+      const targetRpm = progress * this.config.idleRpm
+      this.angularVelocity = targetRpm * RPM_TO_RAD_S
+
+      if (this.startingElapsed >= CRANKING_DURATION) {
+        // Motor pegou e entra em regime estável de funcionamento
+        this.status = 'running'
+        this.angularVelocity = this.config.idleRpm * RPM_TO_RAD_S
+      }
+
+      return {
+        rpm: this.getRpm(),
+        torqueOutput: 0,
+        isRevLimiting: false,
+        angularVelocity: this.angularVelocity,
+        isStalled: false,
+        status: this.status,
+      }
+    }
+
+    // ─── 3. ESTADO: RUNNING (Funcionamento Normal) ───
     const currentRpm = this.getRpm()
-    const { throttle, deltaTime } = input
 
-    // 1. Torque do motor baseado na curva × throttle
+    // 3.1 Torque do motor baseado na curva de torque x resposta progressiva do acelerador
     const availableTorque = this.torqueCurve.getTorqueAtRpm(currentRpm)
-    let engineTorque = availableTorque * throttle
+    // Curva progressiva de borboleta de aceleração (0-100%)
+    const effectiveThrottle = throttle > 0 ? Math.pow(throttle, 0.75) : 0
+    let engineTorque = availableTorque * effectiveThrottle
 
-    // 2. Rev limiter — corta injeção quando atinge o limite
+    // 3.2 Limitador de Rotação (Rev Limiter) — corta injeção
     let isRevLimiting = false
     if (currentRpm >= this.config.revLimiter) {
       engineTorque = 0
       isRevLimiting = true
     }
 
-    // 3. Controlador de marcha lenta (idle)
-    // Quando throttle = 0, aplica torque para manter RPM de idle
+    // 3.3 Atuador de Marcha Lenta (Idle Controller) & Anti-Stall
+    // Mantém rotação de idle quando acelerador é baixo E atua como anti-stall se o giro cair abaixo do idle
     let idleTorque = 0
-    if (throttle < 0.05 && currentRpm < this.config.idleRpm * 1.2) {
+    if (currentRpm < this.config.idleRpm) {
+      // Sub-rotação: anti-stall atua fortemente para evitar que o motor morra
+      const rpmError = this.config.idleRpm - currentRpm
+      idleTorque = rpmError * IDLE_CONTROLLER_GAIN * 1.5
+      idleTorque = clamp(idleTorque, 0, 80)
+    } else if (throttle < 0.12 && currentRpm < this.config.idleRpm * 1.2) {
       const rpmError = this.config.idleRpm - currentRpm
       idleTorque = rpmError * IDLE_CONTROLLER_GAIN
-      idleTorque = clamp(idleTorque, -20, 50)
+      idleTorque = clamp(idleTorque, -10, 55)
     }
 
-    // 4. Atrito interno do motor
-    // Proporcional à velocidade angular — mais rápido = mais atrito
+    // 3.4 Atrito interno do motor (proporcional à rotação)
     const frictionTorque = ENGINE_FRICTION_COEFFICIENT * this.angularVelocity
 
-    // 5. Freio motor (engine braking)
-    // Ativo quando throttle é baixo e RPM acima de idle
+    // 3.5 Freio Motor (quando throttle é baixo e giro alto)
     let engineBrakeTorque = 0
     if (throttle < 0.05 && currentRpm > this.config.idleRpm * 1.1) {
-      engineBrakeTorque = this.config.engineBrakeFactor * availableTorque * 0.3
+      engineBrakeTorque = this.config.engineBrakeFactor * availableTorque * 0.35
     }
 
-    // 6. Carga da transmissão
-    // Quando engrenado, a inércia do veículo resiste à aceleração
-    let loadTorque = 0
-    if (!input.isClutchPressed && input.currentGear !== 0) {
-      const effectiveRatio = Math.abs(input.gearRatio * input.finalDrive)
-      if (effectiveRatio > 0) {
-        // Simula a resistência do veículo transmitida ao motor
-        // Mais pesado em marchas mais baixas (ratio maior)
-        loadTorque = effectiveRatio * 2.0
-        
-        // Se o veículo está em movimento, a velocidade dele influencia o motor
-        if (input.vehicleSpeed > 0) {
-          const wheelRpm = (input.vehicleSpeed / (Math.PI * input.wheelRadius * 2)) * 60
-          const expectedEngineRpm = wheelRpm * effectiveRatio
-          const rpmDiff = currentRpm - expectedEngineRpm
-          
-          // Se o motor está girando mais rápido que as rodas pedem, a transmissão freia o motor
-          if (rpmDiff > 0) {
-            loadTorque += rpmDiff * 0.02 * effectiveRatio
-          }
-        }
+    // 3.6 Torque Líquido atuando no virabrequim / volante
+    // loadTorque vem da embreagem/transmissão
+    const netTorque = engineTorque + idleTorque - frictionTorque - engineBrakeTorque - loadTorque
+
+    // 3.7 Aceleração Angular: alpha = tau / I
+    const angularAcceleration = netTorque / this.momentOfInertia
+
+    // 3.8 Atualizar Velocidade Angular
+    this.angularVelocity += angularAcceleration * deltaTime
+
+    // 3.9 Limite Superior (maxRpm)
+    const maxAngularVelocity = this.config.maxRpm * RPM_TO_RAD_S
+    this.angularVelocity = Math.min(this.angularVelocity, maxAngularVelocity)
+
+    // 3.10 VERIFICAÇÃO DE ESTOL (MOTOR MORRER)
+    // Se o RPM for forçado abaixo do limiar crítico sob carga excessiva
+    const postRpm = this.getRpm()
+    if (postRpm < STALL_RPM_THRESHOLD) {
+      // O motor afoga / morre!
+      this.status = 'stalled'
+      this.angularVelocity = Math.max(0, this.angularVelocity * 0.5) // Queda brusca
+
+      return {
+        rpm: this.getRpm(),
+        torqueOutput: 0,
+        isRevLimiting: false,
+        angularVelocity: this.angularVelocity,
+        isStalled: true,
+        status: 'stalled',
       }
     }
 
-    // 7. Torque líquido
-    const netTorque = engineTorque + idleTorque - frictionTorque - engineBrakeTorque - loadTorque
-
-    // 8. Aceleração angular: α = τ / I
-    const angularAcceleration = netTorque / this.momentOfInertia
-
-    // 9. Atualizar velocidade angular: ω += α × dt
-    this.angularVelocity += angularAcceleration * deltaTime
-
-    // 10. Clamp RPM — nunca abaixo de 0 e nunca acima de maxRpm
-    const minAngularVelocity = this.isRunning
-      ? (this.config.idleRpm * 0.7) * RPM_TO_RAD_S
-      : 0
-    const maxAngularVelocity = this.config.maxRpm * RPM_TO_RAD_S
-
-    this.angularVelocity = clamp(this.angularVelocity, minAngularVelocity, maxAngularVelocity)
+    const outputTorque = Math.max(0, engineTorque)
+    this.lastTorqueOutput = outputTorque
 
     return {
-      rpm: this.getRpm(),
-      torqueOutput: Math.max(0, engineTorque),
+      rpm: postRpm,
+      torqueOutput: outputTorque,
       isRevLimiting,
       angularVelocity: this.angularVelocity,
+      isStalled: false,
+      status: 'running',
     }
   }
 
-  /**
-   * Força o RPM para um valor específico.
-   * Usado quando a transmissão impõe RPM (ex: trocar de marcha).
-   */
+  /** Força o RPM (ex: troca de marcha rígida em sincronização instantânea) */
   setRpm(rpm: number): void {
     this.angularVelocity = clamp(rpm, 0, this.config.maxRpm) * RPM_TO_RAD_S
   }

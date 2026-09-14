@@ -1,7 +1,4 @@
-/**
- * Tipos do motor de simulação (engine physics).
- * Separado do EngineState para isolar a lógica de configuração do runtime.
- */
+import type { EngineStatus } from './simulation'
 
 /** Resultado de um tick da simulação do motor */
 export interface EngineTickResult {
@@ -9,16 +6,13 @@ export interface EngineTickResult {
   torqueOutput: number      // Nm
   isRevLimiting: boolean
   angularVelocity: number   // rad/s
+  isStalled: boolean
+  status: EngineStatus
 }
 
 /** Parâmetros de entrada para um tick do motor */
 export interface EngineTickInput {
   throttle: number          // 0-1
-  currentGear: number
-  gearRatio: number
-  finalDrive: number
-  vehicleSpeed: number      // m/s
-  wheelRadius: number       // metros
-  isClutchPressed: boolean
+  loadTorque: number        // Torque resistivo transmitido pela embreagem/drivetrain (Nm)
   deltaTime: number         // segundos
 }

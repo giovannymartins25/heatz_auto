@@ -1,3 +1,5 @@
 export { Pedals } from './Pedals'
+export { AnalogPedal } from './AnalogPedal'
+export { ClutchControl } from './ClutchControl'
 export { GearShift } from './GearShift'
 export { EngineButton } from './EngineButton'

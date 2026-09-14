@@ -14,7 +14,7 @@ export function useSimulationLoop() {
   const lastTimeRef = useRef<number>(0)
   const rafRef = useRef<number>(0)
   const update = useSimulationStore((s) => s.update)
-  const isRunning = useSimulationStore((s) => s.isRunning)
+  const isInitialized = useSimulationStore((s) => s._isInitialized)
 
   const loop = useCallback(
     (timestamp: number) => {
@@ -34,7 +34,7 @@ export function useSimulationLoop() {
   )
 
   useEffect(() => {
-    if (isRunning) {
+    if (isInitialized) {
       lastTimeRef.current = 0
       rafRef.current = requestAnimationFrame(loop)
     }
@@ -44,5 +44,5 @@ export function useSimulationLoop() {
         cancelAnimationFrame(rafRef.current)
       }
     }
-  }, [isRunning, loop])
+  }, [isInitialized, loop])
 }

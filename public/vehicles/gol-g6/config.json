@@ -60,8 +60,12 @@
   },
   "dashboard": {
     "type": "default",
+    "theme": "classic",
     "tachometerMax": 8000,
     "speedometerMax": 220,
-    "redlineStart": 6000
+    "redlineStart": 6000,
+    "shiftLightOffsetRpm": 500,
+    "fuelCapacity": 55,
+    "coolantTempTarget": 90
   }
 }
