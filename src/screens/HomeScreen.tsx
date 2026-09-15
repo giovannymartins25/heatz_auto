@@ -3,6 +3,9 @@ import { useVehicleStore } from '@/stores/useVehicleStore'
 import { SearchBar, CategoryFilter, VehicleCard } from '@/components/ui'
 import type { FilterOption } from '@/components/ui'
 
+const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.8.0'
+const buildId = typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev'
+
 /**
  * HomeScreen — Tela inicial do Heatz Auto.
  *
@@ -144,9 +147,12 @@ export function HomeScreen() {
       </main>
 
       {/* ─── Footer ─── */}
-      <footer className="flex flex-col items-center py-6 border-t border-[var(--color-border)]">
+      <footer className="flex flex-col items-center py-6 border-t border-[var(--color-border)] gap-1">
         <p className="text-[10px] font-mono text-[var(--color-text-muted)] tracking-wider">
-          Heatz Auto v0.2.0 · MVP
+          Heatz Auto v{appVersion}
+        </p>
+        <p className="text-[8px] font-mono text-zinc-600 tracking-tight">
+          Build {buildId}
         </p>
       </footer>
     </div>

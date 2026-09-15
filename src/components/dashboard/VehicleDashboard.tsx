@@ -4,8 +4,11 @@ import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useSimulationLoop } from '@/hooks/useSimulationLoop'
 import { useAudio } from '@/hooks/useAudio'
 import { useKeyboardControls } from '@/hooks/useKeyboardControls'
+import { useOrientation } from '@/hooks/useOrientation'
 import { DashboardSystem } from '@/systems/dashboard'
 import { ClusterView } from './ClusterView'
+import { MobileLandscapeCockpit } from './MobileLandscapeCockpit'
+import { RotateDeviceOverlay } from './RotateDeviceOverlay'
 import { PedalTelemetry } from '@/components/gauges'
 import { Pedals, GearShift, EngineButton } from '@/components/controls'
 import type { VehicleConfig, DrivingMode } from '@/types'
@@ -114,6 +117,8 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
     tcsInterventionLevel,
   ])
 
+  const { isLandscape, isPortrait, isMobileDevice, lockLandscape } = useOrientation()
+
   const handleBack = () => {
     reset()
     navigate('/')
@@ -123,6 +128,22 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const isCvtWithManualMode = vehicle.transmission.hasManualMode === true
   const hasTcs = !!vehicle.transmission.tcs?.enabled
   const supportedModes = vehicle.transmission.supportedModes || []
+
+  // ── Em dispositivos móveis verticais: orientar a virar o celular ──
+  if (isMobileDevice && isPortrait) {
+    return <RotateDeviceOverlay onAttemptLock={lockLandscape} />
+  }
+
+  // ── Em dispositivos móveis horizontais: cockpit dedicado para mobile ──
+  if (isMobileDevice && isLandscape) {
+    return (
+      <MobileLandscapeCockpit
+        telemetry={telemetry}
+        vehicle={vehicle}
+        onBack={handleBack}
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col min-h-dvh bg-[var(--color-bg-primary)] safe-top safe-bottom p-3 sm:p-4 justify-between select-none">
@@ -165,9 +186,9 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
           <div className="flex items-center gap-2 justify-end">
             <span className="hidden sm:inline text-[9px] font-mono text-zinc-500 border border-white/10 px-1.5 py-0.5 rounded">
               {vehicle.transmission.hasClutch
-                ? 'W=Acel | E=Freio | Q=Embr'
+                ? 'W=Acel | E=Freio | Q=Embr | [=Up | ]=Down'
                 : isCvtWithManualMode
-                ? 'W=Acel | E=Freio | M=Auto/Man | T=TCS'
+                ? 'W=Acel | E=Freio | [=M+ | ]=M- | M=Auto/Man | T=TCS'
                 : 'W=Acel | E=Freio'}
             </span>
             <span className="text-[10px] uppercase font-mono tracking-widest text-[var(--color-text-muted)] block">

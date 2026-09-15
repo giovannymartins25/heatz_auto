@@ -64,13 +64,17 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
           keysPressedRef.current.q = true
         }
       }
-      // Upshift manual simulado — ] ou ArrowRight
-      else if ((key === ']' || key === 'arrowright') && isManualSimulated && isRunning) {
-        shiftUp()
+      // Subir marcha: [ ou ArrowRight (sem repetição por segurar a tecla)
+      else if ((key === '[' || key === 'arrowright') && isRunning) {
+        if (!event.repeat) {
+          shiftUp()
+        }
       }
-      // Downshift manual simulado — [ ou ArrowLeft
-      else if ((key === '[' || key === 'arrowleft') && isManualSimulated && isRunning) {
-        shiftDown()
+      // Reduzir marcha: ] ou ArrowLeft (sem repetição por segurar a tecla)
+      else if ((key === ']' || key === 'arrowleft') && isRunning) {
+        if (!event.repeat) {
+          shiftDown()
+        }
       }
       // Toggle AUTO ↔ MANUAL SIMULADO — M (sem event.repeat para evitar spam)
       else if (key === 'm' && hasManualMode && !event.repeat && isRunning) {
