@@ -6,9 +6,11 @@ import { Transmission, AutomaticTransmission } from '@/systems/transmission'
 import { ClutchSystem } from '@/systems/clutch'
 import { VehiclePhysics } from '@/systems/physics'
 import { TractionControlSystem } from '@/systems/tcs'
+import { PedalInputSystem } from '@/systems/vehicle'
 import { PHYSICS_TIMESTEP, MAX_SUBSTEPS } from '@/systems/engine/constants'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 import { clamp } from '@/utils/math'
+
 
 /**
  * TransmissionMode — modos de operação da transmissão:
@@ -59,6 +61,7 @@ interface SimulationState {
   rpm: number
   isRunning: boolean
   isStalled: boolean
+  isBogWarning: boolean       // Motor amarrando (pré-afogamento)
   status: EngineStatus
   isRevLimiting: boolean
 
@@ -68,6 +71,14 @@ interface SimulationState {
   transmissionMode: TransmissionMode
   drivingMode: DrivingMode
   isKickdown: boolean
+  lastShiftReason: string     // 'none' | 'clutch_required' | 'over_rev' | 'gear_limit'
+
+  // Estado da embreagem (telemetria real)
+  clutchSlipRpm: number        // Diferenciação de RPM entre motor e transmissão
+  clutchSlipRatio: number      // Razão relativa de patinamento (0 a 1)
+  clutchTorqueTransfer: number // Nm sendo transmitidos pelo disco
+  clutchHeat: number           // Calor acumulado no disco (kJ, preparado para desgaste futuro)
+  isClutchSlipping: boolean
 
   // Estado do TCS
   tcsEnabled: boolean
@@ -86,6 +97,7 @@ interface SimulationState {
   _clutch: ClutchSystem | null
   _physics: VehiclePhysics | null
   _tcs: TractionControlSystem | null
+  _pedalInput: PedalInputSystem | null
   _config: VehicleConfig | null
   _accumulator: number
   _isInitialized: boolean
@@ -98,6 +110,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   rpm: 0,
   isRunning: false,
   isStalled: false,
+  isBogWarning: false,
   status: 'off',
   isRevLimiting: false,
   currentGear: 0,
@@ -105,6 +118,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   transmissionMode: 'manual',
   drivingMode: 'normal',
   isKickdown: false,
+  lastShiftReason: 'none',
+  clutchSlipRpm: 0,
+  clutchSlipRatio: 0,
+  clutchTorqueTransfer: 0,
+  clutchHeat: 0,
+  isClutchSlipping: false,
   tcsEnabled: true,
   tcsIntervening: false,
   tcsInterventionLevel: 0,
@@ -117,6 +136,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   _clutch: null,
   _physics: null,
   _tcs: null,
+  _pedalInput: null,
   _config: null,
   _accumulator: 0,
   _isInitialized: false,
@@ -148,8 +168,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       })
     }
 
-    // TCS: inicializa para todos os veículos (ignorado se tcsEnabled = false)
     const tcs = new TractionControlSystem()
+    const pedalInput = new PedalInputSystem()
 
     const defaultTransMode: TransmissionMode = isAutoOrCvt ? 'automatic' : 'manual'
     const defaultDriveMode: DrivingMode = config.transmission.supportedModes?.includes('normal')
@@ -166,6 +186,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _clutch: clutch,
       _physics: physics,
       _tcs: tcs,
+      _pedalInput: pedalInput,
       _config: config,
       _isInitialized: true,
       rpm: 0,
@@ -177,6 +198,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       transmissionMode: defaultTransMode,
       drivingMode: defaultDriveMode,
       isKickdown: false,
+      isBogWarning: false,
+      lastShiftReason: 'none',
+      clutchSlipRpm: 0,
+      clutchSlipRatio: 0,
+      clutchTorqueTransfer: 0,
+      clutchHeat: 0,
+      isClutchSlipping: false,
       isRunning: false,
       isStalled: false,
       status: 'off',
@@ -305,19 +333,24 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       if (result.newRpm > 0) _engine.setRpm(newRpm)
 
       HapticFeedback.gearShift()
-      set({ currentGear: result.gear, rpm: _engine.getRpm() })
+      set({ currentGear: result.gear, rpm: _engine.getRpm(), lastShiftReason: 'none' })
       return
     }
 
-    // Modo 'manual' convencional (Gol G6, CB1000R)
+    // Modo 'manual' convencional (Gol G6, CB1000R) com validação de embreagem
     if (!_clutch) return
-    const result = _transmission.shiftUp(_engine.getRpm(), speed)
-    if (_clutch.getEngagement() > 0.85 && result.newRpm > 0) {
+    const result = _transmission.shiftUp(_engine.getRpm(), speed, _config.engine.maxRpm)
+
+    if (result.success) {
       const clampedRpm = clamp(result.newRpm, _config.engine.idleRpm, _config.engine.maxRpm)
       _engine.setRpm(clampedRpm)
+      HapticFeedback.gearShift()
+      set({ currentGear: result.gear, rpm: _engine.getRpm(), lastShiftReason: 'none' })
+    } else {
+      // Bloqueado — feedback tátil sutil + registro do motivo
+      if (result.reason === 'clutch_required') HapticFeedback.light()
+      set({ lastShiftReason: result.reason ?? 'none' })
     }
-    HapticFeedback.gearShift()
-    set({ currentGear: result.gear, rpm: _engine.getRpm() })
   },
 
   shiftDown: () => {
@@ -333,8 +366,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
       // Proteção CRÍTICA contra over-rev no downshift
       if (!_transmission.canShiftTo(nextGear, speed, _config.engine.maxRpm)) {
-        // Bloqueado: a relação causaria over-rev
-        HapticFeedback.light() // feedback sutil de bloqueio
+        HapticFeedback.light()
         return
       }
 
@@ -343,19 +375,23 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       if (result.newRpm > 0) _engine.setRpm(newRpm)
 
       HapticFeedback.gearShift()
-      set({ currentGear: result.gear, rpm: _engine.getRpm() })
+      set({ currentGear: result.gear, rpm: _engine.getRpm(), lastShiftReason: 'none' })
       return
     }
 
-    // Modo 'manual' convencional (Gol G6, CB1000R)
+    // Modo 'manual' convencional (Gol G6, CB1000R) com validação de embreagem
     if (!_clutch) return
     const result = _transmission.shiftDown(_engine.getRpm(), speed, _config.engine.maxRpm)
-    if (_clutch.getEngagement() > 0.85 && result.newRpm > 0) {
+
+    if (result.success) {
       const clampedRpm = clamp(result.newRpm, _config.engine.idleRpm, _config.engine.maxRpm)
       _engine.setRpm(clampedRpm)
+      HapticFeedback.gearShift()
+      set({ currentGear: result.gear, rpm: _engine.getRpm(), lastShiftReason: 'none' })
+    } else {
+      if (result.reason === 'clutch_required') HapticFeedback.light()
+      set({ lastShiftReason: result.reason ?? 'none' })
     }
-    HapticFeedback.gearShift()
-    set({ currentGear: result.gear, rpm: _engine.getRpm() })
   },
 
   shiftNeutral: () => {
@@ -390,10 +426,16 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     let latestIsRevLimiting = state.isRevLimiting
     let latestIsRunning = state.isRunning
     let latestIsStalled = state.isStalled
+    let latestIsBogWarning = state.isBogWarning
     let latestStatus = state.status
     let latestIsKickdown = state.isKickdown
     let latestTcsIntervening = state.tcsIntervening
     let latestTcsLevel = state.tcsInterventionLevel
+    let latestClutchSlipRpm = state.clutchSlipRpm
+    let latestClutchSlipRatio = state.clutchSlipRatio
+    let latestClutchTorqueTransfer = state.clutchTorqueTransfer
+    let latestClutchHeat = state.clutchHeat
+    let latestIsClutchSlipping = state.isClutchSlipping
     let substeps = 0
 
     while (accumulator >= PHYSICS_TIMESTEP && substeps < MAX_SUBSTEPS) {
@@ -472,12 +514,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         transInputAngVel,
         isInNeutral,
         _engine.getTorqueOutput(),
+        dt,
       )
 
-      // 4. EngineSimulator: processa o tick com o torque de carga da embreagem
+      // 4. EngineSimulator: processa o tick com o torque de CARGA da embreagem sobre o volante
       const engineTick = _engine.tick({
         throttle: state.throttle,
-        loadTorque: clutchState.transmittedTorque,
+        loadTorque: clutchState.loadTorqueOnEngine, // carga resistiva real da embreagem
         deltaTime: dt,
       })
 
@@ -485,7 +528,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       latestIsRevLimiting = engineTick.isRevLimiting
       latestIsRunning = _engine.getIsRunning()
       latestIsStalled = engineTick.isStalled
+      latestIsBogWarning = engineTick.isBogWarning
       latestStatus = engineTick.status
+
+      // Telemetria da embreagem
+      latestClutchSlipRpm = clutchState.slipRpm
+      latestClutchSlipRatio = clutchState.slipRatio
+      latestClutchTorqueTransfer = clutchState.transmittedTorque
+      latestClutchHeat = clutchState.heat
+      latestIsClutchSlipping = clutchState.isSlipping
 
       // 5. VehiclePhysics: calcula forças longitudinais
       const physicsTick = _physics.tick({
@@ -533,7 +584,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           latestRpm = expectedRpm
         }
       }
-
       accumulator -= dt
       substeps++
     }
@@ -549,11 +599,17 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       currentGear: latestGear,
       isRunning: latestIsRunning,
       isStalled: latestIsStalled,
+      isBogWarning: latestIsBogWarning,
       status: latestStatus,
       isKickdown: latestIsKickdown,
       isRevLimiting: latestIsRevLimiting,
       tcsIntervening: latestTcsIntervening,
       tcsInterventionLevel: latestTcsLevel,
+      clutchSlipRpm: latestClutchSlipRpm,
+      clutchSlipRatio: latestClutchSlipRatio,
+      clutchTorqueTransfer: latestClutchTorqueTransfer,
+      clutchHeat: latestClutchHeat,
+      isClutchSlipping: latestIsClutchSlipping,
       _accumulator: accumulator,
     })
   },
@@ -563,6 +619,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       rpm: 0,
       isRunning: false,
       isStalled: false,
+      isBogWarning: false,
       status: 'off',
       isRevLimiting: false,
       currentGear: 0,
@@ -570,6 +627,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       transmissionMode: 'manual',
       drivingMode: 'normal',
       isKickdown: false,
+      lastShiftReason: 'none',
+      clutchSlipRpm: 0,
+      clutchSlipRatio: 0,
+      clutchTorqueTransfer: 0,
+      clutchHeat: 0,
+      isClutchSlipping: false,
       tcsEnabled: true,
       tcsIntervening: false,
       tcsInterventionLevel: 0,
@@ -582,6 +645,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _clutch: null,
       _physics: null,
       _tcs: null,
+      _pedalInput: null,
       _config: null,
       _accumulator: 0,
       _isInitialized: false,

@@ -8,6 +8,7 @@ export interface DashboardInput {
   rpm: number
   engineStatus: EngineStatus
   isRevLimiting: boolean
+  isBogWarning: boolean
   engineConfig: {
     maxRpm: number
     idleRpm: number
@@ -22,6 +23,11 @@ export interface DashboardInput {
   throttle: number
   brake: number
   clutchPosition: number
+  clutchSlipRpm: number
+  clutchSlipRatio: number
+  clutchTorqueTransfer: number
+  clutchHeat: number
+  isClutchSlipping: boolean
   tcsEnabled: boolean
   tcsIntervening: boolean
   tcsInterventionLevel: number
@@ -63,11 +69,20 @@ export interface DashboardTelemetry {
     isStalled: boolean
     isStarting: boolean
     isOff: boolean
+    isBogWarning: boolean
   }
   pedals: {
     throttlePercent: number
     brakePercent: number
     clutchPercent: number | null
+    hasClutch: boolean
+  }
+  clutchTelemetry: {
+    slipRpm: number
+    slipRatio: number
+    torqueTransfer: number
+    heat: number
+    isSlipping: boolean
     hasClutch: boolean
   }
   tcs: {
@@ -84,6 +99,8 @@ export interface DashboardTelemetry {
     tcs: boolean
     tcsFlash: boolean
     temp: boolean
+    clutchSlip: boolean
+    bogWarning: boolean
   }
   auxGauges: {
     fuelLevel: number
@@ -112,6 +129,7 @@ export class DashboardSystem {
       rpm,
       engineStatus,
       isRevLimiting,
+      isBogWarning,
       engineConfig,
       speed,
       currentGear,
@@ -122,6 +140,11 @@ export class DashboardSystem {
       throttle,
       brake,
       clutchPosition,
+      clutchSlipRpm,
+      clutchSlipRatio,
+      clutchTorqueTransfer,
+      clutchHeat,
+      isClutchSlipping,
       tcsEnabled,
       tcsIntervening,
       tcsInterventionLevel,
@@ -196,7 +219,6 @@ export class DashboardSystem {
     const throttlePercent = Math.round(clamp(throttle, 0, 1) * 100)
     const brakePercent = Math.round(clamp(brake, 0, 1) * 100)
     const clutchPercent = hasClutch ? Math.round(clamp(clutchPosition, 0, 1) * 100) : null
-
     // 7. Luzes de aviso automotivas (Tell-tales baseadas em estados reais)
     const warningLights = {
       // Check engine: acende se motor estolou ou no auto-teste durante partida
@@ -213,6 +235,10 @@ export class DashboardSystem {
       tcsFlash: tcsEnabled && tcsIntervening,
       // Temperatura: neutro (pronto para futura física térmica)
       temp: false,
+      // Clutch slip: indica patinão ativa da embreagem
+      clutchSlip: hasClutch && (isClutchSlipping ?? false),
+      // Bog warning: motor amarrando (pré-afogamento)
+      bogWarning: (isBogWarning ?? false) && engineStatus === 'running',
     }
 
     // 8. Instrumentos auxiliares (Combustível e Temperatura — estrutura preparada)
@@ -255,11 +281,20 @@ export class DashboardSystem {
         isStalled: engineStatus === 'stalled',
         isStarting: engineStatus === 'starting',
         isOff: engineStatus === 'off',
+        isBogWarning: (isBogWarning ?? false) && engineStatus === 'running',
       },
       pedals: {
         throttlePercent,
         brakePercent,
         clutchPercent,
+        hasClutch,
+      },
+      clutchTelemetry: {
+        slipRpm: hasClutch ? (clutchSlipRpm ?? 0) : 0,
+        slipRatio: hasClutch ? (clutchSlipRatio ?? 0) : 0,
+        torqueTransfer: clutchTorqueTransfer ?? 0,
+        heat: hasClutch ? (clutchHeat ?? 0) : 0,
+        isSlipping: hasClutch && (isClutchSlipping ?? false),
         hasClutch,
       },
       tcs: {
@@ -290,6 +325,7 @@ export class DashboardSystem {
       rpm: number
       status: EngineStatus
       isRevLimiting: boolean
+      isBogWarning: boolean
       speed: number
       currentGear: number
       transmissionMode: TransmissionMode
@@ -298,6 +334,11 @@ export class DashboardSystem {
       throttle: number
       brake: number
       clutchPosition: number
+      clutchSlipRpm: number
+      clutchSlipRatio: number
+      clutchTorqueTransfer: number
+      clutchHeat: number
+      isClutchSlipping: boolean
       tcsEnabled: boolean
       tcsIntervening: boolean
       tcsInterventionLevel: number
@@ -307,6 +348,7 @@ export class DashboardSystem {
       rpm: state.rpm,
       engineStatus: state.status,
       isRevLimiting: state.isRevLimiting,
+      isBogWarning: state.isBogWarning,
       engineConfig: {
         maxRpm: config.engine.maxRpm,
         idleRpm: config.engine.idleRpm,
@@ -321,6 +363,11 @@ export class DashboardSystem {
       throttle: state.throttle,
       brake: state.brake,
       clutchPosition: state.clutchPosition,
+      clutchSlipRpm: state.clutchSlipRpm,
+      clutchSlipRatio: state.clutchSlipRatio,
+      clutchTorqueTransfer: state.clutchTorqueTransfer,
+      clutchHeat: state.clutchHeat,
+      isClutchSlipping: state.isClutchSlipping,
       tcsEnabled: state.tcsEnabled,
       tcsIntervening: state.tcsIntervening,
       tcsInterventionLevel: state.tcsInterventionLevel,

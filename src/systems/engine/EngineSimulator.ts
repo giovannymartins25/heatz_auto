@@ -11,6 +11,7 @@ import {
   IDLE_CONTROLLER_GAIN,
 } from './constants'
 
+
 /** Duração do processo de partida (cranking) pelo motor de arranque em segundos */
 const CRANKING_DURATION = 0.45
 
@@ -107,6 +108,7 @@ export class EngineSimulator {
         isRevLimiting: false,
         angularVelocity: this.angularVelocity,
         isStalled: this.status === 'stalled',
+        isBogWarning: false,
         status: this.status,
       }
     }
@@ -133,6 +135,7 @@ export class EngineSimulator {
         isRevLimiting: false,
         angularVelocity: this.angularVelocity,
         isStalled: false,
+        isBogWarning: false,
         status: this.status,
       }
     }
@@ -153,18 +156,20 @@ export class EngineSimulator {
       isRevLimiting = true
     }
 
-    // 3.3 Atuador de Marcha Lenta (Idle Controller) & Anti-Stall
-    // Mantém rotação de idle quando acelerador é baixo E atua como anti-stall se o giro cair abaixo do idle
+    // 3.3 Atuador de Marcha Lenta (Idle Controller)
+    // Mantém a rotação de idle quando não há carga, mas cede sob carga pesada da transmissão.
+    // A força do controlador é inversamente proporcional à carga — isso permite afogamento real.
+    const loadFraction = clamp(loadTorque / Math.max(this.config.maxTorque * 0.5, 1), 0, 1)
+    const idleGainReduction = 1.0 - loadFraction * 0.85
     let idleTorque = 0
     if (currentRpm < this.config.idleRpm) {
-      // Sub-rotação: anti-stall atua fortemente para evitar que o motor morra
       const rpmError = this.config.idleRpm - currentRpm
-      idleTorque = rpmError * IDLE_CONTROLLER_GAIN * 1.5
-      idleTorque = clamp(idleTorque, 0, 80)
+      // Quanto maior a carga, menor a capacidade do controlador de recuperar o giro
+      const rawIdleTorque = rpmError * IDLE_CONTROLLER_GAIN * 1.5 * idleGainReduction
+      idleTorque = clamp(rawIdleTorque, 0, 80 * idleGainReduction)
     } else if (throttle < 0.12 && currentRpm < this.config.idleRpm * 1.2) {
       const rpmError = this.config.idleRpm - currentRpm
-      idleTorque = rpmError * IDLE_CONTROLLER_GAIN
-      idleTorque = clamp(idleTorque, -10, 55)
+      idleTorque = clamp(rpmError * IDLE_CONTROLLER_GAIN * idleGainReduction, -10, 55)
     }
 
     // 3.4 Atrito interno do motor (proporcional à rotação)
@@ -191,12 +196,13 @@ export class EngineSimulator {
     this.angularVelocity = Math.min(this.angularVelocity, maxAngularVelocity)
 
     // 3.10 VERIFICAÇÃO DE ESTOL (MOTOR MORRER)
-    // Se o RPM for forçado abaixo do limiar crítico sob carga excessiva
+    // O motor afoga quando o torque líquido derruba o RPM abaixo do limiar crítico.
+    // Esta é uma consequência natural da física — não um if artificial.
     const postRpm = this.getRpm()
     if (postRpm < STALL_RPM_THRESHOLD) {
-      // O motor afoga / morre!
       this.status = 'stalled'
-      this.angularVelocity = Math.max(0, this.angularVelocity * 0.5) // Queda brusca
+      // A inércia do volante não permite queda instantânea — decelera suavemente
+      this.angularVelocity = Math.max(0, this.angularVelocity * 0.4)
 
       return {
         rpm: this.getRpm(),
@@ -204,9 +210,14 @@ export class EngineSimulator {
         isRevLimiting: false,
         angularVelocity: this.angularVelocity,
         isStalled: true,
+        isBogWarning: false,
         status: 'stalled',
       }
     }
+
+    // 3.11 BOG WARNING — motor amarrando mas ainda não afogou
+    // Ocorre quando RPM está abaixo de 30% acima do idle sob carga
+    const isBogWarning = postRpm < this.config.idleRpm * 1.30 && loadTorque > 0 && throttle < 0.4
 
     const outputTorque = Math.max(0, engineTorque)
     this.lastTorqueOutput = outputTorque
@@ -217,6 +228,7 @@ export class EngineSimulator {
       isRevLimiting,
       angularVelocity: this.angularVelocity,
       isStalled: false,
+      isBogWarning: isBogWarning ?? false,
       status: 'running',
     }
   }

@@ -7,6 +7,7 @@ export interface EngineTickResult {
   isRevLimiting: boolean
   angularVelocity: number   // rad/s
   isStalled: boolean
+  isBogWarning: boolean     // RPM abaixo do idle sob carga (motor amarrando, pré-afogamento)
   status: EngineStatus
 }
 

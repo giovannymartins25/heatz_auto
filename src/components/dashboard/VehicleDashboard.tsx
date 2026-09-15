@@ -28,9 +28,15 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
   const isKickdown = useSimulationStore((s) => s.isKickdown)
+  const isBogWarning = useSimulationStore((s) => s.isBogWarning)
   const throttle = useSimulationStore((s) => s.throttle)
   const brake = useSimulationStore((s) => s.brake)
   const clutchPosition = useSimulationStore((s) => s.clutchPosition)
+  const clutchSlipRpm = useSimulationStore((s) => s.clutchSlipRpm)
+  const clutchSlipRatio = useSimulationStore((s) => s.clutchSlipRatio)
+  const clutchTorqueTransfer = useSimulationStore((s) => s.clutchTorqueTransfer)
+  const clutchHeat = useSimulationStore((s) => s.clutchHeat)
+  const isClutchSlipping = useSimulationStore((s) => s.isClutchSlipping)
   const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
   const tcsIntervening = useSimulationStore((s) => s.tcsIntervening)
   const tcsInterventionLevel = useSimulationStore((s) => s.tcsInterventionLevel)
@@ -65,6 +71,7 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
       rpm,
       status,
       isRevLimiting,
+      isBogWarning,
       speed,
       currentGear,
       transmissionMode,
@@ -73,6 +80,11 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
       throttle,
       brake,
       clutchPosition,
+      clutchSlipRpm,
+      clutchSlipRatio,
+      clutchTorqueTransfer,
+      clutchHeat,
+      isClutchSlipping,
       tcsEnabled,
       tcsIntervening,
       tcsInterventionLevel,
@@ -83,6 +95,7 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
     rpm,
     status,
     isRevLimiting,
+    isBogWarning,
     speed,
     currentGear,
     transmissionMode,
@@ -91,6 +104,11 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
     throttle,
     brake,
     clutchPosition,
+    clutchSlipRpm,
+    clutchSlipRatio,
+    clutchTorqueTransfer,
+    clutchHeat,
+    isClutchSlipping,
     tcsEnabled,
     tcsIntervening,
     tcsInterventionLevel,
@@ -235,6 +253,20 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
                 <span className="text-amber-400 font-black">●</span>
               )}
             </button>
+          )}
+
+          {/* Indicador de Patinação da Embreagem (apenas manuais) */}
+          {vehicle.transmission.hasClutch && telemetry.clutchTelemetry.isSlipping && (
+            <span className="px-2 py-0.5 rounded-full border border-orange-500/60 bg-orange-500/10 text-orange-400 text-[9px] font-mono font-bold uppercase animate-pulse">
+              CLUTCH SLIP {Math.round(telemetry.clutchTelemetry.slipRpm)}rpm
+            </span>
+          )}
+
+          {/* Aviso de motor amarrando (BOG) */}
+          {telemetry.engine.isBogWarning && (
+            <span className="px-2 py-0.5 rounded-full border border-yellow-500/60 bg-yellow-500/10 text-yellow-400 text-[9px] font-mono font-bold uppercase animate-pulse">
+              BOG!
+            </span>
           )}
         </div>
 
