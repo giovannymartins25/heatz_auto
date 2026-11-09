@@ -1,10 +1,11 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import type { VehicleConfig, DrivingMode } from '@/types'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { EngineButton } from '@/components/controls/EngineButton'
+import { ClusterView } from './ClusterView'
 
 export interface MobileLandscapeCockpitProps {
   telemetry: DashboardTelemetry
@@ -53,6 +54,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const isManualSimulated = transmissionMode === 'manual_simulated'
   const isManualOrSimulated = transmissionMode === 'manual' || transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
+  const [centerMode, setCenterMode] = useState<'cluster' | 'hud'>('cluster')
 
   // Formatação de valores centrais
   const displaySpeed = Math.round(telemetry.speedometer.speed)
@@ -182,6 +184,19 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                 {best0to100 ? `${best0to100.toFixed(2)}s` : current0to100 ? `${current0to100.toFixed(2)}s` : '--'}
               </span>
             </div>
+
+            {/* Alternador Painel Real / HUD */}
+            <button
+              onClick={() => setCenterMode(centerMode === 'cluster' ? 'hud' : 'cluster')}
+              className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                centerMode === 'cluster'
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                  : 'bg-zinc-900 text-zinc-400 border-white/10'
+              }`}
+              title="Alternar entre Painel Real e HUD Digital"
+            >
+              {centerMode === 'cluster' ? '🏎️ PAINEL' : '⚡ HUD'}
+            </button>
           </div>
 
           <div className="text-right">
@@ -194,78 +209,87 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           </div>
         </header>
 
-        {/* Bloco Central de Telemetria Horizontal */}
-        <div className="flex flex-col items-center justify-center w-full my-auto gap-2">
-          {/* Alertas Físicos: BOG e CLUTCH SLIP */}
-          <div className="flex items-center gap-2 h-5">
-            {telemetry.engine.isBogWarning && (
-              <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 border border-yellow-500 text-yellow-300 text-[9px] font-mono font-black animate-pulse">
-                MOTOR AMARRANDO (BOG!)
-              </span>
-            )}
-            {hasClutch && telemetry.clutchTelemetry.isSlipping && (
-              <span className="px-2 py-0.5 rounded-full bg-orange-500/20 border border-orange-500 text-orange-400 text-[9px] font-mono font-black animate-pulse">
-                PATINANDO {Math.round(telemetry.clutchTelemetry.slipRpm)} RPM
-              </span>
-            )}
-            {telemetry.shiftLight.isActive && (
-              <span className="px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500 text-red-400 text-[9px] font-mono font-black animate-ping">
-                CORTE DE GIRO!
-              </span>
-            )}
+        {/* ── Centro: Painel Real Completo ou HUD Digital ── */}
+        {centerMode === 'cluster' ? (
+          <div className="w-full flex-1 flex items-center justify-center overflow-hidden my-auto py-0.5 select-none pointer-events-none">
+            <div className="scale-[0.50] xs:scale-[0.60] sm:scale-[0.72] md:scale-[0.84] origin-center flex items-center justify-center">
+              <ClusterView telemetry={telemetry} />
+            </div>
           </div>
-
-          {/* Destaque Central: Velocidade, Marcha e RPM */}
-          <div className="flex items-center justify-center gap-6 sm:gap-8 w-full">
-            {/* Velocímetro Digital */}
-            <div className="flex flex-col items-center">
-              <span className="text-4xl sm:text-5xl font-mono font-black tracking-tight text-white leading-none">
-                {displaySpeed}
-              </span>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
-                KM/H
-              </span>
+        ) : (
+          /* Bloco Central de Telemetria Horizontal */
+          <div className="flex flex-col items-center justify-center w-full my-auto gap-2">
+            {/* Alertas Físicos: BOG e CLUTCH SLIP */}
+            <div className="flex items-center gap-2 h-5">
+              {telemetry.engine.isBogWarning && (
+                <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 border border-yellow-500 text-yellow-300 text-[9px] font-mono font-black animate-pulse">
+                  MOTOR AMARRANDO (BOG!)
+                </span>
+              )}
+              {hasClutch && telemetry.clutchTelemetry.isSlipping && (
+                <span className="px-2 py-0.5 rounded-full bg-orange-500/20 border border-orange-500 text-orange-400 text-[9px] font-mono font-black animate-pulse">
+                  PATINANDO {Math.round(telemetry.clutchTelemetry.slipRpm)} RPM
+                </span>
+              )}
+              {telemetry.shiftLight.isActive && (
+                <span className="px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500 text-red-400 text-[9px] font-mono font-black animate-ping">
+                  CORTE DE GIRO!
+                </span>
+              )}
             </div>
 
-            {/* Marcha em Destaque com Moldura Esportiva */}
-            <div className="relative flex flex-col items-center justify-center w-20 h-20 sm:w-22 sm:h-22 rounded-2xl bg-zinc-900/90 border-2 border-[var(--color-accent)] shadow-[0_0_25px_var(--color-accent-muted)]">
-              <span className="text-3xl sm:text-4xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
-                {telemetry.gear.label}
-              </span>
-              <span className="text-[9px] font-mono font-bold text-zinc-400 uppercase mt-0.5">
-                {telemetry.gear.subLabel}
-              </span>
+            {/* Destaque Central: Velocidade, Marcha e RPM */}
+            <div className="flex items-center justify-center gap-6 sm:gap-8 w-full">
+              {/* Velocímetro Digital */}
+              <div className="flex flex-col items-center">
+                <span className="text-4xl sm:text-5xl font-mono font-black tracking-tight text-white leading-none">
+                  {displaySpeed}
+                </span>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                  KM/H
+                </span>
+              </div>
+
+              {/* Marcha em Destaque com Moldura Esportiva */}
+              <div className="relative flex flex-col items-center justify-center w-20 h-20 sm:w-22 sm:h-22 rounded-2xl bg-zinc-900/90 border-2 border-[var(--color-accent)] shadow-[0_0_25px_var(--color-accent-muted)]">
+                <span className="text-3xl sm:text-4xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
+                  {telemetry.gear.label}
+                </span>
+                <span className="text-[9px] font-mono font-bold text-zinc-400 uppercase mt-0.5">
+                  {telemetry.gear.subLabel}
+                </span>
+              </div>
+
+              {/* Conta-giros Digital */}
+              <div className="flex flex-col items-center">
+                <span
+                  className={`text-4xl sm:text-5xl font-mono font-black tracking-tight leading-none ${
+                    displayRpm > maxRpm * 0.9 ? 'text-red-500 animate-pulse' : 'text-zinc-200'
+                  }`}
+                >
+                  {displayRpm}
+                </span>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                  RPM
+                </span>
+              </div>
             </div>
 
-            {/* Conta-giros Digital */}
-            <div className="flex flex-col items-center">
-              <span
-                className={`text-4xl sm:text-5xl font-mono font-black tracking-tight leading-none ${
-                  displayRpm > maxRpm * 0.9 ? 'text-red-500 animate-pulse' : 'text-zinc-200'
+            {/* Barra Horizontal Dinâmica de RPM */}
+            <div className="w-full max-w-md bg-zinc-900 h-3 rounded-full overflow-hidden border border-white/10 p-0.5">
+              <div
+                className={`h-full rounded-full transition-all duration-75 ${
+                  displayRpm > maxRpm * 0.88
+                    ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]'
+                    : displayRpm > maxRpm * 0.7
+                    ? 'bg-amber-400'
+                    : 'bg-[var(--color-accent)]'
                 }`}
-              >
-                {displayRpm}
-              </span>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
-                RPM
-              </span>
+                style={{ width: `${rpmPercent}%` }}
+              />
             </div>
           </div>
-
-          {/* Barra Horizontal Dinâmica de RPM */}
-          <div className="w-full max-w-md bg-zinc-900 h-3 rounded-full overflow-hidden border border-white/10 p-0.5">
-            <div
-              className={`h-full rounded-full transition-all duration-75 ${
-                displayRpm > maxRpm * 0.88
-                  ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]'
-                  : displayRpm > maxRpm * 0.7
-                  ? 'bg-amber-400'
-                  : 'bg-[var(--color-accent)]'
-              }`}
-              style={{ width: `${rpmPercent}%` }}
-            />
-          </div>
-        </div>
+        )}
 
         {/* Rodapé Central: Indicadores de telemetria de pedais */}
         <footer className="w-full flex items-center justify-between text-[10px] font-mono text-zinc-500 border-t border-white/5 pt-1">

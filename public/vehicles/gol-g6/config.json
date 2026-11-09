@@ -55,7 +55,11 @@
       "baseFrequency": 65,
       "harmonics": [1, 2, 3, 4.02, 6],
       "gainIdle": 0.15,
-      "gainMax": 0.7
+      "gainMax": 0.7,
+      "cylinders": 4,
+      "engineType": "i4",
+      "exhaustResonanceHz": 175,
+      "intakeResonanceHz": 520
     }
   },
   "dashboard": {

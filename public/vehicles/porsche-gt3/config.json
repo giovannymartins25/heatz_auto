@@ -65,7 +65,12 @@
       "baseFrequency": 75,
       "harmonics": [1, 2, 3, 4.5, 6, 8.05],
       "gainIdle": 0.18,
-      "gainMax": 0.85
+      "gainMax": 0.85,
+      "cylinders": 6,
+      "engineType": "boxer6",
+      "exhaustResonanceHz": 340,
+      "intakeResonanceHz": 750,
+      "hasBrapOnShift": true
     }
   },
   "dashboard": {

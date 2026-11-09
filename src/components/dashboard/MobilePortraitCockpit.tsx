@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import type { VehicleConfig, DrivingMode } from '@/types'
 import { useSimulationStore } from '@/stores/useSimulationStore'
@@ -6,6 +6,7 @@ import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { EngineButton } from '@/components/controls/EngineButton'
 import { WarningLights, AuxGauges } from '@/components/gauges'
+import { ClusterView } from './ClusterView'
 
 export interface MobilePortraitCockpitProps {
   telemetry: DashboardTelemetry
@@ -49,6 +50,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const isManualSimulated = transmissionMode === 'manual_simulated'
   const isManualOrSimulated = transmissionMode === 'manual' || transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
+  const [portraitMode, setPortraitMode] = useState<'cluster' | 'hud'>('cluster')
 
   const displaySpeed = Math.round(telemetry.speedometer.speed)
   const displayRpm = Math.round(telemetry.tachometer.rpm)
@@ -129,100 +131,126 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 
       {/* ─── 2. Bloco Central: Painel de Instrumentos Vertical ─── */}
       <main className="flex-1 flex flex-col justify-around items-center px-2 py-2 min-w-0">
-        {/* Luzes de Alerta no Topo */}
+        {/* Luzes de Alerta no Topo e Alternador */}
         <div className="flex items-center justify-between w-full px-2">
           <WarningLights lights={telemetry.warningLights} />
 
-          {/* 0-100 km/h chip */}
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-900 border border-white/10 text-[9px] font-mono">
-            <span className="text-zinc-500">0-100:</span>
-            <span className="font-bold text-amber-400">
-              {best0to100 ? `${best0to100.toFixed(2)}s` : current0to100 ? `${current0to100.toFixed(2)}s` : '--'}
-            </span>
-          </div>
-        </div>
+          <div className="flex items-center gap-1.5">
+            {/* 0-100 km/h chip */}
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-900 border border-white/10 text-[9px] font-mono">
+              <span className="text-zinc-500">0-100:</span>
+              <span className="font-bold text-amber-400">
+                {best0to100 ? `${best0to100.toFixed(2)}s` : current0to100 ? `${current0to100.toFixed(2)}s` : '--'}
+              </span>
+            </div>
 
-        {/* Alertas Físicos */}
-        <div className="flex items-center gap-2 h-4 my-0.5">
-          {telemetry.engine.isBogWarning && (
-            <span className="px-2 py-0.2 rounded-full bg-yellow-500/20 border border-yellow-500 text-yellow-300 text-[8px] font-mono font-black animate-pulse">
-              MOTOR AMARRANDO (BOG!)
-            </span>
-          )}
-          {hasClutch && telemetry.clutchTelemetry.isSlipping && (
-            <span className="px-2 py-0.2 rounded-full bg-orange-500/20 border border-orange-500 text-orange-400 text-[8px] font-mono font-black animate-pulse">
-              PATINANDO {Math.round(telemetry.clutchTelemetry.slipRpm)} RPM
-            </span>
-          )}
-          {telemetry.shiftLight.isActive && (
-            <span className="px-2 py-0.2 rounded-full bg-red-500/20 border border-red-500 text-red-400 text-[8px] font-mono font-black animate-ping">
-              CORTE DE GIRO!
-            </span>
-          )}
-        </div>
-
-        {/* Destaque: Marcha, Velocidade e RPM em grande formato */}
-        <div className="flex items-center justify-center gap-5 w-full">
-          {/* Velocidade */}
-          <div className="flex flex-col items-center">
-            <span className="text-4xl sm:text-5xl font-mono font-black tracking-tight text-white leading-none">
-              {displaySpeed}
-            </span>
-            <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
-              KM/H
-            </span>
-          </div>
-
-          {/* Moldura de Marcha */}
-          <div className="relative flex flex-col items-center justify-center w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-zinc-900/90 border-2 border-[var(--color-accent)] shadow-[0_0_20px_var(--color-accent-muted)]">
-            <span className="text-3xl sm:text-4xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
-              {telemetry.gear.label}
-            </span>
-            <span className="text-[8px] font-mono font-bold text-zinc-400 uppercase">
-              {telemetry.gear.subLabel}
-            </span>
-          </div>
-
-          {/* RPM */}
-          <div className="flex flex-col items-center">
-            <span
-              className={`text-4xl sm:text-5xl font-mono font-black tracking-tight leading-none ${
-                displayRpm > maxRpm * 0.9 ? 'text-red-500 animate-pulse' : 'text-zinc-200'
+            {/* Alternador Painel Real / HUD */}
+            <button
+              onClick={() => setPortraitMode(portraitMode === 'cluster' ? 'hud' : 'cluster')}
+              className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                portraitMode === 'cluster'
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                  : 'bg-zinc-900 text-zinc-400 border-white/10'
               }`}
+              title="Alternar entre Painel Real e HUD"
             >
-              {displayRpm}
-            </span>
-            <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
-              RPM
-            </span>
+              {portraitMode === 'cluster' ? '🏎️ PAINEL' : '⚡ HUD'}
+            </button>
           </div>
         </div>
 
-        {/* Barra Curva / Horizontal de RPM */}
-        <div className="w-full max-w-xs bg-zinc-900 h-2.5 rounded-full overflow-hidden border border-white/10 p-0.5 my-1">
-          <div
-            className={`h-full rounded-full transition-all duration-75 ${
-              displayRpm > maxRpm * 0.88
-                ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]'
-                : displayRpm > maxRpm * 0.7
-                ? 'bg-amber-400'
-                : 'bg-[var(--color-accent)]'
-            }`}
-            style={{ width: `${rpmPercent}%` }}
-          />
-        </div>
+        {/* ── Centro: Painel Real Completo ou HUD Digital ── */}
+        {portraitMode === 'cluster' ? (
+          <div className="w-full flex-1 flex items-center justify-center overflow-hidden my-auto py-1 select-none pointer-events-none">
+            <div className="scale-[0.48] xs:scale-[0.55] sm:scale-[0.65] origin-center flex items-center justify-center">
+              <ClusterView telemetry={telemetry} />
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center w-full gap-2 my-auto">
+            {/* Alertas Físicos */}
+            <div className="flex items-center gap-2 h-4 my-0.5">
+              {telemetry.engine.isBogWarning && (
+                <span className="px-2 py-0.2 rounded-full bg-yellow-500/20 border border-yellow-500 text-yellow-300 text-[8px] font-mono font-black animate-pulse">
+                  MOTOR AMARRANDO (BOG!)
+                </span>
+              )}
+              {hasClutch && telemetry.clutchTelemetry.isSlipping && (
+                <span className="px-2 py-0.2 rounded-full bg-orange-500/20 border border-orange-500 text-orange-400 text-[8px] font-mono font-black animate-pulse">
+                  PATINANDO {Math.round(telemetry.clutchTelemetry.slipRpm)} RPM
+                </span>
+              )}
+              {telemetry.shiftLight.isActive && (
+                <span className="px-2 py-0.2 rounded-full bg-red-500/20 border border-red-500 text-red-400 text-[8px] font-mono font-black animate-ping">
+                  CORTE DE GIRO!
+                </span>
+              )}
+            </div>
 
-        {/* Marcadores Auxiliares */}
-        <div className="w-full flex justify-center scale-90">
-          <AuxGauges
-            fuelLevel={telemetry.auxGauges.fuelLevel}
-            fuelCapacity={telemetry.auxGauges.fuelCapacity}
-            fuelPercent={telemetry.auxGauges.fuelPercent}
-            coolantTemp={telemetry.auxGauges.coolantTemp}
-            tempTarget={telemetry.auxGauges.tempTarget}
-            isTempOptimal={telemetry.auxGauges.isTempOptimal}
-          />
-        </div>
+            {/* Destaque: Marcha, Velocidade e RPM em grande formato */}
+            <div className="flex items-center justify-center gap-5 w-full">
+              {/* Velocidade */}
+              <div className="flex flex-col items-center">
+                <span className="text-4xl sm:text-5xl font-mono font-black tracking-tight text-white leading-none">
+                  {displaySpeed}
+                </span>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                  KM/H
+                </span>
+              </div>
+
+              {/* Moldura de Marcha */}
+              <div className="relative flex flex-col items-center justify-center w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-zinc-900/90 border-2 border-[var(--color-accent)] shadow-[0_0_20px_var(--color-accent-muted)]">
+                <span className="text-3xl sm:text-4xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
+                  {telemetry.gear.label}
+                </span>
+                <span className="text-[8px] font-mono font-bold text-zinc-400 uppercase">
+                  {telemetry.gear.subLabel}
+                </span>
+              </div>
+
+              {/* RPM */}
+              <div className="flex flex-col items-center">
+                <span
+                  className={`text-4xl sm:text-5xl font-mono font-black tracking-tight leading-none ${
+                    displayRpm > maxRpm * 0.9 ? 'text-red-500 animate-pulse' : 'text-zinc-200'
+                  }`}
+                >
+                  {displayRpm}
+                </span>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                  RPM
+                </span>
+              </div>
+            </div>
+
+            {/* Barra Curva / Horizontal de RPM */}
+            <div className="w-full max-w-xs bg-zinc-900 h-2.5 rounded-full overflow-hidden border border-white/10 p-0.5 my-1">
+              <div
+                className={`h-full rounded-full transition-all duration-75 ${
+                  displayRpm > maxRpm * 0.88
+                    ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]'
+                    : displayRpm > maxRpm * 0.7
+                    ? 'bg-amber-400'
+                    : 'bg-[var(--color-accent)]'
+                }`}
+                style={{ width: `${rpmPercent}%` }}
+              />
+            </div>
+
+            {/* Marcadores Auxiliares */}
+            <div className="w-full flex justify-center scale-90">
+              <AuxGauges
+                fuelLevel={telemetry.auxGauges.fuelLevel}
+                fuelCapacity={telemetry.auxGauges.fuelCapacity}
+                fuelPercent={telemetry.auxGauges.fuelPercent}
+                coolantTemp={telemetry.auxGauges.coolantTemp}
+                tempTarget={telemetry.auxGauges.tempTarget}
+                isTempOptimal={telemetry.auxGauges.isTempOptimal}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Barra de Ações: Start Engine, Câmbio e Buzina */}
         <div className="flex items-center justify-between w-full max-w-xs px-2 pt-1">

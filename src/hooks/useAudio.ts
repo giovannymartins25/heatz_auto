@@ -4,16 +4,22 @@ import { SynthEngine } from '@/systems/audio/SynthEngine'
 import type { VehicleConfig } from '@/types'
 
 /**
- * useAudio — Conecta o sistema de áudio à simulação.
+ * useAudio — Conecta o sistema de áudio acústico realista à simulação.
  *
- * Cria e gerencia o SynthEngine, atualizando RPM e throttle
- * a cada frame baseado no estado da simulação store.
+ * Gerencia o ciclo de vida do SynthEngine, sincronizando RPM, throttle,
+ * corte de giro, estampidos de troca de marcha (brap), borbulhas de escape
+ * e efeitos de partida e buzina com a física do veículo.
  */
 export function useAudio(config: VehicleConfig | null) {
   const engineRef = useRef<SynthEngine | null>(null)
+  const prevGearRef = useRef<number>(0)
+  const prevStatusRef = useRef<string>('off')
+
   const rpm = useSimulationStore((s) => s.rpm)
   const throttle = useSimulationStore((s) => s.throttle)
   const isRunning = useSimulationStore((s) => s.isRunning)
+  const status = useSimulationStore((s) => s.status)
+  const currentGear = useSimulationStore((s) => s.currentGear)
   const isRevLimiting = useSimulationStore((s) => s.isRevLimiting)
   const isHornActive = useSimulationStore((s) => s.isHornActive)
   const isMuted = useSimulationStore((s) => s.isMuted)
@@ -30,6 +36,8 @@ export function useAudio(config: VehicleConfig | null) {
     )
 
     engineRef.current = synth
+    prevGearRef.current = 0
+    prevStatusRef.current = 'off'
 
     return () => {
       synth.dispose()
@@ -37,24 +45,30 @@ export function useAudio(config: VehicleConfig | null) {
     }
   }, [config])
 
-  // Iniciar/parar áudio junto com o motor
+  // Iniciar/parar áudio junto com o motor e tocar arranque
   useEffect(() => {
     const synth = engineRef.current
     if (!synth) return
 
     const initAndToggle = async () => {
+      if (status === 'starting' && prevStatusRef.current !== 'starting') {
+        if (!synth.isInitialized) await synth.init()
+        synth.playStarterCrank()
+      }
+
       if (isRunning) {
         if (!synth.isInitialized) {
           await synth.init()
         }
         synth.start()
-      } else {
+      } else if (status === 'off' || status === 'stalled') {
         synth.stop()
       }
+      prevStatusRef.current = status
     }
 
     initAndToggle()
-  }, [isRunning])
+  }, [isRunning, status])
 
   // Atualizar RPM e throttle do áudio
   useEffect(() => {
@@ -68,6 +82,18 @@ export function useAudio(config: VehicleConfig | null) {
       synth.triggerBackfire()
     }
   }, [rpm, throttle, isRevLimiting])
+
+  // Troca de marcha em alta rotação (PDK / DSG / Racing shift brap)
+  useEffect(() => {
+    const synth = engineRef.current
+    if (!synth || !synth.isPlaying) return
+
+    const prevGear = prevGearRef.current
+    if (currentGear > prevGear && prevGear > 0 && throttle > 0.4 && rpm > 3400) {
+      synth.triggerShiftBrap()
+    }
+    prevGearRef.current = currentGear
+  }, [currentGear, throttle, rpm])
 
   // Controle de buzina
   useEffect(() => {

@@ -75,12 +75,17 @@ export interface AudioConfig {
   sampleConfig?: SampleAudioConfig
 }
 
-/** Configuração para áudio sintetizado (MVP) */
+/** Configuração para áudio sintetizado (MVP e Modelagem Acústica Física) */
 export interface SynthAudioConfig {
   baseFrequency: number      // Frequência base do oscilador em Hz
   harmonics: number[]        // Multiplicadores de harmônicos
   gainIdle: number           // Ganho na marcha lenta (0-1)
   gainMax: number            // Ganho no RPM máximo (0-1)
+  cylinders?: number         // Número de cilindros (ex: 4, 6)
+  engineType?: 'i4' | 'boxer6' | 'i4_highrev' | 'v6' | 'v8'
+  exhaustResonanceHz?: number // Frequência de ressonância do escape em Hz
+  intakeResonanceHz?: number  // Frequência de ressonância da admissão em Hz
+  hasBrapOnShift?: boolean   // Estouro de troca de marcha PDK/DSG
 }
 
 /** Configuração para amostras de áudio reais (futuro) */
