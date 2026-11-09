@@ -1,0 +1,327 @@
+import { memo } from 'react'
+import type { DashboardTelemetry } from '@/systems/dashboard'
+import type { VehicleConfig, DrivingMode } from '@/types'
+import { useSimulationStore } from '@/stores/useSimulationStore'
+import { AnalogPedal } from '@/components/controls/AnalogPedal'
+import { GearShift } from '@/components/controls/GearShift'
+import { EngineButton } from '@/components/controls/EngineButton'
+import { WarningLights, AuxGauges } from '@/components/gauges'
+
+export interface MobilePortraitCockpitProps {
+  telemetry: DashboardTelemetry
+  vehicle: VehicleConfig
+  onBack: () => void
+}
+
+/**
+ * MobilePortraitCockpit — Layout vertical otimizado para celulares em modo Retrato.
+ *
+ * Permite pilotar confortavelmente com os polegares sem obrigar a girar o aparelho.
+ */
+export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
+  telemetry,
+  vehicle,
+  onBack,
+}: MobilePortraitCockpitProps) {
+  const throttle = useSimulationStore((s) => s.throttle)
+  const brake = useSimulationStore((s) => s.brake)
+  const clutchPosition = useSimulationStore((s) => s.clutchPosition)
+  const setThrottle = useSimulationStore((s) => s.setThrottle)
+  const setBrake = useSimulationStore((s) => s.setBrake)
+  const setClutch = useSimulationStore((s) => s.setClutch)
+  const isRunning = useSimulationStore((s) => s.isRunning)
+  const drivingMode = useSimulationStore((s) => s.drivingMode)
+  const setDrivingMode = useSimulationStore((s) => s.setDrivingMode)
+  const transmissionMode = useSimulationStore((s) => s.transmissionMode)
+  const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
+  const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
+  const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
+  const setHorn = useSimulationStore((s) => s.setHorn)
+  const toggleHandbrake = useSimulationStore((s) => s.toggleHandbrake)
+  const handbrake = useSimulationStore((s) => s.handbrake)
+  const isMuted = useSimulationStore((s) => s.isMuted)
+  const toggleMute = useSimulationStore((s) => s.toggleMute)
+  const current0to100 = useSimulationStore((s) => s.current0to100)
+  const best0to100 = useSimulationStore((s) => s.best0to100)
+
+  const hasClutch = vehicle.transmission.hasClutch ?? false
+  const isCvtWithManual = vehicle.transmission.hasManualMode === true
+  const isManualSimulated = transmissionMode === 'manual_simulated'
+  const isManualOrSimulated = transmissionMode === 'manual' || transmissionMode === 'manual_simulated'
+  const supportedModes = vehicle.transmission.supportedModes || []
+
+  const displaySpeed = Math.round(telemetry.speedometer.speed)
+  const displayRpm = Math.round(telemetry.tachometer.rpm)
+  const maxRpm = vehicle.engine.maxRpm
+  const rpmPercent = Math.min(100, Math.round((displayRpm / maxRpm) * 100))
+
+  return (
+    <div
+      className="fixed inset-0 w-screen h-dvh bg-zinc-950 text-white flex flex-col justify-between select-none touch-none overflow-hidden z-40"
+      style={{
+        paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
+        paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+        paddingTop: 'max(0.5rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))',
+      }}
+    >
+      {/* ─── 1. Topo: Navegação, Modos e Botões Rápidos ─── */}
+      <header className="flex items-center justify-between w-full pb-1 border-b border-white/5">
+        <button
+          onClick={onBack}
+          className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white transition-all active:scale-95 cursor-pointer"
+        >
+          ← Sair
+        </button>
+
+        {/* Modos de condução */}
+        <div className="flex items-center gap-1 bg-zinc-900/90 px-2 py-0.5 rounded-full border border-white/10">
+          {supportedModes.map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setDrivingMode(mode as DrivingMode)}
+              className={`px-2 py-0.5 text-[9px] font-mono font-black uppercase rounded-full transition-all cursor-pointer ${
+                drivingMode === mode
+                  ? 'bg-white text-zinc-950 font-bold shadow'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+
+          {/* TCS */}
+          {vehicle.transmission.tcs?.enabled && (
+            <button
+              onClick={() => setTcsEnabled(!tcsEnabled)}
+              className={`px-2 py-0.5 text-[9px] font-mono font-bold uppercase rounded-full border transition-all cursor-pointer ${
+                !tcsEnabled
+                  ? 'bg-zinc-800 text-zinc-500 line-through border-zinc-700'
+                  : telemetry.tcs.intervening
+                  ? 'bg-amber-500/20 text-amber-400 border-amber-500 animate-pulse'
+                  : 'bg-zinc-950 text-emerald-400 border-white/10'
+              }`}
+            >
+              TCS
+            </button>
+          )}
+
+          {/* Som Mute */}
+          <button
+            onClick={toggleMute}
+            className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+              isMuted ? 'bg-red-500/20 text-red-400 border-red-500' : 'bg-zinc-900 text-zinc-400 border-white/10'
+            }`}
+          >
+            {isMuted ? '🔇' : '🔊'}
+          </button>
+        </div>
+
+        <div className="text-right">
+          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block leading-none">
+            {vehicle.info.brand}
+          </span>
+          <span className="text-xs font-bold text-white tracking-tight truncate max-w-[100px] block leading-tight">
+            {vehicle.info.name}
+          </span>
+        </div>
+      </header>
+
+      {/* ─── 2. Bloco Central: Painel de Instrumentos Vertical ─── */}
+      <main className="flex-1 flex flex-col justify-around items-center px-2 py-2 min-w-0">
+        {/* Luzes de Alerta no Topo */}
+        <div className="flex items-center justify-between w-full px-2">
+          <WarningLights lights={telemetry.warningLights} />
+
+          {/* 0-100 km/h chip */}
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-900 border border-white/10 text-[9px] font-mono">
+            <span className="text-zinc-500">0-100:</span>
+            <span className="font-bold text-amber-400">
+              {best0to100 ? `${best0to100.toFixed(2)}s` : current0to100 ? `${current0to100.toFixed(2)}s` : '--'}
+            </span>
+          </div>
+        </div>
+
+        {/* Alertas Físicos */}
+        <div className="flex items-center gap-2 h-4 my-0.5">
+          {telemetry.engine.isBogWarning && (
+            <span className="px-2 py-0.2 rounded-full bg-yellow-500/20 border border-yellow-500 text-yellow-300 text-[8px] font-mono font-black animate-pulse">
+              MOTOR AMARRANDO (BOG!)
+            </span>
+          )}
+          {hasClutch && telemetry.clutchTelemetry.isSlipping && (
+            <span className="px-2 py-0.2 rounded-full bg-orange-500/20 border border-orange-500 text-orange-400 text-[8px] font-mono font-black animate-pulse">
+              PATINANDO {Math.round(telemetry.clutchTelemetry.slipRpm)} RPM
+            </span>
+          )}
+          {telemetry.shiftLight.isActive && (
+            <span className="px-2 py-0.2 rounded-full bg-red-500/20 border border-red-500 text-red-400 text-[8px] font-mono font-black animate-ping">
+              CORTE DE GIRO!
+            </span>
+          )}
+        </div>
+
+        {/* Destaque: Marcha, Velocidade e RPM em grande formato */}
+        <div className="flex items-center justify-center gap-5 w-full">
+          {/* Velocidade */}
+          <div className="flex flex-col items-center">
+            <span className="text-4xl sm:text-5xl font-mono font-black tracking-tight text-white leading-none">
+              {displaySpeed}
+            </span>
+            <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+              KM/H
+            </span>
+          </div>
+
+          {/* Moldura de Marcha */}
+          <div className="relative flex flex-col items-center justify-center w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-zinc-900/90 border-2 border-[var(--color-accent)] shadow-[0_0_20px_var(--color-accent-muted)]">
+            <span className="text-3xl sm:text-4xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
+              {telemetry.gear.label}
+            </span>
+            <span className="text-[8px] font-mono font-bold text-zinc-400 uppercase">
+              {telemetry.gear.subLabel}
+            </span>
+          </div>
+
+          {/* RPM */}
+          <div className="flex flex-col items-center">
+            <span
+              className={`text-4xl sm:text-5xl font-mono font-black tracking-tight leading-none ${
+                displayRpm > maxRpm * 0.9 ? 'text-red-500 animate-pulse' : 'text-zinc-200'
+              }`}
+            >
+              {displayRpm}
+            </span>
+            <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+              RPM
+            </span>
+          </div>
+        </div>
+
+        {/* Barra Curva / Horizontal de RPM */}
+        <div className="w-full max-w-xs bg-zinc-900 h-2.5 rounded-full overflow-hidden border border-white/10 p-0.5 my-1">
+          <div
+            className={`h-full rounded-full transition-all duration-75 ${
+              displayRpm > maxRpm * 0.88
+                ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]'
+                : displayRpm > maxRpm * 0.7
+                ? 'bg-amber-400'
+                : 'bg-[var(--color-accent)]'
+            }`}
+            style={{ width: `${rpmPercent}%` }}
+          />
+        </div>
+
+        {/* Marcadores Auxiliares */}
+        <div className="w-full flex justify-center scale-90">
+          <AuxGauges
+            fuelLevel={telemetry.auxGauges.fuelLevel}
+            fuelCapacity={telemetry.auxGauges.fuelCapacity}
+            fuelPercent={telemetry.auxGauges.fuelPercent}
+            coolantTemp={telemetry.auxGauges.coolantTemp}
+            tempTarget={telemetry.auxGauges.tempTarget}
+            isTempOptimal={telemetry.auxGauges.isTempOptimal}
+          />
+        </div>
+
+        {/* Barra de Ações: Start Engine, Câmbio e Buzina */}
+        <div className="flex items-center justify-between w-full max-w-xs px-2 pt-1">
+          <div className="scale-90 origin-left">
+            <EngineButton />
+          </div>
+
+          {/* Buzina Touch */}
+          <button
+            onPointerDown={() => setHorn(true)}
+            onPointerUp={() => setHorn(false)}
+            onPointerCancel={() => setHorn(false)}
+            className="w-10 h-10 rounded-full bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-sm font-bold transition-all active:scale-95 cursor-pointer shadow"
+            title="Buzina"
+          >
+            📢
+          </button>
+
+          {/* Freio de Mão */}
+          <button
+            onClick={toggleHandbrake}
+            className={`px-3 py-1.5 rounded-xl border font-mono text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
+              handbrake
+                ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.6)]'
+                : 'bg-zinc-900 text-zinc-400 border-white/10'
+            }`}
+          >
+            (P) FREIO
+          </button>
+
+          {/* Alavanca de Câmbio / Paddle Shift */}
+          {isManualOrSimulated ? (
+            <div className="scale-90 origin-right">
+              <GearShift size="compact" orientation="horizontal" />
+            </div>
+          ) : isCvtWithManual ? (
+            <button
+              onClick={toggleSimulatedManual}
+              disabled={!isRunning}
+              className={`px-2.5 py-1 rounded-xl border font-mono text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
+                isManualSimulated
+                  ? 'bg-sky-500/20 border-sky-500 text-sky-400'
+                  : 'bg-zinc-900/80 border-white/10 text-zinc-400'
+              }`}
+            >
+              {isManualSimulated ? 'M-SIM' : 'AUTO'}
+            </button>
+          ) : (
+            <span className="text-[10px] font-mono text-emerald-400 font-bold px-2 py-1 rounded bg-zinc-900 border border-white/10">
+              CVT
+            </span>
+          )}
+        </div>
+      </main>
+
+      {/* ─── 3. Base: Pedais Analógicos Ergonômicos Verticais ─── */}
+      <footer className="w-full flex items-end justify-center gap-4 sm:gap-6 pt-1 pb-1 border-t border-white/5">
+        {/* Pedal de Embreagem (Se tiver) */}
+        {hasClutch && (
+          <AnalogPedal
+            label="EMBR"
+            sublabel="CLUTCH"
+            value={clutchPosition}
+            onChange={setClutch}
+            colorTheme="amber"
+            widthClass="w-14"
+            heightClass="h-44 sm:h-52"
+            disabled={!isRunning}
+            showPercent={true}
+          />
+        )}
+
+        {/* Pedal de Freio */}
+        <AnalogPedal
+          label="FREIO"
+          sublabel="BRAKE"
+          value={brake}
+          onChange={setBrake}
+          colorTheme="red"
+          widthClass="w-16 sm:w-18"
+          heightClass="h-44 sm:h-52"
+          disabled={!isRunning}
+          showPercent={true}
+        />
+
+        {/* Pedal do Acelerador */}
+        <AnalogPedal
+          label="ACEL"
+          sublabel="RUN"
+          value={throttle}
+          onChange={setThrottle}
+          colorTheme="accent"
+          widthClass="w-16 sm:w-18"
+          heightClass="h-44 sm:h-52"
+          disabled={!isRunning}
+          showPercent={true}
+        />
+      </footer>
+    </div>
+  )
+})
+

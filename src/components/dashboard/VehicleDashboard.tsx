@@ -1,14 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useUIStore } from '@/stores/useUIStore'
 import { useSimulationLoop } from '@/hooks/useSimulationLoop'
 import { useAudio } from '@/hooks/useAudio'
 import { useKeyboardControls } from '@/hooks/useKeyboardControls'
 import { useOrientation } from '@/hooks/useOrientation'
 import { DashboardSystem } from '@/systems/dashboard'
 import { ClusterView } from './ClusterView'
+import { CockpitView } from './CockpitView'
 import { MobileLandscapeCockpit } from './MobileLandscapeCockpit'
+import { MobilePortraitCockpit } from './MobilePortraitCockpit'
 import { RotateDeviceOverlay } from './RotateDeviceOverlay'
+import { PerformanceBox } from './PerformanceBox'
+import { KeyboardHUD } from './KeyboardHUD'
 import { PedalTelemetry } from '@/components/gauges'
 import { Pedals, GearShift, EngineButton } from '@/components/controls'
 import type { VehicleConfig, DrivingMode } from '@/types'
@@ -47,9 +52,16 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
   const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
   const isRunning = useSimulationStore((s) => s.isRunning)
+  const handbrake = useSimulationStore((s) => s.handbrake)
+  const toggleHandbrake = useSimulationStore((s) => s.toggleHandbrake)
+  const setHorn = useSimulationStore((s) => s.setHorn)
+  const isMuted = useSimulationStore((s) => s.isMuted)
+  const toggleMute = useSimulationStore((s) => s.toggleMute)
 
-  // Modo de visualização: Cluster View (padrão) ou Cockpit View (preparado para câmera 3D futura)
-  const [viewMode, setViewMode] = useState<'cluster' | 'cockpit'>('cluster')
+  const viewMode = useUIStore((s) => s.viewMode)
+  const setViewMode = useUIStore((s) => s.setViewMode)
+  const allowPortraitCockpit = useUIStore((s) => s.allowPortraitCockpit)
+  const setAllowPortraitCockpit = useUIStore((s) => s.setAllowPortraitCockpit)
 
   // Inicializar a física com as especificações do veículo
   useEffect(() => {
@@ -129,9 +141,24 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const hasTcs = !!vehicle.transmission.tcs?.enabled
   const supportedModes = vehicle.transmission.supportedModes || []
 
-  // ── Em dispositivos móveis verticais: orientar a virar o celular ──
+  // ── Em dispositivos móveis verticais: permitir jogar no Portrait Cockpit ou virar o celular ──
   if (isMobileDevice && isPortrait) {
-    return <RotateDeviceOverlay onAttemptLock={lockLandscape} />
+    if (allowPortraitCockpit) {
+      return (
+        <MobilePortraitCockpit
+          telemetry={telemetry}
+          vehicle={vehicle}
+          onBack={handleBack}
+        />
+      )
+    }
+    return (
+      <RotateDeviceOverlay
+        onAttemptLock={lockLandscape}
+        onPlayInPortrait={() => setAllowPortraitCockpit(true)}
+        onBack={handleBack}
+      />
+    )
   }
 
   // ── Em dispositivos móveis horizontais: cockpit dedicado para mobile ──
@@ -145,52 +172,80 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
     )
   }
 
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {})
+    } else {
+      document.exitFullscreen().catch(() => {})
+    }
+  }
+
   return (
     <div className="flex flex-col min-h-dvh bg-[var(--color-bg-primary)] safe-top safe-bottom p-3 sm:p-4 justify-between select-none">
       {/* Barra de cabeçalho superior */}
-      <header className="flex justify-between items-center w-full mb-1">
-        <button
-          onClick={handleBack}
-          className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-[var(--radius-sm)] border border-white/10 bg-white/5 text-[var(--color-text-secondary)] hover:border-red-500/50 hover:text-white transition-all active:scale-95 cursor-pointer"
-        >
-          ← Garagem
-        </button>
-
-        {/* Seletor de Modo de Visualização (Cluster / Cockpit) */}
-        <div className="flex items-center gap-1 bg-zinc-950/70 p-1 rounded-full border border-white/10 text-[9px] font-mono">
+      <header className="flex flex-wrap justify-between items-center w-full gap-2 mb-2">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setViewMode('cluster')}
-            className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer ${
-              viewMode === 'cluster'
-                ? 'bg-zinc-700 text-white font-bold'
-                : 'text-zinc-500 hover:text-zinc-300'
-            }`}
+            onClick={handleBack}
+            className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-[var(--radius-sm)] border border-white/10 bg-white/5 text-[var(--color-text-secondary)] hover:border-red-500/50 hover:text-white transition-all active:scale-95 cursor-pointer"
           >
-            CLUSTER
+            ← Garagem
           </button>
+
+          {/* Botão de Som Mute */}
           <button
-            onClick={() => setViewMode('cockpit')}
-            className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer ${
-              viewMode === 'cockpit'
-                ? 'bg-zinc-700 text-white font-bold'
-                : 'text-zinc-500 hover:text-zinc-300'
+            onClick={toggleMute}
+            className={`px-2.5 py-1 text-xs rounded-lg border font-mono transition-all cursor-pointer ${
+              isMuted ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
             }`}
-            title="Modo Cockpit View preparado para câmera 3D"
+            title="Alternar Áudio"
           >
-            COCKPIT
+            {isMuted ? '🔇 Mudo' : '🔊 Som'}
+          </button>
+
+          {/* Botão Tela Cheia */}
+          <button
+            onClick={toggleFullscreen}
+            className="hidden sm:inline-flex px-2.5 py-1 text-xs rounded-lg border border-white/10 bg-zinc-900 text-zinc-400 hover:text-white font-mono transition-all cursor-pointer"
+            title="Alternar Tela Cheia"
+          >
+            ⛶ Fullscreen
           </button>
         </div>
 
-        {/* Informações do veículo */}
+        {/* Centro do Topo: Seletor de Modo de Visualização (Cluster / Cockpit) + PerformanceBox */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 bg-zinc-950/80 p-1 rounded-full border border-white/10 text-[9px] font-mono shadow-md">
+            <button
+              onClick={() => setViewMode('cluster')}
+              className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                viewMode === 'cluster'
+                  ? 'bg-zinc-700 text-white font-bold shadow'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              CLUSTER
+            </button>
+            <button
+              onClick={() => setViewMode('cockpit')}
+              className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                viewMode === 'cockpit'
+                  ? 'bg-zinc-700 text-white font-bold shadow'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+              title="Modo Cockpit com pista 3D e velocidade dinâmica"
+            >
+              COCKPIT
+            </button>
+          </div>
+
+          {/* Performance Box (0-100 km/h Dragy Timer) */}
+          <PerformanceBox />
+        </div>
+
+        {/* Informações do veículo e Atalhos */}
         <div className="text-right">
           <div className="flex items-center gap-2 justify-end">
-            <span className="hidden sm:inline text-[9px] font-mono text-zinc-500 border border-white/10 px-1.5 py-0.5 rounded">
-              {vehicle.transmission.hasClutch
-                ? 'W=Acel | E=Freio | Q=Embr | [=Up | ]=Down'
-                : isCvtWithManualMode
-                ? 'W=Acel | E=Freio | [=M+ | ]=M- | M=Auto/Man | T=TCS'
-                : 'W=Acel | E=Freio'}
-            </span>
             <span className="text-[10px] uppercase font-mono tracking-widest text-[var(--color-text-muted)] block">
               {vehicle.info.brand}
             </span>
@@ -199,11 +254,11 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
         </div>
       </header>
 
-      {/* Seção Central: Painel de Instrumentos (Gauges / ClusterView) */}
-      <main className="flex flex-col items-center gap-2 sm:gap-4 my-auto w-full">
+      {/* Seção Central: Painel de Instrumentos ou Cockpit View */}
+      <main className="flex flex-col items-center gap-2 sm:gap-3 my-auto w-full">
         {/* Controles superiores: Modo de Condução + Toggle AUTO/MANUAL + TCS */}
         <div className="flex flex-wrap items-center justify-center gap-2 w-full">
-          {/* Seletor de Modo de Condução (ECO, NORMAL, SPORT) */}
+          {/* Seletor de Modo de Condução (ECO, NORMAL, SPORT, TRACK) */}
           {supportedModes.length > 1 && (
             <div className="flex items-center gap-1.5 p-1 rounded-full bg-zinc-950/80 border border-white/10 shadow-lg">
               {supportedModes.map((mode) => {
@@ -217,6 +272,9 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
                     : 'text-zinc-500 border-transparent hover:text-zinc-300',
                   sport: isActive
                     ? 'bg-red-500/20 border-red-500 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.3)]'
+                    : 'text-zinc-500 border-transparent hover:text-zinc-300',
+                  track: isActive
+                    ? 'bg-purple-500/20 border-purple-500 text-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.3)]'
                     : 'text-zinc-500 border-transparent hover:text-zinc-300',
                 }[mode]
 
@@ -276,6 +334,13 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
             </button>
           )}
 
+          {/* Freio de Mão Ativo Badge */}
+          {handbrake && (
+            <span className="px-2 py-0.5 rounded-full border border-orange-500 bg-orange-500/20 text-orange-400 text-[9px] font-mono font-bold uppercase animate-pulse">
+              (P) FREIO DE MÃO
+            </span>
+          )}
+
           {/* Indicador de Patinação da Embreagem (apenas manuais) */}
           {vehicle.transmission.hasClutch && telemetry.clutchTelemetry.isSlipping && (
             <span className="px-2 py-0.5 rounded-full border border-orange-500/60 bg-orange-500/10 text-orange-400 text-[9px] font-mono font-bold uppercase animate-pulse">
@@ -291,8 +356,15 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
           )}
         </div>
 
-        {/* ── Painel de Instrumentos Modular (ClusterView) ── */}
-        <ClusterView telemetry={telemetry} />
+        {/* HUD Interativo de Teclas Físicas do PC */}
+        <KeyboardHUD hasClutch={vehicle.transmission.hasClutch} />
+
+        {/* ── Painel de Instrumentos Modular (ClusterView) ou Visão de Cabine (CockpitView) ── */}
+        {viewMode === 'cluster' ? (
+          <ClusterView telemetry={telemetry} />
+        ) : (
+          <CockpitView telemetry={telemetry} vehicle={vehicle} />
+        )}
 
         {/* ── Telemetria Analógica dos Pedais (0-100%) ── */}
         <PedalTelemetry
@@ -303,11 +375,37 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
         />
       </main>
 
-      {/* Seção Inferior: Controles de Pilotagem (Start, Alavanca, Pedais) */}
-      <footer className="w-full flex flex-col items-center gap-4 sm:gap-6 mt-auto">
-        {/* Controles: Start Engine & Shifter */}
-        <div className="flex items-center justify-between w-full max-w-sm px-2">
-          <EngineButton />
+      {/* Seção Inferior: Controles de Pilotagem (Start, Alavanca, Freio de Mão, Pedais) */}
+      <footer className="w-full flex flex-col items-center gap-3 sm:gap-4 mt-auto">
+        {/* Controles: Start Engine, Freio de Mão, Buzina & Shifter */}
+        <div className="flex items-center justify-between w-full max-w-md px-2">
+          <div className="flex items-center gap-2">
+            <EngineButton />
+
+            {/* Buzina Desktop */}
+            <button
+              onPointerDown={() => setHorn(true)}
+              onPointerUp={() => setHorn(false)}
+              onPointerCancel={() => setHorn(false)}
+              className="w-10 h-10 rounded-xl bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-sm transition-all active:scale-95 cursor-pointer"
+              title="Buzina (H)"
+            >
+              📢
+            </button>
+
+            {/* Freio de mão Desktop */}
+            <button
+              onClick={toggleHandbrake}
+              className={`px-2.5 py-2 rounded-xl border font-mono text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
+                handbrake
+                  ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.8)]'
+                  : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
+              }`}
+              title="Tecla Espaço — Freio de mão"
+            >
+              (P) {handbrake ? 'TRAVADO' : 'FREIO'}
+            </button>
+          </div>
 
           {/* Câmbio manual ou manual simulado: exibe alavanca de trocas */}
           {transmissionMode === 'manual' || transmissionMode === 'manual_simulated' ? (

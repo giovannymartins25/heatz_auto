@@ -22,7 +22,7 @@ export const CategoryFilter = memo(function CategoryFilter({
   onChange,
 }: CategoryFilterProps) {
   return (
-    <div className="flex gap-2 w-full max-w-sm overflow-x-auto no-scrollbar">
+    <div className="flex gap-2 w-full overflow-x-auto no-scrollbar">
       {FILTERS.map((filter) => (
         <button
           key={filter.value}

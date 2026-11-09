@@ -40,6 +40,13 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
   const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
   const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
+  const setHorn = useSimulationStore((s) => s.setHorn)
+  const handbrake = useSimulationStore((s) => s.handbrake)
+  const toggleHandbrake = useSimulationStore((s) => s.toggleHandbrake)
+  const isMuted = useSimulationStore((s) => s.isMuted)
+  const toggleMute = useSimulationStore((s) => s.toggleMute)
+  const best0to100 = useSimulationStore((s) => s.best0to100)
+  const current0to100 = useSimulationStore((s) => s.current0to100)
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const isCvtWithManual = vehicle.transmission.hasManualMode === true
@@ -115,44 +122,66 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
       <main className="flex-1 flex flex-col justify-between items-center px-3 py-1 min-w-0 h-full">
         {/* Barra superior de navegação e modos */}
         <header className="flex items-center justify-between w-full">
-          <button
-            onClick={onBack}
-            className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white transition-all active:scale-95 cursor-pointer"
-          >
-            ← Sair
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onBack}
+              className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white transition-all active:scale-95 cursor-pointer"
+            >
+              ← Sair
+            </button>
 
-          {/* Seletores compactos de Modo de Condução */}
-          <div className="flex items-center gap-1.5 bg-zinc-900/90 px-2 py-0.5 rounded-full border border-white/10">
-            {supportedModes.map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setDrivingMode(mode as DrivingMode)}
-                className={`px-2 py-0.5 text-[9px] font-mono font-black uppercase rounded-full transition-all cursor-pointer ${
-                  drivingMode === mode
-                    ? 'bg-white text-zinc-950 font-bold shadow'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                {mode}
-              </button>
-            ))}
+            {/* Mute Button */}
+            <button
+              onClick={toggleMute}
+              className={`px-2 py-1 text-[10px] rounded-lg border font-mono transition-all cursor-pointer ${
+                isMuted ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-zinc-900 border-white/10 text-zinc-400'
+              }`}
+            >
+              {isMuted ? '🔇' : '🔊'}
+            </button>
+          </div>
 
-            {/* Botão TCS */}
-            {vehicle.transmission.tcs?.enabled && (
-              <button
-                onClick={() => setTcsEnabled(!tcsEnabled)}
-                className={`ml-1 px-2 py-0.5 text-[9px] font-mono font-bold uppercase rounded-full border transition-all cursor-pointer ${
-                  !tcsEnabled
-                    ? 'bg-zinc-800 text-zinc-500 line-through border-zinc-700'
-                    : telemetry.tcs.intervening
-                    ? 'bg-amber-500/20 text-amber-400 border-amber-500 animate-pulse'
-                    : 'bg-zinc-950 text-emerald-400 border-white/10'
-                }`}
-              >
-                TCS
-              </button>
-            )}
+          {/* Seletores compactos de Modo de Condução + 0-100 */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-zinc-900/90 px-2 py-0.5 rounded-full border border-white/10">
+              {supportedModes.map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setDrivingMode(mode as DrivingMode)}
+                  className={`px-2 py-0.5 text-[9px] font-mono font-black uppercase rounded-full transition-all cursor-pointer ${
+                    drivingMode === mode
+                      ? 'bg-white text-zinc-950 font-bold shadow'
+                      : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
+
+              {/* Botão TCS */}
+              {vehicle.transmission.tcs?.enabled && (
+                <button
+                  onClick={() => setTcsEnabled(!tcsEnabled)}
+                  className={`ml-1 px-2 py-0.5 text-[9px] font-mono font-bold uppercase rounded-full border transition-all cursor-pointer ${
+                    !tcsEnabled
+                      ? 'bg-zinc-800 text-zinc-500 line-through border-zinc-700'
+                      : telemetry.tcs.intervening
+                      ? 'bg-amber-500/20 text-amber-400 border-amber-500 animate-pulse'
+                      : 'bg-zinc-950 text-emerald-400 border-white/10'
+                  }`}
+                >
+                  TCS
+                </button>
+              )}
+            </div>
+
+            {/* Chip 0-100 km/h */}
+            <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-900/90 border border-white/10 text-[9px] font-mono">
+              <span className="text-zinc-500">0-100:</span>
+              <span className="text-amber-400 font-bold">
+                {best0to100 ? `${best0to100.toFixed(2)}s` : current0to100 ? `${current0to100.toFixed(2)}s` : '--'}
+              </span>
+            </div>
           </div>
 
           <div className="text-right">
@@ -255,39 +284,61 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
       {/* 3. LADO DIREITO: CONTROLES SECUNDÁRIOS & CÂMBIO (POLEGAR DIREITO)    */}
       {/* ═════════════════════════════════════════════════════════════════════ */}
       <aside className="flex flex-col items-center justify-between h-full py-1 pl-2 border-l border-white/5 flex-shrink-0">
-        {/* Botão de Partida / Desligar Motor */}
-        <div className="w-full flex justify-center">
+        {/* Topo do lado direito: Start Engine & Ações Rápidas */}
+        <div className="w-full flex items-center gap-1.5 justify-center">
           <EngineButton />
+
+          {/* Buzina Touch */}
+          <button
+            onPointerDown={() => setHorn(true)}
+            onPointerUp={() => setHorn(false)}
+            onPointerCancel={() => setHorn(false)}
+            className="w-10 h-10 rounded-xl bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-sm transition-all active:scale-95 cursor-pointer"
+            title="Buzina (H)"
+          >
+            📢
+          </button>
         </div>
 
         {/* Câmbio Sequencial Touch (▲ + e ▼ -) */}
         {isManualOrSimulated ? (
-          <div className="my-auto py-2">
+          <div className="my-auto py-1">
             <GearShift orientation="vertical" size="compact" />
           </div>
         ) : (
-          <div className="my-auto text-center px-2 py-4 rounded-xl bg-zinc-900/50 border border-white/5">
+          <div className="my-auto text-center px-2 py-3 rounded-xl bg-zinc-900/50 border border-white/5">
             <span className="text-[9px] font-mono uppercase text-zinc-500 block">CVT</span>
             <span className="text-xs font-mono font-bold text-emerald-400">AUTO</span>
           </div>
         )}
 
-        {/* Alternador AUTO ↔ MANUAL SIMULADO (para Yaris) */}
-        {isCvtWithManual ? (
+        {/* Botão de Freio de Mão & Alternador AUTO/MANUAL */}
+        <div className="flex flex-col gap-1 w-full">
           <button
-            onClick={toggleSimulatedManual}
-            disabled={!isRunning}
-            className={`w-full px-2 py-1.5 rounded-xl border font-mono text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
-              isManualSimulated
-                ? 'bg-sky-500/20 border-sky-500 text-sky-400'
-                : 'bg-zinc-900/80 border-white/10 text-zinc-400'
+            onClick={toggleHandbrake}
+            className={`w-full px-2 py-1 rounded-lg border font-mono text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
+              handbrake
+                ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_8px_rgba(249,115,22,0.8)]'
+                : 'bg-zinc-900 border-white/10 text-zinc-400'
             }`}
           >
-            {isManualSimulated ? 'M-SIM' : 'AUTO'}
+            (P) FREIO
           </button>
-        ) : (
-          <div className="h-6" />
-        )}
+
+          {isCvtWithManual && (
+            <button
+              onClick={toggleSimulatedManual}
+              disabled={!isRunning}
+              className={`w-full px-2 py-1 rounded-lg border font-mono text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
+                isManualSimulated
+                  ? 'bg-sky-500/20 border-sky-500 text-sky-400'
+                  : 'bg-zinc-900/80 border-white/10 text-zinc-400'
+              }`}
+            >
+              {isManualSimulated ? 'M-SIM' : 'AUTO'}
+            </button>
+          )}
+        </div>
       </aside>
     </div>
   )

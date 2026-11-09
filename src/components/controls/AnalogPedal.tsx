@@ -59,8 +59,12 @@ export const AnalogPedal = memo(function AnalogPedal({
     if (!containerRef.current) return 0
     const rect = containerRef.current.getBoundingClientRect()
     // A base do pedal é 0%, o topo é 100%
-    const normalized = (rect.bottom - clientY) / rect.height
-    return clamp(normalized, 0, 1)
+    const raw = (rect.bottom - clientY) / rect.height
+    // Deadzone ergonômica para touch: nos 20% superiores (>= 0.80) atinge 100%
+    // permitindo alcançar facilmente 100% (>= 95%) para trocas de marcha com o polegar
+    if (raw >= 0.80) return 1
+    if (raw <= 0.04) return 0
+    return clamp((raw - 0.04) / (0.80 - 0.04), 0, 1)
   }, [])
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -197,13 +201,22 @@ export const AnalogPedal = memo(function AnalogPedal({
           />
         )}
 
-        {/* Textura metálica antiderrapante do pedal */}
+        {/* Textura metálica antiderrapante do pedal com orifícios esportivos */}
         <div className="relative z-10 flex flex-col items-center justify-between w-full h-full py-2 pointer-events-none opacity-60">
-          <div className="w-4/5 h-1 bg-zinc-600/60 rounded-full" />
-          <div className="w-4/5 h-1 bg-zinc-600/60 rounded-full" />
-          <div className="w-4/5 h-1 bg-zinc-600/60 rounded-full" />
-          <div className="w-4/5 h-1 bg-zinc-600/60 rounded-full" />
-          <div className="w-4/5 h-1 bg-zinc-600/60 rounded-full" />
+          <div className="w-3/4 h-1.5 bg-zinc-700/80 rounded-full border border-black/50" />
+          <div className="w-3/4 h-1.5 bg-zinc-700/80 rounded-full border border-black/50" />
+          <div className="w-3/4 h-1.5 bg-zinc-700/80 rounded-full border border-black/50" />
+          <div className="w-3/4 h-1.5 bg-zinc-700/80 rounded-full border border-black/50" />
+          <div className="w-3/4 h-1.5 bg-zinc-700/80 rounded-full border border-black/50" />
+        </div>
+
+        {/* Marcadores de graduação lateral */}
+        <div className="absolute right-1 inset-y-2 flex flex-col justify-between pointer-events-none opacity-30 text-[6px] font-mono text-zinc-400">
+          <span>-</span>
+          <span>-</span>
+          <span>-</span>
+          <span>-</span>
+          <span>-</span>
         </div>
 
         {/* Rótulo do pedal */}

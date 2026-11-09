@@ -8,12 +8,21 @@ export type VehicleCategory = 'car' | 'motorcycle' | 'truck' | 'bus' | 'tractor'
 
 export type TransmissionType = 'manual' | 'automatic' | 'sequential' | 'cvt' | 'dct'
 
-export type DrivingMode = 'eco' | 'normal' | 'sport'
+export type DrivingMode = 'eco' | 'normal' | 'sport' | 'track'
 
 /** Ponto na curva de torque: RPM → torque em Nm */
 export interface TorqueCurvePoint {
   rpm: number
   torque: number
+}
+
+/** Configuração do turbocompressor */
+export interface TurboConfig {
+  enabled: boolean
+  maxBoostBar: number       // Pressão máxima positiva (ex: 1.4 bar)
+  spoolRpmStart: number     // RPM onde a turbina começa a encher (ex: 1600)
+  fullBoostRpm: number      // RPM onde atinge pressão máxima (ex: 2800)
+  hasBlowOff: boolean       // Válvula de alívio com som característico
 }
 
 /** Configuração do motor */
@@ -28,6 +37,7 @@ export interface EngineConfig {
   flywheelMass: number       // kg — massa do volante do motor
   engineBrakeFactor: number  // Fator de freio motor (0-1)
   torqueCurve: TorqueCurvePoint[]
+  turbo?: TurboConfig
 }
 
 /** Relação de cada marcha */
@@ -87,7 +97,7 @@ export interface AudioLayerConfig {
   baseRpm: number            // RPM de referência do sample
 }
 
-export type DashboardTheme = 'classic' | 'modern' | 'motorcycle' | 'default'
+export type DashboardTheme = 'classic' | 'modern' | 'motorcycle' | 'supercar' | 'default'
 
 /** Configuração do painel visual */
 export interface DashboardConfig {
@@ -100,6 +110,7 @@ export interface DashboardConfig {
   shiftLightOffsetRpm?: number // RPM antes do redline para acionar o shift light (default 500)
   fuelCapacity?: number      // Litros do tanque de combustível
   coolantTempTarget?: number // Temperatura operacional nominal em °C (default 90)
+  hasBoostGauge?: boolean    // Manômetro de pressão de turbo
 }
 
 /** Dados do veículo */

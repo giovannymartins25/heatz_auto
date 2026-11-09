@@ -11,7 +11,7 @@ interface SearchBarProps {
  */
 export const SearchBar = memo(function SearchBar({ value, onChange }: SearchBarProps) {
   return (
-    <div className="relative w-full max-w-sm">
+    <div className="relative w-full">
       {/* Ícone de lupa */}
       <svg
         className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]"

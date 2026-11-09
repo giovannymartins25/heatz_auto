@@ -120,8 +120,10 @@ const MotorcycleClutchLever = memo(function MotorcycleClutchLever({
     const rect = leverRef.current.getBoundingClientRect()
     // Puxar da esquerda para a direita ou da extremidade para o punho
     // 0% = solto (esquerda), 100% = puxado contra o punho (direita)
-    const normalized = (clientX - rect.left) / rect.width
-    return clamp(normalized, 0, 1)
+    const raw = (clientX - rect.left) / rect.width
+    if (raw >= 0.80) return 1
+    if (raw <= 0.04) return 0
+    return clamp((raw - 0.04) / (0.80 - 0.04), 0, 1)
   }, [])
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {

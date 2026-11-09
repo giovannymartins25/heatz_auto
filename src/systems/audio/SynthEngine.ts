@@ -30,6 +30,10 @@ export class SynthEngine implements IAudioEngine {
   private oscillatorGains: GainNode[] = []
   private noiseSource: AudioBufferSourceNode | null = null
   private noiseGain: GainNode | null = null
+  private hornOsc1: OscillatorNode | null = null
+  private hornOsc2: OscillatorNode | null = null
+  private hornGain: GainNode | null = null
+  private lastBackfireTime = 0
 
   private _isInitialized = false
   private _isPlaying = false
@@ -181,7 +185,86 @@ export class SynthEngine implements IAudioEngine {
     )
   }
 
+  startHorn(): void {
+    if (!this.context || this.hornGain) return
+    if (this.context.state === 'suspended') this.context.resume()
+
+    const now = this.context.currentTime
+    this.hornGain = this.context.createGain()
+    this.hornGain.gain.setValueAtTime(0, now)
+    this.hornGain.gain.linearRampToValueAtTime(0.35, now + 0.02)
+    this.hornGain.connect(this.context.destination)
+
+    this.hornOsc1 = this.context.createOscillator()
+    this.hornOsc2 = this.context.createOscillator()
+    this.hornOsc1.type = 'sawtooth'
+    this.hornOsc2.type = 'sawtooth'
+    this.hornOsc1.frequency.value = 420
+    this.hornOsc2.frequency.value = 500
+
+    this.hornOsc1.connect(this.hornGain)
+    this.hornOsc2.connect(this.hornGain)
+    this.hornOsc1.start()
+    this.hornOsc2.start()
+  }
+
+  stopHorn(): void {
+    if (!this.context || !this.hornGain) return
+    const now = this.context.currentTime
+    this.hornGain.gain.linearRampToValueAtTime(0.001, now + 0.05)
+    setTimeout(() => {
+      try {
+        this.hornOsc1?.stop()
+        this.hornOsc2?.stop()
+        this.hornOsc1?.disconnect()
+        this.hornOsc2?.disconnect()
+        this.hornGain?.disconnect()
+      } catch {}
+      this.hornOsc1 = null
+      this.hornOsc2 = null
+      this.hornGain = null
+    }, 60)
+  }
+
+  triggerBackfire(): void {
+    if (!this.context || !this._isPlaying) return
+    const now = this.context.currentTime
+    if (now - this.lastBackfireTime < 0.08) return
+    this.lastBackfireTime = now
+
+    const bufferSize = Math.floor(this.context.sampleRate * 0.045)
+    const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate)
+    const data = buffer.getChannelData(0)
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.18))
+    }
+
+    const popSource = this.context.createBufferSource()
+    popSource.buffer = buffer
+
+    const filter = this.context.createBiquadFilter()
+    filter.type = 'lowpass'
+    filter.frequency.value = 750 + Math.random() * 450
+
+    const popGain = this.context.createGain()
+    popGain.gain.value = 0.45 + Math.random() * 0.25
+
+    popSource.connect(filter)
+    filter.connect(popGain)
+    popGain.connect(this.context.destination)
+
+    popSource.start()
+  }
+
   dispose(): void {
+    try {
+      this.hornOsc1?.stop()
+      this.hornOsc2?.stop()
+    } catch {}
+    this.hornGain?.disconnect()
+    this.hornOsc1 = null
+    this.hornOsc2 = null
+    this.hornGain = null
     for (const osc of this.oscillators) {
       try {
         osc.stop()

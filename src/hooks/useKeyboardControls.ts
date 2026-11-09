@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useUIStore } from '@/stores/useUIStore'
 import type { VehicleConfig } from '@/types'
 import { clamp } from '@/utils/math'
 
@@ -10,10 +11,12 @@ import { clamp } from '@/utils/math'
  * - W / ArrowUp   = Acelerador (Throttle) — todos os veículos
  * - E / ArrowDown = Freio (Brake) — todos os veículos
  * - Q             = Embreagem (Clutch) — APENAS veículos manuais com hasClutch
+ * - Espaço        = Freio de Mão (Handbrake)
+ * - H             = Buzina (Horn)
  *
- * Mapeamento adicional (CVT com modo manual):
- * - ] ou ArrowRight = Upshift (M+ — marcha acima no modo manual simulado)
- * - [ ou ArrowLeft  = Downshift (M− — marcha abaixo no modo manual simulado)
+ * Mapeamento adicional (CVT / Sequencial):
+ * - [ ou ArrowRight = Upshift (subir marcha)
+ * - ] ou ArrowLeft  = Downshift (reduzir marcha)
  * - M               = Toggle AUTO ↔ MANUAL SIMULADO (apenas CVTs)
  * - T               = Toggle TCS ON/OFF
  *
@@ -27,9 +30,12 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
   const shiftDown = useSimulationStore((s) => s.shiftDown)
   const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
   const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
+  const setHandbrake = useSimulationStore((s) => s.setHandbrake)
+  const setHorn = useSimulationStore((s) => s.setHorn)
   const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const isRunning = useSimulationStore((s) => s.isRunning)
+  const setActiveKey = useUIStore((s) => s.setActiveKey)
 
   const keysPressedRef = useRef({ w: false, e: false, q: false })
   const valuesRef = useRef({ throttle: 0, brake: 0, clutch: 0 })
@@ -53,25 +59,43 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
       // Acelerador
       if (key === 'w' || key === 'arrowup') {
         keysPressedRef.current.w = true
+        setActiveKey('w', true)
       }
       // Freio
       else if (key === 'e' || key === 'arrowdown') {
         keysPressedRef.current.e = true
+        setActiveKey('e', true)
       }
       // Embreagem — apenas veículos manuais convencionais
       else if (key === 'q') {
         if (hasClutch) {
           keysPressedRef.current.q = true
+          setActiveKey('q', true)
         }
+      }
+      // Freio de mão (Espaço)
+      else if (key === ' ') {
+        event.preventDefault()
+        setActiveKey('space', true)
+        setHandbrake(true)
+      }
+      // Buzina (H)
+      else if (key === 'h') {
+        setActiveKey('horn', true)
+        setHorn(true)
       }
       // Subir marcha: [ ou ArrowRight (sem repetição por segurar a tecla)
       else if ((key === '[' || key === 'arrowright') && isRunning) {
+        setActiveKey('up', true)
+        setTimeout(() => setActiveKey('up', false), 150)
         if (!event.repeat) {
           shiftUp()
         }
       }
       // Reduzir marcha: ] ou ArrowLeft (sem repetição por segurar a tecla)
       else if ((key === ']' || key === 'arrowleft') && isRunning) {
+        setActiveKey('down', true)
+        setTimeout(() => setActiveKey('down', false), 150)
         if (!event.repeat) {
           shiftDown()
         }
@@ -90,10 +114,19 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
       const key = event.key.toLowerCase()
       if (key === 'w' || key === 'arrowup') {
         keysPressedRef.current.w = false
+        setActiveKey('w', false)
       } else if (key === 'e' || key === 'arrowdown') {
         keysPressedRef.current.e = false
+        setActiveKey('e', false)
       } else if (key === 'q') {
         keysPressedRef.current.q = false
+        setActiveKey('q', false)
+      } else if (key === ' ') {
+        setActiveKey('space', false)
+        setHandbrake(false)
+      } else if (key === 'h') {
+        setActiveKey('horn', false)
+        setHorn(false)
       }
     }
 
@@ -174,5 +207,8 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
     shiftDown,
     toggleSimulatedManual,
     setTcsEnabled,
+    setHandbrake,
+    setHorn,
+    setActiveKey,
   ])
 }

@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useRef } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 
 /**
@@ -16,8 +16,15 @@ export const EngineButton = memo(function EngineButton() {
   const status = useSimulationStore((s) => s.status)
   const startEngine = useSimulationStore((s) => s.startEngine)
   const stopEngine = useSimulationStore((s) => s.stopEngine)
+  const lastPressRef = useRef(0)
 
-  const handleClick = () => {
+  const handleAction = (e: React.SyntheticEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const now = performance.now()
+    if (now - lastPressRef.current < 100) return
+    lastPressRef.current = now
+
     if (isRunning) {
       stopEngine()
     } else {
@@ -30,7 +37,10 @@ export const EngineButton = memo(function EngineButton() {
   return (
     <div className="flex flex-col items-center select-none touch-none">
       <button
-        onClick={handleClick}
+        onPointerDown={handleAction}
+        onTouchStart={handleAction}
+        onClick={handleAction}
+        style={{ touchAction: 'none' }}
         className={`w-20 h-20 rounded-full border-4 flex flex-col items-center justify-center p-2 transition-all active:scale-95 duration-200 cursor-pointer ${
           isStalled
             ? 'border-amber-500 bg-amber-950/60 text-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.5)] animate-bounce'

@@ -101,7 +101,9 @@ export const VehicleCard = memo(function VehicleCard({ vehicle }: VehicleCardPro
             <span
               key={mode}
               className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
-                mode === 'sport'
+                mode === 'track'
+                  ? 'bg-purple-950/40 border border-purple-500/30 text-purple-400'
+                  : mode === 'sport'
                   ? 'bg-red-950/40 border border-red-500/30 text-red-400'
                   : mode === 'eco'
                   ? 'bg-emerald-950/40 border border-emerald-500/30 text-emerald-400'

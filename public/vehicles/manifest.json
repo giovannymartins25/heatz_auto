@@ -55,6 +55,25 @@
       "hasTcs": true,
       "hasClutchPedal": true,
       "configPath": "/vehicles/cb1000r/config.json"
+    },
+    {
+      "id": "porsche-gt3",
+      "name": "Porsche 911 GT3 RS",
+      "brand": "Porsche",
+      "model": "911 GT3 RS (992)",
+      "year": 2023,
+      "category": "car",
+      "powerHp": 525,
+      "torqueKgfm": 47.4,
+      "transmissionType": "sequential",
+      "transmissionLabel": "PDK 7 Marchas",
+      "gearCount": 7,
+      "isSimulatedGears": false,
+      "hasManualMode": true,
+      "supportedModes": ["normal", "sport", "track"],
+      "hasTcs": true,
+      "hasClutchPedal": false,
+      "configPath": "/vehicles/porsche-gt3/config.json"
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useState, useRef } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 
 export interface GearShiftProps {
@@ -24,6 +24,34 @@ export const GearShift = memo(function GearShift({
   const lastShiftReason = useSimulationStore((s) => s.lastShiftReason)
 
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
+  const lastActionTimeRef = useRef(0)
+
+  const handleShiftUp = (e: React.SyntheticEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const now = performance.now()
+    if (now - lastActionTimeRef.current < 60) return
+    lastActionTimeRef.current = now
+    if (isRunning) shiftUp()
+  }
+
+  const handleShiftDown = (e: React.SyntheticEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const now = performance.now()
+    if (now - lastActionTimeRef.current < 60) return
+    lastActionTimeRef.current = now
+    if (isRunning) shiftDown()
+  }
+
+  const handleShiftNeutral = (e: React.SyntheticEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const now = performance.now()
+    if (now - lastActionTimeRef.current < 60) return
+    lastActionTimeRef.current = now
+    if (isRunning && currentGear !== 0) shiftNeutral()
+  }
 
   useEffect(() => {
     if (lastShiftReason === 'clutch_required') {
@@ -62,8 +90,11 @@ export const GearShift = memo(function GearShift({
         {/* Botão Downshift (▼ -) */}
         <button
           id="btn-shift-down"
-          onClick={shiftDown}
+          onPointerDown={handleShiftDown}
+          onTouchStart={handleShiftDown}
+          onClick={handleShiftDown}
           disabled={!isRunning}
+          style={{ touchAction: 'none' }}
           className={`${buttonSizeClass} rounded-2xl border-2 border-zinc-700/80 bg-zinc-900/80 active:bg-zinc-800 active:border-zinc-500 disabled:opacity-30 disabled:pointer-events-none flex flex-col items-center justify-center font-mono font-black text-[var(--color-text-secondary)] transition-all active:scale-90 cursor-pointer shadow-lg`}
           aria-label="Reduzir marcha"
           title="Tecla ] — Reduzir marcha"
@@ -75,8 +106,11 @@ export const GearShift = memo(function GearShift({
         {/* Botão Neutro (N) */}
         <button
           id="btn-shift-neutral"
-          onClick={shiftNeutral}
+          onPointerDown={handleShiftNeutral}
+          onTouchStart={handleShiftNeutral}
+          onClick={handleShiftNeutral}
           disabled={!isRunning || currentGear === 0}
+          style={{ touchAction: 'none' }}
           className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl border font-mono font-black text-xs flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
             currentGear === 0
               ? 'border-emerald-500/60 bg-emerald-950/40 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
@@ -91,8 +125,11 @@ export const GearShift = memo(function GearShift({
         {/* Botão Upshift (▲ +) */}
         <button
           id="btn-shift-up"
-          onClick={shiftUp}
+          onPointerDown={handleShiftUp}
+          onTouchStart={handleShiftUp}
+          onClick={handleShiftUp}
           disabled={!isRunning}
+          style={{ touchAction: 'none' }}
           className={`${buttonSizeClass} rounded-2xl border-2 border-zinc-700/80 bg-zinc-900/80 active:bg-zinc-800 active:border-[var(--color-accent)] disabled:opacity-30 disabled:pointer-events-none flex flex-col items-center justify-center font-mono font-black text-[var(--color-accent)] transition-all active:scale-90 cursor-pointer shadow-lg`}
           aria-label="Subir marcha"
           title="Tecla [ — Subir marcha"

@@ -14,6 +14,10 @@ export function useAudio(config: VehicleConfig | null) {
   const rpm = useSimulationStore((s) => s.rpm)
   const throttle = useSimulationStore((s) => s.throttle)
   const isRunning = useSimulationStore((s) => s.isRunning)
+  const isRevLimiting = useSimulationStore((s) => s.isRevLimiting)
+  const isHornActive = useSimulationStore((s) => s.isHornActive)
+  const isMuted = useSimulationStore((s) => s.isMuted)
+  const masterVolume = useSimulationStore((s) => s.masterVolume)
 
   // Inicializar o engine quando o veículo é carregado
   useEffect(() => {
@@ -59,5 +63,29 @@ export function useAudio(config: VehicleConfig | null) {
 
     synth.setRpm(rpm)
     synth.setThrottle(throttle)
-  }, [rpm, throttle])
+
+    if (isRevLimiting) {
+      synth.triggerBackfire()
+    }
+  }, [rpm, throttle, isRevLimiting])
+
+  // Controle de buzina
+  useEffect(() => {
+    const synth = engineRef.current
+    if (!synth) return
+
+    if (isHornActive) {
+      synth.startHorn()
+    } else {
+      synth.stopHorn()
+    }
+  }, [isHornActive])
+
+  // Controle de mute e volume
+  useEffect(() => {
+    const synth = engineRef.current
+    if (!synth) return
+
+    synth.setMasterGain(isMuted ? 0 : masterVolume)
+  }, [isMuted, masterVolume])
 }

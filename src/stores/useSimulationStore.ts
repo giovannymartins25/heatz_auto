@@ -50,6 +50,18 @@ interface SimulationActions {
   shiftNeutral: () => void
   /** Liga ou desliga o TCS */
   setTcsEnabled: (enabled: boolean) => void
+  /** Define estado do freio de mão */
+  setHandbrake: (active: boolean) => void
+  /** Alterna freio de mão */
+  toggleHandbrake: () => void
+  /** Aciona buzina */
+  setHorn: (active: boolean) => void
+  /** Alterna áudio mudo */
+  toggleMute: () => void
+  /** Define volume geral */
+  setMasterVolume: (vol: number) => void
+  /** Reseta dados de performance */
+  resetPerformanceStats: () => void
   /** Atualiza a simulação (chamado pelo game loop) */
   update: (frameTime: number) => void
   /** Reseta a simulação */
@@ -89,6 +101,19 @@ interface SimulationState {
   speed: number
   throttle: number
   brake: number
+  handbrake: boolean
+
+  // Áudio & Controles extras
+  isHornActive: boolean
+  isMuted: boolean
+  masterVolume: number
+
+  // Cronômetro 0-100 & Records
+  best0to100: number | null
+  current0to100: number | null
+  isTiming0to100: boolean
+  topSpeedRecord: number
+  _timer0to100Start: number | null
 
   // Internos (não renderizados diretamente)
   _engine: EngineSimulator | null
@@ -130,6 +155,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   speed: 0,
   throttle: 0,
   brake: 0,
+  handbrake: false,
+  isHornActive: false,
+  isMuted: false,
+  masterVolume: 1,
+  best0to100: null,
+  current0to100: null,
+  isTiming0to100: false,
+  topSpeedRecord: 0,
+  _timer0to100Start: null,
   _engine: null,
   _transmission: null,
   _autoTransmission: null,
@@ -413,6 +447,38 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     HapticFeedback.light()
   },
 
+  setHandbrake: (active: boolean) => {
+    set({ handbrake: active })
+    HapticFeedback.light()
+  },
+
+  toggleHandbrake: () => {
+    set((s) => ({ handbrake: !s.handbrake }))
+    HapticFeedback.light()
+  },
+
+  setHorn: (active: boolean) => {
+    set({ isHornActive: active })
+  },
+
+  toggleMute: () => {
+    set((s) => ({ isMuted: !s.isMuted }))
+  },
+
+  setMasterVolume: (vol: number) => {
+    set({ masterVolume: clamp(vol, 0, 1) })
+  },
+
+  resetPerformanceStats: () => {
+    set({
+      best0to100: null,
+      current0to100: null,
+      isTiming0to100: false,
+      topSpeedRecord: 0,
+      _timer0to100Start: null,
+    })
+  },
+
   update: (frameTime: number) => {
     const state = get()
     const { _engine, _transmission, _autoTransmission, _clutch, _physics, _tcs, _config } = state
@@ -539,11 +605,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       latestIsClutchSlipping = clutchState.isSlipping
 
       // 5. VehiclePhysics: calcula forças longitudinais
+      const effectiveBrake = Math.max(state.brake, state.handbrake ? 1 : 0)
       const physicsTick = _physics.tick({
         driveTorqueAtTransmission: clutchState.transmittedTorque,
         gearRatio,
         finalDrive,
-        brake: state.brake,
+        brake: effectiveBrake,
         deltaTime: dt,
       })
 
@@ -593,6 +660,30 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       HapticFeedback.revLimiter()
     }
 
+    // Tracking 0-100 km/h e Top Speed
+    let timerStart = state._timer0to100Start
+    let isTiming = state.isTiming0to100
+    let bestTime = state.best0to100
+    let currentTime = state.current0to100
+    const topSpeed = Math.max(state.topSpeedRecord, Math.round(latestSpeed))
+
+    if (latestSpeed < 2 && state.throttle > 0.15 && !isTiming && latestIsRunning && !state.handbrake) {
+      timerStart = performance.now()
+      isTiming = true
+      currentTime = 0
+    } else if (isTiming && timerStart) {
+      const elapsed = (performance.now() - timerStart) / 1000
+      currentTime = Math.round(elapsed * 100) / 100
+      if (latestSpeed >= 100) {
+        isTiming = false
+        if (!bestTime || currentTime < bestTime) {
+          bestTime = currentTime
+        }
+      } else if (latestSpeed < 1 && state.throttle < 0.05) {
+        isTiming = false
+      }
+    }
+
     set({
       rpm: latestRpm,
       speed: latestSpeed,
@@ -610,6 +701,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       clutchTorqueTransfer: latestClutchTorqueTransfer,
       clutchHeat: latestClutchHeat,
       isClutchSlipping: latestIsClutchSlipping,
+      best0to100: bestTime,
+      current0to100: currentTime,
+      isTiming0to100: isTiming,
+      topSpeedRecord: topSpeed,
+      _timer0to100Start: timerStart,
       _accumulator: accumulator,
     })
   },
@@ -639,6 +735,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       speed: 0,
       throttle: 0,
       brake: 0,
+      handbrake: false,
+      isHornActive: false,
+      isTiming0to100: false,
+      current0to100: null,
+      _timer0to100Start: null,
       _engine: null,
       _transmission: null,
       _autoTransmission: null,
