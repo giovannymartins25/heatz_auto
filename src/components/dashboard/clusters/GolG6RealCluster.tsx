@@ -289,6 +289,17 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
             {/* ── Agulha Vermelha Iluminada Principal (Tacômetro) ── */}
             <g transform={`rotate(${tachAngle} ${center} ${center})`}>
               {/* Brilho da agulha translúcida */}
+              {/* Brilho da agulha em camada SVG nativa (sem drop-shadow CSS para eliminar flicker) */}
+              <line
+                x1={center}
+                y1={center}
+                x2={center + radius - 4}
+                y2={center}
+                stroke="#ff4444"
+                strokeWidth="5"
+                strokeLinecap="round"
+                opacity="0.4"
+              />
               <line
                 x1={center}
                 y1={center}
@@ -297,7 +308,6 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
                 stroke="#ff2222"
                 strokeWidth="3.2"
                 strokeLinecap="round"
-                className="drop-shadow-[0_0_8px_rgba(255,34,34,0.9)]"
               />
               <line
                 x1={center}
@@ -477,6 +487,17 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
 
             {/* ── Agulha Vermelha Iluminada Principal (Velocímetro) ── */}
             <g transform={`rotate(${speedAngle} ${center} ${center})`}>
+              {/* Brilho da agulha em camada SVG nativa (sem drop-shadow CSS para eliminar flicker) */}
+              <line
+                x1={center}
+                y1={center}
+                x2={center + radius - 4}
+                y2={center}
+                stroke="#ff4444"
+                strokeWidth="5"
+                strokeLinecap="round"
+                opacity="0.4"
+              />
               <line
                 x1={center}
                 y1={center}
@@ -485,7 +506,6 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
                 stroke="#ff2222"
                 strokeWidth="3.2"
                 strokeLinecap="round"
-                className="drop-shadow-[0_0_8px_rgba(255,34,34,0.9)]"
               />
               <line
                 x1={center}
@@ -530,3 +550,4 @@ function polarToCartesian(cx: number, cy: number, r: number, deg: number) {
     y: cy + r * Math.sin(rad),
   }
 }
+

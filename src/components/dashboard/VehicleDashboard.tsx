@@ -14,7 +14,7 @@ import { MobilePortraitCockpit } from './MobilePortraitCockpit'
 import { RotateDeviceOverlay } from './RotateDeviceOverlay'
 import { PerformanceBox } from './PerformanceBox'
 import { KeyboardHUD } from './KeyboardHUD'
-import { PedalTelemetry } from '@/components/gauges'
+import { PedalTelemetry, BoostGauge } from '@/components/gauges'
 import { Pedals, GearShift, EngineButton } from '@/components/controls'
 import type { VehicleConfig, DrivingMode } from '@/types'
 
@@ -57,6 +57,11 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const setHorn = useSimulationStore((s) => s.setHorn)
   const isMuted = useSimulationStore((s) => s.isMuted)
   const toggleMute = useSimulationStore((s) => s.toggleMute)
+  const hasTurbo = useSimulationStore((s) => s.hasTurbo)
+  const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
+  const isLaunching = useSimulationStore((s) => s.isLaunching)
+  const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
+  const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
 
   const viewMode = useUIStore((s) => s.viewMode)
   const setViewMode = useUIStore((s) => s.setViewMode)
@@ -359,12 +364,42 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
         {/* HUD Interativo de Teclas Físicas do PC */}
         <KeyboardHUD hasClutch={vehicle.transmission.hasClutch} />
 
-        {/* ── Painel de Instrumentos Modular (ClusterView) ou Visão de Cabine (CockpitView) ── */}
-        {viewMode === 'cluster' ? (
-          <ClusterView telemetry={telemetry} />
-        ) : (
-          <CockpitView telemetry={telemetry} vehicle={vehicle} />
+        {/* ── Banner de Launch Control ── */}
+        {isLaunchControlArmed && (
+          <div className="w-full max-w-xl py-2 px-4 rounded-xl bg-amber-500/20 border-2 border-amber-400 text-amber-300 font-mono font-black text-center text-xs sm:text-sm tracking-wide animate-pulse shadow-[0_0_20px_rgba(245,158,11,0.4)] flex items-center justify-center gap-2">
+            <span>🏁</span>
+            <span>LAUNCH CONTROL ATIVO — SEGURE O FREIO E ACELERE TUDO, SOLTE O FREIO PARA LARGAR!</span>
+            <span>🏁</span>
+          </div>
         )}
+        {isLaunching && (
+          <div className="w-full max-w-xl py-2 px-4 rounded-xl bg-emerald-500/20 border-2 border-emerald-400 text-emerald-300 font-mono font-black text-center text-xs sm:text-sm tracking-wide shadow-[0_0_20px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2">
+            <span>🚀</span>
+            <span>LARGADA DISPARADA! ACELERAÇÃO MÁXIMA!</span>
+            <span>🚀</span>
+          </div>
+        )}
+
+        {/* ── Painel de Instrumentos Modular (ClusterView) ou Visão de Cabine (CockpitView) ── */}
+        <div className="relative w-full flex flex-col xl:flex-row items-center justify-center gap-4">
+          <div className="w-full max-w-5xl flex items-center justify-center">
+            {viewMode === 'cluster' ? (
+              <ClusterView telemetry={telemetry} />
+            ) : (
+              <CockpitView telemetry={telemetry} vehicle={vehicle} />
+            )}
+          </div>
+
+          {/* Manômetro de Pressão do Turbo (Exclusivo para veículos com Turbo) */}
+          {hasTurbo && (
+            <div className="flex flex-col items-center p-3 rounded-2xl bg-zinc-950/90 border border-white/10 shadow-lg">
+              <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest mb-1">
+                MANÔMETRO TURBO
+              </span>
+              <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={150} />
+            </div>
+          )}
+        </div>
 
         {/* ── Telemetria Analógica dos Pedais (0-100%) ── */}
         <PedalTelemetry

@@ -14,6 +14,8 @@ export function useAudio(config: VehicleConfig | null) {
   const engineRef = useRef<SynthEngine | null>(null)
   const prevGearRef = useRef<number>(0)
   const prevStatusRef = useRef<string>('off')
+  const prevThrottleRef = useRef<number>(0)
+  const prevBoostRef = useRef<number>(0)
 
   const rpm = useSimulationStore((s) => s.rpm)
   const throttle = useSimulationStore((s) => s.throttle)
@@ -24,6 +26,8 @@ export function useAudio(config: VehicleConfig | null) {
   const isHornActive = useSimulationStore((s) => s.isHornActive)
   const isMuted = useSimulationStore((s) => s.isMuted)
   const masterVolume = useSimulationStore((s) => s.masterVolume)
+  const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
+  const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
 
   // Inicializar o engine quando o veículo é carregado
   useEffect(() => {
@@ -81,7 +85,21 @@ export function useAudio(config: VehicleConfig | null) {
     if (isRevLimiting) {
       synth.triggerBackfire()
     }
-  }, [rpm, throttle, isRevLimiting])
+
+    if (isLaunchControlArmed) {
+      synth.triggerLaunchLimiter()
+    }
+
+    // Detecção de alívio do turbo (Blow-Off / Compressor flutter ao soltar acelerador)
+    const prevThrottle = prevThrottleRef.current
+    const prevBoost = prevBoostRef.current
+    if (throttle < 0.22 && prevThrottle >= 0.45 && prevBoost > 0.25) {
+      synth.triggerBlowOff(prevBoost)
+    }
+
+    prevThrottleRef.current = throttle
+    prevBoostRef.current = boostPressureBar
+  }, [rpm, throttle, isRevLimiting, isLaunchControlArmed, boostPressureBar])
 
   // Troca de marcha em alta rotação (PDK / DSG / Racing shift brap)
   useEffect(() => {

@@ -57,6 +57,10 @@
       "enabled": true,
       "slipThreshold": 1.15,
       "torqueReduction": 0.3
+    },
+    "launchControl": {
+      "enabled": true,
+      "launchRpm": 4500
     }
   },
   "audio": {

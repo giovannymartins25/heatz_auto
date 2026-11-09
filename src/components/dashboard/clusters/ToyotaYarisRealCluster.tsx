@@ -250,6 +250,17 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
 
             {/* ── Agulha Optitron Azul Gelo com Ponta Branca ── */}
             <g transform={`rotate(${tachAngle} ${center} ${center})`}>
+              {/* Brilho da agulha em camada SVG nativa (sem drop-shadow CSS para evitar flicker) */}
+              <line
+                x1={center}
+                y1={center}
+                x2={center + radius - 4}
+                y2={center}
+                stroke="#38bdf8"
+                strokeWidth="5.5"
+                strokeLinecap="round"
+                opacity="0.35"
+              />
               <line
                 x1={center}
                 y1={center}
@@ -258,7 +269,6 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
                 stroke="#38bdf8"
                 strokeWidth="3.2"
                 strokeLinecap="round"
-                className="drop-shadow-[0_0_10px_rgba(56,189,248,0.9)]"
               />
               <line
                 x1={center + radius - 24}
@@ -397,6 +407,17 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
 
             {/* ── Agulha Optitron do Velocímetro ── */}
             <g transform={`rotate(${speedAngle} ${center} ${center})`}>
+              {/* Brilho da agulha em camada SVG nativa (sem drop-shadow CSS para evitar flicker) */}
+              <line
+                x1={center}
+                y1={center}
+                x2={center + radius - 4}
+                y2={center}
+                stroke="#38bdf8"
+                strokeWidth="5.5"
+                strokeLinecap="round"
+                opacity="0.35"
+              />
               <line
                 x1={center}
                 y1={center}
@@ -405,7 +426,6 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
                 stroke="#38bdf8"
                 strokeWidth="3.2"
                 strokeLinecap="round"
-                className="drop-shadow-[0_0_10px_rgba(56,189,248,0.9)]"
               />
               <line
                 x1={center + radius - 24}
@@ -551,3 +571,4 @@ function polarToCartesian(cx: number, cy: number, r: number, deg: number) {
     y: cy + r * Math.sin(rad),
   }
 }
+

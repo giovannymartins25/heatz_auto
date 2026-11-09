@@ -60,11 +60,14 @@ export const useUIStore = create<UIStore>((set) => ({
   setViewMode: (mode) => set({ viewMode: mode }),
   setAllowPortraitCockpit: (allowed) => set({ allowPortraitCockpit: allowed }),
   setActiveKey: (key, pressed) =>
-    set((s) => ({
-      activeKeys: {
-        ...s.activeKeys,
-        [key]: pressed,
-      },
-    })),
+    set((s) => {
+      if (s.activeKeys[key] === pressed) return s
+      return {
+        activeKeys: {
+          ...s.activeKeys,
+          [key]: pressed,
+        },
+      }
+    }),
 }))
 

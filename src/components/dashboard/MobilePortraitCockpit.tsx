@@ -5,7 +5,7 @@ import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { EngineButton } from '@/components/controls/EngineButton'
-import { WarningLights, AuxGauges } from '@/components/gauges'
+import { WarningLights, AuxGauges, BoostGauge } from '@/components/gauges'
 import { ClusterView } from './ClusterView'
 
 export interface MobilePortraitCockpitProps {
@@ -44,6 +44,11 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const toggleMute = useSimulationStore((s) => s.toggleMute)
   const current0to100 = useSimulationStore((s) => s.current0to100)
   const best0to100 = useSimulationStore((s) => s.best0to100)
+  const hasTurbo = useSimulationStore((s) => s.hasTurbo)
+  const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
+  const isLaunching = useSimulationStore((s) => s.isLaunching)
+  const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
+  const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const isCvtWithManual = vehicle.transmission.hasManualMode === true
@@ -159,12 +164,29 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           </div>
         </div>
 
+        {/* ── Banner de Launch Control no Mobile ── */}
+        {isLaunchControlArmed && (
+          <div className="w-full py-1 px-2 rounded-lg bg-amber-500/20 border border-amber-400 text-amber-300 text-center text-[10px] font-mono font-black animate-pulse my-0.5">
+            🏁 LAUNCH CONTROL ATIVO · SOLTE O FREIO!
+          </div>
+        )}
+        {isLaunching && (
+          <div className="w-full py-1 px-2 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-center text-[10px] font-mono font-black my-0.5">
+            🚀 LARGADA!
+          </div>
+        )}
+
         {/* ── Centro: Painel Real Completo ou HUD Digital ── */}
         {portraitMode === 'cluster' ? (
-          <div className="w-full flex-1 flex items-center justify-center overflow-hidden my-auto py-1 select-none pointer-events-none">
+          <div className="w-full flex-1 flex flex-col items-center justify-center overflow-hidden my-auto py-1 select-none pointer-events-none relative">
             <div className="scale-[0.48] xs:scale-[0.55] sm:scale-[0.65] origin-center flex items-center justify-center">
               <ClusterView telemetry={telemetry} />
             </div>
+            {hasTurbo && (
+              <div className="mt-1 p-1 bg-black/80 rounded-xl border border-white/10 scale-90">
+                <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={90} />
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center w-full gap-2 my-auto">

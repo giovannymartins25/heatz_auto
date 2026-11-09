@@ -53,6 +53,13 @@ export interface TcsConfig {
   torqueReduction?: number   // Percentual de corte de torque (0-1)
 }
 
+/** Configuração do controle de largada (Launch Control) */
+export interface LaunchControlConfig {
+  enabled: boolean
+  launchRpm: number          // RPM sustentado na largada (ex: 4500 para GT3 RS, 3800 para GTI)
+  targetBoostBar?: number    // Pressão gerada no turbo com launch armado (anti-lag spool)
+}
+
 /** Configuração da transmissão */
 export interface TransmissionConfig {
   type: TransmissionType
@@ -66,6 +73,7 @@ export interface TransmissionConfig {
   defaultMode?: 'automatic' | 'manual'
   supportedModes?: DrivingMode[]
   tcs?: TcsConfig
+  launchControl?: LaunchControlConfig
 }
 
 /** Configuração de áudio (preparada para amostras reais e sintetizador) */

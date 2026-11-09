@@ -6,6 +6,7 @@ import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { EngineButton } from '@/components/controls/EngineButton'
 import { ClusterView } from './ClusterView'
+import { BoostGauge } from '@/components/gauges'
 
 export interface MobileLandscapeCockpitProps {
   telemetry: DashboardTelemetry
@@ -48,6 +49,11 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const toggleMute = useSimulationStore((s) => s.toggleMute)
   const best0to100 = useSimulationStore((s) => s.best0to100)
   const current0to100 = useSimulationStore((s) => s.current0to100)
+  const hasTurbo = useSimulationStore((s) => s.hasTurbo)
+  const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
+  const isLaunching = useSimulationStore((s) => s.isLaunching)
+  const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
+  const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const isCvtWithManual = vehicle.transmission.hasManualMode === true
@@ -209,12 +215,29 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           </div>
         </header>
 
+        {/* ── Banner de Launch Control no Mobile ── */}
+        {isLaunchControlArmed && (
+          <div className="w-full py-1 px-2 rounded-lg bg-amber-500/20 border border-amber-400 text-amber-300 text-center text-[10px] font-mono font-black animate-pulse my-0.5">
+            🏁 LAUNCH CONTROL ATIVO · SOLTE O FREIO PARA LARGAR!
+          </div>
+        )}
+        {isLaunching && (
+          <div className="w-full py-1 px-2 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-center text-[10px] font-mono font-black my-0.5">
+            🚀 LARGADA!
+          </div>
+        )}
+
         {/* ── Centro: Painel Real Completo ou HUD Digital ── */}
         {centerMode === 'cluster' ? (
-          <div className="w-full flex-1 flex items-center justify-center overflow-hidden my-auto py-0.5 select-none pointer-events-none">
+          <div className="w-full flex-1 flex items-center justify-center overflow-hidden my-auto py-0.5 select-none pointer-events-none relative">
             <div className="scale-[0.50] xs:scale-[0.60] sm:scale-[0.72] md:scale-[0.84] origin-center flex items-center justify-center">
               <ClusterView telemetry={telemetry} />
             </div>
+            {hasTurbo && (
+              <div className="absolute right-1 bottom-1 p-1 bg-black/80 rounded-xl border border-white/10 scale-75 origin-bottom-right">
+                <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={100} />
+              </div>
+            )}
           </div>
         ) : (
           /* Bloco Central de Telemetria Horizontal */
@@ -249,6 +272,13 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                   KM/H
                 </span>
               </div>
+
+              {/* Turbo Boost se tiver */}
+              {hasTurbo && (
+                <div className="flex flex-col items-center">
+                  <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={90} />
+                </div>
+              )}
 
               {/* Marcha em Destaque com Moldura Esportiva */}
               <div className="relative flex flex-col items-center justify-center w-20 h-20 sm:w-22 sm:h-22 rounded-2xl bg-zinc-900/90 border-2 border-[var(--color-accent)] shadow-[0_0_25px_var(--color-accent-muted)]">

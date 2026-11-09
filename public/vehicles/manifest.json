@@ -74,6 +74,26 @@
       "hasTcs": true,
       "hasClutchPedal": false,
       "configPath": "/vehicles/porsche-gt3/config.json"
+    },
+    {
+      "id": "golf-gti",
+      "name": "Golf GTI Mk7 2.0 TSI Turbo",
+      "brand": "Volkswagen",
+      "model": "Golf GTI Mk7",
+      "year": 2018,
+      "category": "car",
+      "powerHp": 230,
+      "torqueKgfm": 35.7,
+      "transmissionType": "sequential",
+      "transmissionLabel": "DSG 6 Marchas Turbo",
+      "gearCount": 6,
+      "isSimulatedGears": false,
+      "hasManualMode": true,
+      "supportedModes": ["eco", "normal", "sport"],
+      "hasTcs": true,
+      "hasClutchPedal": false,
+      "hasTurbo": true,
+      "configPath": "/vehicles/golf-gti/config.json"
     }
   ]
 }

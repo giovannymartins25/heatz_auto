@@ -1,6 +1,8 @@
 import { memo, useEffect, useRef } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import type { VehicleConfig } from '@/types'
+import { useSimulationStore } from '@/stores/useSimulationStore'
+import { BoostGauge } from '@/components/gauges'
 
 interface CockpitViewProps {
   telemetry: DashboardTelemetry
@@ -28,6 +30,12 @@ export const CockpitView = memo(function CockpitView({
   const rpm = telemetry.tachometer.rpm
   const maxRpm = vehicle.engine.maxRpm
   const isRevLimiting = telemetry.shiftLight.isBlinking
+
+  const hasTurbo = useSimulationStore((s) => s.hasTurbo)
+  const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
+  const isLaunching = useSimulationStore((s) => s.isLaunching)
+  const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
+  const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
 
   // Animação de estrada no canvas
   useEffect(() => {
@@ -214,10 +222,22 @@ export const CockpitView = memo(function CockpitView({
             💥 CORTE DE GIRO! 💥
           </div>
         )}
+
+        {/* Alerta de Launch Control */}
+        {isLaunchControlArmed && (
+          <div className="mt-1 px-4 py-1 rounded-full bg-amber-500/90 text-zinc-950 font-mono font-black text-[11px] tracking-widest uppercase animate-pulse shadow-lg shadow-amber-500/50">
+            🏁 LAUNCH CONTROL ATIVO · SOLTE O FREIO! 🏁
+          </div>
+        )}
+        {isLaunching && (
+          <div className="mt-1 px-4 py-1 rounded-full bg-emerald-500/90 text-zinc-950 font-mono font-black text-[11px] tracking-widest uppercase shadow-lg shadow-emerald-500/50">
+            🚀 LARGADA! 🚀
+          </div>
+        )}
       </div>
 
-      {/* ─── HUD Central: Marcha, Velocidade e Rotação ─── */}
-      <div className="relative z-10 flex items-center justify-around w-full px-4 sm:px-12 my-auto">
+      {/* ─── HUD Central: Marcha, Velocidade, Rotação e Turbo Boost ─── */}
+      <div className="relative z-10 flex flex-wrap items-center justify-around w-full px-4 sm:px-12 my-auto gap-4">
         {/* Velocímetro Digital HUD */}
         <div className="flex flex-col items-center p-3 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-md">
           <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">Velocidade</span>
@@ -249,6 +269,13 @@ export const CockpitView = memo(function CockpitView({
           </span>
           <span className="text-[10px] font-mono text-zinc-400 tracking-wider">RPM</span>
         </div>
+
+        {/* Turbo Boost Gauge (Apenas veículos com Turbo) */}
+        {hasTurbo && (
+          <div className="flex flex-col items-center p-2 rounded-2xl bg-black/70 border border-white/15 backdrop-blur-md shadow-xl">
+            <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={110} />
+          </div>
+        )}
       </div>
 
       {/* ─── Moldura Inferior: Painel de Fibra de Carbono / Telemetria ─── */}

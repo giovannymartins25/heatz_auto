@@ -493,6 +493,60 @@ export class SynthEngine implements IAudioEngine {
   }
 
   /**
+   * Som da Válvula de Alívio do Turbo (Blow-off Valve / Compressor Surge Flutter "Tschhh / Stututu").
+   */
+  triggerBlowOff(boostBar = 1.0): void {
+    if (!this.context || !this._isPlaying) return
+    const now = this.context.currentTime
+
+    const duration = Math.min(0.65, 0.28 + boostBar * 0.22)
+    const bufferSize = Math.floor(this.context.sampleRate * duration)
+    const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate)
+    const data = buffer.getChannelData(0)
+
+    // Modulação de flutter a 18Hz (compressor surge "tu-tu-tu")
+    const flutterFreq = 18
+    for (let i = 0; i < bufferSize; i++) {
+      const t = i / this.context.sampleRate
+      const decay = Math.exp(-t / (duration * 0.42))
+      const flutter = 0.65 + 0.35 * Math.sin(2 * Math.PI * flutterFreq * t)
+      data[i] = (Math.random() * 2 - 1) * decay * flutter
+    }
+
+    const noise = this.context.createBufferSource()
+    noise.buffer = buffer
+
+    const filter = this.context.createBiquadFilter()
+    filter.type = 'bandpass'
+    filter.frequency.setValueAtTime(2800, now)
+    filter.frequency.exponentialRampToValueAtTime(1400, now + duration)
+    filter.Q.value = 2.2
+
+    const gain = this.context.createGain()
+    gain.gain.setValueAtTime(clamp(boostBar * 0.55, 0.2, 0.85), now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration)
+
+    noise.connect(filter)
+    filter.connect(gain)
+    gain.connect(this.context.destination)
+
+    noise.start(now)
+    noise.stop(now + duration)
+  }
+
+  /**
+   * Estouro do limitador do Controle de Largada (Launch Control 2-step anti-lag).
+   */
+  triggerLaunchLimiter(): void {
+    if (!this.context || !this._isPlaying) return
+    const now = this.context.currentTime
+    if (now - this.lastBackfireTime < 0.045) return
+    this.lastBackfireTime = now
+
+    this.createTransientPop(0.75, 950 + Math.random() * 350)
+  }
+
+  /**
    * Estouro de corte de giro (Rev Limiter Backfire).
    */
   triggerBackfire(): void {

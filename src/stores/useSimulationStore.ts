@@ -108,6 +108,14 @@ interface SimulationState {
   isMuted: boolean
   masterVolume: number
 
+  // Launch Control & Turbo
+  hasTurbo: boolean
+  hasLaunchControl: boolean
+  isLaunchControlArmed: boolean
+  isLaunching: boolean
+  boostPressureBar: number
+  peakBoostBar: number
+
   // Cronômetro 0-100 & Records
   best0to100: number | null
   current0to100: number | null
@@ -159,6 +167,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isHornActive: false,
   isMuted: false,
   masterVolume: 1,
+  hasTurbo: false,
+  hasLaunchControl: false,
+  isLaunchControlArmed: false,
+  isLaunching: false,
+  boostPressureBar: 0,
+  peakBoostBar: 0,
   best0to100: null,
   current0to100: null,
   isTiming0to100: false,
@@ -212,6 +226,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     // TCS ligado por padrão se o veículo tiver TCS configurado
     const hasTcs = !!config.transmission.tcs?.enabled
+    const hasTurbo = Boolean(config.engine.turbo?.enabled)
+    const hasLaunchControl = Boolean(
+      config.transmission.launchControl?.enabled ||
+      config.id === 'porsche-gt3' ||
+      config.engine.turbo?.enabled
+    )
 
     set({
       _engine: engine,
@@ -223,6 +243,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _pedalInput: pedalInput,
       _config: config,
       _isInitialized: true,
+      hasTurbo,
+      hasLaunchControl,
+      isLaunchControlArmed: false,
+      isLaunching: false,
+      boostPressureBar: 0,
+      peakBoostBar: 0,
       rpm: 0,
       speed: 0,
       currentGear: isAutoOrCvt ? 1 : 0,
@@ -504,31 +530,67 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     let latestIsClutchSlipping = state.isClutchSlipping
     let substeps = 0
 
+    // ─── Launch Control Lógica de Armação / Disparo ───
+    let isLaunchArmed = state.isLaunchControlArmed
+    let isLaunching = state.isLaunching
+
+    const canLaunch = state.hasLaunchControl && latestIsRunning && !state.handbrake
+    const isStationary = latestSpeed < 3.5
+    const isLaunchGear = latestGear === 1 || (state.transmissionMode === 'automatic' && latestGear === 1)
+
+    // Armar: parado em 1ª ou D, freio firme (>= 0.60) e acelerador a fundo (>= 0.65)
+    if (canLaunch && isStationary && isLaunchGear && state.brake >= 0.60 && state.throttle >= 0.65) {
+      isLaunchArmed = true
+      isLaunching = false
+    } else if (isLaunchArmed && state.brake < 0.25 && state.throttle >= 0.50) {
+      // Piloto soltou o freio com o pé no fundo -> DISPARO / LARGADA!
+      isLaunchArmed = false
+      isLaunching = true
+    } else if (isLaunchArmed && (state.throttle < 0.40 || latestGear === 0 || state.handbrake)) {
+      // Cancelou se tirou o pé do acelerador, botou no neutro ou puxou freio de mão
+      isLaunchArmed = false
+      isLaunching = false
+    }
+
+    if (isLaunching && (latestSpeed > 45 || state.throttle < 0.3 || latestGear > 1)) {
+      isLaunching = false
+    }
+
     while (accumulator >= PHYSICS_TIMESTEP && substeps < MAX_SUBSTEPS) {
       const dt = PHYSICS_TIMESTEP
 
       // ─── 1. Tomada de Decisão da Transmissão ───
       if (state.transmissionMode === 'automatic' && _autoTransmission) {
-        // AUTO: AutomaticTransmission gerencia tudo
-        const autoDecision = _autoTransmission.decide({
-          currentRpm: _engine.getRpm(),
-          vehicleSpeedKmh: _physics.getSpeedKmh(),
-          throttle: state.throttle,
-          brake: state.brake,
-          currentGear: _transmission.currentGear,
-          drivingMode: state.drivingMode,
-          deltaTime: dt,
-        })
+        if (isLaunchArmed) {
+          // Com Launch Control armado no automático, segura a embreagem desacoplada
+          _clutch.setPosition(0.95)
+          latestIsKickdown = false
+        } else if (isLaunching) {
+          // No disparo da largada, joga torque total imediato
+          _clutch.setPosition(0.0)
+          latestIsKickdown = true
+        } else {
+          // AUTO convencional
+          const autoDecision = _autoTransmission.decide({
+            currentRpm: _engine.getRpm(),
+            vehicleSpeedKmh: _physics.getSpeedKmh(),
+            throttle: state.throttle,
+            brake: state.brake,
+            currentGear: _transmission.currentGear,
+            drivingMode: state.drivingMode,
+            deltaTime: dt,
+          })
 
-        latestIsKickdown = autoDecision.isKickdown
+          latestIsKickdown = autoDecision.isKickdown
 
-        if (autoDecision.targetGear !== _transmission.currentGear) {
-          _transmission.shiftTo(autoDecision.targetGear, _physics.getSpeedKmh())
-          latestGear = autoDecision.targetGear
+          if (autoDecision.targetGear !== _transmission.currentGear) {
+            _transmission.shiftTo(autoDecision.targetGear, _physics.getSpeedKmh())
+            latestGear = autoDecision.targetGear
+          }
+
+          const autoClutchPosition = 1.0 - autoDecision.targetClutchEngagement
+          _clutch.setPosition(autoClutchPosition)
         }
-
-        const autoClutchPosition = 1.0 - autoDecision.targetClutchEngagement
-        _clutch.setPosition(autoClutchPosition)
 
       } else if (state.transmissionMode === 'manual_simulated') {
         // MANUAL_SIMULATED: jogador escolheu a relação.
@@ -585,7 +647,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
       // 4. EngineSimulator: processa o tick com o torque de CARGA da embreagem sobre o volante
       const engineTick = _engine.tick({
-        throttle: state.throttle,
+        throttle: isLaunchArmed ? Math.min(state.throttle, 0.45) : state.throttle,
         loadTorque: clutchState.loadTorqueOnEngine, // carga resistiva real da embreagem
         deltaTime: dt,
       })
@@ -596,6 +658,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       latestIsStalled = engineTick.isStalled
       latestIsBogWarning = engineTick.isBogWarning
       latestStatus = engineTick.status
+
+      // Se o Launch Control estiver armado, fixa o RPM de corte de largada
+      if (isLaunchArmed) {
+        const launchRpm = _config.transmission.launchControl?.launchRpm || (_config.id === 'porsche-gt3' ? 4500 : 3800)
+        if (_engine.getRpm() > launchRpm) {
+          _engine.setRpm(launchRpm)
+          latestRpm = launchRpm
+        }
+      }
 
       // Telemetria da embreagem
       latestClutchSlipRpm = clutchState.slipRpm
@@ -660,17 +731,67 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       HapticFeedback.revLimiter()
     }
 
-    // Tracking 0-100 km/h e Top Speed
+    // ─── Turbo Boost Pressure Calculation ───
+    let currentBoost = state.boostPressureBar
+    let peakBoost = state.peakBoostBar
+
+    if (state.hasTurbo && _config.engine.turbo?.enabled) {
+      const turboCfg = _config.engine.turbo
+      const maxBoost = turboCfg.maxBoostBar || 1.35
+      const spoolRpm = turboCfg.spoolRpmStart || 1600
+      const fullRpm = turboCfg.fullBoostRpm || 2600
+
+      let targetBoost = -0.7 // Vácuo de marcha lenta (-0.7 bar)
+      if (latestIsRunning) {
+        if (isLaunchArmed) {
+          // Anti-lag no Launch Control: 2-step spools turbo to ~65% do boost máximo
+          targetBoost = turboCfg.maxBoostBar ? turboCfg.maxBoostBar * 0.65 : 0.85
+        } else if (state.throttle < 0.08) {
+          // Vácuo no coletor de admissão (-0.8 a -0.5 bar)
+          targetBoost = -0.75 + clamp((latestRpm - 1000) / 6000, 0, 0.25)
+        } else {
+          // Sob aceleração
+          if (latestRpm < spoolRpm) {
+            // Abaixo do spool, sobe de vácuo para ~atmosférico (0.0 bar)
+            targetBoost = -0.7 + (state.throttle * 0.7)
+          } else {
+            // Turbo enchendo proporcionalmente ao giro e acelerador
+            const rpmFactor = clamp((latestRpm - spoolRpm) / (fullRpm - spoolRpm), 0, 1)
+            targetBoost = state.throttle * (rpmFactor * maxBoost)
+          }
+        }
+      } else {
+        targetBoost = 0 // Motor desligado: pressão atmosférica
+      }
+
+      // Interpolação suave e realista da inércia da turbina
+      const boostSpeed = targetBoost > currentBoost ? 4.8 : 8.5
+      currentBoost += (targetBoost - currentBoost) * clamp(frameTime * boostSpeed, 0, 1)
+      currentBoost = Math.round(currentBoost * 100) / 100
+      peakBoost = Math.max(peakBoost, currentBoost)
+    } else {
+      currentBoost = 0
+      peakBoost = 0
+    }
+
+    // ─── Tracking 0-100 km/h e Top Speed (Rollout Dragy Style) ───
     let timerStart = state._timer0to100Start
     let isTiming = state.isTiming0to100
     let bestTime = state.best0to100
     let currentTime = state.current0to100
     const topSpeed = Math.max(state.topSpeedRecord, Math.round(latestSpeed))
 
-    if (latestSpeed < 2 && state.throttle > 0.15 && !isTiming && latestIsRunning && !state.handbrake) {
-      timerStart = performance.now()
-      isTiming = true
-      currentTime = 0
+    // Disparo estrito de 0-100:
+    // 1. Motor ligado
+    // 2. Marcha à frente engatada (gear > 0) — NUNCA no Neutro ou Ré
+    // 3. Freio solto (brake < 0.3) e freio de mão solto
+    // 4. Rollout / Largada real: velocidade cruzando 0.8 km/h com acelerador > 0.15
+    if (!isTiming && latestIsRunning && latestGear > 0 && !state.handbrake && state.brake < 0.3) {
+      if (latestSpeed >= 0.8 && latestSpeed < 5 && state.throttle > 0.15) {
+        timerStart = performance.now()
+        isTiming = true
+        currentTime = 0
+      }
     } else if (isTiming && timerStart) {
       const elapsed = (performance.now() - timerStart) / 1000
       currentTime = Math.round(elapsed * 100) / 100
@@ -679,7 +800,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         if (!bestTime || currentTime < bestTime) {
           bestTime = currentTime
         }
-      } else if (latestSpeed < 1 && state.throttle < 0.05) {
+      } else if (latestGear === 0 || (latestSpeed < 1 && state.throttle < 0.05)) {
         isTiming = false
       }
     }
@@ -694,6 +815,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       status: latestStatus,
       isKickdown: latestIsKickdown,
       isRevLimiting: latestIsRevLimiting,
+      isLaunchControlArmed: isLaunchArmed,
+      isLaunching,
+      boostPressureBar: currentBoost,
+      peakBoostBar: peakBoost,
       tcsIntervening: latestTcsIntervening,
       tcsInterventionLevel: latestTcsLevel,
       clutchSlipRpm: latestClutchSlipRpm,
@@ -737,6 +862,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       brake: 0,
       handbrake: false,
       isHornActive: false,
+      isLaunchControlArmed: false,
+      isLaunching: false,
+      boostPressureBar: 0,
+      peakBoostBar: 0,
       isTiming0to100: false,
       current0to100: null,
       _timer0to100Start: null,
