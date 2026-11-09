@@ -110,7 +110,7 @@ export interface AudioLayerConfig {
   baseRpm: number            // RPM de referência do sample
 }
 
-export type DashboardTheme = 'classic' | 'modern' | 'motorcycle' | 'supercar' | 'default'
+export type DashboardTheme = 'classic' | 'modern' | 'motorcycle' | 'supercar' | 'gti' | 'default'
 
 /** Configuração do painel visual */
 export interface DashboardConfig {

@@ -5,6 +5,7 @@ import {
   ToyotaYarisRealCluster,
   HondaCB1000RRealCluster,
   Porsche992GT3RealCluster,
+  GolfGTIRealCluster,
 } from './clusters'
 
 interface ClusterViewProps {
@@ -36,6 +37,9 @@ export const ClusterView = memo(function ClusterView({ telemetry }: ClusterViewP
 
     case 'supercar':
       return <Porsche992GT3RealCluster telemetry={telemetry} />
+
+    case 'gti':
+      return <GolfGTIRealCluster telemetry={telemetry} />
 
     case 'classic':
     default:

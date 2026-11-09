@@ -67,6 +67,10 @@ export class SynthEngine implements IAudioEngine {
   private camWhineOsc: OscillatorNode | null = null
   private camWhineGain: GainNode | null = null
 
+  // Camada de Assobio de Turbina (Turbo Spool Whine)
+  private turboWhistleOsc: OscillatorNode | null = null
+  private turboWhistleGain: GainNode | null = null
+
   // Buzina & Efeitos
   private hornOsc1: OscillatorNode | null = null
   private hornOsc2: OscillatorNode | null = null
@@ -105,17 +109,17 @@ export class SynthEngine implements IAudioEngine {
   }
 
   private resolveProfile(custom?: Partial<EngineAcousticProfile>): EngineAcousticProfile {
-    // 1. Supercarro: Porsche GT3 RS (9000 RPM, Flat-6 Boxer)
-    if (this.maxRpm >= 9000 && this.maxRpm < 10500) {
+    // 1. Porsche 911 Flat-6 Boxer (Bi-Turbo ou GT3)
+    if (this.config.engineType === 'boxer6' || (this.maxRpm >= 7000 && this.config.cylinders === 6)) {
       return {
         cylinders: 6,
         engineType: 'boxer6',
-        exhaustResonanceHz: 340,
-        exhaustResonanceQ: 3.2,
-        intakeResonanceHz: 750,
+        exhaustResonanceHz: 320,
+        exhaustResonanceQ: 3.0,
+        intakeResonanceHz: 720,
         hasBrapOnShift: true,
-        subHarmonicWeight: 0.38,
-        highHarmonicRasp: 0.75,
+        subHarmonicWeight: 0.40,
+        highHarmonicRasp: 0.70,
         ...custom,
       }
     }
@@ -135,7 +139,22 @@ export class SynthEngine implements IAudioEngine {
       }
     }
 
-    // 3. Toyota Yaris 1.5 (Suave, VVT-i)
+    // 3. Volkswagen Golf GTI Mk7 2.0 TSI EA888 (Ronco encorpado, DSG shift brap, ressonância esportiva)
+    if (this.config.hasBrapOnShift && this.config.cylinders === 4) {
+      return {
+        cylinders: 4,
+        engineType: 'i4',
+        exhaustResonanceHz: 215,
+        exhaustResonanceQ: 2.8,
+        intakeResonanceHz: 550,
+        hasBrapOnShift: true,
+        subHarmonicWeight: 0.46,
+        highHarmonicRasp: 0.62,
+        ...custom,
+      }
+    }
+
+    // 4. Toyota Yaris 1.5 (Suave, VVT-i)
     if (this.config.baseFrequency <= 60) {
       return {
         cylinders: 4,
@@ -150,7 +169,7 @@ export class SynthEngine implements IAudioEngine {
       }
     }
 
-    // 4. Gol G6 1.6 MSI (4 cilindros clássico, encorpado)
+    // 5. Gol G6 1.6 MSI (4 cilindros clássico, encorpado)
     return {
       cylinders: 4,
       engineType: 'i4',
@@ -293,6 +312,16 @@ export class SynthEngine implements IAudioEngine {
     this.noiseGain.connect(this.noiseFilter)
     this.noiseFilter.connect(this.masterGain)
 
+    // 11. Assobio de Turbina (Turbo Spool Whine)
+    this.turboWhistleOsc = this.context.createOscillator()
+    this.turboWhistleOsc.type = 'sine'
+    this.turboWhistleOsc.frequency.value = 1400
+    this.turboWhistleGain = this.context.createGain()
+    this.turboWhistleGain.gain.value = 0
+
+    this.turboWhistleOsc.connect(this.turboWhistleGain)
+    this.turboWhistleGain.connect(this.masterGain)
+
     this._isInitialized = true
   }
 
@@ -310,6 +339,7 @@ export class SynthEngine implements IAudioEngine {
       this.subOscOneAndHalf,
       this.intakeOsc,
       this.camWhineOsc,
+      this.turboWhistleOsc,
       ...this.harmonicOscs,
     ]
 
@@ -462,14 +492,36 @@ export class SynthEngine implements IAudioEngine {
     if (!this.context || !this._isPlaying || !this.masterGain) return
     const now = this.context.currentTime
 
-    // 1. Corte rápido de ignição (35ms)
+    // 1. Corte rápido de ignição (45ms)
     this.masterGain.gain.cancelScheduledValues(now)
-    this.masterGain.gain.setValueAtTime(0.08, now)
-    this.masterGain.gain.setValueAtTime(this.config.gainMax * 1.25, now + 0.038)
-    this.masterGain.gain.setTargetAtTime(this.config.gainMax, now + 0.07, 0.03)
+    this.masterGain.gain.setValueAtTime(0.05, now)
+    this.masterGain.gain.setValueAtTime(this.config.gainMax * 1.35, now + 0.042)
+    this.masterGain.gain.setTargetAtTime(this.config.gainMax, now + 0.08, 0.03)
 
-    // 2. Estampido de escape
-    this.createTransientPop(0.7, 500)
+    // 2. Estampido duplo característico de DSG (grave + estalo de corte)
+    this.createTransientPop(0.85, 380)
+    setTimeout(() => {
+      if (this._isPlaying) this.createTransientPop(0.55, 620)
+    }, 25)
+  }
+
+  /**
+   * Modula o assobio da turbina (Turbo Spool Whine) baseado na pressão positiva gerada.
+   */
+  setTurboBoost(boostBar: number): void {
+    if (!this.context || !this.turboWhistleGain || !this.turboWhistleOsc || !this._isPlaying) return
+    const now = this.context.currentTime
+    const positiveBoost = Math.max(0, boostBar)
+
+    if (positiveBoost > 0.05) {
+      // Frequência do rotor do compressor sobe de 1250 até 2600 Hz
+      const targetFreq = 1250 + positiveBoost * 1050
+      this.turboWhistleOsc.frequency.setTargetAtTime(targetFreq, now, 0.03)
+      const targetGain = clamp(positiveBoost * 0.065, 0, 0.075)
+      this.turboWhistleGain.gain.setTargetAtTime(targetGain, now, 0.04)
+    } else {
+      this.turboWhistleGain.gain.setTargetAtTime(0, now, 0.06)
+    }
   }
 
   /**
@@ -645,6 +697,7 @@ export class SynthEngine implements IAudioEngine {
       this.subOscOneAndHalf,
       this.intakeOsc,
       this.camWhineOsc,
+      this.turboWhistleOsc,
       ...this.harmonicOscs,
     ]
 
@@ -670,6 +723,8 @@ export class SynthEngine implements IAudioEngine {
     this.subOscOneAndHalf = null
     this.intakeOsc = null
     this.camWhineOsc = null
+    this.turboWhistleOsc = null
+    this.turboWhistleGain = null
     this.harmonicOscs = []
     this.harmonicGains = []
     this.noiseSource = null

@@ -8,7 +8,7 @@
     "category": "car",
     "weight": 1351,
     "wheelDiameter": 0.64,
-    "description": "Ícone hot hatch equipado com motor EA888 2.0 TSI Turbo de 230 cv e 35.7 kgfm de torque, câmbio DSG de 6 marchas, Launch Control aos 3.800 RPM e manômetro de pressão de turbo com válvula de alívio."
+    "description": "Ícone hot hatch equipado com motor EA888 2.0 TSI Turbo de 230 cv e 35.7 kgfm de torque, câmbio DSG de 6 marchas com modos Automático (D/S) e Manual Tiptronic (M), Launch Control aos 3.800 RPM e manômetro de pressão de turbo integrado no painel Maxi-DOT."
   },
   "engine": {
     "maxPower": 230,
@@ -40,7 +40,8 @@
     ]
   },
   "transmission": {
-    "type": "sequential",
+    "type": "automatic",
+    "defaultMode": "automatic",
     "gearCount": 6,
     "gearRatios": [
       { "gear": 1, "ratio": 3.462 },
@@ -72,17 +73,17 @@
       "baseFrequency": 62,
       "harmonics": [1, 2, 2.5, 3, 4, 5.5],
       "gainIdle": 0.20,
-      "gainMax": 0.88,
+      "gainMax": 0.90,
       "cylinders": 4,
       "engineType": "i4",
-      "exhaustResonanceHz": 230,
-      "intakeResonanceHz": 580,
+      "exhaustResonanceHz": 215,
+      "intakeResonanceHz": 540,
       "hasBrapOnShift": true
     }
   },
   "dashboard": {
     "type": "default",
-    "theme": "modern",
+    "theme": "gti",
     "tachometerMax": 8000,
     "speedometerMax": 280,
     "redlineStart": 6500,

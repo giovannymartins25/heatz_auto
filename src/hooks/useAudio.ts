@@ -81,6 +81,7 @@ export function useAudio(config: VehicleConfig | null) {
 
     synth.setRpm(rpm)
     synth.setThrottle(throttle)
+    synth.setTurboBoost(boostPressureBar)
 
     if (isRevLimiting) {
       synth.triggerBackfire()

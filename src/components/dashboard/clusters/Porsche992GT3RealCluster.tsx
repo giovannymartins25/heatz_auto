@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
-import { mapRange } from '@/utils/math'
+import { mapRange, clamp } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 
 interface Porsche992GT3RealClusterProps {
@@ -33,6 +33,15 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
 
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const isLaunching = useSimulationStore((s) => s.isLaunching)
+  const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
+  const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
+  const transmissionMode = useSimulationStore((s) => s.transmissionMode)
+  const drivingMode = useSimulationStore((s) => s.drivingMode)
+  const currentGear = useSimulationStore((s) => s.currentGear)
+
+  const pdkDisplay = transmissionMode === 'automatic'
+    ? (currentGear === 0 ? 'N' : currentGear === -1 ? 'R' : drivingMode === 'sport' || drivingMode === 'track' ? `S${currentGear || 1}` : `D${currentGear || 1}`)
+    : gear.label
 
   // Configurações geométricas dos mostradores
   const size = 260
@@ -308,14 +317,14 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
             <circle cx={center} cy={center} r={radius + 18} fill="none" stroke="#52525b" strokeWidth="3.5" />
             <circle cx={center} cy={center} r={radius + 15} fill="url(#porscheTachBg)" stroke="#18181b" strokeWidth="2" />
 
-            {/* Inscrição "GT3 RS" no topo do mostrador */}
+            {/* Inscrição "911 BI-TURBO" no topo do mostrador */}
             <text
               x={center}
               y={center - 34}
               textAnchor="middle"
-              className="fill-amber-400 font-mono text-[10px] tracking-widest font-black uppercase"
+              className="fill-amber-400 font-mono text-[9px] tracking-widest font-black uppercase"
             >
-              GT3 RS · 10K
+              911 BI-TURBO
             </text>
 
             {/* Faixa vermelha de redline brutal em 9000 RPM */}
@@ -368,7 +377,7 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
               )
             })}
 
-            {/* Display Central Digital Integrado no Tacômetro (PDK Gear Gigante) */}
+            {/* Display Central Digital Integrado no Tacômetro (PDK Gear) */}
             <g transform={`translate(${center}, ${center + 26})`}>
               <circle cx="0" cy="0" r="26" fill="#090a0d" stroke="#3f3f46" strokeWidth="1.5" />
               <text
@@ -377,7 +386,7 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
                 textAnchor="middle"
                 className="font-mono text-2xl font-black fill-amber-400"
               >
-                {gear.label}
+                {pdkDisplay}
               </text>
               <text
                 x="0"
@@ -472,6 +481,39 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
               <span className="absolute bottom-1 text-[7px] font-mono text-zinc-400">
                 {Math.abs(gForceY).toFixed(1)}G LAT
               </span>
+            </div>
+          </div>
+
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* MANÔMETRO OFICIAL DE TURBO PORSCHE 992 (BOOST / LADEDRUCK)   */}
+          {/* ═════════════════════════════════════════════════════════════ */}
+          <div className="w-full flex flex-col p-1.5 rounded-xl bg-zinc-900/90 border border-white/10 my-0.5">
+            <div className="w-full flex justify-between items-center text-[8px] font-mono mb-0.5">
+              <span className="font-bold text-amber-400 flex items-center gap-1">
+                <span>⚡</span>
+                <span>BOOST · LADEDRUCK</span>
+              </span>
+              <strong className={`font-mono text-[10px] font-black ${boostPressureBar > 0 ? 'text-amber-400' : 'text-sky-400'}`}>
+                {boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : boostPressureBar.toFixed(2)} BAR
+              </strong>
+            </div>
+
+            {/* Barra horizontal de boost da Porsche */}
+            <div className="w-full h-2 bg-zinc-950 rounded-full border border-white/10 overflow-hidden relative">
+              <div
+                className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-red-500 transition-all duration-75"
+                style={{ width: `${clamp((boostPressureBar + 1.0) / 2.6, 0, 1) * 100}%` }}
+              />
+            </div>
+
+            <div className="w-full flex justify-between items-center text-[6px] font-mono text-zinc-500 mt-0.5">
+              <span>0.0</span>
+              <span>0.5</span>
+              <span>1.0</span>
+              <span>+1.5 BAR</span>
+              {peakBoostBar > 0.1 && (
+                <span className="text-amber-400 font-bold">PEAK +{peakBoostBar.toFixed(2)}</span>
+              )}
             </div>
           </div>
 

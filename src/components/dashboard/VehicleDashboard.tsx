@@ -142,7 +142,12 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   }
 
   const isManualSimulated = transmissionMode === 'manual_simulated'
-  const isCvtWithManualMode = vehicle.transmission.hasManualMode === true
+  const hasAutoManualToggle =
+    vehicle.transmission.hasManualMode === true &&
+    (vehicle.transmission.type === 'automatic' ||
+      vehicle.transmission.type === 'cvt' ||
+      vehicle.transmission.type === 'dct' ||
+      vehicle.transmission.defaultMode === 'automatic')
   const hasTcs = !!vehicle.transmission.tcs?.enabled
   const supportedModes = vehicle.transmission.supportedModes || []
 
@@ -296,8 +301,8 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
             </div>
           )}
 
-          {/* Toggle AUTO ↔ MANUAL (apenas CVTs com hasManualMode) */}
-          {isCvtWithManualMode && (
+          {/* Toggle AUTO ↔ MANUAL (Tiptronic / Borboletas) */}
+          {hasAutoManualToggle && (
             <button
               id="btn-auto-manual-toggle"
               onClick={toggleSimulatedManual}
@@ -451,7 +456,11 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
                 Transmissão
               </span>
               <span className="text-xs font-mono font-bold text-emerald-400 px-2.5 py-1 rounded bg-zinc-950 border border-white/10 mt-0.5">
-                CVT AUTOMÁTICO
+                {vehicle.id === 'porsche-gt3'
+                  ? 'PDK AUTOMÁTICO'
+                  : vehicle.id === 'golf-gti'
+                  ? 'DSG AUTOMÁTICO'
+                  : 'CÂMBIO AUTOMÁTICO'}
               </span>
             </div>
           )}

@@ -190,7 +190,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   _isInitialized: false,
 
   init: (config: VehicleConfig) => {
-    const isAutoOrCvt = config.transmission.type === 'automatic' || config.transmission.type === 'cvt'
+    const isAutoOrCvt =
+      config.transmission.type === 'automatic' ||
+      config.transmission.type === 'cvt' ||
+      config.transmission.type === 'dct' ||
+      config.transmission.defaultMode === 'automatic'
 
     const engine = new EngineSimulator(config.engine)
     const transmission = new Transmission(
@@ -230,6 +234,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const hasLaunchControl = Boolean(
       config.transmission.launchControl?.enabled ||
       config.id === 'porsche-gt3' ||
+      config.id === 'golf-gti' ||
       config.engine.turbo?.enabled
     )
 
@@ -377,7 +382,14 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const { _engine, _transmission, _clutch, _config, speed, isRunning, transmissionMode } = get()
     if (!_engine || !_transmission || !_config || !isRunning) return
 
-    if (transmissionMode === 'automatic') return // câmbio gerencia as trocas
+    if (transmissionMode === 'automatic') {
+      if (_config.transmission.hasManualMode) {
+        // Tiptronic override: paddle shifter ativa modo manual imediatamente
+        get().toggleSimulatedManual()
+        get().shiftUp()
+      }
+      return
+    }
 
     if (transmissionMode === 'manual_simulated') {
       // Modo manual simulado: sem embreagem, proteção via canShiftTo
@@ -417,7 +429,14 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const { _engine, _transmission, _clutch, _config, speed, isRunning, transmissionMode } = get()
     if (!_engine || !_transmission || !_config || !isRunning) return
 
-    if (transmissionMode === 'automatic') return
+    if (transmissionMode === 'automatic') {
+      if (_config.transmission.hasManualMode) {
+        // Tiptronic override: paddle shifter ativa modo manual imediatamente
+        get().toggleSimulatedManual()
+        get().shiftDown()
+      }
+      return
+    }
 
     if (transmissionMode === 'manual_simulated') {
       // Modo manual simulado: sem embreagem
