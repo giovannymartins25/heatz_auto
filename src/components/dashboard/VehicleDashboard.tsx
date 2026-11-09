@@ -14,7 +14,8 @@ import { MobilePortraitCockpit } from './MobilePortraitCockpit'
 import { RotateDeviceOverlay } from './RotateDeviceOverlay'
 import { PerformanceBox } from './PerformanceBox'
 import { KeyboardHUD } from './KeyboardHUD'
-import { PedalTelemetry, BoostGauge } from '@/components/gauges'
+import { InfotainmentScreen } from './InfotainmentScreen'
+import { PedalTelemetry } from '@/components/gauges'
 import { Pedals, GearShift, EngineButton } from '@/components/controls'
 import type { VehicleConfig, DrivingMode } from '@/types'
 
@@ -57,11 +58,8 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const setHorn = useSimulationStore((s) => s.setHorn)
   const isMuted = useSimulationStore((s) => s.isMuted)
   const toggleMute = useSimulationStore((s) => s.toggleMute)
-  const hasTurbo = useSimulationStore((s) => s.hasTurbo)
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const isLaunching = useSimulationStore((s) => s.isLaunching)
-  const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
-  const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
 
   const viewMode = useUIStore((s) => s.viewMode)
   const setViewMode = useUIStore((s) => s.setViewMode)
@@ -395,15 +393,10 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
             )}
           </div>
 
-          {/* Manômetro de Pressão do Turbo (Exclusivo para veículos com Turbo) */}
-          {hasTurbo && (
-            <div className="flex flex-col items-center p-3 rounded-2xl bg-zinc-950/90 border border-white/10 shadow-lg">
-              <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest mb-1">
-                MANÔMETRO TURBO
-              </span>
-              <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={150} />
-            </div>
-          )}
+          {/* Central Multimídia Automotiva ao lado (Console Central com Sport HMI / Turbo) */}
+          <div className="flex flex-col items-center justify-center shrink-0">
+            <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} />
+          </div>
         </div>
 
         {/* ── Telemetria Analógica dos Pedais (0-100%) ── */}

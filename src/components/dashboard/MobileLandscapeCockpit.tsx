@@ -6,6 +6,7 @@ import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { EngineButton } from '@/components/controls/EngineButton'
 import { ClusterView } from './ClusterView'
+import { InfotainmentScreen } from './InfotainmentScreen'
 import { BoostGauge } from '@/components/gauges'
 
 export interface MobileLandscapeCockpitProps {
@@ -60,7 +61,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const isManualSimulated = transmissionMode === 'manual_simulated'
   const isManualOrSimulated = transmissionMode === 'manual' || transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
-  const [centerMode, setCenterMode] = useState<'cluster' | 'hud'>('cluster')
+  const [centerMode, setCenterMode] = useState<'cluster' | 'multimedia' | 'hud'>('cluster')
 
   // Formatação de valores centrais
   const displaySpeed = Math.round(telemetry.speedometer.speed)
@@ -191,18 +192,39 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               </span>
             </div>
 
-            {/* Alternador Painel Real / HUD */}
-            <button
-              onClick={() => setCenterMode(centerMode === 'cluster' ? 'hud' : 'cluster')}
-              className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
-                centerMode === 'cluster'
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                  : 'bg-zinc-900 text-zinc-400 border-white/10'
-              }`}
-              title="Alternar entre Painel Real e HUD Digital"
-            >
-              {centerMode === 'cluster' ? '🏎️ PAINEL' : '⚡ HUD'}
-            </button>
+            {/* Alternador Painel / Multimídia / HUD */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCenterMode('cluster')}
+                className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                  centerMode === 'cluster'
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                    : 'bg-zinc-900 text-zinc-500 border-white/5'
+                }`}
+              >
+                PAINEL
+              </button>
+              <button
+                onClick={() => setCenterMode('multimedia')}
+                className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                  centerMode === 'multimedia'
+                    ? 'bg-red-500/20 text-red-300 border-red-500/50'
+                    : 'bg-zinc-900 text-zinc-500 border-white/5'
+                }`}
+              >
+                MULTIMÍDIA
+              </button>
+              <button
+                onClick={() => setCenterMode('hud')}
+                className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                  centerMode === 'hud'
+                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/50'
+                    : 'bg-zinc-900 text-zinc-500 border-white/5'
+                }`}
+              >
+                HUD
+              </button>
+            </div>
           </div>
 
           <div className="text-right">
@@ -227,17 +249,29 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           </div>
         )}
 
-        {/* ── Centro: Painel Real Completo ou HUD Digital ── */}
+        {/* ── Centro: Painel Real Completo, Central Multimídia ou HUD Digital ── */}
         {centerMode === 'cluster' ? (
-          <div className="w-full flex-1 flex items-center justify-center overflow-hidden my-auto py-0.5 select-none pointer-events-none relative">
-            <div className="scale-[0.50] xs:scale-[0.60] sm:scale-[0.72] md:scale-[0.84] origin-center flex items-center justify-center">
+          <div className="w-full flex-1 flex items-center justify-center overflow-hidden my-auto py-0.5 select-none relative">
+            <div className="scale-[0.50] xs:scale-[0.60] sm:scale-[0.72] md:scale-[0.84] origin-center flex items-center justify-center pointer-events-none">
               <ClusterView telemetry={telemetry} />
             </div>
             {hasTurbo && (
-              <div className="absolute right-1 bottom-1 p-1 bg-black/80 rounded-xl border border-white/10 scale-75 origin-bottom-right">
-                <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={100} />
-              </div>
+              <button
+                onClick={() => setCenterMode('multimedia')}
+                className="absolute right-2 top-1 z-20 pointer-events-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/85 border border-amber-500/40 text-[9px] font-mono text-amber-300 shadow active:scale-95 transition-all cursor-pointer hover:border-amber-400"
+                title="Abrir Central Multimídia"
+              >
+                <span>⚡ TURBO:</span>
+                <span className="font-bold">
+                  {boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : boostPressureBar.toFixed(2)} BAR
+                </span>
+                <span className="text-[8px] opacity-75">📺</span>
+              </button>
             )}
+          </div>
+        ) : centerMode === 'multimedia' ? (
+          <div className="w-full flex-1 flex items-center justify-center my-auto py-0.5 select-none">
+            <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={false} />
           </div>
         ) : (
           /* Bloco Central de Telemetria Horizontal */
@@ -276,7 +310,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               {/* Turbo Boost se tiver */}
               {hasTurbo && (
                 <div className="flex flex-col items-center">
-                  <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={90} />
+                  <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={65} showPeak={false} />
                 </div>
               )}
 

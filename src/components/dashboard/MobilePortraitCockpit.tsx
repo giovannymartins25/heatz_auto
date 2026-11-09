@@ -5,8 +5,9 @@ import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { EngineButton } from '@/components/controls/EngineButton'
-import { WarningLights, AuxGauges, BoostGauge } from '@/components/gauges'
+import { WarningLights, AuxGauges } from '@/components/gauges'
 import { ClusterView } from './ClusterView'
+import { InfotainmentScreen } from './InfotainmentScreen'
 
 export interface MobilePortraitCockpitProps {
   telemetry: DashboardTelemetry
@@ -44,18 +45,15 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const toggleMute = useSimulationStore((s) => s.toggleMute)
   const current0to100 = useSimulationStore((s) => s.current0to100)
   const best0to100 = useSimulationStore((s) => s.best0to100)
-  const hasTurbo = useSimulationStore((s) => s.hasTurbo)
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const isLaunching = useSimulationStore((s) => s.isLaunching)
-  const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
-  const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const isCvtWithManual = vehicle.transmission.hasManualMode === true
   const isManualSimulated = transmissionMode === 'manual_simulated'
   const isManualOrSimulated = transmissionMode === 'manual' || transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
-  const [portraitMode, setPortraitMode] = useState<'cluster' | 'hud'>('cluster')
+  const [portraitMode, setPortraitMode] = useState<'cluster' | 'multimedia' | 'hud'>('cluster')
 
   const displaySpeed = Math.round(telemetry.speedometer.speed)
   const displayRpm = Math.round(telemetry.tachometer.rpm)
@@ -149,18 +147,39 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               </span>
             </div>
 
-            {/* Alternador Painel Real / HUD */}
-            <button
-              onClick={() => setPortraitMode(portraitMode === 'cluster' ? 'hud' : 'cluster')}
-              className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
-                portraitMode === 'cluster'
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                  : 'bg-zinc-900 text-zinc-400 border-white/10'
-              }`}
-              title="Alternar entre Painel Real e HUD"
-            >
-              {portraitMode === 'cluster' ? '🏎️ PAINEL' : '⚡ HUD'}
-            </button>
+            {/* Alternador Painel / Multimídia / HUD */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPortraitMode('cluster')}
+                className={`px-1.5 py-0.5 text-[8px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                  portraitMode === 'cluster'
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                    : 'bg-zinc-900 text-zinc-500 border-white/5'
+                }`}
+              >
+                PAINEL
+              </button>
+              <button
+                onClick={() => setPortraitMode('multimedia')}
+                className={`px-1.5 py-0.5 text-[8px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                  portraitMode === 'multimedia'
+                    ? 'bg-red-500/20 text-red-300 border-red-500/50'
+                    : 'bg-zinc-900 text-zinc-500 border-white/5'
+                }`}
+              >
+                MULTIMÍDIA
+              </button>
+              <button
+                onClick={() => setPortraitMode('hud')}
+                className={`px-1.5 py-0.5 text-[8px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                  portraitMode === 'hud'
+                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/50'
+                    : 'bg-zinc-900 text-zinc-500 border-white/5'
+                }`}
+              >
+                HUD
+              </button>
+            </div>
           </div>
         </div>
 
@@ -176,17 +195,16 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           </div>
         )}
 
-        {/* ── Centro: Painel Real Completo ou HUD Digital ── */}
+        {/* ── Centro: Painel Real Completo, Central Multimídia ou HUD Digital ── */}
         {portraitMode === 'cluster' ? (
           <div className="w-full flex-1 flex flex-col items-center justify-center overflow-hidden my-auto py-1 select-none pointer-events-none relative">
             <div className="scale-[0.48] xs:scale-[0.55] sm:scale-[0.65] origin-center flex items-center justify-center">
               <ClusterView telemetry={telemetry} />
             </div>
-            {hasTurbo && (
-              <div className="mt-1 p-1 bg-black/80 rounded-xl border border-white/10 scale-90">
-                <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={90} />
-              </div>
-            )}
+          </div>
+        ) : portraitMode === 'multimedia' ? (
+          <div className="w-full flex-1 flex items-center justify-center my-auto py-1">
+            <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={true} />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center w-full gap-2 my-auto">

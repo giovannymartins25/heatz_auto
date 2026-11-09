@@ -273,7 +273,7 @@ export const CockpitView = memo(function CockpitView({
         {/* Turbo Boost Gauge (Apenas veículos com Turbo) */}
         {hasTurbo && (
           <div className="flex flex-col items-center p-2 rounded-2xl bg-black/70 border border-white/15 backdrop-blur-md shadow-xl">
-            <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={110} />
+            <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={76} />
           </div>
         )}
       </div>
