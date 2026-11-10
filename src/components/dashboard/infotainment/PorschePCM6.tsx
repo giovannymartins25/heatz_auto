@@ -39,7 +39,8 @@ export const PorschePCM6 = memo(function PorschePCM6({
   const [activeTab, setActiveTab] = useState<PorscheActiveTab>('track')
   const [clockTime, setClockTime] = useState('14:32')
   const [isFrontLiftActive, setIsFrontLiftActive] = useState(false)
-  const [wingMode, setWingMode] = useState<'auto' | 'extended'>('auto')
+  const isAeroWingExtended = useSimulationStore((s) => s.isAeroWingExtended)
+  const toggleAeroWing = useSimulationStore((s) => s.toggleAeroWing)
 
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
@@ -244,17 +245,17 @@ export const PorschePCM6 = memo(function PorschePCM6({
 
               {/* Active Rear Wing */}
               <button
-                onClick={() => setWingMode(wingMode === 'auto' ? 'extended' : 'auto')}
+                onClick={toggleAeroWing}
                 className={`p-2.5 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                  wingMode === 'extended'
+                  isAeroWingExtended
                     ? 'bg-red-500/20 border-red-400 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.4)]'
                     : 'bg-zinc-900/80 border-white/10 text-zinc-400 hover:text-white'
                 }`}
               >
                 <span className="text-xl">🪽</span>
                 <strong className="text-[9px] font-black">ASA TRASEIRA</strong>
-                <span className={`text-[7px] font-bold ${wingMode === 'extended' ? 'text-red-400' : 'text-zinc-500'}`}>
-                  {wingMode === 'extended' ? '+150KG DOWNFORCE' : 'MODO AUTOMÁTICO'}
+                <span className={`text-[7px] font-bold ${isAeroWingExtended ? 'text-red-400' : 'text-zinc-500'}`}>
+                  {isAeroWingExtended ? '+150KG DOWNFORCE' : 'MODO AUTOMÁTICO'}
                 </span>
               </button>
 
@@ -293,7 +294,7 @@ export const PorschePCM6 = memo(function PorschePCM6({
 
             <div className="w-full flex justify-between items-center px-2 py-1 rounded bg-black/60 text-[7px] text-zinc-400 border border-white/5">
               <span>PROTEÇÃO DE SPOILER: <b className="text-white">{isFrontLiftActive ? 'ATIVA' : 'DESLIGADA'}</b></span>
-              <span>CARGA AERODINÂMICA: <b className="text-amber-400">{wingMode === 'extended' ? 'MAX' : 'DYNAMIC'}</b></span>
+              <span>CARGA AERODINÂMICA: <b className="text-amber-400">{isAeroWingExtended ? 'MAX (+150KG)' : 'DYNAMIC'}</b></span>
             </div>
           </div>
         )}

@@ -1,7 +1,7 @@
 import { memo, useState } from 'react'
 
 interface InternetMediaCenterProps {
-  theme?: 'gti' | 'porsche' | 'toyota'
+  theme?: 'gti' | 'porsche' | 'toyota' | 'honda'
   compact?: boolean
 }
 

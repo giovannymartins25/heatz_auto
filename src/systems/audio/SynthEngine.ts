@@ -4,7 +4,7 @@ import { clamp, mapRange } from '@/utils/math'
 
 export interface EngineAcousticProfile {
   cylinders: number
-  engineType: 'i4' | 'boxer6' | 'i4_highrev' | 'v6' | 'v8'
+  engineType: 'i4' | 'boxer6' | 'i4_highrev' | 'i4_ap' | 'i4_vtec' | 'v6' | 'v8'
   exhaustResonanceHz: number
   exhaustResonanceQ: number
   intakeResonanceHz: number
@@ -110,7 +110,37 @@ export class SynthEngine implements IAudioEngine {
   }
 
   private resolveProfile(custom?: Partial<EngineAcousticProfile>): EngineAcousticProfile {
-    // 1. Porsche 911 Flat-6 Boxer (Bi-Turbo ou GT3)
+    // 1. Volkswagen AP 1.9 Turbo (Gol Quadrado Forjado: ronco encorpado, marcha lenta embaralhada, estampidos de 3-step)
+    if (this.config.engineType === 'i4_ap' || this.config.cylinders === 4 && this.maxRpm === 7600) {
+      return {
+        cylinders: 4,
+        engineType: 'i4_ap',
+        exhaustResonanceHz: 160,
+        exhaustResonanceQ: 3.5,
+        intakeResonanceHz: 480,
+        hasBrapOnShift: true,
+        subHarmonicWeight: 0.65, // Grave profundo e descompasso clássico de comando bravo
+        highHarmonicRasp: 0.85,
+        ...custom,
+      }
+    }
+
+    // 2. Honda Civic Si 2.0 16V K20 i-VTEC (Duplo comando variável, berro agudo estridente acima de 5.800 RPM)
+    if (this.config.engineType === 'i4_vtec' || this.config.engineType === 'i4_highrev' && this.maxRpm <= 8800) {
+      return {
+        cylinders: 4,
+        engineType: 'i4_vtec',
+        exhaustResonanceHz: 330,
+        exhaustResonanceQ: 3.4,
+        intakeResonanceHz: 780,
+        hasBrapOnShift: false,
+        subHarmonicWeight: 0.25,
+        highHarmonicRasp: 0.82,
+        ...custom,
+      }
+    }
+
+    // 3. Porsche 911 Flat-6 Boxer (Bi-Turbo ou GT3)
     if (this.config.engineType === 'boxer6' || (this.maxRpm >= 7000 && this.config.cylinders === 6)) {
       return {
         cylinders: 6,
@@ -419,14 +449,29 @@ export class SynthEngine implements IAudioEngine {
       this.camWhineGain.gain.setTargetAtTime(whineGain, now, 0.03)
     }
 
-    // 6. Dinâmica do filtro de escape (abre mais em giros altos)
+    // 6. Dinâmica do filtro de escape e VTEC Crossover
+    const isVtecCrossover = this.profile.engineType === 'i4_vtec' && this.currentRpm >= 5800
+    if (this.intakeFilter && this.intakeGain && isVtecCrossover) {
+      // VTEC Crossover: abre a admissão e solta o berro agudo de comando bravo
+      this.intakeFilter.frequency.setTargetAtTime(1400 + (this.currentRpm - 5800) * 0.4, now, 0.02)
+      this.intakeFilter.Q.setTargetAtTime(3.8, now, 0.02)
+      this.intakeGain.gain.setTargetAtTime(0.38 + this.currentThrottle * 0.45, now, 0.02)
+    }
+
+    // AP 1.9 Turbo: marcha lenta rústica com flutter de comando bravo
+    if (this.profile.engineType === 'i4_ap' && this.currentRpm < 1200 && this.fundamentalOsc) {
+      const lumpyMod = 1 + 0.07 * Math.sin(now * 14 * Math.PI)
+      this.fundamentalOsc.frequency.setTargetAtTime(fireFreq * lumpyMod, now, 0.02)
+    }
+
     if (this.exhaustRaspFilter) {
+      const maxCutoff = isVtecCrossover ? 7200 : this.profile.engineType === 'i4_highrev' ? 6500 : 4800
       const cutoff = mapRange(
         this.currentRpm,
         this.idleRpm,
         this.maxRpm,
         1800,
-        this.profile.engineType === 'i4_highrev' ? 6500 : 4800,
+        maxCutoff,
       )
       this.exhaustRaspFilter.frequency.setTargetAtTime(cutoff, now, 0.03)
     }
@@ -544,17 +589,17 @@ export class SynthEngine implements IAudioEngine {
   triggerDecelBurble(): void {
     if (!this.context || !this._isPlaying) return
     const now = this.context.currentTime
-    const minInterval = this.exhaustValveOpen ? 0.08 : 0.14
+    const minInterval = this.exhaustValveOpen ? 0.06 : 0.12
     if (now - this.lastBurbleTime < minInterval) return
     this.lastBurbleTime = now
 
-    const count = (this.exhaustValveOpen ? 3 : 2) + Math.floor(Math.random() * (this.exhaustValveOpen ? 4 : 2))
-    const baseIntensity = this.exhaustValveOpen ? 0.6 : 0.3
+    const count = (this.exhaustValveOpen ? 3 : 2) + Math.floor(Math.random() * (this.exhaustValveOpen ? 5 : 2))
+    const baseIntensity = this.exhaustValveOpen ? 0.85 : 0.4
     for (let i = 0; i < count; i++) {
-      const delay = i * 0.07 + Math.random() * 0.035
+      const delay = i * 0.055 + Math.random() * 0.035
       setTimeout(() => {
-        if (this._isPlaying && this.currentThrottle < 0.18) {
-          this.createTransientPop(baseIntensity + Math.random() * 0.35, 600 + Math.random() * 350)
+        if (this._isPlaying && this.currentThrottle < 0.20) {
+          this.createTransientPop(baseIntensity + Math.random() * 0.45, 1200 + Math.random() * 800)
         }
       }, delay * 1000)
     }
@@ -751,32 +796,55 @@ export class SynthEngine implements IAudioEngine {
     this._isPlaying = false
   }
 
-  /** Gera estampido de pressão no escape (pops / braps / backfire) */
+  /** Gera estampido de pressão no escape realista (pops & bangs / braps / backfire explosivo) */
   private createTransientPop(volume: number, filterFreq: number): void {
     if (!this.context) return
+    const now = this.context.currentTime
+    const isLoud = this.exhaustValveOpen
+    const adjustedVol = isLoud ? volume * 1.5 : volume * 0.85
 
-    const bufferSize = Math.floor(this.context.sampleRate * 0.055)
+    // 1. Sub-Bass Thump (Impacto físico de baixa frequência no escapamento)
+    const subOsc = this.context.createOscillator()
+    const subGain = this.context.createGain()
+    subOsc.type = 'sine'
+    subOsc.frequency.setValueAtTime(130, now)
+    subOsc.frequency.exponentialRampToValueAtTime(35, now + 0.055)
+    subGain.gain.setValueAtTime(adjustedVol * 0.75, now)
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.065)
+
+    subOsc.connect(subGain)
+    subGain.connect(this.context.destination)
+    subOsc.start(now)
+    subOsc.stop(now + 0.07)
+
+    // 2. Ruído explosivo de queima com estalo agudo (Crackle / Gunshot Snap)
+    const duration = isLoud ? 0.08 : 0.045
+    const bufferSize = Math.floor(this.context.sampleRate * duration)
     const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate)
     const data = buffer.getChannelData(0)
     for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.16))
+      const t = i / bufferSize
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-t * 7)
     }
 
     const popSource = this.context.createBufferSource()
     popSource.buffer = buffer
 
     const filter = this.context.createBiquadFilter()
-    filter.type = 'lowpass'
-    filter.frequency.value = filterFreq
+    filter.type = isLoud ? 'bandpass' : 'lowpass'
+    filter.frequency.value = isLoud ? 1700 : filterFreq
+    filter.Q.value = isLoud ? 1.6 : 1.0
 
     const popGain = this.context.createGain()
-    popGain.gain.value = volume
+    popGain.gain.setValueAtTime(adjustedVol, now)
+    popGain.gain.exponentialRampToValueAtTime(0.001, now + duration)
 
     popSource.connect(filter)
     filter.connect(popGain)
     popGain.connect(this.context.destination)
 
-    popSource.start()
+    popSource.start(now)
+    popSource.stop(now + duration)
   }
 
   /** Cria fonte contínua de ruído branco para textura mecânica */

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
 import { useUIStore } from '@/stores/useUIStore'
 import { useSimulationLoop } from '@/hooks/useSimulationLoop'
 import { useAudio } from '@/hooks/useAudio'
@@ -71,25 +72,29 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const tuningStage = useSimulationStore((s) => s.tuningStage)
 
   const [isTuningOpen, setIsTuningOpen] = useState(false)
+  const activeCar = useGarageStore((s) => s.getActiveCar())
+  const hasRetrofitInfotainment = useSimulationStore((s) => s.hasRetrofitInfotainment)
 
   const hasInfotainment =
-    vehicle.dashboard?.hasInfotainment ??
-    (vehicle.id !== 'gol-g6' &&
-      vehicle.id !== 'cb1000r' &&
-      vehicle.info.category !== 'motorcycle')
+    hasRetrofitInfotainment ||
+    (vehicle.dashboard?.hasInfotainment ??
+      (vehicle.id !== 'gol-g6' &&
+        vehicle.id !== 'gol-quadrado-turbo' &&
+        vehicle.id !== 'cb1000r' &&
+        vehicle.info.category !== 'motorcycle'))
 
   const viewMode = useUIStore((s) => s.viewMode)
   const setViewMode = useUIStore((s) => s.setViewMode)
   const allowPortraitCockpit = useUIStore((s) => s.allowPortraitCockpit)
   const setAllowPortraitCockpit = useUIStore((s) => s.setAllowPortraitCockpit)
 
-  // Inicializar a física com as especificações do veículo
+  // Inicializar a física com as especificações do veículo e peças equipadas da garagem
   useEffect(() => {
-    init(vehicle)
+    init(vehicle, activeCar?.vehicleId === vehicle.id ? activeCar.upgrades : undefined)
     return () => {
       reset()
     }
-  }, [vehicle, init, reset])
+  }, [vehicle, activeCar, init, reset])
 
   // Disparar loop de física (120Hz)
   useSimulationLoop()
@@ -284,12 +289,19 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
 
         {/* Informações do veículo e Atalhos */}
         <div className="text-right">
-          <div className="flex items-center gap-2 justify-end">
+          <div className="flex items-center gap-1.5 justify-end">
             <span className="text-[10px] uppercase font-mono tracking-widest text-[var(--color-text-muted)] block">
               {vehicle.info.brand}
             </span>
+            {activeCar?.instanceId && (
+              <span className="text-[7.5px] font-mono font-bold px-1 py-0.5 rounded bg-zinc-800 text-amber-400 border border-white/10 uppercase">
+                GARAGEM
+              </span>
+            )}
           </div>
-          <h2 className="text-xs sm:text-sm font-bold text-white tracking-tight">{vehicle.info.name}</h2>
+          <h2 className="text-xs sm:text-sm font-bold text-white tracking-tight">
+            {activeCar?.vehicleId === vehicle.id ? activeCar.customName : vehicle.info.name}
+          </h2>
         </div>
       </header>
 

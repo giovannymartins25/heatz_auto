@@ -61,7 +61,7 @@
     }
   },
   "audio": {
-    "engineType": "i4",
+    "engineType": "i4_ap",
     "synthConfig": {
       "gainIdle": 0.28,
       "gainMax": 0.82,

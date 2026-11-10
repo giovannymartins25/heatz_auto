@@ -11,6 +11,7 @@ import { PHYSICS_TIMESTEP, MAX_SUBSTEPS } from '@/systems/engine/constants'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 import { clamp } from '@/utils/math'
 import type { AmbientLightColor } from '@/utils/ambientLighting'
+import type { CarUpgrades } from './useGarageStore'
 
 
 /**
@@ -22,8 +23,13 @@ import type { AmbientLightColor } from '@/utils/ambientLighting'
 export type TransmissionMode = 'manual' | 'automatic' | 'manual_simulated'
 
 interface SimulationActions {
-  /** Inicializa a simulação com um veículo */
-  init: (config: VehicleConfig) => void
+  /** Inicializa a simulação com um veículo e eventuais peças equipadas */
+  init: (config: VehicleConfig, initialUpgrades?: Partial<CarUpgrades>) => void
+  /** Atualiza peças e upgrades equipados */
+  setEquippedUpgrades: (upgrades: Partial<CarUpgrades>) => void
+  /** Asa traseira aerodinâmica (Porsche / Supercarros) */
+  setAeroWing: (extended: boolean) => void
+  toggleAeroWing: () => void
   /** Liga o motor (ou aciona arranque se parado/estolado) */
   startEngine: () => void
   /** Desliga o motor */
@@ -161,6 +167,13 @@ interface SimulationState {
   isRaining: boolean
   isWiperActive: boolean
 
+  // Peças & Customizações Equipadas da Loja
+  hasRetrofitInfotainment: boolean
+  exhaustType: 'stock' | 'sport' | 'straight_pipe'
+  intakeType: 'stock' | 'cold_air'
+  tires: 'street' | 'semi_slick'
+  isAeroWingExtended: boolean
+
   // Volante & Esterço
   steeringAngle: number
 
@@ -197,6 +210,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isAutomaticVehicle: true,
   ambientLightColor: 'red',
   currentGear: 0,
+  // Peças & Customizações Equipadas da Loja
+  hasRetrofitInfotainment: false,
+  exhaustType: 'stock',
+  intakeType: 'stock',
+  tires: 'street',
+  isAeroWingExtended: false,
+
   clutchPosition: 0,
   transmissionMode: 'manual',
   drivingMode: 'normal',
@@ -247,7 +267,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   _accumulator: 0,
   _isInitialized: false,
 
-  init: (config: VehicleConfig) => {
+  init: (config: VehicleConfig, initialUpgrades?: Partial<CarUpgrades>) => {
     const isAutoOrCvt =
       config.transmission.type === 'automatic' ||
       config.transmission.type === 'cvt' ||
@@ -288,12 +308,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     // TCS ligado por padrão se o veículo tiver TCS configurado
     const hasTcs = !!config.transmission.tcs?.enabled
-    const hasTurbo = Boolean(config.engine.turbo?.enabled)
+    const hasTurbo = Boolean(config.engine.turbo?.enabled || initialUpgrades?.turboKit)
     const hasLaunchControl = Boolean(
       config.transmission.launchControl?.enabled ||
       config.id === 'porsche-gt3' ||
       config.id === 'golf-gti' ||
-      config.engine.turbo?.enabled
+      config.engine.turbo?.enabled ||
+      initialUpgrades?.turboKit
     )
 
     transmission.shiftTo(isAutoOrCvt ? -2 : 0, 0, undefined, true)
@@ -321,13 +342,18 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       ambientLightColor: defaultAmbientColor,
       hasTurbo,
       hasLaunchControl,
+      hasRetrofitInfotainment: Boolean(initialUpgrades?.multimediaKit),
+      exhaustType: initialUpgrades?.exhaustType || (hasTurbo ? 'sport' : 'stock'),
+      intakeType: initialUpgrades?.intakeType || 'stock',
+      tires: initialUpgrades?.tires || 'street',
+      isAeroWingExtended: false,
       isLaunchControlArmed: false,
       isLaunching: false,
       boostPressureBar: 0,
       peakBoostBar: 0,
-      exhaustValveOpen: true,
+      exhaustValveOpen: initialUpgrades?.exhaustValveOpen ?? true,
       isBackfireFlashing: false,
-      tuningStage: 0,
+      tuningStage: initialUpgrades?.tuningStage ?? 0,
       headlightsMode: 'low',
       isRaining: false,
       isWiperActive: false,
@@ -461,6 +487,49 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     HapticFeedback.medium()
   },
 
+  setEquippedUpgrades: (upgrades: Partial<CarUpgrades>) => {
+    const { _config, _physics } = get()
+    set((state) => {
+      const hasTurbo = Boolean(_config?.engine.turbo?.enabled || (upgrades.turboKit !== undefined ? upgrades.turboKit : state.hasTurbo))
+      const exhaustType = upgrades.exhaustType ?? state.exhaustType
+      const intakeType = upgrades.intakeType ?? state.intakeType
+      const tires = upgrades.tires ?? state.tires
+      const tuningStage = upgrades.tuningStage ?? state.tuningStage
+      const hasRetrofitInfotainment =
+        upgrades.multimediaKit !== undefined ? upgrades.multimediaKit : state.hasRetrofitInfotainment
+
+      if (_physics) {
+        let baseFric = tires === 'semi_slick' ? 1.22 : 0.95
+        if (state.isRaining) baseFric = tires === 'semi_slick' ? 0.52 : 0.62
+        if (state.isAeroWingExtended) baseFric += 0.14
+        _physics.setSurfaceFriction(baseFric)
+      }
+
+      return {
+        hasTurbo,
+        exhaustType,
+        intakeType,
+        tires,
+        tuningStage,
+        hasRetrofitInfotainment,
+      }
+    })
+  },
+
+  setAeroWing: (extended: boolean) => {
+    const { _physics, isRaining, tires } = get()
+    let baseFric = tires === 'semi_slick' ? 1.22 : 0.95
+    if (isRaining) baseFric = tires === 'semi_slick' ? 0.52 : 0.62
+    if (extended) baseFric += 0.14
+    _physics?.setSurfaceFriction(baseFric)
+    set({ isAeroWingExtended: extended })
+    HapticFeedback.light()
+  },
+
+  toggleAeroWing: () => {
+    get().setAeroWing(!get().isAeroWingExtended)
+  },
+
   cycleHeadlights: () => {
     const modes: ('off' | 'parking' | 'low' | 'high')[] = ['off', 'parking', 'low', 'high']
     const current = get().headlightsMode
@@ -476,9 +545,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   toggleRain: () => {
     const nextRain = !get().isRaining
-    const { _physics } = get()
+    const { _physics, tires, isAeroWingExtended } = get()
     if (_physics) {
-      _physics.setSurfaceFriction(nextRain ? 0.62 : 0.95)
+      let baseFric = tires === 'semi_slick' ? (nextRain ? 0.52 : 1.22) : (nextRain ? 0.62 : 0.95)
+      if (isAeroWingExtended) baseFric += 0.14
+      _physics.setSurfaceFriction(baseFric)
     }
     set({ isRaining: nextRain, isWiperActive: nextRain ? true : get().isWiperActive })
     HapticFeedback.light()
@@ -914,13 +985,28 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       latestClutchHeat = clutchState.heat
       latestIsClutchSlipping = clutchState.isSlipping
 
-      // 5. VehiclePhysics: calcula forças longitudinais com modificador de Preparação (Tuning Stages)
+      // 5. VehiclePhysics: calcula forças longitudinais com modificadores de Preparação, Peças e Modos
       const stage = state.tuningStage || 0
-      const tuningTorqueMult = stage === 1 ? 1.22 : stage === 2 ? 1.42 : stage === 3 ? 1.75 : 1.0
+      const stageMult = stage === 1 ? 1.25 : stage === 2 ? 1.50 : stage === 3 ? 1.85 : 1.0
+      const intakeMult = state.intakeType === 'cold_air' ? 1.06 : 1.0
+      const exhaustMult = state.exhaustType === 'straight_pipe' ? 1.08 : state.exhaustType === 'sport' ? 1.04 : 1.0
+      const turboKitMult = (!_config.engine.turbo?.enabled && state.hasTurbo) ? 1.45 : 1.0
+      const driveModeMult = state.drivingMode === 'track' ? 1.10 : state.drivingMode === 'sport' ? 1.05 : 1.0
+      const totalTorqueMult = stageMult * intakeMult * exhaustMult * turboKitMult * driveModeMult
+
+      // Atualiza atrito em tempo de execução com aderência dos pneus e asa ativa
+      let targetFriction = state.tires === 'semi_slick' ? 1.22 : 0.95
+      if (state.isRaining) {
+        targetFriction = state.tires === 'semi_slick' ? 0.52 : 0.62
+      }
+      if (state.isAeroWingExtended) {
+        targetFriction += 0.14
+      }
+      _physics.setSurfaceFriction(targetFriction)
 
       const effectiveBrake = Math.max(state.brake, state.handbrake || gear === -2 ? 1 : 0)
       const physicsTick = _physics.tick({
-        driveTorqueAtTransmission: clutchState.transmittedTorque * tuningTorqueMult,
+        driveTorqueAtTransmission: clutchState.transmittedTorque * totalTorqueMult,
         gearRatio,
         finalDrive,
         brake: effectiveBrake,
@@ -980,11 +1066,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     let currentBoost = state.boostPressureBar
     let peakBoost = state.peakBoostBar
 
-    if (state.hasTurbo && _config.engine.turbo?.enabled) {
-      const turboCfg = _config.engine.turbo
+    if (state.hasTurbo) {
+      const turboCfg = _config.engine.turbo || {
+        maxBoostBar: 1.25,
+        spoolRpmStart: 1800,
+        fullBoostRpm: 2800,
+      }
       const stage = state.tuningStage || 0
       const extraBoost = stage === 1 ? 0.35 : stage === 2 ? 0.65 : stage === 3 ? 1.15 : 0.0
-      const maxBoost = (turboCfg.maxBoostBar || 1.35) + extraBoost
+      const maxBoost = (turboCfg.maxBoostBar || 1.25) + extraBoost
       const spoolRpm = turboCfg.spoolRpmStart || 1600
       const fullRpm = turboCfg.fullBoostRpm || 2600
 
@@ -992,7 +1082,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       if (latestIsRunning) {
         if (isLaunchArmed) {
           // Anti-lag no Launch Control: 2-step spools turbo to ~65% do boost máximo
-          targetBoost = turboCfg.maxBoostBar ? turboCfg.maxBoostBar * 0.65 : 0.85
+          targetBoost = maxBoost * 0.65
         } else if (state.throttle < 0.08) {
           // Vácuo no coletor de admissão (-0.8 a -0.5 bar)
           targetBoost = -0.75 + clamp((latestRpm - 1000) / 6000, 0, 0.25)
@@ -1091,7 +1181,14 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       status: 'off',
       isRevLimiting: false,
       currentGear: 0,
-      clutchPosition: 0,
+      // Peças & Customizações Equipadas da Loja
+  hasRetrofitInfotainment: false,
+  exhaustType: 'stock',
+  intakeType: 'stock',
+  tires: 'street',
+  isAeroWingExtended: false,
+
+  clutchPosition: 0,
       transmissionMode: 'manual',
       drivingMode: 'normal',
       isKickdown: false,

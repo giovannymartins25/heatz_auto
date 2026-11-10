@@ -55,7 +55,7 @@
     }
   },
   "audio": {
-    "engineType": "i4_highrev",
+    "engineType": "i4_vtec",
     "synthConfig": {
       "gainIdle": 0.22,
       "gainMax": 0.78,
@@ -67,7 +67,7 @@
   },
   "dashboard": {
     "theme": "civic_si",
-    "hasInfotainment": false,
+    "hasInfotainment": true,
     "tachometer": {
       "maxRpm": 9000,
       "redlineRpm": 8000,

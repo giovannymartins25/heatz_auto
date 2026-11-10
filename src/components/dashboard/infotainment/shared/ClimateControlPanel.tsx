@@ -1,7 +1,7 @@
 import { memo, useState } from 'react'
 
 export interface ClimateControlProps {
-  theme?: 'gti' | 'porsche' | 'toyota'
+  theme?: 'gti' | 'porsche' | 'toyota' | 'honda'
   compact?: boolean
 }
 
@@ -65,6 +65,8 @@ export const ClimateControlPanel = memo(function ClimateControlPanel({
       ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
       : theme === 'toyota'
       ? 'bg-sky-500/20 text-sky-300 border-sky-500/50'
+      : theme === 'honda'
+      ? 'bg-red-500/25 text-red-300 border-red-500/60 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
       : 'bg-red-600/20 text-red-400 border-red-500/50'
 
   return (
