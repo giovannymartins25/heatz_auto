@@ -1,5 +1,6 @@
 import { memo, useEffect, useState, useRef } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { HPatternShifter } from './HPatternShifter'
 
 export interface GearShiftProps {
   orientation?: 'horizontal' | 'vertical'
@@ -37,6 +38,9 @@ export const GearShift = memo(function GearShift({
   const selectDrive = useSimulationStore((s) => s.selectDrive)
   const selectSport = useSimulationStore((s) => s.selectSport)
   const selectManual = useSimulationStore((s) => s.selectManual)
+  const shifterLayout = useSimulationStore((s) => s.shifterLayout)
+  const toggleShifterLayout = useSimulationStore((s) => s.toggleShifterLayout)
+  const vehicleConfig = useSimulationStore((s) => s._config)
 
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
   const lastActionTimeRef = useRef(0)
@@ -250,63 +254,83 @@ export const GearShift = memo(function GearShift({
             </button>
           </div>
         </div>
+      ) : shifterLayout === 'h_pattern' ? (
+        /* ── CÂMBIO MANUAL REAL EM GRADE H (Gated Shifter) ── */
+        <HPatternShifter
+          gearCount={vehicleConfig?.transmission.gearCount || 5}
+          size={size === 'compact' ? 'compact' : 'normal'}
+          showModeToggle={true}
+        />
       ) : (
-        /* ── SELETOR MANUAL CLÁSSICO [-] [N] [+] (Para Gol G6 e CB1000R) ── */
-        <div
-          className={`flex items-center gap-3 sm:gap-4 ${
-            orientation === 'vertical' ? 'flex-col-reverse' : 'flex-row'
-          }`}
-        >
-          {/* Botão Downshift (▼ -) */}
-          <button
-            id="btn-shift-down"
-            onPointerDown={handleShiftDown}
-            onTouchStart={handleShiftDown}
-            onClick={handleShiftDown}
-            disabled={!isRunning}
-            style={{ touchAction: 'none' }}
-            className={`${buttonSizeClass} rounded-2xl border-2 border-zinc-700/80 bg-zinc-900/80 active:bg-zinc-800 active:border-zinc-500 disabled:opacity-30 disabled:pointer-events-none flex flex-col items-center justify-center font-mono font-black text-[var(--color-text-secondary)] transition-all active:scale-90 cursor-pointer shadow-lg`}
-            aria-label="Reduzir marcha"
-            title="Tecla ] — Reduzir marcha"
-          >
-            <span className="text-[10px] leading-none text-zinc-500">▼</span>
-            <span className="leading-none mt-0.5">-</span>
-          </button>
+        /* ── SELETOR SEQUENCIAL [-] [N] [+] COM BOTÃO PARA VOLTAR PARA GRADE H ── */
+        <div className="flex flex-col items-center gap-1.5 p-2 rounded-2xl bg-zinc-950/90 border border-white/10 shadow-xl">
+          <div className="w-full flex items-center justify-between px-1 text-[8px] text-zinc-400 font-bold">
+            <span className="text-zinc-500">CÂMBIO MANUAL</span>
+            <button
+              onClick={toggleShifterLayout}
+              className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-amber-400 font-black uppercase text-[8px] transition-all cursor-pointer"
+              title="Ativar Câmbio Real em Grade H"
+            >
+              ⚙️ GRADE H
+            </button>
+          </div>
 
-          {/* Botão Neutro (N) */}
-          <button
-            id="btn-shift-neutral"
-            onPointerDown={handleShiftNeutral}
-            onTouchStart={handleShiftNeutral}
-            onClick={handleShiftNeutral}
-            disabled={!isRunning || currentGear === 0}
-            style={{ touchAction: 'none' }}
-            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl border font-mono font-black text-xs flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
-              currentGear === 0
-                ? 'border-emerald-500/60 bg-emerald-950/40 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
-                : 'border-zinc-800 bg-zinc-950/80 text-zinc-600 disabled:opacity-35'
+          <div
+            className={`flex items-center gap-2 sm:gap-3 ${
+              orientation === 'vertical' ? 'flex-col-reverse' : 'flex-row'
             }`}
-            aria-label="Engatar Neutro"
-            title="Engatar Neutro"
           >
-            N
-          </button>
+            {/* Botão Downshift (▼ -) */}
+            <button
+              id="btn-shift-down"
+              onPointerDown={handleShiftDown}
+              onTouchStart={handleShiftDown}
+              onClick={handleShiftDown}
+              disabled={!isRunning}
+              style={{ touchAction: 'none' }}
+              className={`${buttonSizeClass} rounded-2xl border-2 border-zinc-700/80 bg-zinc-900/80 active:bg-zinc-800 active:border-zinc-500 disabled:opacity-30 disabled:pointer-events-none flex flex-col items-center justify-center font-mono font-black text-[var(--color-text-secondary)] transition-all active:scale-90 cursor-pointer shadow-lg`}
+              aria-label="Reduzir marcha"
+              title="Tecla ] — Reduzir marcha"
+            >
+              <span className="text-[10px] leading-none text-zinc-500">▼</span>
+              <span className="leading-none mt-0.5">-</span>
+            </button>
 
-          {/* Botão Upshift (▲ +) */}
-          <button
-            id="btn-shift-up"
-            onPointerDown={handleShiftUp}
-            onTouchStart={handleShiftUp}
-            onClick={handleShiftUp}
-            disabled={!isRunning}
-            style={{ touchAction: 'none' }}
-            className={`${buttonSizeClass} rounded-2xl border-2 border-zinc-700/80 bg-zinc-900/80 active:bg-zinc-800 active:border-[var(--color-accent)] disabled:opacity-30 disabled:pointer-events-none flex flex-col items-center justify-center font-mono font-black text-[var(--color-accent)] transition-all active:scale-90 cursor-pointer shadow-lg`}
-            aria-label="Subir marcha"
-            title="Tecla [ — Subir marcha"
-          >
-            <span className="text-[10px] leading-none text-[var(--color-accent-muted)]">▲</span>
-            <span className="leading-none mt-0.5">+</span>
-          </button>
+            {/* Botão Neutro (N) */}
+            <button
+              id="btn-shift-neutral"
+              onPointerDown={handleShiftNeutral}
+              onTouchStart={handleShiftNeutral}
+              onClick={handleShiftNeutral}
+              disabled={!isRunning || currentGear === 0}
+              style={{ touchAction: 'none' }}
+              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl border font-mono font-black text-xs flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
+                currentGear === 0
+                  ? 'border-emerald-500/60 bg-emerald-950/40 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
+                  : 'border-zinc-800 bg-zinc-950/80 text-zinc-600 disabled:opacity-35'
+              }`}
+              aria-label="Engatar Neutro"
+              title="Engatar Neutro"
+            >
+              N
+            </button>
+
+            {/* Botão Upshift (▲ +) */}
+            <button
+              id="btn-shift-up"
+              onPointerDown={handleShiftUp}
+              onTouchStart={handleShiftUp}
+              onClick={handleShiftUp}
+              disabled={!isRunning}
+              style={{ touchAction: 'none' }}
+              className={`${buttonSizeClass} rounded-2xl border-2 border-zinc-700/80 bg-zinc-900/80 active:bg-zinc-800 active:border-[var(--color-accent)] disabled:opacity-30 disabled:pointer-events-none flex flex-col items-center justify-center font-mono font-black text-[var(--color-accent)] transition-all active:scale-90 cursor-pointer shadow-lg`}
+              aria-label="Subir marcha"
+              title="Tecla [ — Subir marcha"
+            >
+              <span className="text-[10px] leading-none text-[var(--color-accent-muted)]">▲</span>
+              <span className="leading-none mt-0.5">+</span>
+            </button>
+          </div>
         </div>
       )}
     </div>

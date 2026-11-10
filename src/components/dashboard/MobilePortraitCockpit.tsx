@@ -7,7 +7,7 @@ import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { EngineButton } from '@/components/controls/EngineButton'
-import { WarningLights, AuxGauges, BoostGauge } from '@/components/gauges'
+import { WarningLights, AuxGauges } from '@/components/gauges'
 import { ClusterView } from './ClusterView'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
@@ -89,170 +89,170 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
       }}
     >
       {/* ─── 1. Topo: Navegação, Modos e Botões Rápidos ─── */}
-      <header className="flex items-center justify-between w-full pb-1 border-b border-white/5">
-        <button
-          onClick={onBack}
-          className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white transition-all active:scale-95 cursor-pointer"
-        >
-          ← Sair
-        </button>
-
-        {/* Modos de condução */}
-        <div className="flex items-center gap-1 bg-zinc-900/90 px-2 py-0.5 rounded-full border border-white/10">
-          {supportedModes.map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setDrivingMode(mode as DrivingMode)}
-              className={`px-2 py-0.5 text-[9px] font-mono font-black uppercase rounded-full transition-all cursor-pointer ${
-                drivingMode === mode
-                  ? 'bg-white text-zinc-950 font-bold shadow'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              {mode}
-            </button>
-          ))}
-
-          {/* TCS */}
-          {vehicle.transmission.tcs?.enabled && (
-            <button
-              onClick={() => setTcsEnabled(!tcsEnabled)}
-              className={`px-2 py-0.5 text-[9px] font-mono font-bold uppercase rounded-full border transition-all cursor-pointer ${
-                !tcsEnabled
-                  ? 'bg-zinc-800 text-zinc-500 line-through border-zinc-700'
-                  : telemetry.tcs.intervening
-                  ? 'bg-amber-500/20 text-amber-400 border-amber-500 animate-pulse'
-                  : 'bg-zinc-950 text-emerald-400 border-white/10'
-              }`}
-            >
-              TCS
-            </button>
-          )}
-
-          {/* Som Mute */}
-          <button
-            onClick={toggleMute}
-            className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
-              isMuted ? 'bg-red-500/20 text-red-400 border-red-500' : 'bg-zinc-900 text-zinc-400 border-white/10'
-            }`}
-          >
-            {isMuted ? '🔇' : '🔊'}
-          </button>
-        </div>
-
-        <div className="text-right">
-          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block leading-none">
-            {vehicle.info.brand}
-          </span>
-          <span className="text-xs font-bold text-white tracking-tight truncate max-w-[100px] block leading-tight">
-            {vehicle.info.name}
-          </span>
-        </div>
-      </header>
-
-      {/* ─── Faixa Rápida de Oficina e Imersão ─── */}
-      <div className="flex items-center justify-between w-full px-1 py-1 bg-zinc-900/60 rounded-xl border border-white/5 text-[9px] font-mono">
-        <button
-          onClick={() => setIsTuningOpen(true)}
-          className={`px-2 py-0.5 rounded-lg border font-black transition-all cursor-pointer flex items-center gap-1 ${
-            tuningStage > 0
-              ? 'bg-amber-500/20 text-amber-300 border-amber-400'
-              : 'bg-zinc-800 text-zinc-300 border-zinc-700'
-          }`}
-        >
-          <span>🔧</span>
-          <span>{tuningStage === 0 ? 'OFICINA' : `STG ${tuningStage}`}</span>
-        </button>
-
-        <button
-          onClick={toggleExhaustValve}
-          className={`px-2 py-0.5 rounded-lg border font-black transition-all cursor-pointer flex items-center gap-1 ${
-            exhaustValveOpen
-              ? 'bg-amber-500/20 text-amber-300 border-amber-400'
-              : 'bg-zinc-800 text-zinc-500 border-zinc-700'
-          }`}
-        >
-          <span>⚡</span>
-          <span>{exhaustValveOpen ? 'ESCAPE ON' : 'ESCAPE OFF'}</span>
-        </button>
-
-        <button
-          onClick={cycleHeadlights}
-          className={`px-2 py-0.5 rounded-lg border font-black transition-all cursor-pointer flex items-center gap-1 ${
-            headlightsMode !== 'off'
-              ? 'bg-sky-500/20 text-sky-300 border-sky-400'
-              : 'bg-zinc-800 text-zinc-500 border-zinc-700'
-          }`}
-        >
-          <span>💡</span>
-          <span>{headlightsMode.toUpperCase()}</span>
-        </button>
-
-        <button
-          onClick={toggleRain}
-          className={`px-2 py-0.5 rounded-lg border font-black transition-all cursor-pointer flex items-center gap-1 ${
-            isRaining
-              ? 'bg-blue-600/30 text-blue-200 border-blue-400'
-              : 'bg-zinc-800 text-zinc-500 border-zinc-700'
-          }`}
-        >
-          <span>{isRaining ? '🌧️ CHUVA' : '☀️ SECO'}</span>
-        </button>
-      </div>
-
-      {/* ─── 2. Bloco Central: Painel de Instrumentos Vertical ─── */}
-      <main className="flex-1 flex flex-col justify-around items-center px-2 py-2 min-w-0">
-        {/* Luzes de Alerta no Topo e Alternador */}
-        <div className="flex items-center justify-between w-full px-2">
-          <WarningLights lights={telemetry.warningLights} />
-
+      <header className="flex flex-col w-full gap-1 pb-1 border-b border-white/5">
+        <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-1.5">
-            {/* 0-100 km/h chip */}
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-900 border border-white/10 text-[9px] font-mono">
+            <button
+              onClick={onBack}
+              className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white transition-all active:scale-95 cursor-pointer"
+            >
+              ← Sair
+            </button>
+            <div className="leading-tight">
+              <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-widest block">
+                {vehicle.info.brand}
+              </span>
+              <span className="text-[11px] font-bold text-white tracking-tight truncate max-w-[110px] block">
+                {vehicle.info.name}
+              </span>
+            </div>
+          </div>
+
+          {/* Alternador Painel / HUD / Multimídia */}
+          <div className="flex items-center gap-1 bg-zinc-900/90 p-0.5 rounded-full border border-white/10">
+            <button
+              onClick={() => setPortraitMode('cluster')}
+              className={`px-2 py-0.5 text-[8.5px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                portraitMode === 'cluster'
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow'
+                  : 'bg-transparent text-zinc-500 border-transparent hover:text-zinc-300'
+              }`}
+            >
+              PAINEL
+            </button>
+            <button
+              onClick={() => setPortraitMode('hud')}
+              className={`px-2 py-0.5 text-[8.5px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                portraitMode === 'hud'
+                  ? 'bg-sky-500/20 text-sky-300 border-sky-500/50 shadow'
+                  : 'bg-transparent text-zinc-500 border-transparent hover:text-zinc-300'
+              }`}
+            >
+              HUD
+            </button>
+            {hasInfotainment && (
+              <button
+                onClick={() => setPortraitMode('multimedia')}
+                className={`px-2 py-0.5 text-[8.5px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                  portraitMode === 'multimedia'
+                    ? 'bg-red-500/20 text-red-300 border-red-500/50 shadow'
+                    : 'bg-transparent text-zinc-500 border-transparent hover:text-zinc-300'
+                }`}
+              >
+                MÍDIA
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsTuningOpen(true)}
+              className={`px-2 py-0.5 text-[9px] rounded-lg border font-black transition-all cursor-pointer flex items-center gap-1 ${
+                tuningStage > 0
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-400'
+                  : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+              }`}
+              title="Abrir Oficina de Peças"
+            >
+              <span>🔧</span>
+              <span>{tuningStage > 0 ? `STG ${tuningStage}` : 'OFICINA'}</span>
+            </button>
+            <button
+              onClick={toggleMute}
+              className={`p-1 text-[10px] font-mono font-bold rounded-lg border transition-all cursor-pointer ${
+                isMuted ? 'bg-red-500/20 text-red-400 border-red-500' : 'bg-zinc-900 text-zinc-400 border-white/10'
+              }`}
+              title="Alternar Áudio"
+            >
+              {isMuted ? '🔇' : '🔊'}
+            </button>
+          </div>
+        </div>
+
+        {/* Faixa Secundária: Modos de Condução + Luzes de Alerta + Ações Rápidas */}
+        <div className="flex items-center justify-between w-full px-1 text-[8.5px] font-mono">
+          <div className="flex items-center gap-1">
+            <WarningLights lights={telemetry.warningLights} />
+            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-zinc-900/90 border border-white/10 text-zinc-400">
               <span className="text-zinc-500">0-100:</span>
               <span className="font-bold text-amber-400">
                 {best0to100 ? `${best0to100.toFixed(2)}s` : current0to100 ? `${current0to100.toFixed(2)}s` : '--'}
               </span>
             </div>
+          </div>
 
-            {/* Alternador Painel / Multimídia / HUD */}
-            <div className="flex items-center gap-1">
+          {/* Modos de Condução (ECO / NORMAL / SPORT) */}
+          <div className="flex items-center gap-0.5 bg-zinc-900/90 px-1.5 py-0.5 rounded-full border border-white/10">
+            {supportedModes.map((mode) => (
               <button
-                onClick={() => setPortraitMode('cluster')}
-                className={`px-1.5 py-0.5 text-[8px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
-                  portraitMode === 'cluster'
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                    : 'bg-zinc-900 text-zinc-500 border-white/5'
+                key={mode}
+                onClick={() => setDrivingMode(mode as DrivingMode)}
+                className={`px-1.5 py-0.2 uppercase rounded-full transition-all cursor-pointer ${
+                  drivingMode === mode
+                    ? 'bg-white text-zinc-950 font-bold shadow'
+                    : 'text-zinc-500 hover:text-zinc-300'
                 }`}
               >
-                PAINEL
+                {mode}
               </button>
-              {hasInfotainment && (
-                <button
-                  onClick={() => setPortraitMode('multimedia')}
-                  className={`px-1.5 py-0.5 text-[8px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
-                    portraitMode === 'multimedia'
-                      ? 'bg-red-500/20 text-red-300 border-red-500/50'
-                      : 'bg-zinc-900 text-zinc-500 border-white/5'
-                  }`}
-                >
-                  MULTIMÍDIA
-                </button>
-              )}
+            ))}
+            {vehicle.transmission.tcs?.enabled && (
               <button
-                onClick={() => setPortraitMode('hud')}
-                className={`px-1.5 py-0.5 text-[8px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
-                  portraitMode === 'hud'
-                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/50'
-                    : 'bg-zinc-900 text-zinc-500 border-white/5'
+                onClick={() => setTcsEnabled(!tcsEnabled)}
+                className={`ml-0.5 px-1 py-0.2 uppercase rounded-full border transition-all cursor-pointer ${
+                  !tcsEnabled
+                    ? 'bg-zinc-800 text-zinc-500 line-through border-zinc-700'
+                    : telemetry.tcs.intervening
+                    ? 'bg-amber-500/20 text-amber-400 border-amber-500 animate-pulse'
+                    : 'bg-zinc-950 text-emerald-400 border-white/10'
                 }`}
               >
-                HUD
+                TCS
               </button>
-            </div>
+            )}
+          </div>
+
+          {/* Quick Actions (Escape, Farol, Chuva) */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={toggleExhaustValve}
+              className={`px-1.5 py-0.5 rounded border transition-all cursor-pointer ${
+                exhaustValveOpen
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-400'
+                  : 'bg-zinc-900 text-zinc-500 border-white/10'
+              }`}
+              title="Difusor de Escape"
+            >
+              ⚡
+            </button>
+            <button
+              onClick={cycleHeadlights}
+              className={`px-1.5 py-0.5 rounded border transition-all cursor-pointer ${
+                headlightsMode !== 'off'
+                  ? 'bg-sky-500/20 text-sky-300 border-sky-400'
+                  : 'bg-zinc-900 text-zinc-500 border-white/10'
+              }`}
+              title="Faróis"
+            >
+              💡
+            </button>
+            <button
+              onClick={toggleRain}
+              className={`px-1.5 py-0.5 rounded border transition-all cursor-pointer ${
+                isRaining
+                  ? 'bg-blue-600/30 text-blue-200 border-blue-400'
+                  : 'bg-zinc-900 text-zinc-500 border-white/10'
+              }`}
+              title="Clima Chuva / Seco"
+            >
+              {isRaining ? '🌧️' : '☀️'}
+            </button>
           </div>
         </div>
+      </header>
 
+      {/* ─── 2. Bloco Central: Painel de Instrumentos Vertical ─── */}
+      <main className="flex-1 flex flex-col justify-around items-center px-2 py-1 min-w-0">
         {/* ── Banner de Launch Control no Mobile ── */}
         {isLaunchControlArmed && (
           <div className="w-full py-1 px-2 rounded-lg bg-amber-500/20 border border-amber-400 text-amber-300 text-center text-[10px] font-mono font-black animate-pulse my-0.5">
@@ -267,8 +267,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 
         {/* ── Centro: Painel Real Completo, Central Multimídia ou HUD Digital ── */}
         {portraitMode === 'cluster' ? (
-          <div className="w-full flex-1 flex flex-col items-center justify-center overflow-hidden my-auto py-1 select-none pointer-events-none relative">
-            <div className="scale-[0.48] xs:scale-[0.55] sm:scale-[0.65] origin-center flex items-center justify-center">
+          <div className="w-full flex-1 flex flex-col items-center justify-center overflow-hidden my-auto py-1 select-none pointer-events-none relative max-h-[32vh]">
+            <div className="scale-[0.45] xs:scale-[0.52] sm:scale-[0.62] origin-center flex items-center justify-center">
               <ClusterView telemetry={telemetry} />
             </div>
           </div>
@@ -277,9 +277,9 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={true} />
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center w-full gap-2 my-auto">
-            {/* Alertas Físicos */}
-            <div className="flex items-center gap-2 h-4 my-0.5">
+          <div className="flex flex-col items-center justify-center w-full gap-1.5 my-auto px-1">
+            {/* Alertas Físicos: BOG, CLUTCH SLIP, CORTE */}
+            <div className="flex items-center gap-2 h-4">
               {telemetry.engine.isBogWarning && (
                 <span className="px-2 py-0.2 rounded-full bg-yellow-500/20 border border-yellow-500 text-yellow-300 text-[8px] font-mono font-black animate-pulse">
                   MOTOR AMARRANDO (BOG!)
@@ -297,52 +297,48 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               )}
             </div>
 
-            {/* Destaque: Marcha, Velocidade, Turbo e RPM em grande formato */}
-            <div className="flex items-center justify-center gap-3 sm:gap-5 w-full">
+            {/* Tríptico Esportivo Principal: KM/H | MARCHA GIGANTE | RPM */}
+            <div className="grid grid-cols-3 items-center justify-items-center w-full max-w-sm px-2">
               {/* Velocidade */}
               <div className="flex flex-col items-center">
-                <span className="text-3xl sm:text-5xl font-mono font-black tracking-tight text-white leading-none">
+                <span className="text-3xl sm:text-4xl font-mono font-black tracking-tight text-white leading-none">
                   {displaySpeed}
                 </span>
-                <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                <span className="text-[8.5px] font-mono uppercase tracking-widest text-zinc-500 mt-0.5">
                   KM/H
                 </span>
               </div>
 
-              {/* Manômetro Turbo se tiver de fábrica ou aftermarket */}
-              {(hasTurbo || showAftermarketBoostGauge) && (
-                <div className="flex flex-col items-center scale-90 sm:scale-100">
-                  <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={60} showPeak={false} />
-                </div>
-              )}
-
-              {/* Moldura de Marcha */}
-              <div className="relative flex flex-col items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-zinc-900/90 border-2 border-[var(--color-accent)] shadow-[0_0_20px_var(--color-accent-muted)]">
-                <span className="text-2xl sm:text-4xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
+              {/* Moldura de Marcha Iluminada */}
+              <div className="relative flex flex-col items-center justify-center w-16 h-16 rounded-2xl bg-zinc-900/90 border-2 border-[var(--color-accent)] shadow-[0_0_20px_var(--color-accent-muted)]">
+                <span className="text-3xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
                   {telemetry.gear.label}
                 </span>
-                <span className="text-[7px] sm:text-[8px] font-mono font-bold text-zinc-400 uppercase">
+                <span className="text-[7.5px] font-mono font-bold text-zinc-400 uppercase mt-0.5">
                   {telemetry.gear.subLabel}
                 </span>
+                {telemetry.shiftLight.isActive && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-ping" />
+                )}
               </div>
 
               {/* RPM */}
               <div className="flex flex-col items-center">
                 <span
-                  className={`text-3xl sm:text-5xl font-mono font-black tracking-tight leading-none ${
+                  className={`text-3xl sm:text-4xl font-mono font-black tracking-tight leading-none ${
                     displayRpm > maxRpm * 0.9 ? 'text-red-500 animate-pulse' : 'text-zinc-200'
                   }`}
                 >
                   {displayRpm}
                 </span>
-                <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                <span className="text-[8.5px] font-mono uppercase tracking-widest text-zinc-500 mt-0.5">
                   RPM
                 </span>
               </div>
             </div>
 
-            {/* Barra Curva / Horizontal de RPM */}
-            <div className="w-full max-w-xs bg-zinc-900 h-2.5 rounded-full overflow-hidden border border-white/10 p-0.5 my-1">
+            {/* Barra Dinâmica Horizontal de LED de RPM */}
+            <div className="w-full max-w-xs bg-zinc-900 h-2.5 rounded-full overflow-hidden border border-white/10 p-0.5">
               <div
                 className={`h-full rounded-full transition-all duration-75 ${
                   displayRpm > maxRpm * 0.88
@@ -355,8 +351,19 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               />
             </div>
 
+            {/* Manômetro Turbo Digital ou Analógico Compacto */}
+            {(hasTurbo || showAftermarketBoostGauge) && (
+              <div className="flex items-center justify-center gap-2 px-3 py-0.5 rounded-xl bg-black/60 border border-amber-500/30 text-[10px] font-mono text-amber-300">
+                <span className="text-zinc-500 font-bold">TURBO:</span>
+                <span className="font-black text-amber-400 text-xs">
+                  {boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : boostPressureBar.toFixed(2)} BAR
+                </span>
+                <span className="text-zinc-500 text-[9px]">(PICO {peakBoostBar.toFixed(2)})</span>
+              </div>
+            )}
+
             {/* Marcadores Auxiliares */}
-            <div className="w-full flex justify-center scale-90">
+            <div className="w-full flex justify-center scale-90 origin-center">
               <AuxGauges
                 fuelLevel={telemetry.auxGauges.fuelLevel}
                 fuelCapacity={telemetry.auxGauges.fuelCapacity}
@@ -407,7 +414,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
       </main>
 
       {/* ─── 3. Base: Pedais Analógicos Ergonômicos Verticais ─── */}
-      <footer className="w-full flex items-end justify-center gap-4 sm:gap-6 pt-1 pb-1 border-t border-white/5">
+      <footer className="w-full flex items-end justify-center gap-3 sm:gap-5 pt-1 pb-1 border-t border-white/5">
         {/* Pedal de Embreagem (Se tiver) */}
         {hasClutch && (
           <AnalogPedal
@@ -416,8 +423,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             value={clutchPosition}
             onChange={setClutch}
             colorTheme="amber"
-            widthClass="w-14"
-            heightClass="h-44 sm:h-52"
+            widthClass="w-13"
+            heightClass="h-38 sm:h-44"
             disabled={!isRunning}
             showPercent={true}
           />
@@ -430,8 +437,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           value={brake}
           onChange={setBrake}
           colorTheme="red"
-          widthClass="w-16 sm:w-18"
-          heightClass="h-44 sm:h-52"
+          widthClass="w-15 sm:w-16"
+          heightClass="h-38 sm:h-44"
           disabled={!isRunning}
           showPercent={true}
         />
@@ -443,8 +450,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           value={throttle}
           onChange={setThrottle}
           colorTheme="accent"
-          widthClass="w-16 sm:w-18"
-          heightClass="h-44 sm:h-52"
+          widthClass="w-15 sm:w-16"
+          heightClass="h-38 sm:h-44"
           disabled={!isRunning}
           showPercent={true}
         />

@@ -488,7 +488,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isBurningOut: false,
       tireSmokeDensity: 0,
       windowsOpen: false,
-      shifterLayout: 'sequential',
+      shifterLayout: !isAutoOrCvt ? 'h_pattern' : 'sequential',
       isGearGrinding: false,
       gearGrindTrigger: 0,
       dragStage: 'idle',
@@ -1690,6 +1690,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   reset: () => {
+    const isManual = !get().isAutomaticVehicle
     set({
       rpm: 0,
       isRunning: false,
@@ -1746,7 +1747,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isBurningOut: false,
       tireSmokeDensity: 0,
       windowsOpen: false,
-      shifterLayout: 'sequential',
+      shifterLayout: isManual ? 'h_pattern' : 'sequential',
       isGearGrinding: false,
       gearGrindTrigger: 0,
       dragStage: 'idle',
