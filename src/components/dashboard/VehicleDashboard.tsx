@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useUIStore } from '@/stores/useUIStore'
@@ -17,6 +17,8 @@ import { KeyboardHUD } from './KeyboardHUD'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { PedalTelemetry } from '@/components/gauges'
 import { Pedals, GearShift, EngineButton } from '@/components/controls'
+import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
+import { TuningGarageModal } from '@/components/tuning'
 import type { VehicleConfig, DrivingMode } from '@/types'
 
 interface VehicleDashboardProps {
@@ -60,6 +62,15 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const toggleMute = useSimulationStore((s) => s.toggleMute)
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const isLaunching = useSimulationStore((s) => s.isLaunching)
+  const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
+  const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
+  const headlightsMode = useSimulationStore((s) => s.headlightsMode)
+  const cycleHeadlights = useSimulationStore((s) => s.cycleHeadlights)
+  const isRaining = useSimulationStore((s) => s.isRaining)
+  const toggleRain = useSimulationStore((s) => s.toggleRain)
+  const tuningStage = useSimulationStore((s) => s.tuningStage)
+
+  const [isTuningOpen, setIsTuningOpen] = useState(false)
 
   const hasInfotainment =
     vehicle.dashboard?.hasInfotainment ??
@@ -225,6 +236,20 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
           >
             ⛶ Fullscreen
           </button>
+
+          {/* Botão Oficina de Preparação (Tuning Stages) */}
+          <button
+            onClick={() => setIsTuningOpen(true)}
+            className={`px-2.5 py-1 text-xs rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
+              tuningStage > 0
+                ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+                : 'bg-zinc-900 border-white/10 text-zinc-300 hover:text-white'
+            }`}
+            title="Oficina de Preparação (Stage 1, 2 e 3)"
+          >
+            <span>🔧</span>
+            <span>{tuningStage === 0 ? 'OFICINA' : `STAGE ${tuningStage}`}</span>
+          </button>
         </div>
 
         {/* Centro do Topo: Seletor de Modo de Visualização (Cluster / Cockpit) + PerformanceBox */}
@@ -368,6 +393,47 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
               BOG!
             </span>
           )}
+
+          {/* Botão Válvula de Difusor de Escape */}
+          <button
+            onClick={toggleExhaustValve}
+            className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
+              exhaustValveOpen
+                ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+                : 'bg-zinc-950/70 border-white/10 text-zinc-500'
+            }`}
+            title="Tecla V — Alterna Válvula de Difusor (Escape Aberto / Direto)"
+          >
+            <span>⚡</span>
+            <span>{exhaustValveOpen ? 'DIFUSOR ON' : 'DIFUSOR OFF'}</span>
+          </button>
+
+          {/* Botão de Faróis */}
+          <button
+            onClick={cycleHeadlights}
+            className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
+              headlightsMode !== 'off'
+                ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-[0_0_10px_rgba(56,189,248,0.4)]'
+                : 'bg-zinc-950/70 border-white/10 text-zinc-500'
+            }`}
+            title="Tecla L — Alterna Faróis (Desligado, Lanterna, Farol Baixo, Farol Alto)"
+          >
+            <span>💡</span>
+            <span>{headlightsMode.toUpperCase()}</span>
+          </button>
+
+          {/* Botão de Clima & Chuva */}
+          <button
+            onClick={toggleRain}
+            className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
+              isRaining
+                ? 'bg-blue-600/30 border-blue-400 text-blue-200 shadow-[0_0_12px_rgba(59,130,246,0.5)]'
+                : 'bg-zinc-950/70 border-white/10 text-zinc-500'
+            }`}
+            title="Tecla C — Alterna Clima (Chuva com pista escorregadia ou Pista Seca)"
+          >
+            <span>{isRaining ? '🌧️ CHUVA ON' : '☀️ SECO'}</span>
+          </button>
         </div>
 
         {/* HUD Interativo de Teclas Físicas do PC */}
@@ -455,6 +521,15 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
         {/* Pedais interativos com Pointer Capture */}
         <Pedals vehicle={vehicle} />
       </footer>
+
+      {/* ── Efeitos Especiais de Imersão e Oficina ── */}
+      <BackfireFlameFlash />
+      <RainWindshieldEffect />
+      <TuningGarageModal
+        isOpen={isTuningOpen}
+        onClose={() => setIsTuningOpen(false)}
+        vehicle={vehicle}
+      />
     </div>
   )
 }

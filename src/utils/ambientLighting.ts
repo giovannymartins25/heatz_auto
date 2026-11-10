@@ -99,3 +99,4 @@ export const AMBIENT_COLOR_MAP: Record<AmbientLightColor, AmbientColorConfig> = 
     haloGradient: 'from-transparent via-emerald-400/80 to-transparent',
   },
 }
+

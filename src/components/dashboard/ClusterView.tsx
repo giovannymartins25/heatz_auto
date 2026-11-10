@@ -6,6 +6,8 @@ import {
   HondaCB1000RRealCluster,
   Porsche992GT3RealCluster,
   GolfGTIRealCluster,
+  GolQuadradoRealCluster,
+  CivicSiRealCluster,
 } from './clusters'
 
 interface ClusterViewProps {
@@ -16,14 +18,13 @@ interface ClusterViewProps {
  * ClusterView — Componente modular de painel de instrumentos (Instrument Cluster).
  *
  * Renderiza réplicas fiéis dos quadros de instrumentos reais de acordo com o veículo:
- * - 'classic': Volkswagen Gol G6 — quadro clássico com aros cromados, agulhas vermelhas,
- *              mini marcadores de água/combustível e tela central I-System Maxi-DOT.
- * - 'modern': Toyota Yaris XLS — painel Optitron 3D com halos azul gelo (Ice Blue),
- *             velocímetro central com gate P-R-N-D / M1-M7 e tela colorida TFT 4.2" com Eco Bar.
- * - 'motorcycle': Honda CB1000R Neo Sports Café — tela TFT digital colorida de 5 polegadas,
- *                 tacômetro sweeping até 12.000 RPM, marcha esportiva e parâmetros P, EB, T.
- * - 'supercar': Porsche 911 GT3 RS (992) — cockpit de corrida com tacômetro central de 10.000 RPM,
- *               agulha amarela, régua de LEDs convergentes F1/GT3, TPMS de 4 pneus e G-Force Meter.
+ * - 'classic': Volkswagen Gol G6 — quadro clássico com aros cromados, agulhas vermelhas e display Maxi-DOT.
+ * - 'modern': Toyota Yaris XLS — painel Optitron 3D com halos azul gelo, velocímetro central e tela TFT 4.2".
+ * - 'motorcycle': Honda CB1000R Neo Sports Café — tela TFT digital colorida de 5 polegadas.
+ * - 'supercar': Porsche 911 GT3 RS (992) — cockpit de corrida com tacômetro central de 10.000 RPM e LEDs F1.
+ * - 'gti': Volkswagen Golf GTI Mk7 — quadro de instrumentos esportivo GTI com ponteiros azuis e manômetro.
+ * - 'square_turbo': VW Gol Quadrado 1.9 AP Turbo — AutoMeter Monster 5", Shift Light e manômetro Cronomac 3.0 bar.
+ * - 'civic_si': Honda Civic Si K20 — painel Multiplex de dois andares com LEDs progressivos de acoplamento do i-VTEC.
  */
 export const ClusterView = memo(function ClusterView({ telemetry }: ClusterViewProps) {
   const { theme } = telemetry
@@ -40,6 +41,12 @@ export const ClusterView = memo(function ClusterView({ telemetry }: ClusterViewP
 
     case 'gti':
       return <GolfGTIRealCluster telemetry={telemetry} />
+
+    case 'square_turbo':
+      return <GolQuadradoRealCluster telemetry={telemetry} />
+
+    case 'civic_si':
+      return <CivicSiRealCluster telemetry={telemetry} />
 
     case 'classic':
     default:

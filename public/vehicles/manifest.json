@@ -100,6 +100,46 @@
       "hasTurbo": true,
       "hasInfotainment": true,
       "configPath": "/vehicles/golf-gti/config.json"
+    },
+    {
+      "id": "gol-quadrado-turbo",
+      "name": "Gol Quadrado 1.9 AP Turbo",
+      "brand": "Volkswagen",
+      "model": "Gol GL 1.9 AP Turbo",
+      "year": 1994,
+      "category": "car",
+      "powerHp": 380,
+      "torqueKgfm": 47.9,
+      "transmissionType": "manual",
+      "transmissionLabel": "Manual Forjado 5 Marchas",
+      "gearCount": 5,
+      "isSimulatedGears": false,
+      "hasManualMode": true,
+      "hasTcs": false,
+      "hasClutchPedal": true,
+      "hasTurbo": true,
+      "hasInfotainment": false,
+      "configPath": "/vehicles/gol-quadrado-turbo/config.json"
+    },
+    {
+      "id": "civic-si",
+      "name": "Honda Civic Si 2.0 i-VTEC",
+      "brand": "Honda",
+      "model": "Civic Si K20",
+      "year": 2008,
+      "category": "car",
+      "powerHp": 192,
+      "torqueKgfm": 19.2,
+      "transmissionType": "manual",
+      "transmissionLabel": "Manual 6 Marchas (LSD)",
+      "gearCount": 6,
+      "isSimulatedGears": false,
+      "hasManualMode": true,
+      "hasTcs": true,
+      "hasClutchPedal": true,
+      "hasTurbo": false,
+      "hasInfotainment": false,
+      "configPath": "/vehicles/civic-si/config.json"
     }
   ]
 }

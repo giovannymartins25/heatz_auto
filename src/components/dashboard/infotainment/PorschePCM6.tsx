@@ -48,6 +48,10 @@ export const PorschePCM6 = memo(function PorschePCM6({
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
   const setAmbientLightColor = useSimulationStore((s) => s.setAmbientLightColor)
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.amber
+  const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
+  const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
+  const tuningStage = useSimulationStore((s) => s.tuningStage)
+  const setTuningStage = useSimulationStore((s) => s.setTuningStage)
 
   const rpm = telemetry.tachometer.rpm
   const speed = telemetry.speedometer.speed
@@ -251,6 +255,38 @@ export const PorschePCM6 = memo(function PorschePCM6({
                 <strong className="text-[9px] font-black">ASA TRASEIRA</strong>
                 <span className={`text-[7px] font-bold ${wingMode === 'extended' ? 'text-red-400' : 'text-zinc-500'}`}>
                   {wingMode === 'extended' ? '+150KG DOWNFORCE' : 'MODO AUTOMÁTICO'}
+                </span>
+              </button>
+
+              {/* PSE - Porsche Sport Exhaust (Válvula de Difusor) */}
+              <button
+                onClick={toggleExhaustValve}
+                className={`p-2.5 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                  exhaustValveOpen
+                    ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                    : 'bg-zinc-900/80 border-white/10 text-zinc-400 hover:text-white'
+                }`}
+              >
+                <span className="text-xl">⚡</span>
+                <strong className="text-[9px] font-black">SPORT EXHAUST (PSE)</strong>
+                <span className={`text-[7px] font-bold ${exhaustValveOpen ? 'text-amber-400' : 'text-zinc-500'}`}>
+                  {exhaustValveOpen ? 'VÁLVULA ABERTA · ROAR' : 'SILENCIOSO · CIVIL'}
+                </span>
+              </button>
+
+              {/* Porsche Motorsport Tuning Stage Selector */}
+              <button
+                onClick={() => setTuningStage(((tuningStage + 1) % 4) as 0 | 1 | 2 | 3)}
+                className={`p-2.5 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                  tuningStage > 0
+                    ? 'bg-red-950/60 border-red-500 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.4)]'
+                    : 'bg-zinc-900/80 border-white/10 text-zinc-400 hover:text-white'
+                }`}
+              >
+                <span className="text-xl">🔧</span>
+                <strong className="text-[9px] font-black">MOTORSPORT MAP</strong>
+                <span className={`text-[7px] font-bold ${tuningStage > 0 ? 'text-red-400' : 'text-zinc-500'}`}>
+                  {tuningStage === 0 ? 'STAGE 0 (STOCK)' : `STAGE ${tuningStage} TUNING`}
                 </span>
               </button>
             </div>

@@ -33,6 +33,9 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
   const selectNeutral = useSimulationStore((s) => s.selectNeutral)
   const selectDrive = useSimulationStore((s) => s.selectDrive)
   const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
+  const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
+  const cycleHeadlights = useSimulationStore((s) => s.cycleHeadlights)
+  const toggleRain = useSimulationStore((s) => s.toggleRain)
   const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
   const setHandbrake = useSimulationStore((s) => s.setHandbrake)
   const setHorn = useSimulationStore((s) => s.setHorn)
@@ -124,6 +127,18 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
       // Toggle TCS — T
       else if (key === 't' && !event.repeat) {
         setTcsEnabled(!tcsEnabled)
+      }
+      // Válvula de Difusor de Escape — V
+      else if (key === 'v' && !event.repeat) {
+        toggleExhaustValve()
+      }
+      // Faróis / Iluminação — L
+      else if (key === 'l' && !event.repeat) {
+        cycleHeadlights()
+      }
+      // Clima Chuva / Sol — C
+      else if (key === 'c' && !event.repeat) {
+        toggleRain()
       }
     }
 

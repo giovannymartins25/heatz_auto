@@ -7,15 +7,18 @@ interface KeyboardHUDProps {
 }
 
 /**
- * KeyboardHUD — Indicador visual em tempo real das teclas físicas pressionadas no PC.
+ * KeyboardHUD — Indicador visual em tempo real das teclas físicas pressionadas no PC e status do veículo.
  *
- * Exibe feedback luminoso dinâmico para W, E, Q, [, ], Espaço e H.
+ * Exibe feedback luminoso dinâmico para W, E, Q, [, ], Espaço, H, V, L e C.
  */
 export const KeyboardHUD = memo(function KeyboardHUD({
   hasClutch = false,
 }: KeyboardHUDProps) {
   const activeKeys = useUIStore((s) => s.activeKeys)
   const handbrake = useSimulationStore((s) => s.handbrake)
+  const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
+  const headlightsMode = useSimulationStore((s) => s.headlightsMode)
+  const isRaining = useSimulationStore((s) => s.isRaining)
 
   return (
     <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-950/80 border border-white/10 text-[10px] font-mono shadow-md select-none backdrop-blur-md">
@@ -67,11 +70,6 @@ export const KeyboardHUD = memo(function KeyboardHUD({
         [ / ] · Marcha
       </span>
 
-      {/* P / R / N / D Câmbio */}
-      <span className="px-2 py-0.5 rounded font-bold bg-zinc-900 text-zinc-400 border border-white/5 hidden xl:inline">
-        P / R / N / D · Câmbio Auto
-      </span>
-
       {/* [Espaço] Freio de Mão */}
       <span
         className={`px-2 py-0.5 rounded font-bold transition-all ${
@@ -80,7 +78,40 @@ export const KeyboardHUD = memo(function KeyboardHUD({
             : 'bg-zinc-900 text-zinc-400 border border-white/5'
         }`}
       >
-        Espaço · Freio Mão
+        Espaço · Freio
+      </span>
+
+      {/* [V] Difusor de Escape */}
+      <span
+        className={`px-2 py-0.5 rounded font-bold transition-all ${
+          exhaustValveOpen
+            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/60 shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+            : 'bg-zinc-900 text-zinc-500 border border-white/5'
+        }`}
+      >
+        V · Difusor {exhaustValveOpen ? 'ON' : 'OFF'}
+      </span>
+
+      {/* [L] Faróis */}
+      <span
+        className={`px-2 py-0.5 rounded font-bold transition-all ${
+          headlightsMode !== 'off'
+            ? 'bg-sky-500/20 text-sky-300 border border-sky-500/60 shadow-[0_0_10px_rgba(56,189,248,0.4)]'
+            : 'bg-zinc-900 text-zinc-500 border border-white/5'
+        }`}
+      >
+        L · Luz ({headlightsMode})
+      </span>
+
+      {/* [C] Clima */}
+      <span
+        className={`px-2 py-0.5 rounded font-bold transition-all ${
+          isRaining
+            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/60 shadow-[0_0_10px_rgba(59,130,246,0.4)]'
+            : 'bg-zinc-900 text-zinc-500 border border-white/5'
+        }`}
+      >
+        C · {isRaining ? '🌧️ Chuva' : '☀️ Seco'}
       </span>
 
       {/* [H] Buzina */}
@@ -96,4 +127,3 @@ export const KeyboardHUD = memo(function KeyboardHUD({
     </div>
   )
 })
-

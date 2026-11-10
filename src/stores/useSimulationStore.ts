@@ -71,6 +71,21 @@ interface SimulationActions {
   setMasterVolume: (vol: number) => void
   /** Define cor da iluminação ambiente da cabine e painel */
   setAmbientLightColor: (color: AmbientLightColor) => void
+  /** Válvula de Difusor de Escape */
+  toggleExhaustValve: () => void
+  setExhaustValve: (open: boolean) => void
+  /** Dispara chama visual no escape / painel */
+  triggerBackfireFlame: () => void
+  /** Oficina de Preparação (Stage 0 Stock, Stage 1, Stage 2, Stage 3) */
+  setTuningStage: (stage: 0 | 1 | 2 | 3) => void
+  /** Controle de Faróis (Desligado, Lanterna, Farol Baixo, Farol Alto) */
+  cycleHeadlights: () => void
+  setHeadlightsMode: (mode: 'off' | 'parking' | 'low' | 'high') => void
+  /** Clima & Limpadores */
+  toggleRain: () => void
+  toggleWipers: () => void
+  /** Esterço do Volante (-1 a +1) */
+  setSteeringAngle: (angle: number) => void
   /** Reseta dados de performance */
   resetPerformanceStats: () => void
   /** Atualiza a simulação (chamado pelo game loop) */
@@ -132,6 +147,23 @@ interface SimulationState {
   boostPressureBar: number
   peakBoostBar: number
 
+  // Escape, Efeitos & Difusor
+  exhaustValveOpen: boolean
+  isBackfireFlashing: boolean
+
+  // Oficina de Preparação (Stage 0 Stock, 1, 2, 3)
+  tuningStage: 0 | 1 | 2 | 3
+
+  // Iluminação Externa / Faróis
+  headlightsMode: 'off' | 'parking' | 'low' | 'high'
+
+  // Clima & Limpador
+  isRaining: boolean
+  isWiperActive: boolean
+
+  // Volante & Esterço
+  steeringAngle: number
+
   // Cronômetro 0-100 & Records
   best0to100: number | null
   current0to100: number | null
@@ -192,6 +224,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isLaunching: false,
   boostPressureBar: 0,
   peakBoostBar: 0,
+  exhaustValveOpen: true,
+  isBackfireFlashing: false,
+  tuningStage: 0,
+  headlightsMode: 'low',
+  isRaining: false,
+  isWiperActive: false,
+  steeringAngle: 0,
   best0to100: null,
   current0to100: null,
   isTiming0to100: false,
@@ -286,6 +325,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isLaunching: false,
       boostPressureBar: 0,
       peakBoostBar: 0,
+      exhaustValveOpen: true,
+      isBackfireFlashing: false,
+      tuningStage: 0,
+      headlightsMode: 'low',
+      isRaining: false,
+      isWiperActive: false,
+      steeringAngle: 0,
       rpm: 0,
       speed: 0,
       currentGear: isAutoOrCvt ? -2 : 0,
@@ -391,6 +437,60 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   setAmbientLightColor: (color: AmbientLightColor) => {
     set({ ambientLightColor: color })
     HapticFeedback.light()
+  },
+
+  toggleExhaustValve: () => {
+    const next = !get().exhaustValveOpen
+    set({ exhaustValveOpen: next })
+    HapticFeedback.light()
+  },
+
+  setExhaustValve: (open: boolean) => {
+    set({ exhaustValveOpen: open })
+  },
+
+  triggerBackfireFlame: () => {
+    set({ isBackfireFlashing: true })
+    setTimeout(() => {
+      set({ isBackfireFlashing: false })
+    }, 120)
+  },
+
+  setTuningStage: (stage: 0 | 1 | 2 | 3) => {
+    set({ tuningStage: stage })
+    HapticFeedback.medium()
+  },
+
+  cycleHeadlights: () => {
+    const modes: ('off' | 'parking' | 'low' | 'high')[] = ['off', 'parking', 'low', 'high']
+    const current = get().headlightsMode
+    const nextIdx = (modes.indexOf(current) + 1) % modes.length
+    set({ headlightsMode: modes[nextIdx] })
+    HapticFeedback.light()
+  },
+
+  setHeadlightsMode: (mode: 'off' | 'parking' | 'low' | 'high') => {
+    set({ headlightsMode: mode })
+    HapticFeedback.light()
+  },
+
+  toggleRain: () => {
+    const nextRain = !get().isRaining
+    const { _physics } = get()
+    if (_physics) {
+      _physics.setSurfaceFriction(nextRain ? 0.62 : 0.95)
+    }
+    set({ isRaining: nextRain, isWiperActive: nextRain ? true : get().isWiperActive })
+    HapticFeedback.light()
+  },
+
+  toggleWipers: () => {
+    set({ isWiperActive: !get().isWiperActive })
+    HapticFeedback.light()
+  },
+
+  setSteeringAngle: (angle: number) => {
+    set({ steeringAngle: clamp(angle, -1, 1) })
   },
 
   toggleSimulatedManual: () => {
@@ -530,20 +630,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         _transmission.shiftTo(-2, 0, undefined, true)
         _physics?.reset()
         HapticFeedback.gearShift()
-        set({ currentGear: -2, shifterPosition: 'P' })
+        set({ currentGear: -2, shifterPosition: 'P', transmissionMode: 'automatic' })
         break
       }
       case 'R': {
         _autoTransmission?.reset()
         _transmission.shiftTo(-1, speed, undefined, true)
         HapticFeedback.gearShift()
-        set({ currentGear: -1, shifterPosition: 'R' })
+        set({ currentGear: -1, shifterPosition: 'R', transmissionMode: 'automatic' })
         break
       }
       case 'N': {
         _transmission.neutral()
         HapticFeedback.light()
-        set({ currentGear: 0, shifterPosition: 'N' })
+        set({ currentGear: 0, shifterPosition: 'N', transmissionMode: 'automatic' })
         break
       }
       case 'D': {
@@ -596,7 +696,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (!_transmission) return
     _transmission.neutral()
     HapticFeedback.light()
-    set({ currentGear: 0, shifterPosition: 'N' })
+    set({
+      currentGear: 0,
+      shifterPosition: 'N',
+      transmissionMode: get().isAutomaticVehicle ? 'automatic' : get().transmissionMode,
+    })
   },
 
   setTcsEnabled: (enabled: boolean) => {
@@ -810,10 +914,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       latestClutchHeat = clutchState.heat
       latestIsClutchSlipping = clutchState.isSlipping
 
-      // 5. VehiclePhysics: calcula forças longitudinais
+      // 5. VehiclePhysics: calcula forças longitudinais com modificador de Preparação (Tuning Stages)
+      const stage = state.tuningStage || 0
+      const tuningTorqueMult = stage === 1 ? 1.22 : stage === 2 ? 1.42 : stage === 3 ? 1.75 : 1.0
+
       const effectiveBrake = Math.max(state.brake, state.handbrake || gear === -2 ? 1 : 0)
       const physicsTick = _physics.tick({
-        driveTorqueAtTransmission: clutchState.transmittedTorque,
+        driveTorqueAtTransmission: clutchState.transmittedTorque * tuningTorqueMult,
         gearRatio,
         finalDrive,
         brake: effectiveBrake,
@@ -875,7 +982,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     if (state.hasTurbo && _config.engine.turbo?.enabled) {
       const turboCfg = _config.engine.turbo
-      const maxBoost = turboCfg.maxBoostBar || 1.35
+      const stage = state.tuningStage || 0
+      const extraBoost = stage === 1 ? 0.35 : stage === 2 ? 0.65 : stage === 3 ? 1.15 : 0.0
+      const maxBoost = (turboCfg.maxBoostBar || 1.35) + extraBoost
       const spoolRpm = turboCfg.spoolRpmStart || 1600
       const fullRpm = turboCfg.fullBoostRpm || 2600
 

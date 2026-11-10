@@ -79,6 +79,7 @@ export class SynthEngine implements IAudioEngine {
   private lastBurbleTime = 0
   private starterOsc: OscillatorNode | null = null
   private starterGain: GainNode | null = null
+  private exhaustValveOpen = true
 
   private currentRpm = 0
   private currentThrottle = 0
@@ -485,23 +486,36 @@ export class SynthEngine implements IAudioEngine {
   }
 
   /**
+   * Válvula de Difusor de Escape (Direct Exhaust / Active Flap).
+   * Aberto: aumenta ganho harmônico, graves e estampidos de corte.
+   */
+  setExhaustValve(open: boolean): void {
+    this.exhaustValveOpen = open
+    if (!this.context || !this.combustionGain) return
+    const now = this.context.currentTime
+    const mult = open ? 1.35 : 0.8
+    this.combustionGain.gain.setTargetAtTime(clamp(this.config.gainMax * mult, 0, 1), now, 0.04)
+  }
+
+  /**
    * Estouro de troca de marcha (PDK / DSG shift brap).
    * Produz um corte ultrarrápido de ignição seguido de estampido violento no escape.
    */
   triggerShiftBrap(): void {
     if (!this.context || !this._isPlaying || !this.masterGain) return
     const now = this.context.currentTime
+    const popIntensity = this.exhaustValveOpen ? 1.15 : 0.65
 
     // 1. Corte rápido de ignição (45ms)
     this.masterGain.gain.cancelScheduledValues(now)
     this.masterGain.gain.setValueAtTime(0.05, now)
-    this.masterGain.gain.setValueAtTime(this.config.gainMax * 1.35, now + 0.042)
+    this.masterGain.gain.setValueAtTime(this.config.gainMax * (this.exhaustValveOpen ? 1.55 : 1.1), now + 0.042)
     this.masterGain.gain.setTargetAtTime(this.config.gainMax, now + 0.08, 0.03)
 
     // 2. Estampido duplo característico de DSG (grave + estalo de corte)
-    this.createTransientPop(0.85, 380)
+    this.createTransientPop(popIntensity, 380)
     setTimeout(() => {
-      if (this._isPlaying) this.createTransientPop(0.55, 620)
+      if (this._isPlaying) this.createTransientPop(popIntensity * 0.7, 620)
     }, 25)
   }
 
@@ -525,20 +539,22 @@ export class SynthEngine implements IAudioEngine {
   }
 
   /**
-   * Borbulhas e estalos na desaceleração (Overrun Crackles).
+   * Borbulhas e estalos na desaceleração (Overrun Crackles / Pops & Bangs).
    */
   triggerDecelBurble(): void {
     if (!this.context || !this._isPlaying) return
     const now = this.context.currentTime
-    if (now - this.lastBurbleTime < 0.12) return
+    const minInterval = this.exhaustValveOpen ? 0.08 : 0.14
+    if (now - this.lastBurbleTime < minInterval) return
     this.lastBurbleTime = now
 
-    const count = 2 + Math.floor(Math.random() * 3)
+    const count = (this.exhaustValveOpen ? 3 : 2) + Math.floor(Math.random() * (this.exhaustValveOpen ? 4 : 2))
+    const baseIntensity = this.exhaustValveOpen ? 0.6 : 0.3
     for (let i = 0; i < count; i++) {
-      const delay = i * 0.08 + Math.random() * 0.04
+      const delay = i * 0.07 + Math.random() * 0.035
       setTimeout(() => {
-        if (this._isPlaying && this.currentThrottle < 0.15) {
-          this.createTransientPop(0.35 + Math.random() * 0.25, 650 + Math.random() * 300)
+        if (this._isPlaying && this.currentThrottle < 0.18) {
+          this.createTransientPop(baseIntensity + Math.random() * 0.35, 600 + Math.random() * 350)
         }
       }, delay * 1000)
     }

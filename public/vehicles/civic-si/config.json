@@ -1,0 +1,84 @@
+{
+  "id": "civic-si",
+  "info": {
+    "name": "Honda Civic Si 2.0 i-VTEC",
+    "brand": "Honda",
+    "model": "Civic Si K20",
+    "year": 2008,
+    "category": "car",
+    "weight": 1300,
+    "wheelDiameter": 0.64,
+    "description": "Lendário motor K20Z3 2.0 16V aspirado de 192 cv, corte estridente aos 8.300 RPM, acoplamento i-VTEC aos 5.800 RPM, câmbio manual de 6 marchas com LSD helicoidal e painel esportivo digital de dois andares com luzes de VTEC."
+  },
+  "engine": {
+    "maxPower": 192,
+    "maxPowerRpm": 7800,
+    "maxTorque": 188,
+    "maxTorqueRpm": 6100,
+    "maxRpm": 8400,
+    "idleRpm": 850,
+    "revLimiter": 8300,
+    "flywheelMass": 4.2,
+    "engineBrakeFactor": 0.32,
+    "torqueCurve": [
+      { "rpm": 850,  "torque": 130 },
+      { "rpm": 2000, "torque": 150 },
+      { "rpm": 3500, "torque": 165 },
+      { "rpm": 5000, "torque": 175 },
+      { "rpm": 5800, "torque": 182 },
+      { "rpm": 6100, "torque": 188 },
+      { "rpm": 7000, "torque": 185 },
+      { "rpm": 7800, "torque": 172 },
+      { "rpm": 8300, "torque": 155 },
+      { "rpm": 8400, "torque": 135 }
+    ]
+  },
+  "transmission": {
+    "type": "manual",
+    "defaultMode": "manual",
+    "gearCount": 6,
+    "hasClutch": true,
+    "hasManualMode": true,
+    "gearRatios": [
+      { "gear": 1, "ratio": 3.267 },
+      { "gear": 2, "ratio": 2.130 },
+      { "gear": 3, "ratio": 1.517 },
+      { "gear": 4, "ratio": 1.147 },
+      { "gear": 5, "ratio": 0.921 },
+      { "gear": 6, "ratio": 0.659 }
+    ],
+    "finalDrive": 4.765,
+    "reverseRatio": 3.583,
+    "launchControl": {
+      "enabled": false,
+      "launchRpm": 5000
+    }
+  },
+  "audio": {
+    "engineType": "i4_highrev",
+    "synthConfig": {
+      "gainIdle": 0.22,
+      "gainMax": 0.78,
+      "gainCurve": "exponential",
+      "fundamentalHarmonic": 1,
+      "cylinders": 4,
+      "hasBrapOnShift": false
+    }
+  },
+  "dashboard": {
+    "theme": "civic_si",
+    "hasInfotainment": false,
+    "tachometer": {
+      "maxRpm": 9000,
+      "redlineRpm": 8000,
+      "majorTickInterval": 1000,
+      "minorTickInterval": 500
+    },
+    "speedometer": {
+      "maxSpeed": 260,
+      "majorTickInterval": 20,
+      "minorTickInterval": 10
+    }
+  }
+}
+

@@ -28,6 +28,8 @@ export function useAudio(config: VehicleConfig | null) {
   const masterVolume = useSimulationStore((s) => s.masterVolume)
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
+  const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
+  const triggerBackfireFlame = useSimulationStore((s) => s.triggerBackfireFlame)
 
   // Inicializar o engine quando o veículo é carregado
   useEffect(() => {
@@ -82,13 +84,18 @@ export function useAudio(config: VehicleConfig | null) {
     synth.setRpm(rpm)
     synth.setThrottle(throttle)
     synth.setTurboBoost(boostPressureBar)
+    synth.setExhaustValve(exhaustValveOpen)
 
     if (isRevLimiting) {
       synth.triggerBackfire()
+      triggerBackfireFlame()
     }
 
     if (isLaunchControlArmed) {
       synth.triggerLaunchLimiter()
+      if (Math.random() < 0.3) {
+        triggerBackfireFlame()
+      }
     }
 
     // Detecção de alívio do turbo (Blow-Off / Compressor flutter ao soltar acelerador)
@@ -96,11 +103,14 @@ export function useAudio(config: VehicleConfig | null) {
     const prevBoost = prevBoostRef.current
     if (throttle < 0.22 && prevThrottle >= 0.45 && prevBoost > 0.25) {
       synth.triggerBlowOff(prevBoost)
+      if (exhaustValveOpen && Math.random() < 0.4) {
+        triggerBackfireFlame()
+      }
     }
 
     prevThrottleRef.current = throttle
     prevBoostRef.current = boostPressureBar
-  }, [rpm, throttle, isRevLimiting, isLaunchControlArmed, boostPressureBar])
+  }, [rpm, throttle, isRevLimiting, isLaunchControlArmed, boostPressureBar, exhaustValveOpen, triggerBackfireFlame])
 
   // Troca de marcha em alta rotação (PDK / DSG / Racing shift brap)
   useEffect(() => {
@@ -110,9 +120,10 @@ export function useAudio(config: VehicleConfig | null) {
     const prevGear = prevGearRef.current
     if (currentGear > prevGear && prevGear > 0 && throttle > 0.4 && rpm > 3400) {
       synth.triggerShiftBrap()
+      triggerBackfireFlame()
     }
     prevGearRef.current = currentGear
-  }, [currentGear, throttle, rpm])
+  }, [currentGear, throttle, rpm, triggerBackfireFlame])
 
   // Controle de buzina
   useEffect(() => {

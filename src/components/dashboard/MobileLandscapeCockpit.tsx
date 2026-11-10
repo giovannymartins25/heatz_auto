@@ -8,6 +8,8 @@ import { EngineButton } from '@/components/controls/EngineButton'
 import { ClusterView } from './ClusterView'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { BoostGauge } from '@/components/gauges'
+import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
+import { TuningGarageModal } from '@/components/tuning'
 
 export interface MobileLandscapeCockpitProps {
   telemetry: DashboardTelemetry
@@ -55,6 +57,15 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const isLaunching = useSimulationStore((s) => s.isLaunching)
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
+  const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
+  const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
+  const headlightsMode = useSimulationStore((s) => s.headlightsMode)
+  const cycleHeadlights = useSimulationStore((s) => s.cycleHeadlights)
+  const isRaining = useSimulationStore((s) => s.isRaining)
+  const toggleRain = useSimulationStore((s) => s.toggleRain)
+  const tuningStage = useSimulationStore((s) => s.tuningStage)
+
+  const [isTuningOpen, setIsTuningOpen] = useState(false)
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const isCvtWithManual = vehicle.transmission.hasManualMode === true
@@ -151,6 +162,59 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               }`}
             >
               {isMuted ? '🔇' : '🔊'}
+            </button>
+
+            {/* Oficina */}
+            <button
+              onClick={() => setIsTuningOpen(true)}
+              className={`px-2 py-1 text-[10px] rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                tuningStage > 0
+                  ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                  : 'bg-zinc-900 border-white/10 text-zinc-300'
+              }`}
+              title="Oficina"
+            >
+              <span>🔧</span>
+              <span>{tuningStage === 0 ? 'OFICINA' : `STG ${tuningStage}`}</span>
+            </button>
+
+            {/* Difusor */}
+            <button
+              onClick={toggleExhaustValve}
+              className={`px-2 py-1 text-[10px] rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                exhaustValveOpen
+                  ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                  : 'bg-zinc-900 border-white/10 text-zinc-500'
+              }`}
+              title="Difusor de Escape"
+            >
+              <span>⚡</span>
+            </button>
+
+            {/* Faróis */}
+            <button
+              onClick={cycleHeadlights}
+              className={`px-2 py-1 text-[10px] rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                headlightsMode !== 'off'
+                  ? 'bg-sky-500/20 border-sky-400 text-sky-300'
+                  : 'bg-zinc-900 border-white/10 text-zinc-500'
+              }`}
+              title="Faróis"
+            >
+              <span>💡</span>
+            </button>
+
+            {/* Clima */}
+            <button
+              onClick={toggleRain}
+              className={`px-2 py-1 text-[10px] rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                isRaining
+                  ? 'bg-blue-600/30 border-blue-400 text-blue-200'
+                  : 'bg-zinc-900 border-white/10 text-zinc-500'
+              }`}
+              title="Clima"
+            >
+              <span>{isRaining ? '🌧️' : '☀️'}</span>
             </button>
           </div>
 
@@ -427,6 +491,15 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           )}
         </div>
       </aside>
+
+      {/* ── Efeitos Especiais de Imersão e Oficina ── */}
+      <BackfireFlameFlash />
+      <RainWindshieldEffect />
+      <TuningGarageModal
+        isOpen={isTuningOpen}
+        onClose={() => setIsTuningOpen(false)}
+        vehicle={vehicle}
+      />
     </div>
   )
 })

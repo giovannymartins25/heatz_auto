@@ -44,6 +44,10 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
   const setAmbientLightColor = useSimulationStore((s) => s.setAmbientLightColor)
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.cyan
+  const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
+  const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
+  const tuningStage = useSimulationStore((s) => s.tuningStage)
+  const setTuningStage = useSimulationStore((s) => s.setTuningStage)
 
   const maxPowerHp = vehicle.engine.maxPower || 110
   const redlineRpm = vehicle.engine.maxRpm || 6400
@@ -257,6 +261,33 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
                 </button>
                 <span className="text-[7px] text-zinc-500 mt-0.5">RALLY SPEC</span>
               </div>
+            </div>
+
+            {/* Controles de Escape e Preparação Gazoo Racing */}
+            <div className="w-full grid grid-cols-2 gap-1.5 px-1 pt-1 border-t border-white/5">
+              <button
+                onClick={toggleExhaustValve}
+                className={`py-1 px-1.5 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                  exhaustValveOpen
+                    ? 'bg-red-500/20 border-red-500 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
+                    : 'bg-zinc-900 border-white/10 text-zinc-400'
+                }`}
+              >
+                <span>⚡ ESCAPE GR:</span>
+                <span className="font-black">{exhaustValveOpen ? 'DIRETO' : 'CIVIL'}</span>
+              </button>
+
+              <button
+                onClick={() => setTuningStage(((tuningStage + 1) % 4) as 0 | 1 | 2 | 3)}
+                className={`py-1 px-1.5 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                  tuningStage > 0
+                    ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                    : 'bg-zinc-900 border-white/10 text-zinc-400'
+                }`}
+              >
+                <span>🔧 PREPARAÇÃO:</span>
+                <span className="font-black">{tuningStage === 0 ? 'STOCK' : `STG ${tuningStage}`}</span>
+              </button>
             </div>
           </div>
         )}
