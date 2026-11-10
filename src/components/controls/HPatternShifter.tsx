@@ -136,3 +136,4 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
     </div>
   )
 }
+

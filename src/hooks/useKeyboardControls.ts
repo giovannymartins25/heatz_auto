@@ -22,7 +22,7 @@ import { clamp } from '@/utils/math'
  *
  * Aplica interpolação suave (~100-150ms) para simular o curso físico do pedal.
  */
-export function useKeyboardControls(vehicle?: VehicleConfig | null) {
+export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boolean = true) {
   const setThrottle = useSimulationStore((s) => s.setThrottle)
   const setBrake = useSimulationStore((s) => s.setBrake)
   const setClutch = useSimulationStore((s) => s.setClutch)
@@ -53,6 +53,15 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
   const isManualSimulated = transmissionMode === 'manual_simulated'
 
   useEffect(() => {
+    if (!enabled) {
+      keysPressedRef.current = { w: false, e: false, q: false }
+      valuesRef.current = { throttle: 0, brake: 0, clutch: 0 }
+      setThrottle(0)
+      setBrake(0)
+      setClutch(0)
+      return
+    }
+
     const handleKeyDown = (event: KeyboardEvent) => {
       // Ignora se o usuário estiver digitando em um input
       if (
@@ -229,6 +238,7 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
       window.removeEventListener('keyup', handleKeyUp)
     }
   }, [
+    enabled,
     hasClutch,
     hasManualMode,
     isManualSimulated,

@@ -47,6 +47,15 @@ export const DynoTestModal: React.FC<DynoTestModalProps> = ({
 
   const currentRpm = Math.round(1000 + (progress / 100) * (config.engine.maxRpm - 1000))
 
+  // Fechar no ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   // Escala SVG para o gráfico
   const svgWidth = 520
   const svgHeight = 240
@@ -78,7 +87,12 @@ export const DynoTestModal: React.FC<DynoTestModalProps> = ({
       : 'Gasolina Comum'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
+    >
       <div className="relative flex flex-col rounded-3xl border border-neutral-700/80 bg-neutral-950 p-6 shadow-2xl max-w-2xl w-full">
         <button
           onClick={onClose}
@@ -189,3 +203,4 @@ export const DynoTestModal: React.FC<DynoTestModalProps> = ({
     </div>
   )
 }
+

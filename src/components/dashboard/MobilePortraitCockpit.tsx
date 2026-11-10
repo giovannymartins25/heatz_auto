@@ -2,7 +2,7 @@ import { memo, useState } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import type { VehicleConfig, DrivingMode } from '@/types'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { useGarageStore } from '@/stores/useGarageStore'
+import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
@@ -19,6 +19,7 @@ export interface MobilePortraitCockpitProps {
   telemetry: DashboardTelemetry
   vehicle: VehicleConfig
   onBack: () => void
+  carInstance?: GarageCarInstance
 }
 
 /**
@@ -30,6 +31,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   telemetry,
   vehicle,
   onBack,
+  carInstance,
 }: MobilePortraitCockpitProps) {
   const throttle = useSimulationStore((s) => s.throttle)
   const brake = useSimulationStore((s) => s.brake)
@@ -67,7 +69,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const supportedModes = vehicle.transmission.supportedModes || []
   const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
-  const activeCar = resolveInstanceForVehicle(vehicle.id)
+  const activeCar = carInstance || resolveInstanceForVehicle(vehicle.id)
   const { hasInfotainment, showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
   const [portraitMode, setPortraitMode] = useState<'cluster' | 'multimedia' | 'hud'>('cluster')
 
@@ -453,12 +455,15 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
       <RainWindshieldEffect />
       <BurnoutSmokeEffect />
       <EngineBlownSmokeEffect />
-      <TuningGarageModal
-        isOpen={isTuningOpen}
-        onClose={() => setIsTuningOpen(false)}
-        vehicle={vehicle}
-        carInstance={activeCar}
-      />
+      {/* Modal da Oficina de Peças & Preparação */}
+      {isTuningOpen && (
+        <TuningGarageModal
+          isOpen={true}
+          onClose={() => setIsTuningOpen(false)}
+          vehicle={vehicle}
+          carInstance={activeCar}
+        />
+      )}
     </div>
   )
 })

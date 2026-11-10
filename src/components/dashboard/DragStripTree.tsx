@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 
 interface DragStripTreeProps {
@@ -26,8 +26,29 @@ export const DragStripTree: React.FC<DragStripTreeProps> = ({ onClose }) => {
   const isGreen = dragStage === 'green' || dragStage === 'racing' || dragStage === 'finished'
   const isRed = dragStage === 'false_start'
 
+  // Fechar no ESC
+  useEffect(() => {
+    if (!onClose) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        resetDragRace()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose, resetDragRace])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget && onClose) {
+          resetDragRace()
+          onClose()
+        }
+      }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
+    >
       <div className="relative flex flex-col md:flex-row items-center gap-6 rounded-3xl border border-neutral-700/80 bg-neutral-950 p-6 shadow-2xl max-w-2xl w-full">
         {/* Botão de Fechar */}
         {onClose && (
@@ -226,3 +247,4 @@ export const DragStripTree: React.FC<DragStripTreeProps> = ({ onClose }) => {
     </div>
   )
 }
+

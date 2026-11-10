@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo, useState, useEffect } from 'react'
 import type { VehicleConfig } from '@/types/vehicle'
 import type { FuelType } from '@/types/simulation'
 import { useSimulationStore } from '@/stores/useSimulationStore'
@@ -58,9 +58,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const addCredits = useGarageStore((s) => s.addCredits)
   const installUpgrade = useGarageStore((s) => s.installUpgrade)
 
-  if (!isOpen) return null
-
-  // Obtém reativamente a unidade exata que está sendo customizada na loja
+  // Obtém reativamente a unidade exata que está sendo customizada na loja (HOOK INCONDICIONAL)
   const liveCar = useGarageStore((s) => {
     if (carInstance?.instanceId) {
       return s.getCarById(carInstance.instanceId)
@@ -113,7 +111,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
 
     const partialUpgrade: Partial<CarUpgrades> = { [upgradeKey]: value }
 
-    if (liveCar) {
+    if (liveCar && liveCar.instanceId) {
       installUpgrade(liveCar.instanceId, partialUpgrade)
     }
     setEquippedUpgrades(partialUpgrade)
@@ -125,6 +123,18 @@ export const TuningGarageModal = memo(function TuningGarageModal({
     HapticFeedback.gearShift()
     showNotification(`✅ ${itemName} instalado com sucesso!`)
   }
+
+  // Atalho Tecla ESC para fechar a oficina
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  if (!isOpen) return null
 
   // Estatísticas Dinâmicas do Motor com Modificadores
   const basePower = vehicle.engine.maxPower || 150
@@ -144,7 +154,12 @@ export const TuningGarageModal = memo(function TuningGarageModal({
     : 0
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md font-mono select-none animate-in fade-in duration-150">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md font-mono select-none animate-in fade-in duration-150"
+    >
       <div className="relative w-full max-w-3xl rounded-3xl bg-gradient-to-b from-zinc-900 via-zinc-950 to-black border-2 border-white/20 p-4 sm:p-6 shadow-2xl flex flex-col gap-3.5 max-h-[94vh] overflow-y-auto">
         
         {/* ─── Topo / Cabeçalho da Oficina ─── */}

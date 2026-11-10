@@ -117,8 +117,8 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   // Conectar sistema de som (SynthEngine)
   useAudio(vehicle)
 
-  // Conectar controles de teclado do PC
-  useKeyboardControls(vehicle)
+  // Conectar controles de teclado do PC (desativa enquanto modais estiverem abertos)
+  useKeyboardControls(vehicle, !isTuningOpen && !isDragStripOpen)
 
   // Computar telemetria do DashboardSystem (desacoplado e puro)
   const telemetry = useMemo(() => {
@@ -194,6 +194,7 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
           telemetry={telemetry}
           vehicle={vehicle}
           onBack={handleBack}
+          carInstance={activeCar}
         />
       )
     }
@@ -213,6 +214,7 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
         telemetry={telemetry}
         vehicle={vehicle}
         onBack={handleBack}
+        carInstance={activeCar}
       />
     )
   }
@@ -665,12 +667,15 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
       {/* Pista de Arrancada 402m (Drag Strip Modal) */}
       {isDragStripOpen && <DragStripTree onClose={() => setIsDragStripOpen(false)} />}
 
-      <TuningGarageModal
-        isOpen={isTuningOpen}
-        onClose={() => setIsTuningOpen(false)}
-        vehicle={vehicle}
-        carInstance={activeCar}
-      />
+      {/* Modal da Oficina de Peças & Preparação */}
+      {isTuningOpen && (
+        <TuningGarageModal
+          isOpen={true}
+          onClose={() => setIsTuningOpen(false)}
+          vehicle={vehicle}
+          carInstance={activeCar}
+        />
+      )}
     </div>
   )
 }

@@ -30,3 +30,4 @@ export const BurnoutSmokeEffect: React.FC = () => {
     </div>
   )
 }
+
