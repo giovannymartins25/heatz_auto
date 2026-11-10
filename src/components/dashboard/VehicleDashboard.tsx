@@ -61,6 +61,12 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const isLaunching = useSimulationStore((s) => s.isLaunching)
 
+  const hasInfotainment =
+    vehicle.dashboard?.hasInfotainment ??
+    (vehicle.id !== 'gol-g6' &&
+      vehicle.id !== 'cb1000r' &&
+      vehicle.info.category !== 'motorcycle')
+
   const viewMode = useUIStore((s) => s.viewMode)
   const setViewMode = useUIStore((s) => s.setViewMode)
   const allowPortraitCockpit = useUIStore((s) => s.allowPortraitCockpit)
@@ -393,10 +399,12 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
             )}
           </div>
 
-          {/* Central Multimídia Automotiva ao lado (Console Central com Sport HMI / Turbo) */}
-          <div className="flex flex-col items-center justify-center shrink-0">
-            <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} />
-          </div>
+          {/* Central Multimídia Automotiva ao lado (Console Central com Sport HMI / Turbo / Yaris / Porsche) */}
+          {hasInfotainment && (
+            <div className="flex flex-col items-center justify-center shrink-0">
+              <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} />
+            </div>
+          )}
         </div>
 
         {/* ── Telemetria Analógica dos Pedais (0-100%) ── */}

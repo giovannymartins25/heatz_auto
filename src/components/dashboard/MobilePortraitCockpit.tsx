@@ -53,6 +53,11 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const isManualSimulated = transmissionMode === 'manual_simulated'
   const isManualOrSimulated = transmissionMode === 'manual' || transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
+  const hasInfotainment =
+    vehicle.dashboard?.hasInfotainment ??
+    (vehicle.id !== 'gol-g6' &&
+      vehicle.id !== 'cb1000r' &&
+      vehicle.info.category !== 'motorcycle')
   const [portraitMode, setPortraitMode] = useState<'cluster' | 'multimedia' | 'hud'>('cluster')
 
   const displaySpeed = Math.round(telemetry.speedometer.speed)
@@ -159,16 +164,18 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               >
                 PAINEL
               </button>
-              <button
-                onClick={() => setPortraitMode('multimedia')}
-                className={`px-1.5 py-0.5 text-[8px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
-                  portraitMode === 'multimedia'
-                    ? 'bg-red-500/20 text-red-300 border-red-500/50'
-                    : 'bg-zinc-900 text-zinc-500 border-white/5'
-                }`}
-              >
-                MULTIMÍDIA
-              </button>
+              {hasInfotainment && (
+                <button
+                  onClick={() => setPortraitMode('multimedia')}
+                  className={`px-1.5 py-0.5 text-[8px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                    portraitMode === 'multimedia'
+                      ? 'bg-red-500/20 text-red-300 border-red-500/50'
+                      : 'bg-zinc-900 text-zinc-500 border-white/5'
+                  }`}
+                >
+                  MULTIMÍDIA
+                </button>
+              )}
               <button
                 onClick={() => setPortraitMode('hud')}
                 className={`px-1.5 py-0.5 text-[8px] font-mono font-bold rounded-full border transition-all cursor-pointer ${

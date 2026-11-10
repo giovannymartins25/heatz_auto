@@ -124,6 +124,7 @@ export interface DashboardConfig {
   fuelCapacity?: number      // Litros do tanque de combustível
   coolantTempTarget?: number // Temperatura operacional nominal em °C (default 90)
   hasBoostGauge?: boolean    // Manômetro de pressão de turbo
+  hasInfotainment?: boolean  // Central multimídia automotiva inteligente
 }
 
 /** Dados do veículo */

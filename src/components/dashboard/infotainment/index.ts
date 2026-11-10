@@ -1,0 +1,5 @@
+export { GolfGTIDiscoverPro } from './GolfGTIDiscoverPro'
+export { PorschePCM6 } from './PorschePCM6'
+export { ToyotaSmartConnect } from './ToyotaSmartConnect'
+export { ClimateControlPanel } from './shared/ClimateControlPanel'
+export { InternetMediaCenter } from './shared/InternetMediaCenter'

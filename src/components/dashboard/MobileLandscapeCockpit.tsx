@@ -61,6 +61,11 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const isManualSimulated = transmissionMode === 'manual_simulated'
   const isManualOrSimulated = transmissionMode === 'manual' || transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
+  const hasInfotainment =
+    vehicle.dashboard?.hasInfotainment ??
+    (vehicle.id !== 'gol-g6' &&
+      vehicle.id !== 'cb1000r' &&
+      vehicle.info.category !== 'motorcycle')
   const [centerMode, setCenterMode] = useState<'cluster' | 'multimedia' | 'hud'>('cluster')
 
   // Formatação de valores centrais
@@ -204,16 +209,18 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               >
                 PAINEL
               </button>
-              <button
-                onClick={() => setCenterMode('multimedia')}
-                className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
-                  centerMode === 'multimedia'
-                    ? 'bg-red-500/20 text-red-300 border-red-500/50'
-                    : 'bg-zinc-900 text-zinc-500 border-white/5'
-                }`}
-              >
-                MULTIMÍDIA
-              </button>
+              {hasInfotainment && (
+                <button
+                  onClick={() => setCenterMode('multimedia')}
+                  className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
+                    centerMode === 'multimedia'
+                      ? 'bg-red-500/20 text-red-300 border-red-500/50'
+                      : 'bg-zinc-900 text-zinc-500 border-white/5'
+                  }`}
+                >
+                  MULTIMÍDIA
+                </button>
+              )}
               <button
                 onClick={() => setCenterMode('hud')}
                 className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border transition-all cursor-pointer ${
@@ -255,7 +262,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             <div className="scale-[0.50] xs:scale-[0.60] sm:scale-[0.72] md:scale-[0.84] origin-center flex items-center justify-center pointer-events-none">
               <ClusterView telemetry={telemetry} />
             </div>
-            {hasTurbo && (
+            {hasTurbo && hasInfotainment && (
               <button
                 onClick={() => setCenterMode('multimedia')}
                 className="absolute right-2 top-1 z-20 pointer-events-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/85 border border-amber-500/40 text-[9px] font-mono text-amber-300 shadow active:scale-95 transition-all cursor-pointer hover:border-amber-400"

@@ -70,6 +70,7 @@
     "redlineStart": 6000,
     "shiftLightOffsetRpm": 500,
     "fuelCapacity": 55,
-    "coolantTempTarget": 90
+    "coolantTempTarget": 90,
+    "hasInfotainment": false
   }
 }
