@@ -1,8 +1,10 @@
 import { memo, useState } from 'react'
 import type { VehicleConfig } from '@/types/vehicle'
+import type { FuelType } from '@/types/simulation'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useGarageStore, type CarUpgrades, type GarageCarInstance } from '@/stores/useGarageStore'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
+import { DynoTestModal } from './DynoTestModal'
 
 interface TuningGarageModalProps {
   isOpen: boolean
@@ -32,6 +34,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
 }: TuningGarageModalProps) {
   const [activeTab, setActiveTab] = useState<ShopTab>('motor')
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null)
+  const [isDynoOpen, setIsDynoOpen] = useState(false)
 
   // Estado da Simulação em tempo real
   const hasTurbo = useSimulationStore((s) => s.hasTurbo)
@@ -40,6 +43,8 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const exhaustType = useSimulationStore((s) => s.exhaustType)
   const intakeType = useSimulationStore((s) => s.intakeType)
   const tires = useSimulationStore((s) => s.tires)
+  const fuelType = useSimulationStore((s) => s.fuelType)
+  const setFuelType = useSimulationStore((s) => s.setFuelType)
   const hasRetrofitInfotainment = useSimulationStore((s) => s.hasRetrofitInfotainment)
   const hasBoostGaugeKit = useSimulationStore((s) => s.hasBoostGaugeKit)
   const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
@@ -80,6 +85,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const activeExhaust = upgrades?.exhaustType ?? exhaustType
   const activeIntake = upgrades?.intakeType ?? intakeType
   const activeTires = upgrades?.tires ?? tires
+  const activeFuelType = (upgrades?.fuelType ?? fuelType) as FuelType
   const isTurboInstalled = isOriginalTurboCar || Boolean(upgrades?.turboKit ?? hasTurbo)
   const isMultimediaInstalled = Boolean(upgrades?.multimediaKit ?? hasRetrofitInfotainment)
   const isBoostGaugeInstalled = Boolean(upgrades?.boostGaugeKit ?? hasBoostGaugeKit)
@@ -245,6 +251,15 @@ export const TuningGarageModal = memo(function TuningGarageModal({
             </span>
             <span className="text-[8px] text-zinc-400 font-bold">{exhaustValveOpen ? 'Válvula Aberta' : 'Silencioso'}</span>
           </div>
+
+          <button
+            onClick={() => setIsDynoOpen(true)}
+            className="col-span-2 sm:col-span-5 py-2 px-3 rounded-xl bg-gradient-to-r from-red-600 via-amber-600 to-red-600 hover:from-red-500 hover:to-amber-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-red-950/40 border border-red-500/30 cursor-pointer transition-all active:scale-98"
+          >
+            <span>🔥</span>
+            <span>TESTAR NO DINAMÔMETRO DE ROLO (CURVAS CV & Nm)</span>
+            <span>📈</span>
+          </button>
         </div>
 
         {/* ─── Abas da Loja ─── */}
@@ -313,6 +328,75 @@ export const TuningGarageModal = memo(function TuningGarageModal({
         {/* ─── CONTEÚDO DA ABA 1: MOTOR & TURBO ─── */}
         {activeTab === 'motor' && (
           <div className="flex flex-col gap-3">
+            {/* Seção Tipo de Combustível */}
+            <div className="p-3.5 rounded-2xl bg-zinc-900/60 border border-white/10 flex flex-col gap-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">⛽</span>
+                  <div>
+                    <h3 className="text-xs font-black text-white uppercase">COMBUSTÍVEL NO TANQUE</h3>
+                    <p className="text-[10px] text-zinc-400">
+                      Etanol aceita mais boost e opera frio; Gasolina Podium evita detonação em giros altos.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-black text-amber-400 uppercase bg-amber-950/60 border border-amber-500/40 px-2 py-0.5 rounded">
+                  {activeFuelType === 'ethanol_e100' ? 'Etanol E100' : activeFuelType === 'premium_podium' ? 'Podium 102' : 'Gasolina Comum'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[
+                  {
+                    id: 'common_gasoline' as FuelType,
+                    name: 'Gasolina Comum',
+                    desc: 'Combustível de rua padrão (1.0x torque base)',
+                    badge: 'PADRÃO',
+                  },
+                  {
+                    id: 'premium_podium' as FuelType,
+                    name: 'Gasolina Podium',
+                    desc: '102 RON: Anti-detonação (+5% torque com giro livre)',
+                    badge: 'PREMIUM',
+                  },
+                  {
+                    id: 'ethanol_e100' as FuelType,
+                    name: 'Etanol Puro E100',
+                    desc: '+12% torque em motores turbo e câmara mais fria',
+                    badge: 'RACING TURBO',
+                  },
+                ].map((f) => {
+                  const isSelected = activeFuelType === f.id
+                  return (
+                    <div
+                      key={f.id}
+                      onClick={() => {
+                        handlePurchaseAndEquip('fuelType', f.id, 0, f.name)
+                        setFuelType(f.id)
+                      }}
+                      className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                        isSelected
+                          ? 'bg-amber-950/70 border-amber-400 text-white shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+                          : 'bg-zinc-900/40 border-white/10 hover:border-white/20 text-zinc-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-black">{f.name}</span>
+                        <span
+                          className={`text-[8px] font-black px-1.5 py-0.5 rounded ${
+                            isSelected ? 'bg-amber-400 text-black' : 'bg-zinc-800 text-zinc-400'
+                          }`}
+                        >
+                          {f.badge}
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-zinc-400 leading-tight">{f.desc}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
             {/* Seção Kit Turbo */}
             <div className="p-3.5 rounded-2xl bg-zinc-900/60 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -985,6 +1069,15 @@ export const TuningGarageModal = memo(function TuningGarageModal({
         </div>
 
       </div>
+
+      {/* Modal do Dinamômetro Virtual */}
+      {isDynoOpen && (
+        <DynoTestModal
+          config={vehicle}
+          upgrades={upgrades}
+          onClose={() => setIsDynoOpen(false)}
+        />
+      )}
     </div>
   )
 })

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { FuelType } from '@/types/simulation'
 
 export interface CarUpgrades {
   turboKit: boolean // Se tem kit turbo instalado (mesmo em carros aspirados)
@@ -9,6 +10,7 @@ export interface CarUpgrades {
   tires: 'street' | 'semi_slick' // Pneus de rua ou semi-slick de arrancada
   tuningStage: 0 | 1 | 2 | 3 // Estágio de reprogramação de ECU
   exhaustValveOpen: boolean // Válvula de difusor aberta/fechada
+  fuelType: FuelType // Tipo de combustível (Etanol E100, Podium 102 ou Gasolina Comum)
 }
 
 export interface GarageCarInstance {
@@ -59,6 +61,13 @@ export function createDefaultUpgrades(vehicleId: string): CarUpgrades {
     vehicleId === 'yaris-2019' ||
     vehicleId === 'civic-si'
 
+  const defaultFuel: FuelType =
+    vehicleId === 'gol-quadrado-turbo'
+      ? 'ethanol_e100'
+      : vehicleId === 'porsche-gt3' || vehicleId === 'golf-gti'
+      ? 'premium_podium'
+      : 'common_gasoline'
+
   return {
     turboKit: isOriginallyTurbo,
     multimediaKit: hasDefaultMultimedia,
@@ -68,6 +77,7 @@ export function createDefaultUpgrades(vehicleId: string): CarUpgrades {
     tires: 'street',
     tuningStage: 0,
     exhaustValveOpen: true,
+    fuelType: defaultFuel,
   }
 }
 

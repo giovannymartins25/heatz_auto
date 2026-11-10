@@ -11,6 +11,8 @@ import { WarningLights, AuxGauges, BoostGauge } from '@/components/gauges'
 import { ClusterView } from './ClusterView'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
+import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
+import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
 import { TuningGarageModal } from '@/components/tuning'
 
 export interface MobilePortraitCockpitProps {
@@ -449,6 +451,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
       {/* ── Efeitos Especiais de Imersão e Oficina ── */}
       <BackfireFlameFlash />
       <RainWindshieldEffect />
+      <BurnoutSmokeEffect />
+      <EngineBlownSmokeEffect />
       <TuningGarageModal
         isOpen={isTuningOpen}
         onClose={() => setIsTuningOpen(false)}

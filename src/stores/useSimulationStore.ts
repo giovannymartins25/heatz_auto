@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { VehicleConfig, DrivingMode } from '@/types'
-import type { EngineStatus } from '@/types/simulation'
+import type { EngineStatus, FuelType, DragTreeStage, DragTimeSlip } from '@/types/simulation'
 import { EngineSimulator } from '@/systems/engine'
 import { Transmission, AutomaticTransmission } from '@/systems/transmission'
 import { ClutchSystem } from '@/systems/clutch'
@@ -90,6 +90,22 @@ interface SimulationActions {
   /** Clima & Limpadores */
   toggleRain: () => void
   toggleWipers: () => void
+  /** Vidros Elétricos & Acústica */
+  toggleWindows: () => void
+  setWindowsOpen: (open: boolean) => void
+  /** Alternador de Câmbio: Sequencial (+/-) vs H-Shifter (1ª-6ª + Ré) */
+  setShifterLayout: (layout: 'sequential' | 'h_pattern') => void
+  toggleShifterLayout: () => void
+  shiftHPattern: (targetGear: number) => void
+  /** Sistema de Combustível */
+  refuel: (liters?: number) => void
+  setFuelType: (type: FuelType) => void
+  /** Reparo Mecânico de Danos / Motor Fundido */
+  repairEngine: () => void
+  /** Pista de Arrancada 402m (Drag Strip) */
+  startDragRace: () => void
+  resetDragRace: () => void
+  cancelDragRace: () => void
   /** Esterço do Volante (-1 a +1) */
   setSteeringAngle: (angle: number) => void
   /** Reseta dados de performance */
@@ -188,6 +204,39 @@ interface SimulationState {
   topSpeedRecord: number
   _timer0to100Start: number | null
 
+  // Sistema de Combustível
+  fuelLevelLiters: number
+  fuelCapacityLiters: number
+  fuelType: FuelType
+  isOutOfFuel: boolean
+
+  // Dinâmica Térmica & Danos
+  coolantTemp: number
+  oilTemp: number
+  isEngineBlown: boolean
+  damageReason: string | null
+  engineBlownTrigger: number
+
+  // Freios, Temperatura & Burnout
+  brakeDiscTemp: number
+  isBrakeGlowing: boolean
+  brakeFadeFactor: number
+  isBurningOut: boolean
+  tireSmokeDensity: number
+
+  // Vidros Elétricos & H-Shifter
+  windowsOpen: boolean
+  shifterLayout: 'sequential' | 'h_pattern'
+  isGearGrinding: boolean
+  gearGrindTrigger: number
+
+  // Pista de Arrancada 402m (Drag Strip)
+  dragStage: DragTreeStage
+  dragTimeSlip: DragTimeSlip | null
+  _dragDistanceTraveled: number
+  _dragTimerStart: number | null
+  _dragGreenTime: number | null
+
   // Internos (não renderizados diretamente)
   _engine: EngineSimulator | null
   _transmission: Transmission | null
@@ -262,6 +311,40 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isTiming0to100: false,
   topSpeedRecord: 0,
   _timer0to100Start: null,
+
+  // Sistema de Combustível
+  fuelLevelLiters: 45,
+  fuelCapacityLiters: 50,
+  fuelType: 'common_gasoline',
+  isOutOfFuel: false,
+
+  // Dinâmica Térmica & Danos
+  coolantTemp: 88,
+  oilTemp: 92,
+  isEngineBlown: false,
+  damageReason: null,
+  engineBlownTrigger: 0,
+
+  // Freios, Temperatura & Burnout
+  brakeDiscTemp: 60,
+  isBrakeGlowing: false,
+  brakeFadeFactor: 1.0,
+  isBurningOut: false,
+  tireSmokeDensity: 0,
+
+  // Vidros Elétricos & H-Shifter
+  windowsOpen: false,
+  shifterLayout: 'sequential',
+  isGearGrinding: false,
+  gearGrindTrigger: 0,
+
+  // Pista de Arrancada 402m (Drag Strip)
+  dragStage: 'idle',
+  dragTimeSlip: null,
+  _dragDistanceTraveled: 0,
+  _dragTimerStart: null,
+  _dragGreenTime: null,
+
   _engine: null,
   _transmission: null,
   _autoTransmission: null,
@@ -390,13 +473,48 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       tcsEnabled: hasTcs,
       tcsIntervening: false,
       tcsInterventionLevel: 0,
+      fuelType: initialUpgrades?.fuelType || (config.id === 'gol-quadrado' ? 'ethanol_e100' : 'common_gasoline'),
+      fuelLevelLiters: 45,
+      fuelCapacityLiters: 50,
+      isOutOfFuel: false,
+      coolantTemp: 88,
+      oilTemp: 92,
+      isEngineBlown: false,
+      damageReason: null,
+      engineBlownTrigger: 0,
+      brakeDiscTemp: 60,
+      isBrakeGlowing: false,
+      brakeFadeFactor: 1.0,
+      isBurningOut: false,
+      tireSmokeDensity: 0,
+      windowsOpen: false,
+      shifterLayout: 'sequential',
+      isGearGrinding: false,
+      gearGrindTrigger: 0,
+      dragStage: 'idle',
+      dragTimeSlip: null,
+      _dragDistanceTraveled: 0,
+      _dragTimerStart: null,
+      _dragGreenTime: null,
       _accumulator: 0,
     })
   },
 
   startEngine: () => {
-    const { _engine, transmissionMode, _transmission } = get()
+    const { _engine, transmissionMode, _transmission, isEngineBlown, isOutOfFuel } = get()
     if (!_engine) return
+
+    if (isEngineBlown) {
+      HapticFeedback.light()
+      set({ isRunning: false, isStalled: true, status: 'stalled' })
+      return
+    }
+
+    if (isOutOfFuel) {
+      HapticFeedback.light()
+      set({ isRunning: false, isStalled: true, status: 'stalled', damageReason: 'Pane Seca: Sem combustível!' })
+      return
+    }
 
     _engine.start()
     HapticFeedback.engineStart()
@@ -692,6 +810,26 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     // Modo 'manual' convencional (Gol G6, CB1000R) com validação de embreagem
     if (!_clutch) return
+
+    // Detecção de Money Shift em reduções violentas acima do corte
+    const targetGear = _transmission.currentGear - 1
+    if (targetGear > 0) {
+      const expectedRpm = _transmission.calculator.speedToRpm(speed, targetGear)
+      if (expectedRpm > _config.engine.maxRpm * 1.25 && speed > 35) {
+        _engine.stop()
+        set({
+          isEngineBlown: true,
+          damageReason: `Money Shift: Sobregiro Destrutivo de ${Math.round(expectedRpm)} RPM!`,
+          isRunning: false,
+          isStalled: true,
+          status: 'stalled',
+          engineBlownTrigger: Date.now(),
+        })
+        HapticFeedback.heavy()
+        return
+      }
+    }
+
     const result = _transmission.shiftDown(_engine.getRpm(), speed, _config.engine.maxRpm)
 
     if (result.success) {
@@ -827,6 +965,174 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setMasterVolume: (vol: number) => {
     set({ masterVolume: clamp(vol, 0, 1) })
+  },
+
+  toggleWindows: () => {
+    const next = !get().windowsOpen
+    set({ windowsOpen: next })
+    HapticFeedback.light()
+  },
+
+  setWindowsOpen: (open: boolean) => {
+    set({ windowsOpen: open })
+  },
+
+  setShifterLayout: (layout: 'sequential' | 'h_pattern') => {
+    set({ shifterLayout: layout })
+    HapticFeedback.light()
+  },
+
+  toggleShifterLayout: () => {
+    const next = get().shifterLayout === 'sequential' ? 'h_pattern' : 'sequential'
+    set({ shifterLayout: next })
+    HapticFeedback.light()
+  },
+
+  shiftHPattern: (targetGear: number) => {
+    const { _engine, _transmission, _config, speed, isRunning, clutchPosition, isAutomaticVehicle, isEngineBlown } = get()
+    if (!_transmission || !_config || isEngineBlown) return
+
+    // Ponto morto sempre entra de forma imediata e desengata a transmissão
+    if (targetGear === 0) {
+      _transmission.neutral()
+      HapticFeedback.light()
+      set({ currentGear: 0, shifterPosition: 'N', isGearGrinding: false, lastShiftReason: 'none' })
+      return
+    }
+
+    // Validação de embreagem em câmbio manual com o veículo em movimento (>6 km/h)
+    if (!isAutomaticVehicle && speed > 6 && clutchPosition < 0.45) {
+      // Sincronizador arranha violentamente!
+      HapticFeedback.heavy()
+      set({
+        isGearGrinding: true,
+        gearGrindTrigger: Date.now(),
+        lastShiftReason: 'clutch_required',
+      })
+      return
+    }
+
+    // Ré enquanto anda para frente (>8 km/h): tranca mecânica com arranhão
+    if (targetGear === -1 && speed > 8) {
+      HapticFeedback.heavy()
+      set({
+        isGearGrinding: true,
+        gearGrindTrigger: Date.now(),
+        lastShiftReason: 'gear_limit',
+      })
+      return
+    }
+
+    // Detecção de Money Shift em engate incorreto em alta velocidade
+    if (targetGear > 0) {
+      const expectedRpm = _transmission.calculator.speedToRpm(speed, targetGear)
+      if (expectedRpm > _config.engine.maxRpm * 1.25 && speed > 35) {
+        _engine?.stop()
+        set({
+          isEngineBlown: true,
+          damageReason: `Money Shift: Sobregiro Destrutivo de ${Math.round(expectedRpm)} RPM!`,
+          isRunning: false,
+          isStalled: true,
+          status: 'stalled',
+          engineBlownTrigger: Date.now(),
+          currentGear: targetGear,
+          isGearGrinding: false,
+        })
+        HapticFeedback.heavy()
+        return
+      }
+    }
+
+    // Engate bem-sucedido
+    const result = _transmission.shiftTo(targetGear, speed, undefined, true)
+    if (_engine && result.newRpm > 0 && isRunning) {
+      const clampedRpm = clamp(result.newRpm, _config.engine.idleRpm, _config.engine.maxRpm)
+      _engine.setRpm(clampedRpm)
+    }
+    HapticFeedback.gearShift()
+    set({
+      currentGear: targetGear,
+      isGearGrinding: false,
+      lastShiftReason: 'none',
+      shifterPosition: targetGear === -1 ? 'R' : targetGear === 0 ? 'N' : 'M',
+    })
+  },
+
+  refuel: (liters?: number) => {
+    set((s) => ({
+      fuelLevelLiters: Math.min(s.fuelCapacityLiters, s.fuelLevelLiters + (liters ?? s.fuelCapacityLiters)),
+      isOutOfFuel: false,
+      damageReason: s.damageReason === 'Pane Seca: Sem combustível!' ? null : s.damageReason,
+    }))
+    HapticFeedback.medium()
+  },
+
+  setFuelType: (type: FuelType) => {
+    set({ fuelType: type })
+    HapticFeedback.light()
+  },
+
+  repairEngine: () => {
+    set((s) => ({
+      isEngineBlown: false,
+      damageReason: null,
+      coolantTemp: 88,
+      oilTemp: 92,
+      brakeDiscTemp: 60,
+      brakeFadeFactor: 1.0,
+      isBrakeGlowing: false,
+      isOutOfFuel: false,
+      fuelLevelLiters: Math.max(s.fuelLevelLiters, 15),
+    }))
+    HapticFeedback.medium()
+  },
+
+  startDragRace: () => {
+    const { _physics, _engine } = get()
+    _physics?.reset()
+    if (_engine) _engine.setRpm(1000)
+    set({
+      dragStage: 'pre_stage',
+      dragTimeSlip: null,
+      _dragDistanceTraveled: 0,
+      _dragTimerStart: null,
+      _dragGreenTime: null,
+    })
+    HapticFeedback.light()
+
+    // Sequência Árvore de Natal NHRA Drag Strip
+    setTimeout(() => {
+      if (get().dragStage === 'pre_stage') set({ dragStage: 'staged' })
+    }, 600)
+    setTimeout(() => {
+      if (get().dragStage === 'staged') set({ dragStage: 'yellow_1' })
+    }, 1200)
+    setTimeout(() => {
+      if (get().dragStage === 'yellow_1') set({ dragStage: 'yellow_2' })
+    }, 1700)
+    setTimeout(() => {
+      if (get().dragStage === 'yellow_2') set({ dragStage: 'yellow_3' })
+    }, 2200)
+    setTimeout(() => {
+      if (get().dragStage === 'yellow_3') {
+        set({ dragStage: 'green', _dragGreenTime: performance.now() })
+        HapticFeedback.heavy()
+      }
+    }, 2700)
+  },
+
+  resetDragRace: () => {
+    set({
+      dragStage: 'idle',
+      dragTimeSlip: null,
+      _dragDistanceTraveled: 0,
+      _dragTimerStart: null,
+      _dragGreenTime: null,
+    })
+  },
+
+  cancelDragRace: () => {
+    set({ dragStage: 'idle' })
   },
 
   resetPerformanceStats: () => {
@@ -1028,7 +1334,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       }
       _physics.setSurfaceFriction(targetFriction)
 
-      const effectiveBrake = Math.max(state.brake, state.handbrake || gear === -2 ? 1 : 0)
+      const rawBrake = Math.max(state.brake, state.handbrake || gear === -2 ? 1 : 0)
+      const effectiveBrake = rawBrake * state.brakeFadeFactor
       const physicsTick = _physics.tick({
         driveTorqueAtTransmission: clutchState.transmittedTorque * totalTorqueMult,
         gearRatio,
@@ -1178,6 +1485,160 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       }
     }
 
+    // ─── 1. Térmica dos Freios, Brilho Incandescente & Brake Fade ───
+    let latestBrakeDiscTemp = state.brakeDiscTemp
+    const rawBrakeInput = Math.max(state.brake, state.handbrake || latestGear === -2 ? 1 : 0)
+    const effectiveBrakeSpeed = Math.max(latestSpeed, state.speed)
+    if (rawBrakeInput > 0.05 && effectiveBrakeSpeed > 1) {
+      latestBrakeDiscTemp += rawBrakeInput * (effectiveBrakeSpeed / 75) * 80 * frameTime
+    }
+    const discCooling = ((latestSpeed / 100) * 0.75 + 0.18) * Math.max(0, (latestBrakeDiscTemp - 25) / 100) * 9.0 * frameTime
+    latestBrakeDiscTemp = clamp(latestBrakeDiscTemp - discCooling, 25, 950)
+    latestBrakeDiscTemp = Math.round(latestBrakeDiscTemp * 10) / 10
+    const latestIsBrakeGlowing = latestBrakeDiscTemp >= 500
+    const latestBrakeFadeFactor = latestBrakeDiscTemp > 650
+      ? clamp(1.0 - ((latestBrakeDiscTemp - 650) / 300) * 0.55, 0.45, 1.0)
+      : 1.0
+
+    // ─── 2. Sistema Real de Combustível & Consumo Dinâmico ───
+    let latestFuelLevel = state.fuelLevelLiters
+    let latestIsOutOfFuel = state.isOutOfFuel
+    if (latestIsRunning) {
+      const hours = frameTime / 3600
+      const fuelMult = state.fuelType === 'ethanol_e100' ? 1.34 : 1.0
+      const stage = state.tuningStage || 0
+      const stageFuelFactor = stage === 1 ? 1.2 : stage === 2 ? 1.4 : stage === 3 ? 1.8 : 1.0
+      const burnPerHour = (0.85 + state.throttle * 22.0 + (latestRpm / _config.engine.maxRpm) * 8.5) * stageFuelFactor * fuelMult
+      latestFuelLevel = Math.max(0, latestFuelLevel - burnPerHour * hours)
+      latestFuelLevel = Math.round(latestFuelLevel * 1000) / 1000
+
+      if (latestFuelLevel <= 0.005) {
+        latestFuelLevel = 0
+        latestIsOutOfFuel = true
+        latestIsRunning = false
+        latestIsStalled = true
+        latestStatus = 'stalled'
+        _engine.stop()
+      }
+    }
+
+    // ─── 3. Dinâmica Térmica do Motor & Superaquecimento ───
+    let latestCoolantTemp = state.coolantTemp
+    let latestOilTemp = state.oilTemp
+    let latestIsEngineBlown = state.isEngineBlown
+    let latestDamageReason = state.damageReason
+    let latestEngineBlownTrigger = state.engineBlownTrigger
+
+    if (latestIsRunning) {
+      const stage = state.tuningStage || 0
+      const stageHeatMult = stage === 1 ? 1.25 : stage === 2 ? 1.5 : stage === 3 ? 1.85 : 1.0
+      const fuelHeatFactor = state.fuelType === 'ethanol_e100' ? 0.90 : 1.0
+      const heatGenerated = (state.throttle * 0.70 + (latestRpm / _config.engine.maxRpm) * 0.50) * stageHeatMult * fuelHeatFactor * 8.2 * frameTime
+      const radFan = latestCoolantTemp > 92 ? 0.45 : 0.15
+      const radCooling = ((latestSpeed / 110) + radFan) * Math.max(0, (latestCoolantTemp - 25) / 70) * 7.2 * frameTime
+
+      latestCoolantTemp = clamp(latestCoolantTemp + heatGenerated - radCooling, 25, 140)
+      latestOilTemp += (latestCoolantTemp * 1.04 - latestOilTemp) * clamp(frameTime * 0.8, 0, 1)
+    } else {
+      latestCoolantTemp = Math.max(25, latestCoolantTemp - 1.2 * frameTime)
+      latestOilTemp = Math.max(25, latestOilTemp - 1.0 * frameTime)
+    }
+
+    // Detecção universal de superaquecimento crítico (>125°C)
+    if (latestCoolantTemp >= 125 && !latestIsEngineBlown) {
+      latestIsEngineBlown = true
+      latestDamageReason = 'Superaquecimento (>125°C): Junta Queimada!'
+      latestIsRunning = false
+      latestIsStalled = true
+      latestStatus = 'stalled'
+      latestEngineBlownTrigger = Date.now()
+      _engine.stop()
+      HapticFeedback.heavy()
+    }
+
+    latestCoolantTemp = Math.round(latestCoolantTemp * 10) / 10
+    latestOilTemp = Math.round(latestOilTemp * 10) / 10
+
+    // ─── 4. Burnout & Fumaça Densa de Pneus ───
+    let isBurningOut = false
+    let latestSmoke = state.tireSmokeDensity
+    const isHoldBrake = state.brake > 0.35 || state.handbrake
+    const isBurnoutThrottle = state.throttle > 0.60 && latestRpm > 2600
+    const isForwardOrReverse = latestGear === 1 || latestGear === -1 || (state.transmissionMode === 'automatic' && latestGear === 1)
+
+    if (latestIsRunning && isHoldBrake && isBurnoutThrottle && isForwardOrReverse && latestSpeed < 18) {
+      isBurningOut = true
+      latestSmoke = clamp(latestSmoke + frameTime * 1.8, 0, 1.0)
+    } else {
+      isBurningOut = false
+      latestSmoke = clamp(latestSmoke - frameTime * 0.85, 0, 1.0)
+    }
+
+    // ─── 5. Pista de Arrancada 402m (Drag Strip) ───
+    let latestDragStage = state.dragStage
+    let latestTimeSlip = state.dragTimeSlip ? { ...state.dragTimeSlip } : null
+    let dragDistance = state._dragDistanceTraveled
+    let dragTimerStart = state._dragTimerStart
+    const currentMoveSpeed = Math.max(latestSpeed, state.speed)
+
+    if (
+      (latestDragStage === 'pre_stage' ||
+        latestDragStage === 'staged' ||
+        latestDragStage === 'yellow_1' ||
+        latestDragStage === 'yellow_2' ||
+        latestDragStage === 'yellow_3') &&
+      (currentMoveSpeed > 1.8 || dragDistance > 0.25)
+    ) {
+      latestDragStage = 'false_start'
+      latestTimeSlip = {
+        reactionTime: 0,
+        time60ft: 0,
+        time0to100: 0,
+        time201m: 0,
+        time402m: 0,
+        trapSpeedKmh: Math.round(currentMoveSpeed),
+        isDisqualified: true,
+        createdAt: Date.now(),
+      }
+    } else if (latestDragStage === 'green') {
+      if (currentMoveSpeed > 0.6 || dragDistance > 0.1) {
+        const greenTime = state._dragGreenTime || (performance.now() - 250)
+        const reaction = Math.max(0.001, Math.round((performance.now() - greenTime)) / 1000)
+        latestDragStage = 'racing'
+        dragTimerStart = performance.now()
+        dragDistance = Math.max(0, dragDistance)
+        latestTimeSlip = {
+          reactionTime: reaction,
+          time60ft: 0,
+          time0to100: 0,
+          time201m: 0,
+          time402m: 0,
+          trapSpeedKmh: 0,
+          isDisqualified: false,
+          createdAt: Date.now(),
+        }
+      }
+    } else if (latestDragStage === 'racing' && dragTimerStart && latestTimeSlip) {
+      dragDistance += (currentMoveSpeed / 3.6) * frameTime
+      const elapsed = Math.round(((performance.now() - dragTimerStart) / 1000) * 1000) / 1000
+
+      if (dragDistance >= 18.288 && latestTimeSlip.time60ft === 0) {
+        latestTimeSlip.time60ft = elapsed
+      }
+      if (currentMoveSpeed >= 100 && latestTimeSlip.time0to100 === 0) {
+        latestTimeSlip.time0to100 = elapsed
+      }
+      if (dragDistance >= 201.168 && latestTimeSlip.time201m === 0) {
+        latestTimeSlip.time201m = elapsed
+      }
+      if (dragDistance >= 402.336) {
+        latestTimeSlip.time402m = elapsed
+        latestTimeSlip.trapSpeedKmh = Math.round(currentMoveSpeed)
+        latestDragStage = 'finished'
+        HapticFeedback.heavy()
+      }
+    }
+
     set({
       rpm: latestRpm,
       speed: latestSpeed,
@@ -1205,6 +1666,24 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       topSpeedRecord: topSpeed,
       _timer0to100Start: timerStart,
       _accumulator: accumulator,
+
+      // Novos Estados de Realismo
+      fuelLevelLiters: latestFuelLevel,
+      isOutOfFuel: latestIsOutOfFuel,
+      coolantTemp: latestCoolantTemp,
+      oilTemp: latestOilTemp,
+      isEngineBlown: latestIsEngineBlown,
+      damageReason: latestDamageReason,
+      engineBlownTrigger: latestEngineBlownTrigger,
+      brakeDiscTemp: latestBrakeDiscTemp,
+      isBrakeGlowing: latestIsBrakeGlowing,
+      brakeFadeFactor: latestBrakeFadeFactor,
+      isBurningOut,
+      tireSmokeDensity: latestSmoke,
+      dragStage: latestDragStage,
+      dragTimeSlip: latestTimeSlip,
+      _dragDistanceTraveled: dragDistance,
+      _dragTimerStart: dragTimerStart,
     })
   },
 
@@ -1252,6 +1731,27 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isTiming0to100: false,
       current0to100: null,
       _timer0to100Start: null,
+      fuelLevelLiters: 45,
+      isOutOfFuel: false,
+      coolantTemp: 88,
+      oilTemp: 92,
+      isEngineBlown: false,
+      damageReason: null,
+      engineBlownTrigger: 0,
+      brakeDiscTemp: 60,
+      isBrakeGlowing: false,
+      brakeFadeFactor: 1.0,
+      isBurningOut: false,
+      tireSmokeDensity: 0,
+      windowsOpen: false,
+      shifterLayout: 'sequential',
+      isGearGrinding: false,
+      gearGrindTrigger: 0,
+      dragStage: 'idle',
+      dragTimeSlip: null,
+      _dragDistanceTraveled: 0,
+      _dragTimerStart: null,
+      _dragGreenTime: null,
       _engine: null,
       _transmission: null,
       _autoTransmission: null,

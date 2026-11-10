@@ -30,6 +30,14 @@ export function useAudio(config: VehicleConfig | null) {
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
   const triggerBackfireFlame = useSimulationStore((s) => s.triggerBackfireFlame)
+  const windowsOpen = useSimulationStore((s) => s.windowsOpen)
+  const gearGrindTrigger = useSimulationStore((s) => s.gearGrindTrigger)
+  const engineBlownTrigger = useSimulationStore((s) => s.engineBlownTrigger)
+  const isBurningOut = useSimulationStore((s) => s.isBurningOut)
+  const tireSmokeDensity = useSimulationStore((s) => s.tireSmokeDensity)
+
+  const prevGrindRef = useRef<number>(0)
+  const prevBlownRef = useRef<number>(0)
 
   // Inicializar o engine quando o veículo é carregado
   useEffect(() => {
@@ -144,4 +152,38 @@ export function useAudio(config: VehicleConfig | null) {
 
     synth.setMasterGain(isMuted ? 0 : masterVolume)
   }, [isMuted, masterVolume])
+
+  // Acústica de Cabine & Vidros Elétricos
+  useEffect(() => {
+    const synth = engineRef.current
+    if (!synth) return
+    synth.setWindowsOpen(windowsOpen)
+  }, [windowsOpen])
+
+  // Som de sincronizador arranhando (Crrrck!)
+  useEffect(() => {
+    const synth = engineRef.current
+    if (!synth || !gearGrindTrigger) return
+    if (gearGrindTrigger !== prevGrindRef.current) {
+      prevGrindRef.current = gearGrindTrigger
+      synth.playGearGrind()
+    }
+  }, [gearGrindTrigger])
+
+  // Som de quebra mecânica / motor fundido (Blown Engine)
+  useEffect(() => {
+    const synth = engineRef.current
+    if (!synth || !engineBlownTrigger) return
+    if (engineBlownTrigger !== prevBlownRef.current) {
+      prevBlownRef.current = engineBlownTrigger
+      synth.playEngineBlown()
+    }
+  }, [engineBlownTrigger])
+
+  // Chiado contínuo de burnout / fritar pneu
+  useEffect(() => {
+    const synth = engineRef.current
+    if (!synth) return
+    synth.setBurnout(isBurningOut, tireSmokeDensity)
+  }, [isBurningOut, tireSmokeDensity])
 }

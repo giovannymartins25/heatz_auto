@@ -5,6 +5,37 @@
 
 export type EngineStatus = 'off' | 'starting' | 'running' | 'stalled'
 
+export type FuelType = 'common_gasoline' | 'premium_podium' | 'ethanol_e100'
+
+export type DragTreeStage =
+  | 'idle'
+  | 'pre_stage'
+  | 'staged'
+  | 'yellow_1'
+  | 'yellow_2'
+  | 'yellow_3'
+  | 'green'
+  | 'false_start'
+  | 'racing'
+  | 'finished'
+
+export interface DragTimeSlip {
+  reactionTime: number
+  time60ft: number
+  time0to100: number
+  time201m: number
+  time402m: number
+  trapSpeedKmh: number
+  isDisqualified: boolean
+  createdAt: number
+}
+
+export interface DynoDataPoint {
+  rpm: number
+  powerHp: number
+  torqueNm: number
+}
+
 /** Estado instantâneo do motor */
 export interface EngineState {
   rpm: number

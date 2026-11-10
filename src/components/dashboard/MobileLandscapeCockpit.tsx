@@ -11,6 +11,8 @@ import { ClusterView } from './ClusterView'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { BoostGauge } from '@/components/gauges'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
+import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
+import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
 import { TuningGarageModal } from '@/components/tuning'
 
 export interface MobileLandscapeCockpitProps {
@@ -495,6 +497,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
       {/* ── Efeitos Especiais de Imersão e Oficina ── */}
       <BackfireFlameFlash />
       <RainWindshieldEffect />
+      <BurnoutSmokeEffect />
+      <EngineBlownSmokeEffect />
       <TuningGarageModal
         isOpen={isTuningOpen}
         onClose={() => setIsTuningOpen(false)}

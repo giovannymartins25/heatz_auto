@@ -81,6 +81,10 @@ export class SynthEngine implements IAudioEngine {
   private starterOsc: OscillatorNode | null = null
   private starterGain: GainNode | null = null
   private exhaustValveOpen = true
+  private windowsOpen = false
+  private cabinFilter: BiquadFilterNode | null = null
+  private burnoutGain: GainNode | null = null
+  private burnoutFilter: BiquadFilterNode | null = null
 
   private currentRpm = 0
   private currentThrottle = 0
@@ -231,10 +235,17 @@ export class SynthEngine implements IAudioEngine {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
     this.context = new AudioCtx()
 
-    // 1. Master Gain
+    // 1. Master Gain & Filtro Acústico de Cabine (Vidros Abertos / Fechados)
     this.masterGain = this.context.createGain()
     this.masterGain.gain.value = 0
-    this.masterGain.connect(this.context.destination)
+
+    this.cabinFilter = this.context.createBiquadFilter()
+    this.cabinFilter.type = 'lowpass'
+    this.cabinFilter.frequency.value = this.windowsOpen ? 14000 : 2200
+    this.cabinFilter.Q.value = 0.7
+
+    this.masterGain.connect(this.cabinFilter)
+    this.cabinFilter.connect(this.context.destination)
 
     // 2. WaveShaper para saturação harmônica de combustão real
     this.waveShaper = this.context.createWaveShaper()
@@ -755,6 +766,158 @@ export class SynthEngine implements IAudioEngine {
     }, 60)
   }
 
+  /**
+   * Modula o filtro acústico da cabine de acordo com a posição dos vidros elétricos.
+   * Vidros fechados: som abafado e isolado (passa-baixa 2.2kHz).
+   * Vidros abertos: som cru, direto e aberto (passa-baixa 14kHz) com indução e turbo nítidos.
+   */
+  setWindowsOpen(open: boolean): void {
+    this.windowsOpen = open
+    if (this.context && this.cabinFilter) {
+      const now = this.context.currentTime
+      const targetFreq = open ? 14000 : 2200
+      this.cabinFilter.frequency.setTargetAtTime(targetFreq, now, 0.15)
+    }
+  }
+
+  /**
+   * Toca som estridente de sincronizador/engrenagem mecânica arranhando (Crrrck!).
+   * Ocorre ao trocar de marcha no H-Shifter sem acionar a embreagem.
+   */
+  playGearGrind(): void {
+    if (!this.context) return
+    if (this.context.state === 'suspended') {
+      this.context.resume().catch(() => {})
+    }
+    const now = this.context.currentTime
+    const duration = 0.38
+
+    // Oscilador modulador áspero
+    const osc = this.context.createOscillator()
+    const gain = this.context.createGain()
+    const filter = this.context.createBiquadFilter()
+
+    osc.type = 'sawtooth'
+    osc.frequency.setValueAtTime(420, now)
+    osc.frequency.linearRampToValueAtTime(310, now + duration)
+
+    filter.type = 'bandpass'
+    filter.frequency.setValueAtTime(2500, now)
+    filter.Q.value = 4.5
+
+    gain.gain.setValueAtTime(0.48, now)
+    gain.gain.exponentialRampToValueAtTime(0.01, now + duration)
+
+    osc.connect(filter)
+    filter.connect(gain)
+    gain.connect(this.context.destination)
+
+    osc.start(now)
+    osc.stop(now + duration)
+
+    // Ruído abrasivo metálico
+    const bufferSize = Math.floor(this.context.sampleRate * duration)
+    const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate)
+    const data = buffer.getChannelData(0)
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * (Math.sin(i * 0.12) > 0 ? 1 : 0.25)
+    }
+    const noise = this.context.createBufferSource()
+    noise.buffer = buffer
+    const noiseFilt = this.context.createBiquadFilter()
+    noiseFilt.type = 'highpass'
+    noiseFilt.frequency.value = 1800
+    const noiseGain = this.context.createGain()
+    noiseGain.gain.setValueAtTime(0.42, now)
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, now + duration)
+
+    noise.connect(noiseFilt)
+    noiseFilt.connect(noiseGain)
+    noiseGain.connect(this.context.destination)
+
+    noise.start(now)
+    noise.stop(now + duration)
+  }
+
+  /**
+   * Ativa ou desativa chiado contínuo de pneus fritando em burnout.
+   */
+  setBurnout(active: boolean, intensity = 1.0): void {
+    if (!this.context) return
+    const now = this.context.currentTime
+
+    if (active) {
+      if (!this.burnoutGain) {
+        this.burnoutGain = this.context.createGain()
+        this.burnoutGain.gain.setValueAtTime(0, now)
+
+        this.burnoutFilter = this.context.createBiquadFilter()
+        this.burnoutFilter.type = 'bandpass'
+        this.burnoutFilter.frequency.value = 920
+        this.burnoutFilter.Q.value = 1.3
+
+        this.burnoutGain.connect(this.burnoutFilter)
+        this.burnoutFilter.connect(this.context.destination)
+
+        const bufferSize = this.context.sampleRate * 2
+        const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate)
+        const data = buffer.getChannelData(0)
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * 0.85
+        }
+        const bSource = this.context.createBufferSource()
+        bSource.buffer = buffer
+        bSource.loop = true
+        bSource.connect(this.burnoutGain)
+        bSource.start(now)
+      }
+      const targetGain = clamp(intensity * 0.42, 0, 0.55)
+      this.burnoutGain.gain.setTargetAtTime(targetGain, now, 0.08)
+    } else if (this.burnoutGain) {
+      this.burnoutGain.gain.setTargetAtTime(0.0001, now, 0.08)
+    }
+  }
+
+  /**
+   * Toca efeito de motor fundido (Blown Engine) / queima catastrófica:
+   * estampido de quebra com sibilado de vapor de radiador estourado sob pressão.
+   */
+  playEngineBlown(): void {
+    if (!this.context) return
+    if (this.context.state === 'suspended') {
+      this.context.resume().catch(() => {})
+    }
+    const now = this.context.currentTime
+
+    this.createTransientPop(1.85, 1100)
+
+    const hissDur = 2.0
+    const bufferSize = Math.floor(this.context.sampleRate * hissDur)
+    const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate)
+    const data = buffer.getChannelData(0)
+    for (let i = 0; i < bufferSize; i++) {
+      const t = i / bufferSize
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-t * 2.2)
+    }
+    const hissSource = this.context.createBufferSource()
+    hissSource.buffer = buffer
+
+    const hissFilter = this.context.createBiquadFilter()
+    hissFilter.type = 'highpass'
+    hissFilter.frequency.value = 3000
+
+    const hissGain = this.context.createGain()
+    hissGain.gain.setValueAtTime(0.7, now)
+    hissGain.gain.exponentialRampToValueAtTime(0.001, now + hissDur)
+
+    hissSource.connect(hissFilter)
+    hissFilter.connect(hissGain)
+    hissGain.connect(this.context.destination)
+
+    hissSource.start(now)
+    hissSource.stop(now + hissDur)
+  }
+
   dispose(): void {
     try {
       this.hornOsc1?.stop()
@@ -789,6 +952,9 @@ export class SynthEngine implements IAudioEngine {
     this.noiseGain?.disconnect()
     this.intakeGain?.disconnect()
     this.combustionGain?.disconnect()
+    this.burnoutGain?.disconnect()
+    this.burnoutFilter?.disconnect()
+    this.cabinFilter?.disconnect()
     this.masterGain?.disconnect()
     this.context?.close()
 
@@ -799,6 +965,9 @@ export class SynthEngine implements IAudioEngine {
     this.camWhineOsc = null
     this.turboWhistleOsc = null
     this.turboWhistleGain = null
+    this.burnoutGain = null
+    this.burnoutFilter = null
+    this.cabinFilter = null
     this.harmonicOscs = []
     this.harmonicGains = []
     this.noiseSource = null

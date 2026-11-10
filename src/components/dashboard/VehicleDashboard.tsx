@@ -19,7 +19,11 @@ import { KeyboardHUD } from './KeyboardHUD'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { PedalTelemetry, AftermarketPillarGaugePod } from '@/components/gauges'
 import { Pedals, GearShift, EngineButton } from '@/components/controls'
+import { HPatternShifter } from '@/components/controls/HPatternShifter'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
+import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
+import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
+import { DragStripTree } from './DragStripTree'
 import { TuningGarageModal } from '@/components/tuning'
 import type { VehicleConfig, DrivingMode } from '@/types'
 
@@ -71,6 +75,19 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const isRaining = useSimulationStore((s) => s.isRaining)
   const toggleRain = useSimulationStore((s) => s.toggleRain)
   const tuningStage = useSimulationStore((s) => s.tuningStage)
+  const windowsOpen = useSimulationStore((s) => s.windowsOpen)
+  const toggleWindows = useSimulationStore((s) => s.toggleWindows)
+  const shifterLayout = useSimulationStore((s) => s.shifterLayout)
+  const toggleShifterLayout = useSimulationStore((s) => s.toggleShifterLayout)
+  const fuelLevelLiters = useSimulationStore((s) => s.fuelLevelLiters)
+  const fuelType = useSimulationStore((s) => s.fuelType)
+  const isOutOfFuel = useSimulationStore((s) => s.isOutOfFuel)
+  const coolantTemp = useSimulationStore((s) => s.coolantTemp)
+  const oilTemp = useSimulationStore((s) => s.oilTemp)
+  const isEngineBlown = useSimulationStore((s) => s.isEngineBlown)
+  const brakeDiscTemp = useSimulationStore((s) => s.brakeDiscTemp)
+  const isBrakeGlowing = useSimulationStore((s) => s.isBrakeGlowing)
+  const brakeFadeFactor = useSimulationStore((s) => s.brakeFadeFactor)
 
   const [searchParams] = useSearchParams()
   const instanceIdFromUrl = searchParams.get('instance')
@@ -78,6 +95,7 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const activeCar = resolveInstanceForVehicle(vehicle.id, instanceIdFromUrl)
 
   const [isTuningOpen, setIsTuningOpen] = useState(false)
+  const [isDragStripOpen, setIsDragStripOpen] = useState(false)
   const { hasInfotainment, showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
 
   const viewMode = useUIStore((s) => s.viewMode)
@@ -252,6 +270,32 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
             <span>🔧</span>
             <span>{tuningStage === 0 ? 'OFICINA' : `STAGE ${tuningStage}`}</span>
           </button>
+
+          {/* Botão Pista de Arrancada (Drag Strip 402m) */}
+          <button
+            onClick={() => setIsDragStripOpen(true)}
+            className="px-2.5 py-1 text-xs rounded-lg border border-amber-500/40 bg-amber-950/40 text-amber-300 hover:bg-amber-500/30 font-mono font-bold transition-all cursor-pointer flex items-center gap-1 shadow-md shadow-amber-950/40"
+            title="Abrir Pista de Arrancada 402m (Árvore de Natal NHRA)"
+          >
+            <span>🏁</span>
+            <span>402M DRAG</span>
+          </button>
+
+          {/* Botão Vidros Elétricos & Acústica */}
+          {vehicle.info.category !== 'motorcycle' && (
+            <button
+              onClick={toggleWindows}
+              className={`px-2.5 py-1 text-xs rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                windowsOpen
+                  ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-[0_0_10px_rgba(56,189,248,0.4)]'
+                  : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
+              }`}
+              title="Abrir/Fechar Vidros (Modifica acústica interna: 14kHz vs 2.2kHz)"
+            >
+              <span>🪟</span>
+              <span>{windowsOpen ? 'VIDROS ABERTOS' : 'VIDROS FECHADOS'}</span>
+            </button>
+          )}
         </div>
 
         {/* Centro do Topo: Seletor de Modo de Visualização (Cluster / Cockpit) + PerformanceBox */}
@@ -445,6 +489,62 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
           </button>
         </div>
 
+        {/* ── Barra de Telemetria de Realismo: Combustível, Térmica e Freios ── */}
+        <div className="flex flex-wrap items-center justify-center gap-2 text-[10px] font-mono">
+          {/* Nível de Combustível */}
+          <div
+            className={`flex items-center gap-1 px-3 py-1 rounded-full border ${
+              isOutOfFuel
+                ? 'border-red-500 bg-red-950/70 text-red-300 animate-pulse font-black'
+                : fuelLevelLiters < 8
+                ? 'border-amber-500 bg-amber-950/60 text-amber-300 font-bold'
+                : 'border-white/10 bg-black/60 text-neutral-300'
+            }`}
+          >
+            <span>⛽</span>
+            <span>{isOutOfFuel ? 'PANE SECA' : `${fuelLevelLiters.toFixed(1)}L`}</span>
+            <span className="text-[8.5px] uppercase opacity-75">
+              ({fuelType === 'ethanol_e100' ? 'Etanol E100' : fuelType === 'premium_podium' ? 'Podium 102' : 'Comum'})
+            </span>
+          </div>
+
+          {/* Arrefecimento do Motor & Temperatura do Óleo */}
+          <div
+            className={`flex items-center gap-1 px-3 py-1 rounded-full border ${
+              isEngineBlown
+                ? 'border-red-500 bg-red-950/80 text-red-400 font-black animate-pulse'
+                : coolantTemp >= 115
+                ? 'border-red-500 bg-red-950/70 text-red-300 animate-pulse font-bold'
+                : 'border-white/10 bg-black/60 text-neutral-300'
+            }`}
+          >
+            <span>🌡️</span>
+            <span>H2O: <strong className={coolantTemp >= 115 ? 'text-red-400' : 'text-white'}>{Math.round(coolantTemp)}°C</strong></span>
+            <span className="text-neutral-500">|</span>
+            <span>ÓLEO: <strong>{Math.round(oilTemp)}°C</strong></span>
+          </div>
+
+          {/* Temperatura de Freios & Brake Fade */}
+          <div
+            className={`flex items-center gap-1 px-3 py-1 rounded-full border ${
+              brakeDiscTemp > 650
+                ? 'border-purple-500 bg-purple-950/70 text-purple-300 animate-pulse font-bold'
+                : isBrakeGlowing
+                ? 'border-red-500 bg-red-950/70 text-red-400 animate-pulse'
+                : 'border-white/10 bg-black/60 text-neutral-300'
+            }`}
+          >
+            <span>🛑</span>
+            <span>DISCOS: <strong>{Math.round(brakeDiscTemp)}°C</strong></span>
+            {isBrakeGlowing && <span className="font-bold text-red-400">🔥 AO RUBRO</span>}
+            {brakeDiscTemp > 650 && (
+              <span className="font-black text-purple-300">
+                ⚠️ BRAKE FADE ({Math.round(brakeFadeFactor * 100)}%)
+              </span>
+            )}
+          </div>
+        </div>
+
         {/* HUD Interativo de Teclas Físicas do PC */}
         <KeyboardHUD hasClutch={vehicle.transmission.hasClutch} />
 
@@ -530,9 +630,27 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
             </button>
           </div>
 
-          {/* Seletor de Câmbio: PRNDS/M para automáticos e [-][N][+] para manuais (sempre ativo) */}
-          <GearShift />
+          {/* Seletor de Câmbio: H-Pattern vs Sequencial para manuais, ou PRNDS/M para automáticos */}
+          <div className="flex items-center gap-1.5">
+            {vehicle.transmission.hasClutch && (
+              <button
+                onClick={toggleShifterLayout}
+                className="px-2 py-1.5 rounded-lg border border-white/10 bg-zinc-900 text-zinc-400 hover:text-white font-mono text-[9px] font-bold uppercase transition-all"
+                title="Alternar entre Câmbio Sequencial (+/-) e Grade H (1ª-6ª + R)"
+              >
+                {shifterLayout === 'h_pattern' ? 'GRADE H' : 'SEQ (+/-)'}
+              </button>
+            )}
+            <GearShift />
+          </div>
         </div>
+
+        {/* Câmbio H-Pattern Interativo na Tela (quando ativado no modo manual) */}
+        {vehicle.transmission.hasClutch && shifterLayout === 'h_pattern' && (
+          <div className="w-full max-w-xs animate-in zoom-in-95 duration-150">
+            <HPatternShifter gearCount={vehicle.transmission.gearCount} />
+          </div>
+        )}
 
         {/* Pedais interativos com Pointer Capture */}
         <Pedals vehicle={vehicle} />
@@ -541,6 +659,12 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
       {/* ── Efeitos Especiais de Imersão e Oficina ── */}
       <BackfireFlameFlash />
       <RainWindshieldEffect />
+      <BurnoutSmokeEffect />
+      <EngineBlownSmokeEffect />
+
+      {/* Pista de Arrancada 402m (Drag Strip Modal) */}
+      {isDragStripOpen && <DragStripTree onClose={() => setIsDragStripOpen(false)} />}
+
       <TuningGarageModal
         isOpen={isTuningOpen}
         onClose={() => setIsTuningOpen(false)}
