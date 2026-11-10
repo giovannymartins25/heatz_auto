@@ -79,12 +79,11 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const activeCar = carInstance || resolveInstanceForVehicle(vehicle.id)
   const { hasInfotainment, showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
-  const [portraitMode, setPortraitMode] = useState<'cluster' | 'multimedia' | 'hud'>('cluster')
+  const [portraitMode, setPortraitMode] = useState<'cluster' | 'multimedia' | 'hud'>('hud')
 
   const displaySpeed = Math.round(telemetry.speedometer.speed)
   const displayRpm = Math.round(telemetry.tachometer.rpm)
   const maxRpm = vehicle.engine.maxRpm
-  const rpmPercent = Math.min(100, Math.round((displayRpm / maxRpm) * 100))
 
   return (
     <div
@@ -301,22 +300,46 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={true} />
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center w-full gap-1.5 my-auto px-1">
+          <div className="flex flex-col items-center justify-center w-full gap-2 my-auto px-1">
+            {/* ── Barra de LEDs de Giro F1 / GT3 Segmentada ── */}
+            <div className="flex items-center justify-between w-full max-w-sm gap-1 px-2">
+              {Array.from({ length: 14 }).map((_, i) => {
+                const isLit = (displayRpm / maxRpm) >= (i / 14)
+                const isRedline = i >= 11
+                const isMid = i >= 7 && i < 11
+                const colorClass = isLit
+                  ? isRedline
+                    ? 'bg-red-500 shadow-[0_0_10px_#ef4444]'
+                    : isMid
+                    ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
+                    : 'bg-emerald-400 shadow-[0_0_8px_#10b981]'
+                  : 'bg-zinc-800/80 border border-white/5'
+                return (
+                  <div
+                    key={i}
+                    className={`flex-1 h-2.5 rounded-sm transition-all duration-75 ${colorClass} ${
+                      isRedline && telemetry.shiftLight.isActive ? 'animate-ping' : ''
+                    }`}
+                  />
+                )
+              })}
+            </div>
+
             {/* Alertas Físicos: BOG, CLUTCH SLIP, CORTE */}
-            <div className="flex items-center gap-2 h-4">
+            <div className="flex items-center gap-2 h-5">
               {telemetry.engine.isBogWarning && (
-                <span className="px-2 py-0.2 rounded-full bg-yellow-500/20 border border-yellow-500 text-yellow-300 text-[8px] font-mono font-black animate-pulse">
+                <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 border border-yellow-500 text-yellow-300 text-[8px] font-mono font-black animate-pulse">
                   MOTOR AMARRANDO (BOG!)
                 </span>
               )}
               {hasClutch && telemetry.clutchTelemetry.isSlipping && (
-                <span className="px-2 py-0.2 rounded-full bg-orange-500/20 border border-orange-500 text-orange-400 text-[8px] font-mono font-black animate-pulse">
+                <span className="px-2 py-0.5 rounded-full bg-orange-500/20 border border-orange-500 text-orange-400 text-[8px] font-mono font-black animate-pulse">
                   PATINANDO {Math.round(telemetry.clutchTelemetry.slipRpm)} RPM
                 </span>
               )}
               {telemetry.shiftLight.isActive && (
-                <span className="px-2 py-0.2 rounded-full bg-red-500/20 border border-red-500 text-red-400 text-[8px] font-mono font-black animate-ping">
-                  CORTE DE GIRO!
+                <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white font-mono font-black text-[9px] animate-bounce shadow-[0_0_15px_#ef4444]">
+                  ▲ TROQUE DE MARCHA!
                 </span>
               )}
             </div>
@@ -325,69 +348,70 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             <div className="grid grid-cols-3 items-center justify-items-center w-full max-w-sm px-2">
               {/* Velocidade */}
               <div className="flex flex-col items-center">
-                <span className="text-3xl sm:text-4xl font-mono font-black tracking-tight text-white leading-none">
+                <span className="text-4xl sm:text-5xl font-mono font-black tracking-tight text-white leading-none drop-shadow-[0_0_12px_rgba(255,255,255,0.3)]">
                   {displaySpeed}
                 </span>
-                <span className="text-[8.5px] font-mono uppercase tracking-widest text-zinc-500 mt-0.5">
+                <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-400 font-bold mt-1">
                   KM/H
                 </span>
               </div>
 
               {/* Moldura de Marcha Iluminada */}
-              <div className="relative flex flex-col items-center justify-center w-16 h-16 rounded-2xl bg-zinc-900/90 border-2 border-[var(--color-accent)] shadow-[0_0_20px_var(--color-accent-muted)]">
-                <span className="text-3xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
+              <div className="relative flex flex-col items-center justify-center w-18 h-18 rounded-2xl bg-gradient-to-b from-zinc-900 via-neutral-950 to-zinc-900 border-2 border-[var(--color-accent)] shadow-[0_0_25px_var(--color-accent-muted)]">
+                <span className="text-4xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
                   {telemetry.gear.label}
                 </span>
-                <span className="text-[7.5px] font-mono font-bold text-zinc-400 uppercase mt-0.5">
+                <span className="text-[8px] font-mono font-bold text-zinc-400 uppercase mt-0.5">
                   {telemetry.gear.subLabel}
                 </span>
                 {telemetry.shiftLight.isActive && (
-                  <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-ping" />
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 animate-ping" />
                 )}
               </div>
 
               {/* RPM */}
               <div className="flex flex-col items-center">
                 <span
-                  className={`text-3xl sm:text-4xl font-mono font-black tracking-tight leading-none ${
-                    displayRpm > maxRpm * 0.9 ? 'text-red-500 animate-pulse' : 'text-zinc-200'
+                  className={`text-4xl sm:text-5xl font-mono font-black tracking-tight leading-none ${
+                    displayRpm > maxRpm * 0.9 ? 'text-red-500 animate-pulse drop-shadow-[0_0_12px_rgba(239,68,68,0.8)]' : 'text-zinc-200'
                   }`}
                 >
                   {displayRpm}
                 </span>
-                <span className="text-[8.5px] font-mono uppercase tracking-widest text-zinc-500 mt-0.5">
+                <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-400 font-bold mt-1">
                   RPM
                 </span>
               </div>
             </div>
 
-            {/* Barra Dinâmica Horizontal de LED de RPM */}
-            <div className="w-full max-w-xs bg-zinc-900 h-2.5 rounded-full overflow-hidden border border-white/10 p-0.5">
+            {/* Banner Orientativo Quando Desligado / Estolado */}
+            {!isRunning && (
               <div
-                className={`h-full rounded-full transition-all duration-75 ${
-                  displayRpm > maxRpm * 0.88
-                    ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]'
-                    : displayRpm > maxRpm * 0.7
-                    ? 'bg-amber-400'
-                    : 'bg-[var(--color-accent)]'
+                className={`w-full max-w-xs py-1 px-2 rounded-xl text-center font-mono font-black text-[9.5px] border transition-all ${
+                  telemetry.engine.isStalled
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-bounce'
+                    : 'bg-white/5 text-zinc-300 border-white/10 animate-pulse'
                 }`}
-                style={{ width: `${rpmPercent}%` }}
-              />
-            </div>
+              >
+                {telemetry.engine.isStalled
+                  ? '⚠️ MOTOR MORREU · TOQUE EM ENGINE P/ RELIGAR'
+                  : '⚡ TOQUE NO BOTÃO ENGINE START P/ LIGAR O CARRO'}
+              </div>
+            )}
 
             {/* Manômetro Turbo Digital ou Analógico Compacto */}
             {(hasTurbo || showAftermarketBoostGauge) && (
-              <div className="flex items-center justify-center gap-2 px-3 py-0.5 rounded-xl bg-black/60 border border-amber-500/30 text-[10px] font-mono text-amber-300">
-                <span className="text-zinc-500 font-bold">TURBO:</span>
-                <span className="font-black text-amber-400 text-xs">
+              <div className="flex items-center justify-center gap-3 px-3 py-1 rounded-xl bg-black/60 border border-amber-500/30 text-[10px] font-mono text-amber-300">
+                <span className="text-zinc-400 font-bold">PRESSÃO TURBO:</span>
+                <span className="font-black text-amber-400 text-sm">
                   {boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : boostPressureBar.toFixed(2)} BAR
                 </span>
-                <span className="text-zinc-500 text-[9px]">(PICO {peakBoostBar.toFixed(2)})</span>
+                <span className="text-zinc-500 text-[9px] font-bold">(PICO {peakBoostBar.toFixed(2)})</span>
               </div>
             )}
 
             {/* Marcadores Auxiliares */}
-            <div className="w-full flex justify-center scale-90 origin-center">
+            <div className="w-full flex justify-center scale-95 origin-center">
               <AuxGauges
                 fuelLevel={telemetry.auxGauges.fuelLevel}
                 fuelCapacity={telemetry.auxGauges.fuelCapacity}
@@ -400,70 +424,72 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           </div>
         )}
 
-        {/* Barra de Controles e Câmbio (Sempre Ativo) */}
-        <div className="w-full flex flex-col items-center gap-1.5 px-2 pt-1 max-w-sm">
+        {/* ── Barra de Controles e Câmbio ── */}
+        <div className="w-full flex flex-col items-center gap-2 px-2 pt-1 max-w-sm">
           {/* Seletor de Câmbio: PRNDS/M para automáticos e [-][N][+] para manuais */}
           <GearShift size="compact" orientation="horizontal" />
 
-          {/* Botões Secundários: Start Engine, Buzina e Freio de Mão */}
-          <div className="flex items-center justify-between w-full px-2">
-            <div className="scale-90 origin-left">
-              <EngineButton />
+          {/* Botões de Ação: Start Engine, Nitro, Buzina e Freio de Mão */}
+          <div className="flex items-center justify-between w-full px-1 gap-2">
+            {/* Botão de Partida Principal */}
+            <EngineButton size="md" showStatusText={true} />
+
+            {/* Grupo de Ações Rápidas */}
+            <div className="flex items-center gap-2">
+              {/* Botão de Injeção de Nitro (NOS) & Purga */}
+              {hasNosKit && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onPointerDown={() => setNosActive(true)}
+                    onPointerUp={() => setNosActive(false)}
+                    onPointerCancel={() => setNosActive(false)}
+                    disabled={nosPressurePercent <= 0 || !isRunning}
+                    className={`px-3 py-2 rounded-xl border font-mono text-[9.5px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer flex items-center gap-1 shadow ${
+                      nosActive
+                        ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.9)] animate-pulse'
+                        : nosPressurePercent <= 0
+                        ? 'bg-zinc-900/50 text-zinc-600 border-zinc-800'
+                        : 'bg-cyan-950/70 text-cyan-300 border-cyan-500/50 hover:bg-cyan-900/80'
+                    }`}
+                    title="Segure para disparar Nitro NOS"
+                  >
+                    <span>⚡ NOS</span>
+                    <span>{Math.round(nosPressurePercent)}%</span>
+                  </button>
+                  <button
+                    onClick={purgeNos}
+                    disabled={nosPressurePercent <= 0}
+                    className="p-2 rounded-xl border border-sky-400/40 bg-sky-950/50 text-sky-300 text-xs font-black uppercase transition-all active:scale-95 cursor-pointer"
+                    title="Purga de Nitro"
+                  >
+                    💨
+                  </button>
+                </div>
+              )}
+
+              {/* Buzina Touch */}
+              <button
+                onPointerDown={() => setHorn(true)}
+                onPointerUp={() => setHorn(false)}
+                onPointerCancel={() => setHorn(false)}
+                className="w-11 h-11 rounded-2xl bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-base font-bold transition-all active:scale-95 cursor-pointer shadow"
+                title="Buzina"
+              >
+                📢
+              </button>
+
+              {/* Freio de Mão */}
+              <button
+                onClick={toggleHandbrake}
+                className={`px-3.5 py-2.5 rounded-2xl border font-mono text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
+                  handbrake
+                    ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.7)] animate-pulse'
+                    : 'bg-zinc-900 text-zinc-400 border-white/10'
+                }`}
+              >
+                (P) {handbrake ? 'TRAVADO' : 'FREIO'}
+              </button>
             </div>
-
-            {/* Buzina Touch */}
-            <button
-              onPointerDown={() => setHorn(true)}
-              onPointerUp={() => setHorn(false)}
-              onPointerCancel={() => setHorn(false)}
-              className="w-10 h-10 rounded-full bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-sm font-bold transition-all active:scale-95 cursor-pointer shadow"
-              title="Buzina"
-            >
-              📢
-            </button>
-
-            {/* Botão de Injeção de Nitro (NOS) & Purga */}
-            {hasNosKit && (
-              <div className="flex items-center gap-1">
-                <button
-                  onPointerDown={() => setNosActive(true)}
-                  onPointerUp={() => setNosActive(false)}
-                  onPointerCancel={() => setNosActive(false)}
-                  disabled={nosPressurePercent <= 0 || !isRunning}
-                  className={`px-2.5 py-1.5 rounded-xl border font-mono text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer flex items-center gap-1 shadow ${
-                    nosActive
-                      ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.9)] animate-pulse'
-                      : nosPressurePercent <= 0
-                      ? 'bg-zinc-900/50 text-zinc-600 border-zinc-800'
-                      : 'bg-cyan-950/70 text-cyan-300 border-cyan-500/50 hover:bg-cyan-900/80'
-                  }`}
-                  title="Segure para disparar Nitro NOS"
-                >
-                  <span>⚡</span>
-                  <span>NOS {Math.round(nosPressurePercent)}%</span>
-                </button>
-                <button
-                  onClick={purgeNos}
-                  disabled={nosPressurePercent <= 0}
-                  className="px-2 py-1.5 rounded-xl border border-sky-400/40 bg-sky-950/50 text-sky-300 text-[9px] font-black uppercase transition-all active:scale-95 cursor-pointer"
-                  title="Purga de Nitro"
-                >
-                  💨
-                </button>
-              </div>
-            )}
-
-            {/* Freio de Mão */}
-            <button
-              onClick={toggleHandbrake}
-              className={`px-3 py-1.5 rounded-xl border font-mono text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
-                handbrake
-                  ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.6)]'
-                  : 'bg-zinc-900 text-zinc-400 border-white/10'
-              }`}
-            >
-              (P) {handbrake ? 'TRAVADO' : 'FREIO'}
-            </button>
           </div>
         </div>
       </main>
@@ -480,7 +506,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             colorTheme="amber"
             widthClass="w-13"
             heightClass="h-38 sm:h-44"
-            disabled={!isRunning}
+            disabled={false}
             showPercent={true}
           />
         )}
@@ -494,7 +520,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           colorTheme="red"
           widthClass="w-15 sm:w-16"
           heightClass="h-38 sm:h-44"
-          disabled={!isRunning}
+          disabled={false}
           showPercent={true}
         />
 
@@ -507,7 +533,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           colorTheme="accent"
           widthClass="w-15 sm:w-16"
           heightClass="h-38 sm:h-44"
-          disabled={!isRunning}
+          disabled={false}
           showPercent={true}
         />
       </footer>

@@ -524,8 +524,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   startEngine: () => {
-    const { _engine, transmissionMode, _transmission, isEngineBlown, isOutOfFuel } = get()
+    const {
+      _engine,
+      transmissionMode,
+      _transmission,
+      _clutch,
+      currentGear,
+      clutchPosition,
+      isEngineBlown,
+      isOutOfFuel,
+    } = get()
     if (!_engine) return
+
+    // Se já estiver no processo de partida (cranking), ignora para evitar reiniciar o arranque
+    if (_engine.getStatus() === 'starting') return
 
     if (isEngineBlown) {
       HapticFeedback.light()
@@ -537,6 +549,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       HapticFeedback.light()
       set({ isRunning: false, isStalled: true, status: 'stalled', damageReason: 'Pane Seca: Sem combustível!' })
       return
+    }
+
+    // Em veículos manuais, se estiver engatado sem a embreagem pressionada,
+    // desengata para Neutro (0) e desacopla a embreagem para evitar afogamento instantâneo
+    if (transmissionMode === 'manual') {
+      if (currentGear !== 0 && clutchPosition < 0.5) {
+        _transmission?.shiftTo(0, 0)
+      }
+      _clutch?.setPosition(1)
     }
 
     _engine.start()
@@ -554,6 +575,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       status: _engine.getStatus(),
       rpm: _engine.getRpm(),
       currentGear: _transmission?.currentGear ?? 0,
+      damageReason: null,
     })
   },
 

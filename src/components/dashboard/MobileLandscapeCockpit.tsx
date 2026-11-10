@@ -94,7 +94,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const displaySpeed = Math.round(telemetry.speedometer.speed)
   const displayRpm = Math.round(telemetry.tachometer.rpm)
   const maxRpm = vehicle.engine.maxRpm
-  const rpmPercent = Math.min(100, Math.round((displayRpm / maxRpm) * 100))
 
   return (
     <div
@@ -120,7 +119,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             colorTheme="amber"
             widthClass="w-13 sm:w-14"
             heightClass="h-[74dvh]"
-            disabled={!isRunning}
+            disabled={false}
             showPercent={true}
           />
         )}
@@ -134,7 +133,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           colorTheme="red"
           widthClass="w-13 sm:w-14"
           heightClass="h-[74dvh]"
-          disabled={!isRunning}
+          disabled={false}
           showPercent={true}
         />
 
@@ -147,7 +146,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           colorTheme="accent"
           widthClass="w-13 sm:w-14"
           heightClass="h-[74dvh]"
-          disabled={!isRunning}
+          disabled={false}
           showPercent={true}
         />
       </aside>
@@ -384,6 +383,30 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
         ) : (
           /* Bloco Central de Telemetria Horizontal */
           <div className="flex flex-col items-center justify-center w-full my-auto gap-2">
+            {/* ── Barra de LEDs de Giro F1 / GT3 Segmentada ── */}
+            <div className="flex items-center justify-between w-full max-w-lg gap-1 px-4">
+              {Array.from({ length: 16 }).map((_, i) => {
+                const isLit = (displayRpm / maxRpm) >= (i / 16)
+                const isRedline = i >= 13
+                const isMid = i >= 8 && i < 13
+                const colorClass = isLit
+                  ? isRedline
+                    ? 'bg-red-500 shadow-[0_0_10px_#ef4444]'
+                    : isMid
+                    ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
+                    : 'bg-emerald-400 shadow-[0_0_8px_#10b981]'
+                  : 'bg-zinc-800/80 border border-white/5'
+                return (
+                  <div
+                    key={i}
+                    className={`flex-1 h-2 rounded-sm transition-all duration-75 ${colorClass} ${
+                      isRedline && telemetry.shiftLight.isActive ? 'animate-ping' : ''
+                    }`}
+                  />
+                )
+              })}
+            </div>
+
             {/* Alertas Físicos: BOG e CLUTCH SLIP */}
             <div className="flex items-center gap-2 h-5">
               {telemetry.engine.isBogWarning && (
@@ -397,8 +420,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                 </span>
               )}
               {telemetry.shiftLight.isActive && (
-                <span className="px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500 text-red-400 text-[9px] font-mono font-black animate-ping">
-                  CORTE DE GIRO!
+                <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white font-mono font-black text-[10px] animate-bounce shadow-[0_0_15px_#ef4444]">
+                  ▲ TROQUE DE MARCHA!
                 </span>
               )}
             </div>
@@ -407,10 +430,10 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             <div className="flex items-center justify-center gap-6 sm:gap-8 w-full">
               {/* Velocímetro Digital */}
               <div className="flex flex-col items-center">
-                <span className="text-4xl sm:text-5xl font-mono font-black tracking-tight text-white leading-none">
+                <span className="text-4xl sm:text-6xl font-mono font-black tracking-tight text-white leading-none drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">
                   {displaySpeed}
                 </span>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400 font-bold mt-1">
                   KM/H
                 </span>
               </div>
@@ -418,48 +441,52 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               {/* Turbo Boost se tiver */}
               {(hasTurbo || showAftermarketBoostGauge) && (
                 <div className="flex flex-col items-center">
-                  <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={65} showPeak={false} />
+                  <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={68} showPeak={false} />
                 </div>
               )}
 
               {/* Marcha em Destaque com Moldura Esportiva */}
-              <div className="relative flex flex-col items-center justify-center w-20 h-20 sm:w-22 sm:h-22 rounded-2xl bg-zinc-900/90 border-2 border-[var(--color-accent)] shadow-[0_0_25px_var(--color-accent-muted)]">
-                <span className="text-3xl sm:text-4xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
+              <div className="relative flex flex-col items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-b from-zinc-900 via-neutral-950 to-zinc-900 border-2 border-[var(--color-accent)] shadow-[0_0_25px_var(--color-accent-muted)]">
+                <span className="text-4xl sm:text-5xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
                   {telemetry.gear.label}
                 </span>
                 <span className="text-[9px] font-mono font-bold text-zinc-400 uppercase mt-0.5">
                   {telemetry.gear.subLabel}
                 </span>
+                {telemetry.shiftLight.isActive && (
+                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 animate-ping" />
+                )}
               </div>
 
               {/* Conta-giros Digital */}
               <div className="flex flex-col items-center">
                 <span
-                  className={`text-4xl sm:text-5xl font-mono font-black tracking-tight leading-none ${
-                    displayRpm > maxRpm * 0.9 ? 'text-red-500 animate-pulse' : 'text-zinc-200'
+                  className={`text-4xl sm:text-6xl font-mono font-black tracking-tight leading-none ${
+                    displayRpm > maxRpm * 0.9 ? 'text-red-500 animate-pulse drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]' : 'text-zinc-200'
                   }`}
                 >
                   {displayRpm}
                 </span>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400 font-bold mt-1">
                   RPM
                 </span>
               </div>
             </div>
 
-            {/* Barra Horizontal Dinâmica de RPM */}
-            <div className="w-full max-w-md bg-zinc-900 h-3 rounded-full overflow-hidden border border-white/10 p-0.5">
+            {/* Banner Orientativo Quando Desligado / Estolado */}
+            {!isRunning && (
               <div
-                className={`h-full rounded-full transition-all duration-75 ${
-                  displayRpm > maxRpm * 0.88
-                    ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]'
-                    : displayRpm > maxRpm * 0.7
-                    ? 'bg-amber-400'
-                    : 'bg-[var(--color-accent)]'
+                className={`py-1 px-4 rounded-xl text-center font-mono font-black text-[10px] border transition-all ${
+                  telemetry.engine.isStalled
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-bounce'
+                    : 'bg-white/5 text-zinc-300 border-white/10 animate-pulse'
                 }`}
-                style={{ width: `${rpmPercent}%` }}
-              />
-            </div>
+              >
+                {telemetry.engine.isStalled
+                  ? '⚠️ MOTOR MORREU · TOQUE EM ENGINE RESTART NO PAINEL DIREITO'
+                  : '⚡ MOTOR DESLIGADO · TOQUE EM ENGINE START P/ LIGAR'}
+              </div>
+            )}
           </div>
         )}
 
@@ -470,8 +497,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             <span>F: {Math.round(telemetry.pedals.brakePercent)}%</span>
             {hasClutch && <span>E: {Math.round(telemetry.pedals.clutchPercent ?? 0)}%</span>}
           </div>
-          <span className="text-[9px] text-zinc-600">
-            {telemetry.engine.status}
+          <span className="text-[9px] text-zinc-500 font-bold uppercase">
+            STATUS: {telemetry.engine.status}
           </span>
         </footer>
       </main>
@@ -481,15 +508,15 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
       {/* ═════════════════════════════════════════════════════════════════════ */}
       <aside className="flex flex-col items-center justify-between h-full py-1 pl-2 border-l border-white/5 flex-shrink-0">
         {/* Topo do lado direito: Start Engine & Ações Rápidas */}
-        <div className="w-full flex items-center gap-1.5 justify-center">
-          <EngineButton />
+        <div className="w-full flex items-center gap-2 justify-center">
+          <EngineButton size="sm" showStatusText={false} />
 
           {/* Buzina Touch */}
           <button
             onPointerDown={() => setHorn(true)}
             onPointerUp={() => setHorn(false)}
             onPointerCancel={() => setHorn(false)}
-            className="w-10 h-10 rounded-xl bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-sm transition-all active:scale-95 cursor-pointer"
+            className="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-lg transition-all active:scale-95 cursor-pointer shadow"
             title="Buzina (H)"
           >
             📢
@@ -503,7 +530,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                 onPointerUp={() => setNosActive(false)}
                 onPointerCancel={() => setNosActive(false)}
                 disabled={nosPressurePercent <= 0 || !isRunning}
-                className={`px-2 py-1.5 rounded-xl border font-mono text-[8px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer flex items-center gap-1 shadow ${
+                className={`px-2.5 py-2 rounded-2xl border font-mono text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer flex items-center gap-1 shadow ${
                   nosActive
                     ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.9)] animate-pulse'
                     : nosPressurePercent <= 0
@@ -518,7 +545,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               <button
                 onClick={purgeNos}
                 disabled={nosPressurePercent <= 0}
-                className="p-1 rounded-xl border border-sky-400/40 bg-sky-950/50 text-sky-300 text-[9px] font-black uppercase transition-all active:scale-95 cursor-pointer"
+                className="p-2 rounded-2xl border border-sky-400/40 bg-sky-950/50 text-sky-300 text-xs font-black uppercase transition-all active:scale-95 cursor-pointer"
                 title="Purga de Nitro"
               >
                 💨
