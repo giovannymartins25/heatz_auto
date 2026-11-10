@@ -11,6 +11,9 @@ export interface CarUpgrades {
   tuningStage: 0 | 1 | 2 | 3 // Estágio de reprogramação de ECU
   exhaustValveOpen: boolean // Válvula de difusor aberta/fechada
   fuelType: FuelType // Tipo de combustível (Etanol E100, Podium 102 ou Gasolina Comum)
+  hasNosKit: boolean // Kit de Óxido Nitroso (Garrafa NOS 10 lbs)
+  paintColor?: string // Cor da carroceria
+  brakeCaliperColor?: string // Cor das pinças de freio
 }
 
 export interface GarageCarInstance {
@@ -78,6 +81,9 @@ export function createDefaultUpgrades(vehicleId: string): CarUpgrades {
     tuningStage: 0,
     exhaustValveOpen: true,
     fuelType: defaultFuel,
+    hasNosKit: false,
+    paintColor: undefined,
+    brakeCaliperColor: undefined,
   }
 }
 

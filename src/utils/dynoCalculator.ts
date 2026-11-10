@@ -30,6 +30,7 @@ export function calculateDynoProfile(
   const intakeMult = intake === 'cold_air' ? 1.06 : 1.0
   const exhaustMult = exhaust === 'straight_pipe' ? 1.08 : exhaust === 'sport' ? 1.04 : 1.0
   const turboAftermarketMult = (!config.engine.turbo?.enabled && hasTurbo) ? 1.45 : 1.0
+  const nosMult = upgrades?.hasNosKit ? 1.25 : 1.0
 
   let fuelMult = 1.0
   if (fuel === 'ethanol_e100') {
@@ -38,7 +39,7 @@ export function calculateDynoProfile(
     fuelMult = 1.05
   }
 
-  const totalMult = stageMult * intakeMult * exhaustMult * turboAftermarketMult * fuelMult
+  const totalMult = stageMult * intakeMult * exhaustMult * turboAftermarketMult * fuelMult * nosMult
 
   const minRpm = 1000
   const maxRpm = config.engine.maxRpm

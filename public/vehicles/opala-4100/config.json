@@ -1,0 +1,79 @@
+{
+  "id": "opala-4100",
+  "info": {
+    "name": "Chevrolet Opala Diplomata 4.1",
+    "brand": "Chevrolet",
+    "model": "Opala Diplomata SE 4.1L (250-S)",
+    "year": 1992,
+    "category": "car",
+    "weight": 1360,
+    "wheelDiameter": 0.65,
+    "description": "O clássico topo de linha brasileiro com o consagrado motor 4.1L 6 cilindros em linha 250-S, carburador de corpo duplo, 171 cv, 32.5 kgfm de torque em baixa rotação, tração traseira (RWD) e câmbio Clark 5 marchas."
+  },
+  "engine": {
+    "maxPower": 171,
+    "maxPowerRpm": 4800,
+    "maxTorque": 320,
+    "maxTorqueRpm": 2600,
+    "maxRpm": 6000,
+    "idleRpm": 750,
+    "revLimiter": 5600,
+    "flywheelMass": 9.8,
+    "engineBrakeFactor": 0.35,
+    "torqueCurve": [
+      { "rpm": 750,  "torque": 210 },
+      { "rpm": 1200, "torque": 260 },
+      { "rpm": 1800, "torque": 295 },
+      { "rpm": 2200, "torque": 312 },
+      { "rpm": 2600, "torque": 320 },
+      { "rpm": 3200, "torque": 310 },
+      { "rpm": 3800, "torque": 295 },
+      { "rpm": 4400, "torque": 270 },
+      { "rpm": 4800, "torque": 250 },
+      { "rpm": 5200, "torque": 225 },
+      { "rpm": 5600, "torque": 195 },
+      { "rpm": 6000, "torque": 160 }
+    ]
+  },
+  "transmission": {
+    "type": "manual",
+    "gearCount": 5,
+    "gearRatios": [
+      { "gear": 1, "ratio": 3.25 },
+      { "gear": 2, "ratio": 1.95 },
+      { "gear": 3, "ratio": 1.36 },
+      { "gear": 4, "ratio": 1.00 },
+      { "gear": 5, "ratio": 0.82 }
+    ],
+    "reverseRatio": 3.35,
+    "finalDrive": 3.07,
+    "hasClutch": true,
+    "hasManualMode": true,
+    "supportedModes": ["normal", "sport"]
+  },
+  "audio": {
+    "useSamples": false,
+    "synthConfig": {
+      "baseFrequency": 37.5,
+      "harmonics": [1, 1.5, 2, 3, 4, 6],
+      "gainIdle": 0.22,
+      "gainMax": 0.82,
+      "cylinders": 6,
+      "engineType": "i6_chevrolet",
+      "exhaustResonanceHz": 150,
+      "intakeResonanceHz": 360,
+      "hasBrapOnShift": false
+    }
+  },
+  "dashboard": {
+    "type": "custom",
+    "theme": "opala_classic",
+    "tachometerMax": 6000,
+    "speedometerMax": 220,
+    "redlineStart": 5000,
+    "shiftLightOffsetRpm": 350,
+    "fuelCapacity": 65,
+    "coolantTempTarget": 88,
+    "hasInfotainment": false
+  }
+}

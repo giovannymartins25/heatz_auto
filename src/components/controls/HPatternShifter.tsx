@@ -32,6 +32,7 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
   const isEngineBlown = useSimulationStore((s) => s.isEngineBlown)
   const toggleShifterLayout = useSimulationStore((s) => s.toggleShifterLayout)
   const speed = useSimulationStore((s) => s.speed)
+  const isRevLimiting = useSimulationStore((s) => s.isRevLimiting)
 
   const isClutchEngaged = clutchPosition >= 0.45
   const isCompact = size === 'compact'
@@ -161,6 +162,13 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
             {isSixSpeed ? '6M' : '5M'} H-GATE
           </span>
         </div>
+
+        {/* Shift Light Alerta de Troca Ideal */}
+        {isRevLimiting && (
+          <span className="px-1.5 py-0.5 rounded-full font-black text-[8px] bg-red-600 text-white animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.8)] border border-red-400">
+            ▲ TROQUE AGORA!
+          </span>
+        )}
 
         {/* Indicador Luminoso de Embreagem */}
         <span

@@ -13,7 +13,26 @@ interface TuningGarageModalProps {
   carInstance?: GarageCarInstance
 }
 
-type ShopTab = 'motor' | 'escape' | 'intake' | 'chassi' | 'interior'
+type ShopTab = 'motor' | 'escape' | 'intake' | 'chassi' | 'interior' | 'estetica'
+
+export const PAINT_COLORS = [
+  { name: 'Vermelho Tornado', hex: '#dc2626' },
+  { name: 'Nardo Gray', hex: '#64748b' },
+  { name: 'Preto Vulcano', hex: '#18181b' },
+  { name: 'Branco Cristal', hex: '#f8fafc' },
+  { name: 'Azul Yas Marina', hex: '#0284c7' },
+  { name: 'Amarelo Speed Racing', hex: '#eab308' },
+  { name: 'Verde British Racing', hex: '#15803d' },
+  { name: 'Ultra Purple Midnight', hex: '#7e22ce' },
+]
+
+export const CALIPER_COLORS = [
+  { name: 'Vermelho Brembo Sport', hex: '#ef4444' },
+  { name: 'Amarelo Cerâmica Carbon', hex: '#facc15' },
+  { name: 'Verde Neon Acid', hex: '#84cc16' },
+  { name: 'Dourado Motorsport', hex: '#f59e0b' },
+  { name: 'Azul Elétrico M', hex: '#06b6d4' },
+]
 
 /**
  * TuningGarageModal — Loja de Aprimoramentos & Oficina de Peças Automotivas
@@ -47,6 +66,9 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const setFuelType = useSimulationStore((s) => s.setFuelType)
   const hasRetrofitInfotainment = useSimulationStore((s) => s.hasRetrofitInfotainment)
   const hasBoostGaugeKit = useSimulationStore((s) => s.hasBoostGaugeKit)
+  const hasNosKit = useSimulationStore((s) => s.hasNosKit)
+  const nosPressurePercent = useSimulationStore((s) => s.nosPressurePercent)
+  const refillNos = useSimulationStore((s) => s.refillNos)
   const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
   const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
   const setEquippedUpgrades = useSimulationStore((s) => s.setEquippedUpgrades)
@@ -87,6 +109,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const isTurboInstalled = isOriginalTurboCar || Boolean(upgrades?.turboKit ?? hasTurbo)
   const isMultimediaInstalled = Boolean(upgrades?.multimediaKit ?? hasRetrofitInfotainment)
   const isBoostGaugeInstalled = Boolean(upgrades?.boostGaugeKit ?? hasBoostGaugeKit)
+  const isNosInstalled = Boolean(upgrades?.hasNosKit ?? hasNosKit)
 
   const showNotification = (msg: string) => {
     setFeedbackMsg(msg)
@@ -338,6 +361,18 @@ export const TuningGarageModal = memo(function TuningGarageModal({
             <span>📺</span>
             <span>MULTIMÍDIA RETROFIT</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('estetica')}
+            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'estetica'
+                ? 'bg-fuchsia-600 text-white shadow-[0_0_12px_rgba(217,70,239,0.5)]'
+                : 'bg-zinc-900/80 text-zinc-400 hover:text-white'
+            }`}
+          >
+            <span>🎨</span>
+            <span>ESTÉTICA & PINTURA</span>
+          </button>
         </div>
 
         {/* ─── CONTEÚDO DA ABA 1: MOTOR & TURBO ─── */}
@@ -458,6 +493,65 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                   TURBO DE FÁBRICA
                 </span>
               )}
+            </div>
+
+            {/* Seção Kit Óxido Nitroso (NOS / Garrafa 10 lbs) */}
+            <div className="p-3.5 rounded-2xl bg-zinc-900/60 border border-cyan-500/20 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg shadow-cyan-950/20">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">⚡</span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs sm:text-sm font-black text-white uppercase">
+                      KIT ÓXIDO NITROSO NOS (GARRAFA 10 LBS)
+                    </h3>
+                    {isNosInstalled && (
+                      <span className="px-2 py-0.5 rounded text-[8px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                        INSTALADO ({Math.round(nosPressurePercent)}%)
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-0.5 max-w-lg">
+                    Injeção direta de nitro nos coletores de admissão com solenoide de alta pressão. Entrega +120 cv instantâneos ao segurar a tecla B / Shift no PC ou o botão NOS no celular! Acompanha purga de vapor no capô (tecla X).
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {isNosInstalled && nosPressurePercent < 100 && (
+                  <button
+                    onClick={() => {
+                      if (!sandboxMode && credits < 500) {
+                        showNotification('❌ Saldo insuficiente para recarga! Custo: R$ 500')
+                        return
+                      }
+                      if (!sandboxMode) addCredits(-500)
+                      refillNos()
+                      showNotification('⚡ Garrafa de Nitro recarregada a 100% (R$ 500)!')
+                    }}
+                    className="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider bg-cyan-900/60 hover:bg-cyan-800 text-cyan-300 border border-cyan-500/40 cursor-pointer transition-all"
+                  >
+                    RECARREGAR (R$ 500)
+                  </button>
+                )}
+
+                <button
+                  onClick={() =>
+                    handlePurchaseAndEquip(
+                      'hasNosKit',
+                      !isNosInstalled,
+                      isNosInstalled ? 0 : 8500,
+                      isNosInstalled ? 'Kit Nitro removido' : 'Kit Óxido Nitroso NOS 10 lbs'
+                    )
+                  }
+                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all shrink-0 ${
+                    isNosInstalled
+                      ? 'bg-zinc-800 text-zinc-400 hover:text-red-400 border border-white/10'
+                      : 'bg-cyan-500 hover:bg-cyan-400 text-black font-black shadow-[0_0_15px_rgba(6,182,212,0.6)]'
+                  }`}
+                >
+                  {isNosInstalled ? 'DESINSTALAR NITRO' : 'COMPRAR NITRO (R$ 8.500)'}
+                </button>
+              </div>
             </div>
 
             {/* Seção Central Multimídia Retrofit Smart Connect (Destaque na Loja de Aprimoramentos) */}
@@ -1067,6 +1161,129 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                     MULTIMÍDIA DE FÁBRICA ATIVA
                   </span>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── CONTEÚDO DA ABA 6: ESTÉTICA & PINTURA ─── */}
+        {activeTab === 'estetica' && (
+          <div className="flex flex-col gap-3">
+            {/* 1. Pintura da Carroceria */}
+            <div className="p-4 rounded-2xl bg-zinc-900/60 border border-fuchsia-500/20 flex flex-col gap-3 shadow-lg shadow-fuchsia-950/20">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🎨</span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs sm:text-sm font-black text-white uppercase">
+                      PINTURA & CUSTOMIZAÇÃO DA CARROCERIA
+                    </h3>
+                    {upgrades?.paintColor && (
+                      <span className="px-2 py-0.5 rounded text-[8px] font-black bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-400/30">
+                        PERSONALIZADA
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-0.5 max-w-xl">
+                    Repintura automotiva de estufa com verniz cerâmico ultra-resistente. Escolha uma das cores icônicas motorsport para renovar a estética do seu bólido!
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-white/5">
+                {PAINT_COLORS.map((color) => {
+                  const isCurrent = (upgrades?.paintColor || '#dc2626') === color.hex
+                  return (
+                    <button
+                      key={color.hex}
+                      onClick={() =>
+                        handlePurchaseAndEquip(
+                          'paintColor',
+                          color.hex,
+                          isCurrent ? 0 : 2500,
+                          `Pintura ${color.name}`
+                        )
+                      }
+                      className={`p-2.5 rounded-xl border flex items-center gap-2.5 transition-all cursor-pointer text-left ${
+                        isCurrent
+                          ? 'bg-fuchsia-950/40 border-fuchsia-400 shadow-[0_0_12px_rgba(217,70,239,0.4)]'
+                          : 'bg-zinc-900/60 border-white/5 hover:border-white/20'
+                      }`}
+                    >
+                      <span
+                        className="w-5 h-5 rounded-full border border-white/30 shrink-0 shadow"
+                        style={{ backgroundColor: color.hex }}
+                      />
+                      <div className="leading-tight truncate">
+                        <span className="text-[9.5px] font-bold text-white block truncate">
+                          {color.name}
+                        </span>
+                        <span className="text-[8px] text-zinc-500 font-mono">
+                          {isCurrent ? 'Equipada' : 'R$ 2.500'}
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* 2. Pinças de Freio Esportivas */}
+            <div className="p-4 rounded-2xl bg-zinc-900/60 border border-amber-500/20 flex flex-col gap-3 shadow-lg shadow-amber-950/20">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🛑</span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs sm:text-sm font-black text-white uppercase">
+                      PINTURA DAS PINÇAS DE FREIO ESPORTIVAS
+                    </h3>
+                    {upgrades?.brakeCaliperColor && (
+                      <span className="px-2 py-0.5 rounded text-[8px] font-black bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                        PERSONALIZADA
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-0.5 max-w-xl">
+                    Pintura eletrostática a pó resistente a temperaturas extremas de pista (&gt;800°C). Dá destaque agressivo às rodas de liga leve!
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-white/5">
+                {CALIPER_COLORS.map((caliper) => {
+                  const isCurrent = (upgrades?.brakeCaliperColor || '#ef4444') === caliper.hex
+                  return (
+                    <button
+                      key={caliper.hex}
+                      onClick={() =>
+                        handlePurchaseAndEquip(
+                          'brakeCaliperColor',
+                          caliper.hex,
+                          isCurrent ? 0 : 1200,
+                          `Pinças ${caliper.name}`
+                        )
+                      }
+                      className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer text-left ${
+                        isCurrent
+                          ? 'bg-amber-950/40 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+                          : 'bg-zinc-900/60 border-white/5 hover:border-white/20'
+                      }`}
+                    >
+                      <span
+                        className="w-4 h-4 rounded-full border border-white/30 shrink-0 shadow"
+                        style={{ backgroundColor: caliper.hex }}
+                      />
+                      <div className="leading-tight truncate">
+                        <span className="text-[9px] font-bold text-white block truncate">
+                          {caliper.name}
+                        </span>
+                        <span className="text-[7.5px] text-zinc-500 font-mono">
+                          {isCurrent ? 'Equipada' : 'R$ 1.200'}
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           </div>

@@ -11,6 +11,7 @@ export interface ActiveKeysState {
   down: boolean
   space: boolean
   horn: boolean
+  nos: boolean
 }
 
 interface UIStoreState {
@@ -54,6 +55,7 @@ export const useUIStore = create<UIStore>((set) => ({
     down: false,
     space: false,
     horn: false,
+    nos: false,
   },
 
   setScreen: (screen) => set({ currentScreen: screen }),

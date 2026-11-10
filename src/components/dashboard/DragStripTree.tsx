@@ -1,5 +1,13 @@
-import React, { useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
+
+export const RIVALS = [
+  { id: 'gol-ap', name: 'Gol Turbo AP 1.9 Forjado', time: 11.24, trapSpeed: 205, reaction: 0.28 },
+  { id: 'civic-k20', name: 'Honda Civic Si VTEC Turbo', time: 11.75, trapSpeed: 198, reaction: 0.24 },
+  { id: 'golf-gti', name: 'VW Golf GTI DSG Stg 2', time: 11.38, trapSpeed: 203, reaction: 0.22 },
+  { id: 'porsche-gt3', name: 'Porsche 911 GT3 RS PDK', time: 10.62, trapSpeed: 221, reaction: 0.18 },
+]
 
 interface DragStripTreeProps {
   onClose?: () => void
@@ -14,9 +22,65 @@ export const DragStripTree: React.FC<DragStripTreeProps> = ({ onClose }) => {
   const dragStage = useSimulationStore((s) => s.dragStage)
   const dragTimeSlip = useSimulationStore((s) => s.dragTimeSlip)
   const distanceTraveled = useSimulationStore((s) => s._dragDistanceTraveled)
+  const timerStart = useSimulationStore((s) => s._dragTimerStart)
   const speed = useSimulationStore((s) => s.speed)
   const startDragRace = useSimulationStore((s) => s.startDragRace)
   const resetDragRace = useSimulationStore((s) => s.resetDragRace)
+  const addCredits = useGarageStore((s) => s.addCredits)
+
+  // Modo Duelo 1v1
+  const [isDuelMode, setIsDuelMode] = useState(true)
+  const [rivalIndex, setRivalIndex] = useState(0)
+  const [rivalDistance, setRivalDistance] = useState(0)
+  const duelBonusAwarded = useRef(false)
+
+  const activeRival = RIVALS[rivalIndex]
+
+  // Reseta estado do rival e bônus ao reiniciar corrida
+  useEffect(() => {
+    if (dragStage === 'idle' || dragStage === 'pre_stage') {
+      duelBonusAwarded.current = false
+      setRivalDistance(0)
+    }
+  }, [dragStage])
+
+  // Progresso em tempo real do Rival na pista (simulação física do tempo 402m do rival)
+  useEffect(() => {
+    if (dragStage !== 'racing' || !timerStart) {
+      return
+    }
+
+    const interval = setInterval(() => {
+      const elapsed = (performance.now() - timerStart) / 1000
+      const rivalReaction = activeRival.reaction
+      if (elapsed < rivalReaction) {
+        setRivalDistance(0)
+        return
+      }
+      const runTime = elapsed - rivalReaction
+      const avgA = (2 * 402) / Math.pow(activeRival.time, 2)
+      const dist = Math.min(402, 0.5 * avgA * Math.pow(runTime, 2))
+      setRivalDistance(dist)
+    }, 40)
+
+    return () => clearInterval(interval)
+  }, [dragStage, timerStart, activeRival])
+
+  // Verifica vitória no Duelo 1v1
+  const playerWonDuel =
+    isDuelMode &&
+    dragStage === 'finished' &&
+    dragTimeSlip &&
+    !dragTimeSlip.isDisqualified &&
+    dragTimeSlip.time402m > 0 &&
+    dragTimeSlip.time402m < activeRival.time
+
+  useEffect(() => {
+    if (playerWonDuel && !duelBonusAwarded.current) {
+      duelBonusAwarded.current = true
+      addCredits(10000)
+    }
+  }, [playerWonDuel, addCredits])
 
   const isPreStage = dragStage === 'pre_stage' || dragStage === 'staged' || dragStage.startsWith('yellow') || dragStage === 'green' || dragStage === 'racing'
   const isStaged = dragStage === 'staged' || dragStage.startsWith('yellow') || dragStage === 'green' || dragStage === 'racing'
@@ -163,19 +227,77 @@ export const DragStripTree: React.FC<DragStripTreeProps> = ({ onClose }) => {
             </p>
           </div>
 
+          {/* Seletor de Modo: Solo vs Duelo 1v1 */}
+          <div className="mb-3 flex items-center justify-between gap-2 bg-neutral-900/80 p-1.5 rounded-2xl border border-neutral-800">
+            <div className="flex gap-1">
+              <button
+                disabled={dragStage !== 'idle' && dragStage !== 'finished' && dragStage !== 'false_start'}
+                onClick={() => setIsDuelMode(false)}
+                className={`px-3 py-1 rounded-xl text-[10px] font-mono font-bold transition-all cursor-pointer ${
+                  !isDuelMode ? 'bg-amber-500 text-black shadow' : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                SOLO
+              </button>
+              <button
+                disabled={dragStage !== 'idle' && dragStage !== 'finished' && dragStage !== 'false_start'}
+                onClick={() => setIsDuelMode(true)}
+                className={`px-3 py-1 rounded-xl text-[10px] font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  isDuelMode ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <span>⚔️</span>
+                <span>DUELO 1V1</span>
+              </button>
+            </div>
+
+            {/* Seletor de Rival */}
+            {isDuelMode && (
+              <select
+                disabled={dragStage !== 'idle' && dragStage !== 'finished' && dragStage !== 'false_start'}
+                value={rivalIndex}
+                onChange={(e) => setRivalIndex(Number(e.target.value))}
+                className="bg-neutral-950 border border-neutral-700 text-amber-300 text-[10px] font-mono rounded-lg px-2 py-1 outline-none cursor-pointer"
+              >
+                {RIVALS.map((r, idx) => (
+                  <option key={r.id} value={idx}>
+                    {r.name} (~{r.time}s)
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
           {/* Status ao vivo */}
           {dragStage === 'racing' && (
-            <div className="mb-4 rounded-xl border border-emerald-500/50 bg-emerald-950/40 p-3 font-mono">
-              <div className="flex justify-between text-xs text-emerald-400">
-                <span>DISTÂNCIA: <strong>{Math.round(distanceTraveled)}m / 402m</strong></span>
-                <span>VELOCIDADE: <strong>{Math.round(speed)} km/h</strong></span>
+            <div className="mb-4 rounded-xl border border-emerald-500/50 bg-emerald-950/40 p-3 font-mono space-y-2">
+              <div>
+                <div className="flex justify-between text-xs text-emerald-400">
+                  <span>VOCÊ (PISTA A): <strong>{Math.round(distanceTraveled)}m / 402m</strong></span>
+                  <span><strong>{Math.round(speed)} km/h</strong></span>
+                </div>
+                <div className="mt-1 h-2 rounded-full bg-neutral-800 overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-75"
+                    style={{ width: `${Math.min(100, (distanceTraveled / 402) * 100)}%` }}
+                  />
+                </div>
               </div>
-              <div className="mt-2 h-2 rounded-full bg-neutral-800 overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 transition-all"
-                  style={{ width: `${Math.min(100, (distanceTraveled / 402) * 100)}%` }}
-                />
-              </div>
+
+              {isDuelMode && (
+                <div>
+                  <div className="flex justify-between text-xs text-rose-400">
+                    <span>{activeRival.name} (PISTA B): <strong>{Math.round(rivalDistance)}m / 402m</strong></span>
+                    <span><strong>~{activeRival.trapSpeed} km/h</strong></span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-neutral-800 overflow-hidden">
+                    <div
+                      className="h-full bg-rose-500 transition-all duration-75"
+                      style={{ width: `${Math.min(100, (rivalDistance / 402) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -220,6 +342,49 @@ export const DragStripTree: React.FC<DragStripTreeProps> = ({ onClose }) => {
                   <span className="text-neutral-400">TRAP SPEED (FINAL):</span>
                   <span className="font-black text-white text-sm">{dragTimeSlip.trapSpeedKmh} km/h</span>
                 </div>
+
+                {dragTimeSlip.reward !== undefined && dragTimeSlip.reward > 0 && (
+                  <div className="col-span-2 mt-2 p-2 rounded-xl bg-gradient-to-r from-emerald-950/80 to-amber-950/80 border border-emerald-500/50 flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-xs font-black text-emerald-400">
+                      <span>🏆 PRÊMIO RECEBIDO:</span>
+                      <span className="text-sm text-amber-300 font-mono font-black">
+                        +R$ {dragTimeSlip.reward.toLocaleString('pt-BR')}
+                      </span>
+                    </div>
+                    {dragTimeSlip.rewardBreakdown && dragTimeSlip.rewardBreakdown.length > 0 && (
+                      <div className="text-[10px] text-neutral-400 font-mono space-y-0.5">
+                        {dragTimeSlip.rewardBreakdown.map((b, i) => (
+                          <div key={i} className="flex items-center gap-1 text-emerald-300/80">
+                            <span>✓</span>
+                            <span>{b}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Resultado do Duelo 1v1 */}
+                {isDuelMode && dragTimeSlip.time402m > 0 && !dragTimeSlip.isDisqualified && (
+                  <div
+                    className={`col-span-2 mt-2 p-2.5 rounded-xl border flex flex-col gap-1.5 font-mono ${
+                      playerWonDuel
+                        ? 'bg-emerald-950/90 border-emerald-500 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.4)]'
+                        : 'bg-red-950/90 border-red-500 text-red-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-xs font-black">
+                      <span>{playerWonDuel ? '🏆 VITÓRIA NO DUELO 1V1!' : '🥈 DERROTA NO DUELO 1V1'}</span>
+                      <span className="text-amber-300 text-sm font-black">
+                        {playerWonDuel ? '+R$ 10.000' : 'SEM BÔNUS'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-[11px] text-neutral-300">
+                      <span>Seu Tempo: <strong className="text-white">{dragTimeSlip.time402m.toFixed(3)}s</strong></span>
+                      <span>Rival ({activeRival.name}): <strong className="text-amber-300">{activeRival.time.toFixed(3)}s</strong></span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

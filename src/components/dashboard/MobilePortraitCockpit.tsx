@@ -13,7 +13,8 @@ import { InfotainmentScreen } from './InfotainmentScreen'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
 import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
-import { TuningGarageModal } from '@/components/tuning'
+import { TuningGarageModal, DynoTestModal } from '@/components/tuning'
+import { DragStripTree } from './DragStripTree'
 
 export interface MobilePortraitCockpitProps {
   telemetry: DashboardTelemetry
@@ -63,8 +64,15 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const hasTurbo = useSimulationStore((s) => s.hasTurbo)
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
+  const hasNosKit = useSimulationStore((s) => s.hasNosKit)
+  const nosActive = useSimulationStore((s) => s.nosActive)
+  const nosPressurePercent = useSimulationStore((s) => s.nosPressurePercent)
+  const setNosActive = useSimulationStore((s) => s.setNosActive)
+  const purgeNos = useSimulationStore((s) => s.purgeNos)
 
   const [isTuningOpen, setIsTuningOpen] = useState(false)
+  const [isDragStripOpen, setIsDragStripOpen] = useState(false)
+  const [isDynoOpen, setIsDynoOpen] = useState(false)
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const supportedModes = vehicle.transmission.supportedModes || []
@@ -145,6 +153,22 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           </div>
 
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsDragStripOpen(true)}
+              className="px-1.5 py-0.5 text-[8.5px] rounded-lg border border-amber-500/50 bg-amber-950/40 text-amber-300 font-mono font-bold transition-all cursor-pointer flex items-center gap-0.5"
+              title="Pista de Arrancada 402M"
+            >
+              <span>🏁</span>
+              <span>402M</span>
+            </button>
+            <button
+              onClick={() => setIsDynoOpen(true)}
+              className="px-1.5 py-0.5 text-[8.5px] rounded-lg border border-sky-500/50 bg-sky-950/40 text-sky-300 font-mono font-bold transition-all cursor-pointer flex items-center gap-0.5"
+              title="Dinamômetro de Chassi"
+            >
+              <span>📈</span>
+              <span>DYNO</span>
+            </button>
             <button
               onClick={() => setIsTuningOpen(true)}
               className={`px-2 py-0.5 text-[9px] rounded-lg border font-black transition-all cursor-pointer flex items-center gap-1 ${
@@ -398,6 +422,37 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               📢
             </button>
 
+            {/* Botão de Injeção de Nitro (NOS) & Purga */}
+            {hasNosKit && (
+              <div className="flex items-center gap-1">
+                <button
+                  onPointerDown={() => setNosActive(true)}
+                  onPointerUp={() => setNosActive(false)}
+                  onPointerCancel={() => setNosActive(false)}
+                  disabled={nosPressurePercent <= 0 || !isRunning}
+                  className={`px-2.5 py-1.5 rounded-xl border font-mono text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer flex items-center gap-1 shadow ${
+                    nosActive
+                      ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.9)] animate-pulse'
+                      : nosPressurePercent <= 0
+                      ? 'bg-zinc-900/50 text-zinc-600 border-zinc-800'
+                      : 'bg-cyan-950/70 text-cyan-300 border-cyan-500/50 hover:bg-cyan-900/80'
+                  }`}
+                  title="Segure para disparar Nitro NOS"
+                >
+                  <span>⚡</span>
+                  <span>NOS {Math.round(nosPressurePercent)}%</span>
+                </button>
+                <button
+                  onClick={purgeNos}
+                  disabled={nosPressurePercent <= 0}
+                  className="px-2 py-1.5 rounded-xl border border-sky-400/40 bg-sky-950/50 text-sky-300 text-[9px] font-black uppercase transition-all active:scale-95 cursor-pointer"
+                  title="Purga de Nitro"
+                >
+                  💨
+                </button>
+              </div>
+            )}
+
             {/* Freio de Mão */}
             <button
               onClick={toggleHandbrake}
@@ -462,6 +517,18 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
       <RainWindshieldEffect />
       <BurnoutSmokeEffect />
       <EngineBlownSmokeEffect />
+      {/* Pista de Arrancada 402m */}
+      {isDragStripOpen && <DragStripTree onClose={() => setIsDragStripOpen(false)} />}
+
+      {/* Dinamômetro de Chassi */}
+      {isDynoOpen && (
+        <DynoTestModal
+          config={vehicle}
+          upgrades={activeCar?.upgrades}
+          onClose={() => setIsDynoOpen(false)}
+        />
+      )}
+
       {/* Modal da Oficina de Peças & Preparação */}
       {isTuningOpen && (
         <TuningGarageModal

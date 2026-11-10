@@ -28,6 +28,8 @@ export interface DragTimeSlip {
   trapSpeedKmh: number
   isDisqualified: boolean
   createdAt: number
+  reward?: number
+  rewardBreakdown?: string[]
 }
 
 export interface DynoDataPoint {

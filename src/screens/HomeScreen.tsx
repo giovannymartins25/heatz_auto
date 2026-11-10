@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useVehicleStore } from '@/stores/useVehicleStore'
 import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { SearchBar, CategoryFilter } from '@/components/ui'
-import { TuningGarageModal } from '@/components/tuning'
+import { TuningGarageModal, DynoTestModal } from '@/components/tuning'
 import type { FilterOption } from '@/components/ui'
 import type { VehicleConfig } from '@/types/vehicle'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
@@ -19,6 +19,7 @@ export const VEHICLE_PRICES: Record<string, { price: number; badge: string; desc
   'yaris-2019': { price: 78000, badge: 'SEDAN CONFORT', description: '1.5 Dual VVT-i · Multidrive CVT 7M · Direção Elétrica' },
   'cb1000r': { price: 72000, badge: 'SUPER NAKED', description: '1.000cc 4 Cilindros · 142 cv · 12.000 RPM · Quickshifter' },
   'porsche-gt3': { price: 1850000, badge: 'MOTORSPORT', description: '4.0 Flat-6 Boxer · 9.000 RPM · Câmbio PDK 7M · Asa Ativa' },
+  'opala-4100': { price: 68000, badge: '6 CILINDROS RWD', description: '4.1L 250-S · Tração Traseira · Câmbio 5M · Ronco Cavernoso' },
 }
 
 export function HomeScreen() {
@@ -52,6 +53,12 @@ export function HomeScreen() {
 
   // Modal de Oficina
   const [tuningModalData, setTuningModalData] = useState<{
+    vehicle: VehicleConfig
+    instance: GarageCarInstance
+  } | null>(null)
+
+  // Modal de Dinamômetro
+  const [dynoModalData, setDynoModalData] = useState<{
     vehicle: VehicleConfig
     instance: GarageCarInstance
   } | null>(null)
@@ -141,6 +148,16 @@ export function HomeScreen() {
     const config = await selectVehicle(instance.vehicleId)
     if (config) {
       setTuningModalData({ vehicle: config, instance })
+      HapticFeedback.light()
+    }
+  }
+
+  // Abrir Dinamômetro para o Carro
+  const handleOpenDyno = async (instance: GarageCarInstance) => {
+    setActiveCar(instance.instanceId)
+    const config = await selectVehicle(instance.vehicleId)
+    if (config) {
+      setDynoModalData({ vehicle: config, instance })
       HapticFeedback.light()
     }
   }
@@ -402,6 +419,29 @@ export function HomeScreen() {
                             📺 MULTIMÍDIA 2-DIN
                           </span>
                         )}
+
+                        {/* Kit Nitro NOS */}
+                        {up.hasNosKit && (
+                          <span className="px-2 py-0.5 rounded-md font-bold uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
+                            ⚡ NITRO NOS 10 LBS
+                          </span>
+                        )}
+
+                        {/* Pintura Customizada */}
+                        {up.paintColor && (
+                          <span className="px-2 py-0.5 rounded-md font-bold uppercase bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-400/40 flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: up.paintColor }} />
+                            <span>PINTURA CUSTOM</span>
+                          </span>
+                        )}
+
+                        {/* Pinças de Freio */}
+                        {up.brakeCaliperColor && (
+                          <span className="px-2 py-0.5 rounded-md font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-400/40 flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: up.brakeCaliperColor }} />
+                            <span>PINÇAS CUSTOM</span>
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -426,6 +466,15 @@ export function HomeScreen() {
                           <span>OFICINA</span>
                         </button>
                       </div>
+
+                      {/* Botão de Dinamômetro */}
+                      <button
+                        onClick={() => handleOpenDyno(car)}
+                        className="w-full py-2 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 text-sky-300 border border-sky-500/30 font-bold text-xs uppercase tracking-wider transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <span>📈</span>
+                        <span>DINAMÔMETRO (CV & TORQUE)</span>
+                      </button>
 
                       {/* Botão de Vender */}
                       {ownedCars.length > 1 && (
@@ -583,6 +632,15 @@ export function HomeScreen() {
           onClose={() => setTuningModalData(null)}
           vehicle={tuningModalData.vehicle}
           carInstance={tuningModalData.instance}
+        />
+      )}
+
+      {/* ─── Modal do Dinamômetro Virtual (DynoTestModal) ─── */}
+      {dynoModalData && (
+        <DynoTestModal
+          config={dynoModalData.vehicle}
+          upgrades={dynoModalData.instance.upgrades}
+          onClose={() => setDynoModalData(null)}
         />
       )}
 

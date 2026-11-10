@@ -4,7 +4,7 @@ import { clamp, mapRange } from '@/utils/math'
 
 export interface EngineAcousticProfile {
   cylinders: number
-  engineType: 'i4' | 'boxer6' | 'i4_highrev' | 'i4_ap' | 'i4_vtec' | 'v6' | 'v8'
+  engineType: 'i4' | 'boxer6' | 'i4_highrev' | 'i4_ap' | 'i4_vtec' | 'v6' | 'v8' | 'i6_chevrolet'
   exhaustResonanceHz: number
   exhaustResonanceQ: number
   intakeResonanceHz: number
@@ -165,6 +165,21 @@ export class SynthEngine implements IAudioEngine {
         hasBrapOnShift: true,
         subHarmonicWeight: 0.40,
         highHarmonicRasp: 0.70,
+        ...custom,
+      }
+    }
+
+    // 4. Chevrolet 250-S 4.1L 6 Cilindros em Linha (Opala Diplomata / Comodoro: ronco encorpado, 6 bocas, marcha lenta cadenciada)
+    if (this.config.engineType === 'i6_chevrolet' || (this.config.cylinders === 6 && this.maxRpm <= 6500)) {
+      return {
+        cylinders: 6,
+        engineType: 'i6_chevrolet',
+        exhaustResonanceHz: 150,
+        exhaustResonanceQ: 2.8,
+        intakeResonanceHz: 360,
+        hasBrapOnShift: false,
+        subHarmonicWeight: 0.55,
+        highHarmonicRasp: 0.45,
         ...custom,
       }
     }
@@ -482,6 +497,12 @@ export class SynthEngine implements IAudioEngine {
     // AP 1.9 Turbo: marcha lenta rústica com flutter de comando bravo
     if (this.profile.engineType === 'i4_ap' && this.currentRpm < 1200 && this.fundamentalOsc) {
       const lumpyMod = 1 + 0.07 * Math.sin(now * 14 * Math.PI)
+      this.fundamentalOsc.frequency.setTargetAtTime(fireFreq * lumpyMod, now, 0.02)
+    }
+
+    // Opala 250-S 4.1L 6 Cilindros: marcha lenta cadenciada e encorpada de 6 cilindros em linha
+    if (this.profile.engineType === 'i6_chevrolet' && this.currentRpm < 1100 && this.fundamentalOsc) {
+      const lumpyMod = 1 + 0.04 * Math.sin(now * 11 * Math.PI)
       this.fundamentalOsc.frequency.setTargetAtTime(fireFreq * lumpyMod, now, 0.02)
     }
 

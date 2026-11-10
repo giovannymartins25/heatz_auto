@@ -49,6 +49,9 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const isRunning = useSimulationStore((s) => s.isRunning)
   const isAutomaticVehicle = useSimulationStore((s) => s.isAutomaticVehicle)
+  const hasNosKit = useSimulationStore((s) => s.hasNosKit)
+  const setNosActive = useSimulationStore((s) => s.setNosActive)
+  const purgeNos = useSimulationStore((s) => s.purgeNos)
   const setActiveKey = useUIStore((s) => s.setActiveKey)
 
   const keysPressedRef = useRef({ w: false, e: false, q: false })
@@ -162,6 +165,15 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
       else if (key === 'c' && !event.repeat) {
         toggleRain()
       }
+      // Óxido Nitroso (NOS) — B ou Shift
+      else if ((key === 'b' || key === 'shift') && hasNosKit && isRunning) {
+        setNosActive(true)
+        setActiveKey('nos', true)
+      }
+      // Purga de Nitro — X
+      else if (key === 'x' && !event.repeat && hasNosKit) {
+        purgeNos()
+      }
     }
 
     const handleKeyUp = (event: KeyboardEvent) => {
@@ -183,6 +195,9 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
         setHorn(false)
       } else if (key === 's') {
         setActiveKey('s', false)
+      } else if (key === 'b' || key === 'shift') {
+        setActiveKey('nos', false)
+        setNosActive(false)
       }
     }
 

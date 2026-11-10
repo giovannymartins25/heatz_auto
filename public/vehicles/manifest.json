@@ -140,6 +140,26 @@
       "hasTurbo": false,
       "hasInfotainment": false,
       "configPath": "/vehicles/civic-si/config.json"
+    },
+    {
+      "id": "opala-4100",
+      "name": "Chevrolet Opala Diplomata 4.1",
+      "brand": "Chevrolet",
+      "model": "Opala Diplomata SE 4.1L (250-S)",
+      "year": 1992,
+      "category": "car",
+      "powerHp": 171,
+      "torqueKgfm": 32.6,
+      "transmissionType": "manual",
+      "transmissionLabel": "Manual Clark 5 Marchas (RWD)",
+      "gearCount": 5,
+      "isSimulatedGears": false,
+      "hasManualMode": true,
+      "hasTcs": false,
+      "hasClutchPedal": true,
+      "hasTurbo": false,
+      "hasInfotainment": false,
+      "configPath": "/vehicles/opala-4100/config.json"
     }
   ]
 }

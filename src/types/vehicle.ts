@@ -91,7 +91,7 @@ export interface SynthAudioConfig {
   gainIdle: number           // Ganho na marcha lenta (0-1)
   gainMax: number            // Ganho no RPM máximo (0-1)
   cylinders?: number         // Número de cilindros (ex: 4, 6)
-  engineType?: 'i4' | 'boxer6' | 'i4_highrev' | 'i4_ap' | 'i4_vtec' | 'v6' | 'v8'
+  engineType?: 'i4' | 'boxer6' | 'i4_highrev' | 'i4_ap' | 'i4_vtec' | 'v6' | 'v8' | 'i6_chevrolet'
   exhaustResonanceHz?: number // Frequência de ressonância do escape em Hz
   intakeResonanceHz?: number  // Frequência de ressonância da admissão em Hz
   hasBrapOnShift?: boolean   // Estouro de troca de marcha PDK/DSG
@@ -119,6 +119,7 @@ export type DashboardTheme =
   | 'gti'
   | 'square_turbo'
   | 'civic_si'
+  | 'opala_classic'
   | 'default'
 
 /** Configuração do painel visual */

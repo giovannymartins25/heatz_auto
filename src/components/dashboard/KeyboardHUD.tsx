@@ -22,6 +22,9 @@ export const KeyboardHUD = memo(function KeyboardHUD({
   const isAutomaticVehicle = useSimulationStore((s) => s.isAutomaticVehicle)
   const shifterPosition = useSimulationStore((s) => s.shifterPosition)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
+  const hasNosKit = useSimulationStore((s) => s.hasNosKit)
+  const nosActive = useSimulationStore((s) => s.nosActive)
+  const nosPressurePercent = useSimulationStore((s) => s.nosPressurePercent)
 
   return (
     <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-950/80 border border-white/10 text-[10px] font-mono shadow-md select-none backdrop-blur-md">
@@ -84,6 +87,20 @@ export const KeyboardHUD = memo(function KeyboardHUD({
           title="Pressione S para ativar o Modo Sport"
         >
           S · Sport {shifterPosition === 'S' || drivingMode === 'sport' ? 'ON' : ''}
+        </span>
+      )}
+
+      {/* [B / Shift] Nitro (NOS) */}
+      {hasNosKit && (
+        <span
+          className={`px-2 py-0.5 rounded font-bold transition-all ${
+            nosActive || activeKeys.nos
+              ? 'bg-cyan-400 text-black shadow-[0_0_12px_rgba(34,211,238,0.9)] scale-105 animate-pulse'
+              : 'bg-zinc-900 text-cyan-400/80 border border-cyan-500/30'
+          }`}
+          title="Segure B ou Shift para disparar Nitro (NOS)"
+        >
+          B / Shift · NOS ({Math.round(nosPressurePercent)}%)
         </span>
       )}
 

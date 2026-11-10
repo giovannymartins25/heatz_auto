@@ -11,6 +11,7 @@ export function hasFactoryInfotainment(vehicle: VehicleConfig): boolean {
     vehicle.dashboard?.hasInfotainment ??
     (vehicle.id !== 'gol-g6' &&
       vehicle.id !== 'gol-quadrado-turbo' &&
+      vehicle.id !== 'opala-4100' &&
       vehicle.id !== 'cb1000r' &&
       vehicle.info.category !== 'motorcycle')
   )

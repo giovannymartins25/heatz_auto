@@ -11,7 +11,7 @@ import { PHYSICS_TIMESTEP, MAX_SUBSTEPS } from '@/systems/engine/constants'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 import { clamp } from '@/utils/math'
 import type { AmbientLightColor } from '@/utils/ambientLighting'
-import type { CarUpgrades } from './useGarageStore'
+import { useGarageStore, type CarUpgrades } from './useGarageStore'
 
 
 /**
@@ -102,6 +102,10 @@ interface SimulationActions {
   setFuelType: (type: FuelType) => void
   /** Reparo Mecânico de Danos / Motor Fundido */
   repairEngine: () => void
+  /** Kit de Óxido Nitroso (NOS) */
+  setNosActive: (active: boolean) => void
+  purgeNos: () => void
+  refillNos: () => void
   /** Pista de Arrancada 402m (Drag Strip) */
   startDragRace: () => void
   resetDragRace: () => void
@@ -230,6 +234,13 @@ interface SimulationState {
   isGearGrinding: boolean
   gearGrindTrigger: number
 
+  // Kit de Óxido Nitroso (NOS)
+  hasNosKit: boolean
+  nosActive: boolean
+  nosPressurePercent: number
+  isNosPurging: boolean
+  nosPurgeTrigger: number
+
   // Pista de Arrancada 402m (Drag Strip)
   dragStage: DragTreeStage
   dragTimeSlip: DragTimeSlip | null
@@ -338,6 +349,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isGearGrinding: false,
   gearGrindTrigger: 0,
 
+  // Kit de Óxido Nitroso (NOS)
+  hasNosKit: false,
+  nosActive: false,
+  nosPressurePercent: 100,
+  isNosPurging: false,
+  nosPurgeTrigger: 0,
+
   // Pista de Arrancada 402m (Drag Strip)
   dragStage: 'idle',
   dragTimeSlip: null,
@@ -433,6 +451,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       hasLaunchControl,
       hasRetrofitInfotainment: Boolean(initialUpgrades?.multimediaKit),
       hasBoostGaugeKit: Boolean(initialUpgrades?.boostGaugeKit),
+      hasNosKit: Boolean(initialUpgrades?.hasNosKit),
+      nosActive: false,
+      nosPressurePercent: 100,
+      isNosPurging: false,
+      nosPurgeTrigger: 0,
       garageInstanceId: garageInstanceId ?? null,
       exhaustType: initialUpgrades?.exhaustType || (hasTurbo ? 'sport' : 'stock'),
       intakeType: initialUpgrades?.intakeType || 'stock',
@@ -625,6 +648,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         upgrades.multimediaKit !== undefined ? upgrades.multimediaKit : state.hasRetrofitInfotainment
       const hasBoostGaugeKit =
         upgrades.boostGaugeKit !== undefined ? upgrades.boostGaugeKit : state.hasBoostGaugeKit
+      const hasNosKit =
+        upgrades.hasNosKit !== undefined ? upgrades.hasNosKit : state.hasNosKit
       const exhaustValveOpen = upgrades.exhaustValveOpen ?? state.exhaustValveOpen
 
       if (_physics) {
@@ -642,6 +667,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         tuningStage,
         hasRetrofitInfotainment,
         hasBoostGaugeKit,
+        hasNosKit,
         exhaustValveOpen,
       }
     })
@@ -1147,6 +1173,36 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     })
   },
 
+  setNosActive: (active: boolean) => {
+    const { hasNosKit, nosPressurePercent, isRunning } = get()
+    if (!hasNosKit || nosPressurePercent <= 0 || !isRunning) {
+      set({ nosActive: false })
+      return
+    }
+    if (active) {
+      HapticFeedback.heavy()
+    }
+    set({ nosActive: active })
+  },
+
+  purgeNos: () => {
+    const { hasNosKit, nosPressurePercent } = get()
+    if (!hasNosKit || nosPressurePercent <= 0) return
+    HapticFeedback.light()
+    set((s) => ({
+      isNosPurging: true,
+      nosPurgeTrigger: Date.now(),
+      nosPressurePercent: Math.max(0, s.nosPressurePercent - 3),
+    }))
+    setTimeout(() => {
+      set({ isNosPurging: false })
+    }, 600)
+  },
+
+  refillNos: () => {
+    set({ nosPressurePercent: 100 })
+  },
+
   update: (frameTime: number) => {
     const state = get()
     const { _engine, _transmission, _autoTransmission, _clutch, _physics, _tcs, _config } = state
@@ -1324,7 +1380,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       const exhaustMult = state.exhaustType === 'straight_pipe' ? 1.08 : state.exhaustType === 'sport' ? 1.04 : 1.0
       const turboKitMult = (!_config.engine.turbo?.enabled && state.hasTurbo) ? 1.45 : 1.0
       const driveModeMult = state.drivingMode === 'track' ? 1.10 : state.drivingMode === 'sport' ? 1.05 : 1.0
-      const totalTorqueMult = stageMult * intakeMult * exhaustMult * turboKitMult * driveModeMult
+      const isNosInjecting = state.nosActive && state.hasNosKit && state.nosPressurePercent > 0 && state.throttle > 0.65 && latestIsRunning
+      const nosMult = isNosInjecting ? 1.55 : 1.0
+      const totalTorqueMult = stageMult * intakeMult * exhaustMult * turboKitMult * driveModeMult * nosMult
 
       // Atualiza atrito em tempo de execução com aderência dos pneus e asa ativa
       let targetFriction = state.tires === 'semi_slick' ? 1.22 : 0.95
@@ -1481,6 +1539,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         isTiming = false
         if (!bestTime || currentTime < bestTime) {
           bestTime = currentTime
+          // Premiação de R$ 2.500 por bater novo recorde pessoal de 0 a 100 km/h
+          useGarageStore.getState().addCredits(2500)
         }
       } else if (latestGear === 0 || (latestSpeed < 1 && state.throttle < 0.05)) {
         isTiming = false
@@ -1638,6 +1698,39 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         latestTimeSlip.trapSpeedKmh = Math.round(currentMoveSpeed)
         latestDragStage = 'finished'
         HapticFeedback.heavy()
+
+        // Cálculo de Recompensa em Dinheiro na Arrancada 402m
+        if (!latestTimeSlip.isDisqualified) {
+          let prize = 3000
+          const breakdown: string[] = ['Premiação base 402m: +R$ 3.000']
+          if (latestTimeSlip.reactionTime < 0.100) {
+            prize += 5000
+            breakdown.push('Reação perfeita (<0.100s): +R$ 5.000')
+          } else if (latestTimeSlip.reactionTime < 0.250) {
+            prize += 2000
+            breakdown.push('Reação rápida (<0.250s): +R$ 2.000')
+          }
+          if (latestTimeSlip.trapSpeedKmh >= 200) {
+            prize += 3000
+            breakdown.push('Trap Speed > 200 km/h: +R$ 3.000')
+          } else if (latestTimeSlip.trapSpeedKmh >= 160) {
+            prize += 1500
+            breakdown.push('Trap Speed > 160 km/h: +R$ 1.500')
+          }
+          latestTimeSlip.reward = prize
+          latestTimeSlip.rewardBreakdown = breakdown
+          useGarageStore.getState().addCredits(prize)
+        }
+      }
+    }
+
+    // ─── 6. Kit de Óxido Nitroso (NOS) & Consumo de Pressão ───
+    let latestNosPressure = state.nosPressurePercent
+    let latestNosActive = state.nosActive
+    if (state.hasNosKit && state.nosActive && state.throttle > 0.60 && latestIsRunning && latestNosPressure > 0) {
+      latestNosPressure = Math.max(0, latestNosPressure - frameTime * 12.5)
+      if (latestNosPressure <= 0) {
+        latestNosActive = false
       }
     }
 
@@ -1682,6 +1775,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       brakeFadeFactor: latestBrakeFadeFactor,
       isBurningOut,
       tireSmokeDensity: latestSmoke,
+      nosPressurePercent: latestNosPressure,
+      nosActive: latestNosActive,
       dragStage: latestDragStage,
       dragTimeSlip: latestTimeSlip,
       _dragDistanceTraveled: dragDistance,
