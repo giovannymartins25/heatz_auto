@@ -6,6 +6,7 @@ export interface ActiveKeysState {
   w: boolean
   e: boolean
   q: boolean
+  s: boolean
   up: boolean
   down: boolean
   space: boolean
@@ -48,6 +49,7 @@ export const useUIStore = create<UIStore>((set) => ({
     w: false,
     e: false,
     q: false,
+    s: false,
     up: false,
     down: false,
     space: false,

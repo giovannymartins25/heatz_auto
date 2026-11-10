@@ -19,6 +19,9 @@ export const KeyboardHUD = memo(function KeyboardHUD({
   const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
   const headlightsMode = useSimulationStore((s) => s.headlightsMode)
   const isRaining = useSimulationStore((s) => s.isRaining)
+  const isAutomaticVehicle = useSimulationStore((s) => s.isAutomaticVehicle)
+  const shifterPosition = useSimulationStore((s) => s.shifterPosition)
+  const drivingMode = useSimulationStore((s) => s.drivingMode)
 
   return (
     <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-950/80 border border-white/10 text-[10px] font-mono shadow-md select-none backdrop-blur-md">
@@ -69,6 +72,20 @@ export const KeyboardHUD = memo(function KeyboardHUD({
       >
         [ / ] · Marcha
       </span>
+
+      {/* [S] Modo Sport (Apenas em veículos automáticos) */}
+      {isAutomaticVehicle && (
+        <span
+          className={`px-2 py-0.5 rounded font-bold transition-all ${
+            activeKeys.s || shifterPosition === 'S' || drivingMode === 'sport'
+              ? 'bg-rose-600 text-white shadow-[0_0_10px_rgba(225,29,72,0.8)] scale-105'
+              : 'bg-zinc-900 text-zinc-400 border border-white/5'
+          }`}
+          title="Pressione S para ativar o Modo Sport"
+        >
+          S · Sport {shifterPosition === 'S' || drivingMode === 'sport' ? 'ON' : ''}
+        </span>
+      )}
 
       {/* [Espaço] Freio de Mão */}
       <span

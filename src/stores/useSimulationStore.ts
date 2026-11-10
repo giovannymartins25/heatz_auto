@@ -880,11 +880,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         break
       }
       case 'D': {
+        const targetGear = get().currentGear > 0 ? get().currentGear : 1
         _autoTransmission?.reset()
-        _transmission.shiftTo(1, speed, undefined, true)
+        _transmission.shiftTo(targetGear, speed, undefined, true)
         HapticFeedback.gearShift()
         set({
-          currentGear: 1,
+          currentGear: targetGear,
           shifterPosition: 'D',
           transmissionMode: 'automatic',
           drivingMode: 'normal',
@@ -892,11 +893,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         break
       }
       case 'S': {
+        const targetGear = get().currentGear > 0 ? get().currentGear : 1
         _autoTransmission?.reset()
-        _transmission.shiftTo(1, speed, undefined, true)
+        _transmission.shiftTo(targetGear, speed, undefined, true)
         HapticFeedback.gearShift()
         set({
-          currentGear: 1,
+          currentGear: targetGear,
           shifterPosition: 'S',
           transmissionMode: 'automatic',
           drivingMode: 'sport',

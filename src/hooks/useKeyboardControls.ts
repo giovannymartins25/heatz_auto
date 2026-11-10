@@ -14,10 +14,15 @@ import { clamp } from '@/utils/math'
  * - Espaço        = Freio de Mão (Handbrake)
  * - H             = Buzina (Horn)
  *
- * Mapeamento adicional (CVT / Sequencial):
+ * Mapeamento adicional (CVT / Sequencial / Automático):
  * - [ ou ArrowRight = Upshift (subir marcha)
  * - ] ou ArrowLeft  = Downshift (reduzir marcha)
  * - M               = Toggle AUTO ↔ MANUAL SIMULADO (apenas CVTs)
+ * - P               = Park (P)
+ * - R               = Reverse (R)
+ * - N               = Neutral (N)
+ * - D               = Drive (D)
+ * - S               = Sport Mode (S) — ativa modo esportivo no automático
  * - T               = Toggle TCS ON/OFF
  *
  * Aplica interpolação suave (~100-150ms) para simular o curso físico do pedal.
@@ -32,6 +37,7 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
   const selectReverse = useSimulationStore((s) => s.selectReverse)
   const selectNeutral = useSimulationStore((s) => s.selectNeutral)
   const selectDrive = useSimulationStore((s) => s.selectDrive)
+  const selectSport = useSimulationStore((s) => s.selectSport)
   const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
   const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
   const cycleHeadlights = useSimulationStore((s) => s.cycleHeadlights)
@@ -121,8 +127,8 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
       else if (key === 'm' && hasManualMode && !event.repeat && isRunning) {
         toggleSimulatedManual()
       }
-      // Modos Automáticos de Câmbio: P (Park), R (Reverse), N (Neutral), D (Drive)
-      // Somente para veículos automáticos/CVT/PDK/DSG — carros manuais ignoram P/R/D
+      // Modos Automáticos de Câmbio: P (Park), R (Reverse), N (Neutral), D (Drive), S (Sport)
+      // Somente para veículos automáticos/CVT/PDK/DSG — carros manuais ignoram P/R/D/S
       else if (key === 'p' && !event.repeat && isRunning && isAutomaticVehicle) {
         selectPark()
       }
@@ -134,6 +140,11 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
       }
       else if (key === 'd' && !event.repeat && isRunning && isAutomaticVehicle) {
         selectDrive()
+      }
+      else if (key === 's' && !event.repeat && isRunning && isAutomaticVehicle) {
+        setActiveKey('s', true)
+        setTimeout(() => setActiveKey('s', false), 200)
+        selectSport()
       }
       // Toggle TCS — T
       else if (key === 't' && !event.repeat) {
@@ -170,6 +181,8 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
       } else if (key === 'h') {
         setActiveKey('horn', false)
         setHorn(false)
+      } else if (key === 's') {
+        setActiveKey('s', false)
       }
     }
 
@@ -254,6 +267,11 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
     setTcsEnabled,
     setHandbrake,
     setHorn,
+    selectPark,
+    selectReverse,
+    selectNeutral,
+    selectDrive,
+    selectSport,
     setActiveKey,
   ])
 }

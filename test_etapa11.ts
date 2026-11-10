@@ -32,6 +32,7 @@ async function runEtapa11Tests() {
   const porscheConfig = loadConfig('porsche-gt3')
   const civicConfig = loadConfig('civic-si')
   const golQuadradoConfig = loadConfig('gol-quadrado-turbo')
+  const golfConfig = loadConfig('golf-gti')
 
   // ─── TESTE 1: Múltiplos carros do mesmo modelo na Garagem ───
   useGarageStore.getState().resetToDefaults()
@@ -171,6 +172,31 @@ async function runEtapa11Tests() {
 
   useSimulationStore.getState().selectShifterMode('R')
   assert(useSimulationStore.getState().shifterPosition === 'N', 'selectShifterMode("R") rejeitado em carro manual')
+
+  useSimulationStore.getState().selectShifterMode('S')
+  assert(useSimulationStore.getState().shifterPosition === 'N', 'selectShifterMode("S") rejeitado em carro manual')
+
+  useSimulationStore.getState().selectSport()
+  assert(useSimulationStore.getState().shifterPosition === 'N', 'selectSport() rejeitado em carro manual')
+
+  // Ativação do Modo Sport no automático (Golf GTI)
+  useSimulationStore.getState().reset()
+  useSimulationStore.getState().init(golfConfig)
+  assert(useSimulationStore.getState().isAutomaticVehicle === true, 'Golf GTI identificado como automático')
+  
+  useSimulationStore.getState().selectDrive()
+  assert(useSimulationStore.getState().shifterPosition === 'D' && useSimulationStore.getState().drivingMode === 'normal', 'selectDrive() ativa D e modo normal no automático')
+
+  useSimulationStore.getState().selectSport()
+  assert(useSimulationStore.getState().shifterPosition === 'S' && useSimulationStore.getState().drivingMode === 'sport', 'Tecla S / selectSport() ativa S e modo sport no automático')
+
+  // Troca D <-> S em velocidade preserva marcha sem resetar para 1ª marcha
+  useSimulationStore.setState({ currentGear: 4, speed: 80 })
+  useSimulationStore.getState().selectDrive()
+  assert(useSimulationStore.getState().currentGear === 4, 'Troca para D a 80 km/h preserva 4ª marcha sem tranco')
+
+  useSimulationStore.getState().selectSport()
+  assert(useSimulationStore.getState().currentGear === 4 && useSimulationStore.getState().drivingMode === 'sport', 'Troca para S a 80 km/h preserva 4ª marcha e ativa modo sport')
 
   // ─── TESTE 12: Isolamento de Upgrades entre diferentes instâncias ───
   const instanceA = useGarageStore.getState().buyCar('gol-g6', 'Gol A - Original', 42000)
