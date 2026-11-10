@@ -180,6 +180,7 @@ export class DashboardSystem {
     const speedNeedleAngle = mapRange(clampedSpeed, 0, maxSpeed, startAngle, endAngle)
 
     // 4. Marcha / Relação
+    const isPark = currentGear === -2
     const isNeutral = currentGear === 0
     const isReverse = currentGear === -1
     const isAutomatic = transmissionMode === 'automatic'
@@ -188,14 +189,18 @@ export class DashboardSystem {
     let gearLabel: string
     let gearSubLabel = ''
 
-    if (isNeutral) {
+    if (isPark) {
+      gearLabel = 'P'
+      gearSubLabel = 'PARK'
+    } else if (isNeutral) {
       gearLabel = 'N'
       gearSubLabel = isAutomatic ? 'NEUTRO' : 'PONTO MORTO'
     } else if (isReverse) {
       gearLabel = 'R'
       gearSubLabel = 'RÉ'
     } else if (isAutomatic) {
-      gearLabel = `D${currentGear > 0 ? currentGear : ''}`
+      const modeLetter = drivingMode === 'sport' ? 'S' : 'D'
+      gearLabel = `${modeLetter}${currentGear > 0 ? currentGear : 1}`
       gearSubLabel = drivingMode.toUpperCase()
     } else if (isManualSimulated) {
       gearLabel = `M${currentGear}`

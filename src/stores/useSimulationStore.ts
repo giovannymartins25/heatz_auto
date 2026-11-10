@@ -48,6 +48,14 @@ interface SimulationActions {
   shiftDown: () => void
   /** Coloca em neutro */
   shiftNeutral: () => void
+  /** Seleciona modo de câmbio automático: P, R, N, D, S, M */
+  selectShifterMode: (mode: 'P' | 'R' | 'N' | 'D' | 'S' | 'M') => void
+  selectPark: () => void
+  selectReverse: () => void
+  selectNeutral: () => void
+  selectDrive: () => void
+  selectSport: () => void
+  selectManual: () => void
   /** Liga ou desliga o TCS */
   setTcsEnabled: (enabled: boolean) => void
   /** Define estado do freio de mão */
@@ -84,6 +92,7 @@ interface SimulationState {
   drivingMode: DrivingMode
   isKickdown: boolean
   lastShiftReason: string     // 'none' | 'clutch_required' | 'over_rev' | 'gear_limit'
+  shifterPosition: 'P' | 'R' | 'N' | 'D' | 'S' | 'M'
 
   // Estado da embreagem (telemetria real)
   clutchSlipRpm: number        // Diferenciação de RPM entre motor e transmissão
@@ -152,6 +161,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   drivingMode: 'normal',
   isKickdown: false,
   lastShiftReason: 'none',
+  shifterPosition: 'P',
   clutchSlipRpm: 0,
   clutchSlipRatio: 0,
   clutchTorqueTransfer: 0,
@@ -238,6 +248,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       config.engine.turbo?.enabled
     )
 
+    transmission.shiftTo(isAutoOrCvt ? -2 : 0, 0, undefined, true)
+
     set({
       _engine: engine,
       _transmission: transmission,
@@ -256,7 +268,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       peakBoostBar: 0,
       rpm: 0,
       speed: 0,
-      currentGear: isAutoOrCvt ? 1 : 0,
+      currentGear: isAutoOrCvt ? -2 : 0,
       throttle: 0,
       brake: 0,
       clutchPosition: isAutoOrCvt ? 0 : 0,
@@ -265,6 +277,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isKickdown: false,
       isBogWarning: false,
       lastShiftReason: 'none',
+      shifterPosition: isAutoOrCvt ? 'P' : 'N',
       clutchSlipRpm: 0,
       clutchSlipRatio: 0,
       clutchTorqueTransfer: 0,
@@ -473,14 +486,82 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     }
   },
 
-  shiftNeutral: () => {
-    const { _transmission, transmissionMode } = get()
-    if (!_transmission) return
-    if (transmissionMode === 'automatic' || transmissionMode === 'manual_simulated') return
+  selectShifterMode: (mode: 'P' | 'R' | 'N' | 'D' | 'S' | 'M') => {
+    const { _transmission, _autoTransmission, _physics, _config, speed } = get()
+    if (!_transmission || !_config) return
 
+    switch (mode) {
+      case 'P': {
+        _transmission.shiftTo(-2, 0, undefined, true)
+        _physics?.reset()
+        HapticFeedback.gearShift()
+        set({ currentGear: -2, shifterPosition: 'P' })
+        break
+      }
+      case 'R': {
+        _autoTransmission?.reset()
+        _transmission.shiftTo(-1, speed, undefined, true)
+        HapticFeedback.gearShift()
+        set({ currentGear: -1, shifterPosition: 'R' })
+        break
+      }
+      case 'N': {
+        _transmission.neutral()
+        HapticFeedback.light()
+        set({ currentGear: 0, shifterPosition: 'N' })
+        break
+      }
+      case 'D': {
+        _autoTransmission?.reset()
+        _transmission.shiftTo(1, speed, undefined, true)
+        HapticFeedback.gearShift()
+        set({
+          currentGear: 1,
+          shifterPosition: 'D',
+          transmissionMode: 'automatic',
+          drivingMode: 'normal',
+        })
+        break
+      }
+      case 'S': {
+        _autoTransmission?.reset()
+        _transmission.shiftTo(1, speed, undefined, true)
+        HapticFeedback.gearShift()
+        set({
+          currentGear: 1,
+          shifterPosition: 'S',
+          transmissionMode: 'automatic',
+          drivingMode: 'sport',
+        })
+        break
+      }
+      case 'M': {
+        const gear = get().currentGear <= 0 ? 1 : get().currentGear
+        _transmission.shiftTo(gear, speed, undefined, true)
+        HapticFeedback.gearShift()
+        set({
+          currentGear: gear,
+          shifterPosition: 'M',
+          transmissionMode: 'manual_simulated',
+        })
+        break
+      }
+    }
+  },
+
+  selectPark: () => get().selectShifterMode('P'),
+  selectReverse: () => get().selectShifterMode('R'),
+  selectNeutral: () => get().selectShifterMode('N'),
+  selectDrive: () => get().selectShifterMode('D'),
+  selectSport: () => get().selectShifterMode('S'),
+  selectManual: () => get().selectShifterMode('M'),
+
+  shiftNeutral: () => {
+    const { _transmission } = get()
+    if (!_transmission) return
     _transmission.neutral()
     HapticFeedback.light()
-    set({ currentGear: 0 })
+    set({ currentGear: 0, shifterPosition: 'N' })
   },
 
   setTcsEnabled: (enabled: boolean) => {
@@ -645,7 +726,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       const gear = _transmission.currentGear
       const gearRatio = _transmission.calculator.getGearRatio(gear)
       const finalDrive = _config.transmission.finalDrive
-      const isInNeutral = gear === 0
+      const isInNeutral = gear === 0 || gear === -2
 
       // 2. Velocidade angular das rodas e da entrada da transmissão
       const speedMs = _physics.getSpeedMs()
@@ -695,7 +776,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       latestIsClutchSlipping = clutchState.isSlipping
 
       // 5. VehiclePhysics: calcula forças longitudinais
-      const effectiveBrake = Math.max(state.brake, state.handbrake ? 1 : 0)
+      const effectiveBrake = Math.max(state.brake, state.handbrake || gear === -2 ? 1 : 0)
       const physicsTick = _physics.tick({
         driveTorqueAtTransmission: clutchState.transmittedTorque,
         gearRatio,
@@ -704,7 +785,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         deltaTime: dt,
       })
 
-      latestSpeed = physicsTick.speedKmh
+      latestSpeed = gear === -2 ? 0 : physicsTick.speedKmh
+      if (gear === -2) {
+        _physics.reset()
+      }
 
       // 6. TractionControlSystem: atua após a física, prepara multiplicador para o próximo frame
       // (O TCS modula o torque de forma suave — a intervenção real ocorre no próximo tick via
@@ -868,6 +952,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       drivingMode: 'normal',
       isKickdown: false,
       lastShiftReason: 'none',
+  shifterPosition: 'P',
       clutchSlipRpm: 0,
       clutchSlipRatio: 0,
       clutchTorqueTransfer: 0,

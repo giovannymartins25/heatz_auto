@@ -28,6 +28,10 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
   const setClutch = useSimulationStore((s) => s.setClutch)
   const shiftUp = useSimulationStore((s) => s.shiftUp)
   const shiftDown = useSimulationStore((s) => s.shiftDown)
+  const selectPark = useSimulationStore((s) => s.selectPark)
+  const selectReverse = useSimulationStore((s) => s.selectReverse)
+  const selectNeutral = useSimulationStore((s) => s.selectNeutral)
+  const selectDrive = useSimulationStore((s) => s.selectDrive)
   const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
   const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
   const setHandbrake = useSimulationStore((s) => s.setHandbrake)
@@ -103,6 +107,19 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
       // Toggle AUTO ↔ MANUAL SIMULADO — M (sem event.repeat para evitar spam)
       else if (key === 'm' && hasManualMode && !event.repeat && isRunning) {
         toggleSimulatedManual()
+      }
+      // Modos Automáticos de Câmbio: P (Park), R (Reverse), N (Neutral), D (Drive)
+      else if (key === 'p' && !event.repeat && isRunning) {
+        selectPark()
+      }
+      else if (key === 'r' && !event.repeat && isRunning) {
+        selectReverse()
+      }
+      else if (key === 'n' && !event.repeat && isRunning) {
+        selectNeutral()
+      }
+      else if (key === 'd' && !event.repeat && isRunning) {
+        selectDrive()
       }
       // Toggle TCS — T
       else if (key === 't' && !event.repeat) {

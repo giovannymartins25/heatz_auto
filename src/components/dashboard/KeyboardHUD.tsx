@@ -67,6 +67,11 @@ export const KeyboardHUD = memo(function KeyboardHUD({
         [ / ] · Marcha
       </span>
 
+      {/* P / R / N / D Câmbio */}
+      <span className="px-2 py-0.5 rounded font-bold bg-zinc-900 text-zinc-400 border border-white/5 hidden xl:inline">
+        P / R / N / D · Câmbio Auto
+      </span>
+
       {/* [Espaço] Freio de Mão */}
       <span
         className={`px-2 py-0.5 rounded font-bold transition-all ${

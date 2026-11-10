@@ -44,6 +44,8 @@ console.log('══════════════════════�
 const porscheConfig = loadConfig('vehicles/porsche-gt3/config.json')
 const golConfig = loadConfig('vehicles/gol-g6/config.json')
 const gtiConfig = loadConfig('vehicles/golf-gti/config.json')
+const yarisConfig = loadConfig('vehicles/yaris-2019/config.json')
+const cb1000rConfig = loadConfig('vehicles/cb1000r/config.json')
 
 // 1. Cronômetro 0-100 NÃO inicia no neutro
 test('0-100 km/h: Acelerar a fundo em Neutro NÃO dispara o cronômetro', () => {
@@ -69,6 +71,7 @@ test('0-100 km/h: Segurar freio e acelerador no Launch Control NÃO dispara o cr
   const store = useSimulationStore.getState()
   store.init(porscheConfig)
   startAndRunEngine()
+  store.selectDrive()
 
   // Em D (1ª marcha automática), freio a 90%, acelerador a 100%
   useSimulationStore.setState({ brake: 0.9, throttle: 1.0, speed: 0 })
@@ -88,6 +91,7 @@ test('Launch Control: Porsche 992 Bi-Turbo limita giro em 4.500 RPM na armação
   const store = useSimulationStore.getState()
   store.init(porscheConfig)
   startAndRunEngine()
+  store.selectDrive()
 
   useSimulationStore.setState({ brake: 0.85, throttle: 0.95, speed: 0 })
 
@@ -134,6 +138,7 @@ test('Turbo: Golf GTI Mk7 2.0 TSI ativa hasTurbo=true, enche pressão até pico 
   const store = useSimulationStore.getState()
   store.init(gtiConfig)
   startAndRunEngine()
+  store.selectDrive()
 
   assert(useSimulationStore.getState().hasTurbo === true, 'Golf GTI deve ter hasTurbo=true!')
 
@@ -174,6 +179,66 @@ test('Transmissão: Porsche PDK e Golf GTI DSG suportam modo Automático e toggl
   assert(useSimulationStore.getState().transmissionMode === 'automatic', 'Porsche PDK deve iniciar em automático (D)!')
   store.toggleSimulatedManual()
   assert(useSimulationStore.getState().transmissionMode === 'manual_simulated', 'Porsche deve alternar para Manual M!')
+})
+
+// 8. Câmbio Automático: Suporte a P (Park), R (Reverse), N (Neutral), D (Drive), S (Sport) e M (Manual)
+test('Câmbio Automático: Suporte a P (Park), R (Reverse), N (Neutral), D (Drive), S (Sport) e M (Manual)', () => {
+  const store = useSimulationStore.getState()
+  store.init(porscheConfig)
+  startAndRunEngine()
+
+  // Inicia em Park (P / -2)
+  assert(useSimulationStore.getState().currentGear === -2, 'Deve iniciar em Park (gear -2)')
+  assert(useSimulationStore.getState().shifterPosition === 'P', 'shifterPosition deve ser P')
+
+  // Posição D (Drive)
+  store.selectDrive()
+  assert(useSimulationStore.getState().currentGear === 1, 'Drive deve engatar 1ª marcha')
+  assert(useSimulationStore.getState().shifterPosition === 'D', 'shifterPosition deve ser D')
+  assert(useSimulationStore.getState().drivingMode === 'normal', 'drivingMode deve ser normal')
+
+  // Posição S (Sport)
+  store.selectSport()
+  assert(useSimulationStore.getState().currentGear === 1, 'Sport deve manter marcha')
+  assert(useSimulationStore.getState().shifterPosition === 'S', 'shifterPosition deve ser S')
+  assert(useSimulationStore.getState().drivingMode === 'sport', 'drivingMode deve ser sport')
+
+  // Posição M (Manual / Tiptronic)
+  store.selectManual()
+  assert(useSimulationStore.getState().transmissionMode === 'manual_simulated', 'Manual deve ativar manual_simulated')
+  assert(useSimulationStore.getState().shifterPosition === 'M', 'shifterPosition deve ser M')
+
+  // Posição N (Neutral)
+  store.selectNeutral()
+  assert(useSimulationStore.getState().currentGear === 0, 'Neutral deve desengatar para marcha 0')
+  assert(useSimulationStore.getState().shifterPosition === 'N', 'shifterPosition deve ser N')
+
+  // Posição R (Reverse)
+  store.selectReverse()
+  assert(useSimulationStore.getState().currentGear === -1, 'Reverse deve engatar marcha -1')
+  assert(useSimulationStore.getState().shifterPosition === 'R', 'shifterPosition deve ser R')
+
+  // Volta para P (Park)
+  store.selectPark()
+  assert(useSimulationStore.getState().currentGear === -2, 'Park deve engatar marcha -2')
+  assert(useSimulationStore.getState().shifterPosition === 'P', 'shifterPosition deve ser P')
+})
+
+// 9. Multimídia Inteligente: Gol G6 e CB1000R não possuem multimídia; Golf GTI, Porsche e Yaris possuem multimídia com YouTube
+test('Multimídia Inteligente: Gol G6 e CB1000R não possuem multimídia; Golf GTI, Porsche e Yaris possuem multimídia com YouTube', () => {
+  const isInfotainmentActive = (cfg: VehicleConfig) => {
+    return cfg.dashboard?.hasInfotainment ?? (
+      cfg.id !== 'gol-g6' &&
+      cfg.id !== 'cb1000r' &&
+      cfg.info.category !== 'motorcycle'
+    )
+  }
+
+  assert(isInfotainmentActive(golConfig) === false, 'Gol G6 NÃO deve possuir multimídia de fábrica')
+  assert(isInfotainmentActive(cb1000rConfig) === false, 'CB1000R NÃO deve possuir multimídia de fábrica')
+  assert(isInfotainmentActive(gtiConfig) === true, 'Golf GTI Mk7 DEVE possuir multimídia Discover Pro')
+  assert(isInfotainmentActive(porscheConfig) === true, 'Porsche 911 DEVE possuir multimídia PCM 6.0')
+  assert(isInfotainmentActive(yarisConfig) === true, 'Toyota Yaris DEVE possuir multimídia Smart Connect')
 })
 
 console.log('\n═══════════════════════════════════════════════════════════════')

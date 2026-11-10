@@ -157,7 +157,7 @@ export class Transmission {
     maxRpm?: number,
     bypassClutchCheck: boolean = false,
   ): ShiftResult {
-    if (gear < -1 || gear > this.config.gearCount) {
+    if (gear < -2 || gear > this.config.gearCount) {
       return { gear: this._currentGear, newRpm: 0, success: false, reason: 'gear_limit' }
     }
 

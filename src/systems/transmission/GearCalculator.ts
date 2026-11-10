@@ -15,9 +15,9 @@ export class GearCalculator {
     this.wheelCircumference = Math.PI * wheelDiameter
   }
 
-  /** Retorna a relação de uma marcha específica. 0 = neutro, -1 = ré */
+  /** Retorna a relação de uma marcha específica. 0 = neutro, -1 = ré, -2 = park */
   getGearRatio(gear: number): number {
-    if (gear === 0) return 0
+    if (gear === 0 || gear === -2) return 0
     if (gear === -1) return this.config.reverseRatio
 
     const gearEntry = this.config.gearRatios.find(g => g.gear === gear)

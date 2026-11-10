@@ -118,13 +118,23 @@ export class AutomaticTransmission {
       targetClutchEngagement = clamp(Math.pow(rpmRatio, 3.0) * 0.72 + speedRatio * 0.28, 0.05, 0.98)
     }
 
-    // Se estiver em ponto morto (neutro), não realiza trocas automáticas
-    if (currentGear === 0) {
+    // Se estiver em Park (-2) ou ponto morto (0), não realiza trocas automáticas para frente
+    if (currentGear === -2 || currentGear === 0) {
       return {
-        targetGear: 0,
+        targetGear: currentGear,
         targetClutchEngagement: 0,
         isKickdown: false,
         targetRpm: this.config.idleRpm,
+      }
+    }
+
+    // Se estiver em marcha ré (-1), mantém ré com acoplamento automático do conversor
+    if (currentGear === -1) {
+      return {
+        targetGear: -1,
+        targetClutchEngagement,
+        isKickdown: false,
+        targetRpm: currentRpm,
       }
     }
 
