@@ -4,6 +4,7 @@ import type { DashboardTelemetry } from '@/systems/dashboard'
 import { BoostGauge } from '@/components/gauges'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { clamp } from '@/utils/math'
+import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
 import { ClimateControlPanel } from './shared/ClimateControlPanel'
 import { InternetMediaCenter } from './shared/InternetMediaCenter'
 
@@ -36,7 +37,10 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
 }: GolfGTIDiscoverProProps) {
   const [activeTab, setActiveTab] = useState<GTIActiveTab>('sport')
   const [clockTime, setClockTime] = useState('14:32')
-  const [ambientColor, setAmbientColor] = useState<'red' | 'blue' | 'amber' | 'white'>('red')
+
+  const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
+  const setAmbientLightColor = useSimulationStore((s) => s.setAmbientLightColor)
+  const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.red
 
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
@@ -68,27 +72,17 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
   // Temperatura do óleo
   const oilTemp = Math.round(coolantTemp + (rpm > 4000 ? 7 : 3))
 
-  // Cores de iluminação ambiente
-  const ambientGlow =
-    ambientColor === 'blue'
-      ? 'shadow-[0_12px_45px_rgba(37,99,235,0.25)] border-blue-600/40'
-      : ambientColor === 'amber'
-      ? 'shadow-[0_12px_45px_rgba(245,158,11,0.25)] border-amber-600/40'
-      : ambientColor === 'white'
-      ? 'shadow-[0_12px_45px_rgba(255,255,255,0.15)] border-zinc-500/40'
-      : 'shadow-[0_12px_45px_rgba(220,38,38,0.25)] border-red-600/40'
-
   return (
     <div
-      className={`relative flex flex-col rounded-[1.8rem] bg-gradient-to-b from-[#131418] via-[#0b0c0f] to-[#050608] border-2 ${ambientGlow} overflow-hidden select-none font-mono transition-all duration-300 ${
+      className={`relative flex flex-col rounded-[1.8rem] bg-gradient-to-b from-[#131418] via-[#0b0c0f] to-[#050608] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} overflow-hidden select-none font-mono transition-all duration-300 ${
         compact ? 'w-[270px] p-2' : 'w-[325px] sm:w-[350px] p-2.5 sm:p-3'
       } ${className}`}
     >
       {/* ── Friso Superior GTI & Barra de Status ── */}
-      <div className="w-full flex items-center justify-between pb-1.5 mb-1.5 border-b border-red-600/20 text-[8px] sm:text-[9px]">
+      <div className={`w-full flex items-center justify-between pb-1.5 mb-1.5 border-b ${ambientTheme.headerBorderClass} text-[8px] sm:text-[9px]`}>
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
-          <span className="font-black text-red-500 tracking-wider">DISCOVER PRO</span>
+          <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: ambientTheme.hex }} />
+          <span className="font-black tracking-wider" style={{ color: ambientTheme.hex }}>DISCOVER PRO</span>
           <span className="text-zinc-400 font-bold hidden xs:inline">· SPORT HMI</span>
         </div>
         <div className="flex items-center gap-2 text-zinc-400 font-bold">
@@ -251,51 +245,53 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
         {activeTab === 'ambient' && (
           <div className="w-full flex flex-col items-center justify-center py-2 gap-2 text-center">
             <span className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest">
-              ILUMINAÇÃO AMBIENTE GTI (CABINE)
+              ILUMINAÇÃO AMBIENTE GTI (CABINE & PAINEL)
             </span>
-            <div className="w-full grid grid-cols-4 gap-1.5 px-2 my-1">
-              <button
-                onClick={() => setAmbientColor('red')}
-                className={`py-2 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                  ambientColor === 'red' ? 'bg-red-600/30 border-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.5)]' : 'bg-zinc-900/60 border-white/10 text-zinc-400'
-                }`}
-              >
-                <span className="w-3.5 h-3.5 rounded-full bg-red-600 shadow-[0_0_8px_rgba(239,68,68,0.9)]" />
-                <span className="text-[7px] font-bold">VERMELHO GTI</span>
-              </button>
-
-              <button
-                onClick={() => setAmbientColor('blue')}
-                className={`py-2 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                  ambientColor === 'blue' ? 'bg-blue-600/30 border-blue-500 text-white shadow-[0_0_12px_rgba(37,99,235,0.5)]' : 'bg-zinc-900/60 border-white/10 text-zinc-400'
-                }`}
-              >
-                <span className="w-3.5 h-3.5 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.9)]" />
-                <span className="text-[7px] font-bold">AZUL GOLF R</span>
-              </button>
-
-              <button
-                onClick={() => setAmbientColor('amber')}
-                className={`py-2 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                  ambientColor === 'amber' ? 'bg-amber-600/30 border-amber-500 text-white shadow-[0_0_12px_rgba(245,158,11,0.5)]' : 'bg-zinc-900/60 border-white/10 text-zinc-400'
-                }`}
-              >
-                <span className="w-3.5 h-3.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.9)]" />
-                <span className="text-[7px] font-bold">CLUBSPORT</span>
-              </button>
-
-              <button
-                onClick={() => setAmbientColor('white')}
-                className={`py-2 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                  ambientColor === 'white' ? 'bg-white/20 border-white text-white shadow-[0_0_12px_rgba(255,255,255,0.4)]' : 'bg-zinc-900/60 border-white/10 text-zinc-400'
-                }`}
-              >
-                <span className="w-3.5 h-3.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]" />
-                <span className="text-[7px] font-bold">BRANCO PURO</span>
-              </button>
+            <div className="w-full grid grid-cols-4 sm:grid-cols-4 gap-1.5 px-2 my-1">
+              {(
+                [
+                  { id: 'red', name: 'VERMELHO GTI', hex: '#ef4444' },
+                  { id: 'blue', name: 'AZUL GOLF R', hex: '#3b82f6' },
+                  { id: 'amber', name: 'CLUBSPORT', hex: '#f59e0b' },
+                  { id: 'cyan', name: 'AZUL GELO', hex: '#06b6d4' },
+                  { id: 'purple', name: 'ROXO VIOLETA', hex: '#a855f7' },
+                  { id: 'green', name: 'VERDE MINT', hex: '#10b981' },
+                  { id: 'white', name: 'BRANCO PURO', hex: '#ffffff' },
+                ] as const
+              ).map((col) => {
+                const isSelected = ambientLightColor === col.id
+                return (
+                  <button
+                    key={col.id}
+                    onClick={() => setAmbientLightColor(col.id)}
+                    className={`py-1.5 px-1 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-zinc-800 border-white text-white shadow-lg'
+                        : 'bg-zinc-900/60 border-white/10 text-zinc-400 hover:text-white'
+                    }`}
+                    style={
+                      isSelected
+                        ? {
+                            borderColor: col.hex,
+                            boxShadow: `0 0 12px ${col.hex}66`,
+                          }
+                        : {}
+                    }
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full shadow"
+                      style={{
+                        backgroundColor: col.hex,
+                        boxShadow: `0 0 8px ${col.hex}aa`,
+                      }}
+                    />
+                    <span className="text-[6.5px] font-bold leading-tight truncate w-full">{col.name}</span>
+                  </button>
+                )
+              })}
             </div>
-            <span className="text-[7px] text-zinc-500">
-              Personaliza o brilho de LED do painel e frisos das portas
+            <span className="text-[7px] text-zinc-400 font-semibold">
+              Sincroniza o brilho de LED do painel de instrumentos, console e multimídia
             </span>
           </div>
         )}

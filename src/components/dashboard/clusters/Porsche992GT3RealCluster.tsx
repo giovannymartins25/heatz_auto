@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { mapRange, clamp } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
 
 interface Porsche992GT3RealClusterProps {
   telemetry: DashboardTelemetry
@@ -38,6 +39,8 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
   const currentGear = useSimulationStore((s) => s.currentGear)
+  const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
+  const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.amber
 
   const pdkDisplay = transmissionMode === 'automatic'
     ? (currentGear === 0 ? 'N' : currentGear === -1 ? 'R' : drivingMode === 'sport' || drivingMode === 'track' ? `S${currentGear || 1}` : `D${currentGear || 1}`)
@@ -97,12 +100,12 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
   const gForceY = Math.min(1.4, Math.max(-1.4, (speedometer.speed > 5 ? 0.6 : 0) * (tachometer.rpm > 5000 ? 1 : 0.4)))
 
   return (
-    <div className="relative flex flex-col items-center w-full max-w-6xl p-3 sm:p-5 rounded-[2.5rem] bg-gradient-to-b from-[#0a0b0e] via-zinc-950 to-black border-2 border-amber-500/30 shadow-[0_20px_70px_rgba(245,158,11,0.12)] select-none">
+    <div className={`relative flex flex-col items-center w-full max-w-6xl p-3 sm:p-5 rounded-[2.5rem] bg-gradient-to-b from-[#0a0b0e] via-zinc-950 to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
       {/* ── Régua Superior de Shift Lights F1 / GT3 RS Duplos Convergentes ── */}
       <div className="flex flex-col items-center w-full max-w-xl mb-2">
         <div className="flex items-center justify-between w-full px-2 mb-1 text-[10px] font-mono">
-          <span className="text-amber-400 font-black tracking-widest flex items-center gap-1.5 uppercase">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+          <span className="font-black tracking-widest flex items-center gap-1.5 uppercase" style={{ color: ambientTheme.hex }}>
+            <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: ambientTheme.hex }} />
             992 GT3 RS · CLUSTER DIGITAL
           </span>
           <div className="flex items-center gap-2">

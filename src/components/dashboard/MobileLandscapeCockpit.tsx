@@ -59,7 +59,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const isCvtWithManual = vehicle.transmission.hasManualMode === true
   const isManualSimulated = transmissionMode === 'manual_simulated'
-  const isManualOrSimulated = transmissionMode === 'manual' || transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
   const hasInfotainment =
     vehicle.dashboard?.hasInfotainment ??
@@ -395,17 +394,10 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           </button>
         </div>
 
-        {/* Câmbio Sequencial Touch (▲ + e ▼ -) */}
-        {isManualOrSimulated ? (
-          <div className="my-auto py-1">
-            <GearShift orientation="vertical" size="compact" />
-          </div>
-        ) : (
-          <div className="my-auto text-center px-2 py-3 rounded-xl bg-zinc-900/50 border border-white/5">
-            <span className="text-[9px] font-mono uppercase text-zinc-500 block">CVT</span>
-            <span className="text-xs font-mono font-bold text-emerald-400">AUTO</span>
-          </div>
-        )}
+        {/* Seletor de Câmbio: PRNDS/M para automáticos e [-][N][+] para manuais (sempre ativo) */}
+        <div className="my-auto py-1">
+          <GearShift orientation="vertical" size="compact" />
+        </div>
 
         {/* Botão de Freio de Mão & Alternador AUTO/MANUAL */}
         <div className="flex flex-col gap-1 w-full">

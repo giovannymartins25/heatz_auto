@@ -34,8 +34,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const isRunning = useSimulationStore((s) => s.isRunning)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
   const setDrivingMode = useSimulationStore((s) => s.setDrivingMode)
-  const transmissionMode = useSimulationStore((s) => s.transmissionMode)
-  const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
   const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
   const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
   const setHorn = useSimulationStore((s) => s.setHorn)
@@ -49,9 +47,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const isLaunching = useSimulationStore((s) => s.isLaunching)
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
-  const isCvtWithManual = vehicle.transmission.hasManualMode === true
-  const isManualSimulated = transmissionMode === 'manual_simulated'
-  const isManualOrSimulated = transmissionMode === 'manual' || transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
   const hasInfotainment =
     vehicle.dashboard?.hasInfotainment ??
@@ -299,57 +294,40 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           </div>
         )}
 
-        {/* Barra de Ações: Start Engine, Câmbio e Buzina */}
-        <div className="flex items-center justify-between w-full max-w-xs px-2 pt-1">
-          <div className="scale-90 origin-left">
-            <EngineButton />
-          </div>
+        {/* Barra de Controles e Câmbio (Sempre Ativo) */}
+        <div className="w-full flex flex-col items-center gap-1.5 px-2 pt-1 max-w-sm">
+          {/* Seletor de Câmbio: PRNDS/M para automáticos e [-][N][+] para manuais */}
+          <GearShift size="compact" orientation="horizontal" />
 
-          {/* Buzina Touch */}
-          <button
-            onPointerDown={() => setHorn(true)}
-            onPointerUp={() => setHorn(false)}
-            onPointerCancel={() => setHorn(false)}
-            className="w-10 h-10 rounded-full bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-sm font-bold transition-all active:scale-95 cursor-pointer shadow"
-            title="Buzina"
-          >
-            📢
-          </button>
-
-          {/* Freio de Mão */}
-          <button
-            onClick={toggleHandbrake}
-            className={`px-3 py-1.5 rounded-xl border font-mono text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
-              handbrake
-                ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.6)]'
-                : 'bg-zinc-900 text-zinc-400 border-white/10'
-            }`}
-          >
-            (P) FREIO
-          </button>
-
-          {/* Alavanca de Câmbio / Paddle Shift */}
-          {isManualOrSimulated ? (
-            <div className="scale-90 origin-right">
-              <GearShift size="compact" orientation="horizontal" />
+          {/* Botões Secundários: Start Engine, Buzina e Freio de Mão */}
+          <div className="flex items-center justify-between w-full px-2">
+            <div className="scale-90 origin-left">
+              <EngineButton />
             </div>
-          ) : isCvtWithManual ? (
+
+            {/* Buzina Touch */}
             <button
-              onClick={toggleSimulatedManual}
-              disabled={!isRunning}
-              className={`px-2.5 py-1 rounded-xl border font-mono text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
-                isManualSimulated
-                  ? 'bg-sky-500/20 border-sky-500 text-sky-400'
-                  : 'bg-zinc-900/80 border-white/10 text-zinc-400'
+              onPointerDown={() => setHorn(true)}
+              onPointerUp={() => setHorn(false)}
+              onPointerCancel={() => setHorn(false)}
+              className="w-10 h-10 rounded-full bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-sm font-bold transition-all active:scale-95 cursor-pointer shadow"
+              title="Buzina"
+            >
+              📢
+            </button>
+
+            {/* Freio de Mão */}
+            <button
+              onClick={toggleHandbrake}
+              className={`px-3 py-1.5 rounded-xl border font-mono text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
+                handbrake
+                  ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.6)]'
+                  : 'bg-zinc-900 text-zinc-400 border-white/10'
               }`}
             >
-              {isManualSimulated ? 'M-SIM' : 'AUTO'}
+              (P) {handbrake ? 'TRAVADO' : 'FREIO'}
             </button>
-          ) : (
-            <span className="text-[10px] font-mono text-emerald-400 font-bold px-2 py-1 rounded bg-zinc-900 border border-white/10">
-              CVT
-            </span>
-          )}
+          </div>
         </div>
       </main>
 

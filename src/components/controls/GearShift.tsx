@@ -21,6 +21,7 @@ export const GearShift = memo(function GearShift({
   size = 'normal',
 }: GearShiftProps) {
   const currentGear = useSimulationStore((s) => s.currentGear)
+  const isAutomaticVehicle = useSimulationStore((s) => s.isAutomaticVehicle)
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
   const shifterPosition = useSimulationStore((s) => s.shifterPosition)
@@ -39,15 +40,6 @@ export const GearShift = memo(function GearShift({
 
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
   const lastActionTimeRef = useRef(0)
-
-  // Verifica se o veículo é de transmissão automática / CVT
-  const isAutomaticVehicle =
-    transmissionMode === 'automatic' ||
-    transmissionMode === 'manual_simulated' ||
-    currentGear === -2 ||
-    shifterPosition === 'P' ||
-    shifterPosition === 'D' ||
-    shifterPosition === 'S'
 
   const handleShiftUp = (e: React.SyntheticEvent) => {
     e.preventDefault()
@@ -96,25 +88,21 @@ export const GearShift = memo(function GearShift({
     large: 'w-14 h-14 sm:w-16 sm:h-16 text-xl sm:text-2xl',
   }[size]
 
-  // Posições ativas do câmbio automático
-  const isP = currentGear === -2 || shifterPosition === 'P'
-  const isR = currentGear === -1 || shifterPosition === 'R'
-  const isN = currentGear === 0 || shifterPosition === 'N'
-  const isD =
-    transmissionMode === 'automatic' &&
-    drivingMode !== 'sport' &&
-    currentGear >= 1 &&
-    !isP &&
-    !isR &&
-    !isN
-  const isS =
-    transmissionMode === 'automatic' &&
-    drivingMode === 'sport' &&
-    currentGear >= 1 &&
-    !isP &&
-    !isR &&
-    !isN
-  const isM = transmissionMode === 'manual_simulated' || shifterPosition === 'M'
+  // Posições ativas do câmbio automático — exatamente UMA única ativa por vez
+  const isP = shifterPosition === 'P' || currentGear === -2
+  const isR = !isP && (shifterPosition === 'R' || currentGear === -1)
+  const isN = !isP && !isR && (shifterPosition === 'N' || (currentGear === 0 && transmissionMode !== 'manual_simulated'))
+  const isM = !isP && !isR && !isN && (shifterPosition === 'M' || transmissionMode === 'manual_simulated')
+  const isS = !isP && !isR && !isN && !isM && (shifterPosition === 'S' || drivingMode === 'sport')
+  const isD = !isP && !isR && !isN && !isM && !isS
+
+  const activeLabel =
+    isP ? 'PARK'
+    : isR ? 'RÉ'
+    : isN ? 'NEUTRO'
+    : isS ? (currentGear > 0 ? `SPORT (S${currentGear})` : 'SPORT')
+    : isM ? (currentGear > 0 ? `MANUAL (M${currentGear})` : 'MANUAL')
+    : (currentGear > 0 ? `DRIVE (D${currentGear})` : 'DRIVE')
 
   return (
     <div className="flex flex-col items-center select-none touch-none relative font-mono">
@@ -130,13 +118,19 @@ export const GearShift = memo(function GearShift({
         <div className="flex flex-col items-center gap-1.5 p-1.5 rounded-2xl bg-zinc-950/90 border border-white/10 shadow-xl">
           <div className="w-full flex items-center justify-between px-1 text-[8px] text-zinc-400 font-bold">
             <span className="text-zinc-500">CÂMBIO AUTO</span>
-            <span className="text-amber-400">
-              {isP ? 'PARK' : isR ? 'RÉ' : isN ? 'NEUTRO' : isS ? 'SPORT' : isM ? 'MANUAL' : 'DRIVE'}
+            <span className="text-amber-400 font-black">
+              {activeLabel}
             </span>
           </div>
 
           {/* Barra de Seleção PRNDS / M */}
-          <div className="flex items-center gap-1">
+          <div
+            className={
+              orientation === 'vertical'
+                ? 'grid grid-cols-2 gap-1'
+                : 'flex items-center gap-1'
+            }
+          >
             {/* P - PARK */}
             <button
               onClick={selectPark}
@@ -223,13 +217,19 @@ export const GearShift = memo(function GearShift({
           </div>
 
           {/* Borboletas Paddle Shift para Trocas Rápidas */}
-          <div className="w-full flex items-center justify-between pt-1 border-t border-white/10">
+          <div
+            className={`w-full flex ${
+              orientation === 'vertical' ? 'flex-col gap-1' : 'items-center justify-between'
+            } pt-1 border-t border-white/10`}
+          >
             <button
               onPointerDown={handleShiftDown}
               onTouchStart={handleShiftDown}
               onClick={handleShiftDown}
               disabled={!isRunning}
-              className="flex-1 py-1 mx-0.5 rounded-lg bg-zinc-900 border border-white/10 active:bg-zinc-800 text-[10px] font-black text-zinc-300 flex items-center justify-center gap-1 cursor-pointer transition-transform active:scale-95 shadow"
+              className={`${
+                orientation === 'vertical' ? 'w-full py-1 text-[9px]' : 'flex-1 py-1 mx-0.5 text-[10px]'
+              } rounded-lg bg-zinc-900 border border-white/10 active:bg-zinc-800 font-black text-zinc-300 flex items-center justify-center gap-1 cursor-pointer transition-transform active:scale-95 shadow`}
               title="Reduzir Marcha / Tiptronic [-]"
             >
               <span>▼</span>
@@ -240,7 +240,9 @@ export const GearShift = memo(function GearShift({
               onTouchStart={handleShiftUp}
               onClick={handleShiftUp}
               disabled={!isRunning}
-              className="flex-1 py-1 mx-0.5 rounded-lg bg-zinc-900 border border-white/10 active:bg-zinc-800 text-[10px] font-black text-amber-400 flex items-center justify-center gap-1 cursor-pointer transition-transform active:scale-95 shadow"
+              className={`${
+                orientation === 'vertical' ? 'w-full py-1 text-[9px]' : 'flex-1 py-1 mx-0.5 text-[10px]'
+              } rounded-lg bg-zinc-900 border border-white/10 active:bg-zinc-800 font-black text-amber-400 flex items-center justify-center gap-1 cursor-pointer transition-transform active:scale-95 shadow`}
               title="Subir Marcha / Tiptronic [+]"
             >
               <span>PADDLE [+]</span>

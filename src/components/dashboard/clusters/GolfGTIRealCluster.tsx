@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { mapRange, clamp } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
 
 interface GolfGTIRealClusterProps {
   telemetry: DashboardTelemetry
@@ -43,6 +44,8 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
   const drivingMode = useSimulationStore((s) => s.drivingMode)
   const currentGear = useSimulationStore((s) => s.currentGear)
   const current0to100 = useSimulationStore((s) => s.current0to100)
+  const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
+  const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.red
 
   const dialSize = 250
   const center = dialSize / 2
@@ -110,12 +113,12 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
     : (currentGear === 0 ? 'N' : currentGear === -1 ? 'R' : `M${currentGear}`)
 
   return (
-    <div className="relative flex flex-col items-center w-full max-w-5xl p-3 sm:p-5 rounded-[2.5rem] bg-gradient-to-b from-[#131418] via-[#0d0e12] to-[#060709] border-2 border-red-600/40 shadow-[0_20px_70px_rgba(220,38,38,0.15)] select-none">
-      {/* ── Faixa Superior Vermelha Clássica GTI ── */}
-      <div className="w-full flex items-center justify-between px-4 pb-2 border-b border-red-600/30 text-[10px] font-mono">
+    <div className={`relative flex flex-col items-center w-full max-w-5xl p-3 sm:p-5 rounded-[2.5rem] bg-gradient-to-b from-[#131418] via-[#0d0e12] to-[#060709] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
+      {/* ── Faixa Superior Iluminada com Luz Ambiente da Cabine ── */}
+      <div className={`w-full flex items-center justify-between px-4 pb-2 border-b ${ambientTheme.headerBorderClass} text-[10px] font-mono`}>
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
-          <span className="text-red-500 font-black tracking-widest uppercase">GTI · PERFORMANCE</span>
+          <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: ambientTheme.hex }} />
+          <span className="font-black tracking-widest uppercase" style={{ color: ambientTheme.hex }}>GTI · PERFORMANCE</span>
           <span className="text-zinc-500 font-bold hidden sm:inline">2.0 TSI EA888 · DSG DQ250</span>
         </div>
 
@@ -169,9 +172,9 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
               </linearGradient>
             </defs>
 
-            {/* Aros cromados GTI esportivos */}
+            {/* Aros cromados GTI esportivos com iluminação ambiente sincronizada */}
             <circle cx={center} cy={center} r={radius + 18} fill="none" stroke="#4b5563" strokeWidth="3" />
-            <circle cx={center} cy={center} r={radius + 15} fill="url(#gtiDialBg)" stroke="#111827" strokeWidth="2" />
+            <circle cx={center} cy={center} r={radius + 15} fill="url(#gtiDialBg)" stroke={ambientTheme.hex} strokeWidth="2" strokeOpacity="0.75" />
 
             {/* Inscrição x100/min */}
             <text
@@ -374,9 +377,9 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="relative flex flex-col items-center">
           <svg viewBox={`0 0 ${dialSize} ${dialSize}`} className="w-[230px] sm:w-[250px]">
-            {/* Aros cromados esportivos */}
+            {/* Aros cromados esportivos com iluminação ambiente sincronizada */}
             <circle cx={center} cy={center} r={radius + 18} fill="none" stroke="#4b5563" strokeWidth="3" />
-            <circle cx={center} cy={center} r={radius + 15} fill="url(#gtiDialBg)" stroke="#111827" strokeWidth="2" />
+            <circle cx={center} cy={center} r={radius + 15} fill="url(#gtiDialBg)" stroke={ambientTheme.hex} strokeWidth="2" strokeOpacity="0.75" />
 
             {/* Inscrição "km/h" */}
             <text

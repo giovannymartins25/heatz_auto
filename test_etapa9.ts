@@ -241,6 +241,54 @@ test('Multimídia Inteligente: Gol G6 e CB1000R não possuem multimídia; Golf G
   assert(isInfotainmentActive(yarisConfig) === true, 'Toyota Yaris DEVE possuir multimídia Smart Connect')
 })
 
+// 10. Câmbio Automático: Seletor sempre ativo e sincronizado
+test('Câmbio Automático: isAutomaticVehicle detecta corretamente automáticos vs manuais', () => {
+  const store = useSimulationStore.getState()
+  store.init(golConfig)
+  assert(useSimulationStore.getState().isAutomaticVehicle === false, 'Gol G6 deve ter isAutomaticVehicle=false')
+
+  store.init(cb1000rConfig)
+  assert(useSimulationStore.getState().isAutomaticVehicle === false, 'CB1000R deve ter isAutomaticVehicle=false')
+
+  store.init(gtiConfig)
+  assert(useSimulationStore.getState().isAutomaticVehicle === true, 'Golf GTI deve ter isAutomaticVehicle=true')
+
+  store.init(porscheConfig)
+  assert(useSimulationStore.getState().isAutomaticVehicle === true, 'Porsche PDK deve ter isAutomaticVehicle=true')
+
+  store.init(yarisConfig)
+  assert(useSimulationStore.getState().isAutomaticVehicle === true, 'Toyota Yaris deve ter isAutomaticVehicle=true')
+})
+
+// 11. Iluminação Ambiente da Cabine e Painel: sincronização em tempo real
+test('Iluminação Ambiente: Sincronização de cores da cabine e painel de instrumentos em tempo real', () => {
+  const store = useSimulationStore.getState()
+
+  // Golf GTI inicia com Vermelho GTI
+  store.init(gtiConfig)
+  assert(useSimulationStore.getState().ambientLightColor === 'red', 'Golf GTI deve iniciar com Vermelho GTI')
+
+  // Altera para Azul Golf R
+  store.setAmbientLightColor('blue')
+  assert(useSimulationStore.getState().ambientLightColor === 'blue', 'Luz da cabine deve mudar para Azul Golf R')
+
+  // Altera para Clubsport Âmbar
+  store.setAmbientLightColor('amber')
+  assert(useSimulationStore.getState().ambientLightColor === 'amber', 'Luz da cabine deve mudar para Âmbar')
+
+  // Porsche inicia com Âmbar
+  store.init(porscheConfig)
+  assert(useSimulationStore.getState().ambientLightColor === 'amber', 'Porsche deve iniciar com Âmbar')
+
+  // Altera para Acid Green
+  store.setAmbientLightColor('green')
+  assert(useSimulationStore.getState().ambientLightColor === 'green', 'Luz da cabine deve mudar para Acid Green')
+
+  // Yaris inicia com Ciano Ice Blue
+  store.init(yarisConfig)
+  assert(useSimulationStore.getState().ambientLightColor === 'cyan', 'Yaris deve iniciar com Ciano Optitron Ice Blue')
+})
+
 console.log('\n═══════════════════════════════════════════════════════════════')
 console.log(`  RESULTADO: ${passed}/${passed + failed} TESTES PASSARAM`)
 if (failed === 0) {

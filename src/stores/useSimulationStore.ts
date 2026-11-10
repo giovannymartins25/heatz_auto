@@ -10,6 +10,7 @@ import { PedalInputSystem } from '@/systems/vehicle'
 import { PHYSICS_TIMESTEP, MAX_SUBSTEPS } from '@/systems/engine/constants'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 import { clamp } from '@/utils/math'
+import type { AmbientLightColor } from '@/utils/ambientLighting'
 
 
 /**
@@ -68,6 +69,8 @@ interface SimulationActions {
   toggleMute: () => void
   /** Define volume geral */
   setMasterVolume: (vol: number) => void
+  /** Define cor da iluminação ambiente da cabine e painel */
+  setAmbientLightColor: (color: AmbientLightColor) => void
   /** Reseta dados de performance */
   resetPerformanceStats: () => void
   /** Atualiza a simulação (chamado pelo game loop) */
@@ -86,6 +89,7 @@ interface SimulationState {
   isRevLimiting: boolean
 
   // Estado da transmissão
+  isAutomaticVehicle: boolean
   currentGear: number
   clutchPosition: number
   transmissionMode: TransmissionMode
@@ -93,6 +97,9 @@ interface SimulationState {
   isKickdown: boolean
   lastShiftReason: string     // 'none' | 'clutch_required' | 'over_rev' | 'gear_limit'
   shifterPosition: 'P' | 'R' | 'N' | 'D' | 'S' | 'M'
+
+  // Iluminação de Cabine e Painel
+  ambientLightColor: AmbientLightColor
 
   // Estado da embreagem (telemetria real)
   clutchSlipRpm: number        // Diferenciação de RPM entre motor e transmissão
@@ -155,6 +162,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isBogWarning: false,
   status: 'off',
   isRevLimiting: false,
+  isAutomaticVehicle: true,
+  ambientLightColor: 'red',
   currentGear: 0,
   clutchPosition: 0,
   transmissionMode: 'manual',
@@ -250,6 +259,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     transmission.shiftTo(isAutoOrCvt ? -2 : 0, 0, undefined, true)
 
+    const defaultAmbientColor: AmbientLightColor =
+      config.id === 'golf-gti'
+        ? 'red'
+        : config.id === 'porsche-gt3'
+        ? 'amber'
+        : config.id?.includes('yaris')
+        ? 'cyan'
+        : 'red'
+
     set({
       _engine: engine,
       _transmission: transmission,
@@ -260,6 +278,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _pedalInput: pedalInput,
       _config: config,
       _isInitialized: true,
+      isAutomaticVehicle: isAutoOrCvt,
+      ambientLightColor: defaultAmbientColor,
       hasTurbo,
       hasLaunchControl,
       isLaunchControlArmed: false,
@@ -353,12 +373,23 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setDrivingMode: (mode: DrivingMode) => {
-    set({ drivingMode: mode })
+    const { transmissionMode, shifterPosition } = get()
+    let newShifter = shifterPosition
+    if (transmissionMode === 'automatic') {
+      if (mode === 'sport') newShifter = 'S'
+      else if (mode === 'normal' || mode === 'eco') newShifter = 'D'
+    }
+    set({ drivingMode: mode, shifterPosition: newShifter })
     HapticFeedback.light()
   },
 
   setTransmissionMode: (mode: TransmissionMode) => {
     set({ transmissionMode: mode })
+    HapticFeedback.light()
+  },
+
+  setAmbientLightColor: (color: AmbientLightColor) => {
+    set({ ambientLightColor: color })
     HapticFeedback.light()
   },
 
@@ -378,14 +409,18 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         _config,
       )
       _transmission.shiftTo(targetGear, speed)
-      set({ transmissionMode: 'manual_simulated', currentGear: targetGear })
+      set({ transmissionMode: 'manual_simulated', currentGear: targetGear, shifterPosition: 'M' })
       HapticFeedback.gearShift()
     } else if (transmissionMode === 'manual_simulated') {
       // MANUAL_SIMULATED -> AUTO
       // Reseta o timer do câmbio automático para evitar troca imediata
       _autoTransmission?.reset()
       // Mantém a relação atual — o AutomaticTransmission vai assumir no próximo tick
-      set({ transmissionMode: 'automatic', isKickdown: false })
+      set({
+        transmissionMode: 'automatic',
+        isKickdown: false,
+        shifterPosition: get().drivingMode === 'sport' ? 'S' : 'D',
+      })
       HapticFeedback.light()
     }
     // Modo 'manual' (Gol, etc.) não é afetado por este toggle

@@ -448,23 +448,8 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
             </button>
           </div>
 
-          {/* Câmbio manual ou manual simulado: exibe alavanca de trocas */}
-          {transmissionMode === 'manual' || transmissionMode === 'manual_simulated' ? (
-            <GearShift />
-          ) : (
-            <div className="flex flex-col items-end">
-              <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-500">
-                Transmissão
-              </span>
-              <span className="text-xs font-mono font-bold text-emerald-400 px-2.5 py-1 rounded bg-zinc-950 border border-white/10 mt-0.5">
-                {vehicle.id === 'porsche-gt3'
-                  ? 'PDK AUTOMÁTICO'
-                  : vehicle.id === 'golf-gti'
-                  ? 'DSG AUTOMÁTICO'
-                  : 'CÂMBIO AUTOMÁTICO'}
-              </span>
-            </div>
-          )}
+          {/* Seletor de Câmbio: PRNDS/M para automáticos e [-][N][+] para manuais (sempre ativo) */}
+          <GearShift />
         </div>
 
         {/* Pedais interativos com Pointer Capture */}

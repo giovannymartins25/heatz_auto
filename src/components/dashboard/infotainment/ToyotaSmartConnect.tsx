@@ -2,6 +2,8 @@ import { memo, useState, useEffect } from 'react'
 import type { VehicleConfig } from '@/types/vehicle'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { clamp } from '@/utils/math'
+import { useSimulationStore } from '@/stores/useSimulationStore'
+import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
 import { ClimateControlPanel } from './shared/ClimateControlPanel'
 import { InternetMediaCenter } from './shared/InternetMediaCenter'
 
@@ -12,7 +14,7 @@ interface ToyotaSmartConnectProps {
   className?: string
 }
 
-type ToyotaActiveTab = 'gr-four' | 'clima' | 'media'
+type ToyotaActiveTab = 'gr-four' | 'clima' | 'media' | 'ambient'
 
 /**
  * ToyotaSmartConnect — Central Multimídia oficial Toyota Smart Connect / Gazoo Racing (Yaris GR).
@@ -38,6 +40,10 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
   const [grFourMode, setGrFourMode] = useState<'normal' | 'sport' | 'track'>('track')
   const [isSprayingWater, setIsSprayingWater] = useState(false)
   const [intakeTemp, setIntakeTemp] = useState(38) // Temperatura do ar de admissão
+
+  const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
+  const setAmbientLightColor = useSimulationStore((s) => s.setAmbientLightColor)
+  const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.cyan
 
   const maxPowerHp = vehicle.engine.maxPower || 110
   const redlineRpm = vehicle.engine.maxRpm || 6400
@@ -76,16 +82,16 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
 
   return (
     <div
-      className={`relative flex flex-col rounded-[1.8rem] bg-gradient-to-b from-[#141519] via-[#0d0e12] to-[#07080a] border-2 border-red-600/40 shadow-[0_12px_45px_rgba(220,38,38,0.2)] overflow-hidden select-none font-mono ${
+      className={`relative flex flex-col rounded-[1.8rem] bg-gradient-to-b from-[#141519] via-[#0d0e12] to-[#07080a] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} overflow-hidden select-none font-mono transition-all duration-300 ${
         compact ? 'w-[270px] p-2' : 'w-[325px] sm:w-[350px] p-2.5 sm:p-3'
       } ${className}`}
     >
       {/* ── Barra Superior Gazoo Racing ── */}
-      <div className="w-full flex items-center justify-between pb-1.5 mb-1.5 border-b border-red-600/20 text-[8px] sm:text-[9px]">
+      <div className={`w-full flex items-center justify-between pb-1.5 mb-1.5 border-b ${ambientTheme.headerBorderClass} text-[8px] sm:text-[9px]`}>
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-red-600 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+          <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: ambientTheme.hex }} />
           <span className="font-black text-white tracking-wider">TOYOTA SMART CONNECT</span>
-          <span className="text-red-500 font-bold hidden xs:inline">· GR-FOUR</span>
+          <span className="font-bold hidden xs:inline" style={{ color: ambientTheme.hex }}>· GR-FOUR</span>
         </div>
         <div className="flex items-center gap-2 text-zinc-400 font-bold">
           <span className="text-[7px] text-zinc-500">T-CONNECT</span>
@@ -264,39 +270,104 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
         {activeTab === 'media' && (
           <InternetMediaCenter theme="toyota" compact={compact} />
         )}
+
+        {/* ABA 4: ILUMINAÇÃO AMBIENTE OPTITRON (CABINE & PAINEL) */}
+        {activeTab === 'ambient' && (
+          <div className="w-full flex flex-col items-center justify-center py-2 gap-2 text-center">
+            <span className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest">
+              ILUMINAÇÃO AMBIENTE OPTITRON
+            </span>
+            <div className="w-full grid grid-cols-4 gap-1.5 px-2 my-1">
+              {(
+                [
+                  { id: 'cyan', name: 'ICE BLUE', hex: '#06b6d4' },
+                  { id: 'red', name: 'GR RACING', hex: '#ef4444' },
+                  { id: 'amber', name: 'SOLAR AMBER', hex: '#f59e0b' },
+                  { id: 'blue', name: 'DEEP BLUE', hex: '#3b82f6' },
+                  { id: 'purple', name: 'NEON PURPLE', hex: '#a855f7' },
+                  { id: 'green', name: 'ECO GREEN', hex: '#10b981' },
+                  { id: 'white', name: 'PURE WHITE', hex: '#ffffff' },
+                ] as const
+              ).map((col) => {
+                const isSelected = ambientLightColor === col.id
+                return (
+                  <button
+                    key={col.id}
+                    onClick={() => setAmbientLightColor(col.id)}
+                    className={`py-1.5 px-1 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-zinc-800 border-white text-white shadow-lg'
+                        : 'bg-zinc-900/60 border-white/10 text-zinc-400 hover:text-white'
+                    }`}
+                    style={
+                      isSelected
+                        ? {
+                            borderColor: col.hex,
+                            boxShadow: `0 0 12px ${col.hex}66`,
+                          }
+                        : {}
+                    }
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full shadow"
+                      style={{
+                        backgroundColor: col.hex,
+                        boxShadow: `0 0 8px ${col.hex}aa`,
+                      }}
+                    />
+                    <span className="text-[6.5px] font-bold leading-tight truncate w-full">{col.name}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <span className="text-[7px] text-zinc-400 font-semibold">
+              Sincroniza o halo 3D Optitron do painel de instrumentos e da multimídia
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ── Botões Capacitivos Virtuais Toyota (Rodapé) ── */}
-      <div className="w-full flex items-center justify-between border-t border-white/10 pt-1.5 mt-1.5 text-[7px] sm:text-[8px] font-bold">
+      <div className="w-full flex items-center justify-between border-t border-white/10 pt-1.5 mt-1.5 text-[6.5px] sm:text-[7.5px] font-bold">
         <button
           onClick={() => setActiveTab('gr-four')}
-          className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+          className={`px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
             activeTab === 'gr-four'
               ? 'bg-red-600 text-white shadow-[0_0_8px_rgba(220,38,38,0.5)]'
               : 'text-zinc-500 hover:text-zinc-300'
           }`}
         >
-          GR-FOUR AWD
+          GR-FOUR
         </button>
         <button
           onClick={() => setActiveTab('clima')}
-          className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+          className={`px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
             activeTab === 'clima'
               ? 'bg-sky-600 text-white shadow-[0_0_8px_rgba(2,132,199,0.5)]'
               : 'text-zinc-500 hover:text-zinc-300'
           }`}
         >
-          CLIMATIZAÇÃO
+          CLIMA
         </button>
         <button
           onClick={() => setActiveTab('media')}
-          className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+          className={`px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
             activeTab === 'media'
               ? 'bg-red-600 text-white shadow-[0_0_8px_rgba(220,38,38,0.5)]'
               : 'text-zinc-500 hover:text-zinc-300'
           }`}
         >
-          YOUTUBE / SOM
+          YOUTUBE
+        </button>
+        <button
+          onClick={() => setActiveTab('ambient')}
+          className={`px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
+            activeTab === 'ambient'
+              ? 'bg-cyan-600 text-white shadow-[0_0_8px_rgba(6,182,212,0.5)]'
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          LUZ CABINE
         </button>
       </div>
     </div>

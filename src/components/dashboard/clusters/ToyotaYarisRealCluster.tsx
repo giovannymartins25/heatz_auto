@@ -1,6 +1,8 @@
 import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { mapRange } from '@/utils/math'
+import { useSimulationStore } from '@/stores/useSimulationStore'
+import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
 
 interface ToyotaYarisRealClusterProps {
   telemetry: DashboardTelemetry
@@ -85,11 +87,16 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
 
   // Posição do Câmbio Automático Multidrive Toyota
   const isManualSimulated = gear.transmissionMode === 'manual_simulated'
+  const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
+  const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.cyan
 
   return (
-    <div className="relative flex flex-col items-center w-full max-w-4xl p-4 sm:p-6 rounded-[2.5rem] bg-gradient-to-b from-[#060d16] via-[#03070d] to-black border-2 border-sky-950/70 shadow-[0_20px_60px_rgba(2,132,199,0.15)] select-none">
-      {/* Luz ambiente de fundo Optitron Ice Blue */}
-      <div className="absolute inset-x-12 top-0 h-1 bg-gradient-to-r from-transparent via-cyan-400/80 to-transparent rounded-t-full shadow-[0_0_20px_rgba(6,182,212,0.6)]" />
+    <div className={`relative flex flex-col items-center w-full max-w-4xl p-4 sm:p-6 rounded-[2.5rem] bg-gradient-to-b from-[#060d16] via-[#03070d] to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
+      {/* Luz ambiente de fundo Optitron sincronizada */}
+      <div
+        className={`absolute inset-x-12 top-0 h-1 bg-gradient-to-r ${ambientTheme.haloGradient} rounded-t-full`}
+        style={{ boxShadow: `0 0 20px ${ambientTheme.glowRgba}` }}
+      />
 
       {/* ── Faixa Superior: Luzes de Advertência e Farol ── */}
       <div className="flex items-center justify-between w-full max-w-xl px-4 py-1.5 mb-2 rounded-xl bg-sky-950/20 border border-sky-500/10">
