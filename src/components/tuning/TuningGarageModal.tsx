@@ -1,13 +1,14 @@
 import { memo, useState } from 'react'
 import type { VehicleConfig } from '@/types/vehicle'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { useGarageStore, type CarUpgrades } from '@/stores/useGarageStore'
+import { useGarageStore, type CarUpgrades, type GarageCarInstance } from '@/stores/useGarageStore'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 
 interface TuningGarageModalProps {
   isOpen: boolean
   onClose: () => void
   vehicle: VehicleConfig
+  carInstance?: GarageCarInstance
 }
 
 type ShopTab = 'motor' | 'escape' | 'intake' | 'chassi' | 'interior'
@@ -27,6 +28,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   isOpen,
   onClose,
   vehicle,
+  carInstance,
 }: TuningGarageModalProps) {
   const [activeTab, setActiveTab] = useState<ShopTab>('motor')
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null)
@@ -39,6 +41,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const intakeType = useSimulationStore((s) => s.intakeType)
   const tires = useSimulationStore((s) => s.tires)
   const hasRetrofitInfotainment = useSimulationStore((s) => s.hasRetrofitInfotainment)
+  const hasBoostGaugeKit = useSimulationStore((s) => s.hasBoostGaugeKit)
   const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
   const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
   const setEquippedUpgrades = useSimulationStore((s) => s.setEquippedUpgrades)
@@ -49,12 +52,15 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const toggleSandboxMode = useGarageStore((s) => s.toggleSandboxMode)
   const addCredits = useGarageStore((s) => s.addCredits)
   const getActiveCar = useGarageStore((s) => s.getActiveCar)
+  const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const installUpgrade = useGarageStore((s) => s.installUpgrade)
 
   if (!isOpen) return null
 
-  const activeCar = getActiveCar()
+  // Resolve com precisão a unidade exata que está sendo customizada
+  const activeCar = carInstance || resolveInstanceForVehicle(vehicle.id) || getActiveCar()
   const isOriginalTurboCar = Boolean(vehicle.engine.turbo?.enabled)
+  const hasFactoryBoost = vehicle.id === 'golf-gti' || vehicle.id === 'porsche-gt3' || vehicle.id === 'gol-quadrado-turbo'
   const isOriginalInfotainmentCar = Boolean(
     vehicle.dashboard?.hasInfotainment ||
     (vehicle.id !== 'gol-g6' &&
@@ -759,66 +765,145 @@ export const TuningGarageModal = memo(function TuningGarageModal({
           </div>
         )}
 
-        {/* ─── CONTEÚDO DA ABA 5: CENTRAL MULTIMÍDIA RETROFIT ─── */}
+        {/* ─── CONTEÚDO DA ABA 5: CENTRAL MULTIMÍDIA RETROFIT & ACESSÓRIOS DE CABINE ─── */}
         {activeTab === 'interior' && (
-          <div className="p-4 rounded-2xl bg-zinc-900/60 border border-white/10 flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">📺</span>
-              <div>
-                <h3 className="text-xs sm:text-sm font-black text-white uppercase">
-                  KIT CENTRAL MULTIMÍDIA 2-DIN TOUCHSCREEN SMART CONNECT
-                </h3>
-                <p className="text-[10px] text-zinc-400 mt-0.5 max-w-xl">
-                  {isOriginalInfotainmentCar
-                    ? 'Este modelo já vem equipado de fábrica com central multimídia de alta definição integrada ao painel.'
-                    : 'Instala uma central multimídia 2-DIN moderna no painel do carro (perfeito para Gol G6 e Gol Quadrado!). Permite acessar vídeos e músicas no YouTube, Climatização Digital e Controle de Iluminação Ambiente da Cabine.'}
-                </p>
+          <div className="flex flex-col gap-3">
+            {/* 1. Manômetro Esportivo de Pressão de Turbo / Vácuo (Aftermarket Pillar Pod) */}
+            <div className="p-4 rounded-2xl bg-zinc-900/60 border border-white/10 flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">⏱️</span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs sm:text-sm font-black text-white uppercase">
+                      MANÔMETRO ESPORTIVO DE TURBO / VÁCUO (POD DE COLUNA)
+                    </h3>
+                    {(hasBoostGaugeKit || hasFactoryBoost) && (
+                      <span className="px-2 py-0.5 rounded text-[8px] font-black bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                        {hasFactoryBoost ? 'DE FÁBRICA' : 'INSTALADO NA COLUNA'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-0.5 max-w-xl">
+                    {hasFactoryBoost
+                      ? 'Este modelo já possui manômetro de pressão de turbo integrado ao quadro de instrumentos original.'
+                      : 'Adiciona um manômetro esportivo de alta precisão (estilo AutoMeter/Cronomac) montado na coluna A ou sobre o painel. Se o carro tiver turbo, mede a pressão do compressor (-1.0 a +3.0 bar); se for aspirado, funciona como vacuômetro instantâneo.'}
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-2 text-center text-[10px]">
-              <div className="p-2 rounded-xl bg-black/40 border border-white/5">
-                <span className="text-zinc-500 block text-[8px] uppercase">Entretenimento</span>
-                <span className="font-bold text-white">YouTube & Streaming</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1 text-center text-[10px]">
+                <div className="p-2 rounded-xl bg-black/40 border border-white/5">
+                  <span className="text-zinc-500 block text-[8px] uppercase">Visual do Interior</span>
+                  <span className="font-bold text-white">Pod em Alumínio Billet</span>
+                </div>
+                <div className="p-2 rounded-xl bg-black/40 border border-white/5">
+                  <span className="text-zinc-500 block text-[8px] uppercase">Iluminação</span>
+                  <span className="font-bold text-amber-400">LED Noturno Ativo</span>
+                </div>
+                <div className="p-2 rounded-xl bg-black/40 border border-white/5">
+                  <span className="text-zinc-500 block text-[8px] uppercase">Medição</span>
+                  <span className="font-bold text-sky-400">-1.0 a +3.0 BAR</span>
+                </div>
               </div>
-              <div className="p-2 rounded-xl bg-black/40 border border-white/5">
-                <span className="text-zinc-500 block text-[8px] uppercase">Conforto</span>
-                <span className="font-bold text-sky-400">A/C Climatização Digital</span>
-              </div>
-              <div className="p-2 rounded-xl bg-black/40 border border-white/5">
-                <span className="text-zinc-500 block text-[8px] uppercase">Ambiente</span>
-                <span className="font-bold text-purple-400">Luz de Cabine RGB</span>
-              </div>
-            </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-white/10">
-              <span className="text-[10px] text-zinc-400">
-                Status: {hasRetrofitInfotainment || isOriginalInfotainmentCar ? '✅ Habilitado no Console' : '❌ Não Instalado'}
-              </span>
-
-              {!isOriginalInfotainmentCar ? (
-                <button
-                  onClick={() =>
-                    handlePurchaseAndEquip(
-                      'multimediaKit',
-                      !hasRetrofitInfotainment,
-                      hasRetrofitInfotainment ? 0 : 2800,
-                      hasRetrofitInfotainment ? 'Multimídia removida' : 'Kit Multimídia 2-DIN Retrofit'
-                    )
-                  }
-                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${
-                    hasRetrofitInfotainment
-                      ? 'bg-zinc-800 text-zinc-400 hover:text-red-400 border border-white/10'
-                      : 'bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_15px_rgba(147,51,234,0.6)]'
-                  }`}
-                >
-                  {hasRetrofitInfotainment ? 'REMOVER MULTIMÍDIA' : 'COMPRAR & INSTALAR (R$ 2.800)'}
-                </button>
-              ) : (
-                <span className="text-[10px] text-emerald-400 font-bold px-3 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/20">
-                  MULTIMÍDIA DE FÁBRICA ATIVA
+              <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                <span className="text-[10px] text-zinc-400">
+                  Status: {hasBoostGaugeKit || hasFactoryBoost ? '✅ Visível no Cockpit / Coluna' : '❌ Não Instalado'}
                 </span>
-              )}
+
+                {!hasFactoryBoost ? (
+                  <button
+                    onClick={() =>
+                      handlePurchaseAndEquip(
+                        'boostGaugeKit',
+                        !hasBoostGaugeKit,
+                        hasBoostGaugeKit ? 0 : 1500,
+                        hasBoostGaugeKit ? 'Manômetro de coluna removido' : 'Manômetro de Turbo Aftermarket'
+                      )
+                    }
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${
+                      hasBoostGaugeKit
+                        ? 'bg-zinc-800 text-zinc-400 hover:text-red-400 border border-white/10'
+                        : 'bg-amber-500 hover:bg-amber-400 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.6)]'
+                    }`}
+                  >
+                    {hasBoostGaugeKit ? 'REMOVER MANÔMETRO' : 'COMPRAR & INSTALAR (R$ 1.500)'}
+                  </button>
+                ) : (
+                  <span className="text-[10px] text-emerald-400 font-bold px-3 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/20">
+                    MANÔMETRO ORIGINAL DE FÁBRICA
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Central Multimídia 2-DIN Retrofit */}
+            <div className="p-4 rounded-2xl bg-zinc-900/60 border border-white/10 flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">📺</span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs sm:text-sm font-black text-white uppercase">
+                      KIT CENTRAL MULTIMÍDIA 2-DIN TOUCHSCREEN SMART CONNECT
+                    </h3>
+                    {(hasRetrofitInfotainment || isOriginalInfotainmentCar) && (
+                      <span className="px-2 py-0.5 rounded text-[8px] font-black bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                        {isOriginalInfotainmentCar ? 'ORIGINAL' : 'INSTALADA'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-0.5 max-w-xl">
+                    {isOriginalInfotainmentCar
+                      ? 'Este modelo já vem equipado de fábrica com central multimídia de alta definição integrada ao painel.'
+                      : 'Muda o interior do veículo, instalando uma central multimídia 2-DIN moderna no console (perfeito para Gol G6 e Gol Quadrado!). Permite acessar vídeos e músicas no YouTube, Climatização Digital e Controle de Iluminação Ambiente da Cabine.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1 text-center text-[10px]">
+                <div className="p-2 rounded-xl bg-black/40 border border-white/5">
+                  <span className="text-zinc-500 block text-[8px] uppercase">Entretenimento</span>
+                  <span className="font-bold text-white">YouTube & Streaming</span>
+                </div>
+                <div className="p-2 rounded-xl bg-black/40 border border-white/5">
+                  <span className="text-zinc-500 block text-[8px] uppercase">Conforto</span>
+                  <span className="font-bold text-sky-400">A/C Climatização Digital</span>
+                </div>
+                <div className="p-2 rounded-xl bg-black/40 border border-white/5">
+                  <span className="text-zinc-500 block text-[8px] uppercase">Ambiente</span>
+                  <span className="font-bold text-purple-400">Luz de Cabine RGB</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                <span className="text-[10px] text-zinc-400">
+                  Status: {hasRetrofitInfotainment || isOriginalInfotainmentCar ? '✅ Habilitado no Console' : '❌ Não Instalado'}
+                </span>
+
+                {!isOriginalInfotainmentCar ? (
+                  <button
+                    onClick={() =>
+                      handlePurchaseAndEquip(
+                        'multimediaKit',
+                        !hasRetrofitInfotainment,
+                        hasRetrofitInfotainment ? 0 : 2800,
+                        hasRetrofitInfotainment ? 'Multimídia removida' : 'Kit Multimídia 2-DIN Retrofit'
+                      )
+                    }
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${
+                      hasRetrofitInfotainment
+                        ? 'bg-zinc-800 text-zinc-400 hover:text-red-400 border border-white/10'
+                        : 'bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_15px_rgba(147,51,234,0.6)]'
+                    }`}
+                  >
+                    {hasRetrofitInfotainment ? 'REMOVER MULTIMÍDIA' : 'COMPRAR & INSTALAR (R$ 2.800)'}
+                  </button>
+                ) : (
+                  <span className="text-[10px] text-emerald-400 font-bold px-3 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/20">
+                    MULTIMÍDIA DE FÁBRICA ATIVA
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}

@@ -32,6 +32,7 @@ export const CockpitView = memo(function CockpitView({
   const isRevLimiting = telemetry.shiftLight.isBlinking
 
   const hasTurbo = useSimulationStore((s) => s.hasTurbo)
+  const hasBoostGaugeKit = useSimulationStore((s) => s.hasBoostGaugeKit)
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const isLaunching = useSimulationStore((s) => s.isLaunching)
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
@@ -270,9 +271,12 @@ export const CockpitView = memo(function CockpitView({
           <span className="text-[10px] font-mono text-zinc-400 tracking-wider">RPM</span>
         </div>
 
-        {/* Turbo Boost Gauge (Apenas veículos com Turbo) */}
-        {hasTurbo && (
-          <div className="flex flex-col items-center p-2 rounded-2xl bg-black/70 border border-white/15 backdrop-blur-md shadow-xl">
+        {/* Turbo Boost Gauge (Veículos com Turbo ou com Manômetro Aftermarket Instalado) */}
+        {(hasTurbo || hasBoostGaugeKit) && (
+          <div className="flex flex-col items-center p-2 rounded-2xl bg-black/70 border border-white/15 backdrop-blur-md shadow-xl animate-in zoom-in-95 duration-200">
+            <span className="text-[7.5px] font-mono uppercase tracking-widest text-zinc-400 font-bold mb-0.5">
+              {hasTurbo ? 'TURBO BOOST' : 'VACUÔMETRO'}
+            </span>
             <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={76} />
           </div>
         )}

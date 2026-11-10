@@ -8,6 +8,7 @@ export function SimulatorScreen() {
   const { vehicleId } = useParams<{ vehicleId: string }>()
   const [searchParams] = useSearchParams()
   const instanceId = searchParams.get('instance')
+  const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const setActiveCar = useGarageStore((s) => s.setActiveCar)
   const selectedVehicle = useVehicleStore((s) => s.selectedVehicle)
   const selectVehicle = useVehicleStore((s) => s.selectVehicle)
@@ -16,17 +17,18 @@ export function SimulatorScreen() {
   const error = useVehicleStore((s) => s.error)
 
   useEffect(() => {
-    if (instanceId) {
-      setActiveCar(instanceId)
-    }
     if (vehicleId) {
+      const targetInstance = resolveInstanceForVehicle(vehicleId, instanceId)
+      if (targetInstance) {
+        setActiveCar(targetInstance.instanceId)
+      }
       selectVehicle(vehicleId)
     }
 
     return () => {
       clearSelection()
     }
-  }, [vehicleId, instanceId, setActiveCar, selectVehicle, clearSelection])
+  }, [vehicleId, instanceId, setActiveCar, resolveInstanceForVehicle, selectVehicle, clearSelection])
 
   // Estado de Carregamento Premium
   if (isLoading) {

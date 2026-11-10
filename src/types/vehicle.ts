@@ -79,6 +79,7 @@ export interface TransmissionConfig {
 /** Configuração de áudio (preparada para amostras reais e sintetizador) */
 export interface AudioConfig {
   useSamples: boolean
+  engineType?: 'i4' | 'boxer6' | 'i4_highrev' | 'i4_ap' | 'i4_vtec' | 'v6' | 'v8' | string
   synthConfig: SynthAudioConfig
   sampleConfig?: SampleAudioConfig
 }

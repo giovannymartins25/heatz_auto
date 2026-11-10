@@ -3,6 +3,7 @@ import { create } from 'zustand'
 export interface CarUpgrades {
   turboKit: boolean // Se tem kit turbo instalado (mesmo em carros aspirados)
   multimediaKit: boolean // Central multimídia 2-DIN retrofit com YouTube
+  boostGaugeKit: boolean // Manômetro de turbo/vácuo aftermarket instalado no interior (coluna/painel)
   exhaustType: 'stock' | 'sport' | 'straight_pipe' // Escapamento: original, esportivo com difusor ou direto
   intakeType: 'stock' | 'cold_air' // Admissão: original ou intake cônico K&N
   tires: 'street' | 'semi_slick' // Pneus de rua ou semi-slick de arrancada
@@ -33,6 +34,10 @@ interface GarageStoreActions {
   installUpgrade: (instanceId: string, upgrade: Partial<CarUpgrades>) => void
   setActiveCar: (instanceId: string) => void
   getActiveCar: () => GarageCarInstance | undefined
+  /** Busca uma unidade específica da garagem pelo instanceId */
+  getCarById: (instanceId: string | null | undefined) => GarageCarInstance | undefined
+  /** Resolve qual unidade da garagem corresponde a um modelo (prioriza a preferida/ativa) */
+  resolveInstanceForVehicle: (vehicleId: string, preferredInstanceId?: string | null) => GarageCarInstance | undefined
   addCredits: (amount: number) => void
   toggleSandboxMode: () => void
   resetToDefaults: () => void
@@ -42,7 +47,7 @@ type GarageStore = GarageStoreState & GarageStoreActions
 
 const STORAGE_KEY = 'heatz_garage_v2'
 
-function createDefaultUpgrades(vehicleId: string): CarUpgrades {
+export function createDefaultUpgrades(vehicleId: string): CarUpgrades {
   const isOriginallyTurbo =
     vehicleId === 'golf-gti' ||
     vehicleId === 'porsche-gt3' ||
@@ -57,11 +62,20 @@ function createDefaultUpgrades(vehicleId: string): CarUpgrades {
   return {
     turboKit: isOriginallyTurbo,
     multimediaKit: hasDefaultMultimedia,
+    boostGaugeKit: false,
     exhaustType: isOriginallyTurbo ? 'sport' : 'stock',
     intakeType: 'stock',
     tires: 'street',
     tuningStage: 0,
     exhaustValveOpen: true,
+  }
+}
+
+/** Garante que carros salvos em versões antigas recebam os novos campos de upgrade */
+function normalizeCar(car: GarageCarInstance): GarageCarInstance {
+  return {
+    ...car,
+    upgrades: { ...createDefaultUpgrades(car.vehicleId), ...(car.upgrades || {}) },
   }
 }
 
@@ -140,7 +154,7 @@ function loadStoredState(): { ownedCars: GarageCarInstance[]; activeCarInstanceI
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed.ownedCars) && parsed.ownedCars.length > 0) {
         return {
-          ownedCars: parsed.ownedCars,
+          ownedCars: parsed.ownedCars.map(normalizeCar),
           activeCarInstanceId: parsed.activeCarInstanceId || parsed.ownedCars[0].instanceId,
           credits: typeof parsed.credits === 'number' ? parsed.credits : 250000,
           sandboxMode: Boolean(parsed.sandboxMode),
@@ -289,6 +303,22 @@ export const useGarageStore = create<GarageStore>((set, get) => ({
     return ownedCars.find((c) => c.instanceId === activeCarInstanceId) || ownedCars[0]
   },
 
+  getCarById: (instanceId: string | null | undefined) => {
+    if (!instanceId) return undefined
+    return get().ownedCars.find((c) => c.instanceId === instanceId)
+  },
+
+  resolveInstanceForVehicle: (vehicleId: string, preferredInstanceId?: string | null) => {
+    const { ownedCars, activeCarInstanceId } = get()
+    const sameModel = ownedCars.filter((c) => c.vehicleId === vehicleId)
+    if (sameModel.length === 0) return undefined
+    return (
+      sameModel.find((c) => c.instanceId === preferredInstanceId) ||
+      sameModel.find((c) => c.instanceId === activeCarInstanceId) ||
+      sameModel[0]
+    )
+  },
+
   addCredits: (amount: number) => {
     const { ownedCars, activeCarInstanceId, credits, sandboxMode } = get()
     const updatedCredits = credits + amount
@@ -328,3 +358,4 @@ export const useGarageStore = create<GarageStore>((set, get) => ({
     })
   },
 }))
+

@@ -155,6 +155,78 @@ async function runEtapa11Tests() {
     'Venda de veículo remove unidade da frota e reembolsa carteira com sucesso'
   )
 
+  // ─── TESTE 11: Bloqueio estrito de modos automáticos em carros manuais ───
+  useSimulationStore.getState().reset()
+  useSimulationStore.getState().init(civicConfig) // Civic Si é Manual 6M
+
+  assert(useSimulationStore.getState().isAutomaticVehicle === false, 'Civic Si identificado corretamente como manual')
+  assert(useSimulationStore.getState().shifterPosition === 'N', 'Carro manual inicia em N (Neutro)')
+
+  // Tentar selecionar P, D, R, S, M
+  useSimulationStore.getState().selectShifterMode('P')
+  assert(useSimulationStore.getState().shifterPosition === 'N', 'selectShifterMode("P") rejeitado em carro manual')
+
+  useSimulationStore.getState().selectShifterMode('D')
+  assert(useSimulationStore.getState().shifterPosition === 'N', 'selectShifterMode("D") rejeitado em carro manual')
+
+  useSimulationStore.getState().selectShifterMode('R')
+  assert(useSimulationStore.getState().shifterPosition === 'N', 'selectShifterMode("R") rejeitado em carro manual')
+
+  // ─── TESTE 12: Isolamento de Upgrades entre diferentes instâncias ───
+  const instanceA = useGarageStore.getState().buyCar('gol-g6', 'Gol A - Original', 42000)
+  const instanceB = useGarageStore.getState().buyCar('gol-g6', 'Gol B - Turbo Stage 3', 42000)
+
+  // Modificar exclusivamente a instância B
+  useGarageStore.getState().installUpgrade(instanceB.instanceId, {
+    turboKit: true,
+    tuningStage: 3,
+    boostGaugeKit: true,
+    multimediaKit: true,
+  })
+
+  const carA = useGarageStore.getState().getCarById(instanceA.instanceId)
+  const carB = useGarageStore.getState().getCarById(instanceB.instanceId)
+
+  assert(
+    carA?.upgrades.turboKit === false &&
+    carA?.upgrades.tuningStage === 0 &&
+    carA?.upgrades.boostGaugeKit === false &&
+    carA?.upgrades.multimediaKit === false,
+    'Instância A permaneceu 100% original sem contaminação'
+  )
+
+  assert(
+    carB?.upgrades.turboKit === true &&
+    carB?.upgrades.tuningStage === 3 &&
+    carB?.upgrades.boostGaugeKit === true &&
+    carB?.upgrades.multimediaKit === true,
+    'Instância B recebeu os upgrades exclusivamente'
+  )
+
+  // ─── TESTE 13: Manômetro Esportivo de Turbo/Vácuo Aftermarket no Interior ───
+  useSimulationStore.getState().reset()
+  useSimulationStore.getState().init(golG6Config, carB?.upgrades)
+
+  assert(
+    useSimulationStore.getState().hasBoostGaugeKit === true,
+    'Manômetro de coluna/painel esportivo aftermarket ativado com sucesso no interior'
+  )
+
+  // ─── TESTE 14: Integridade do Áudio de Síntese do Civic Si e Gol Quadrado ───
+  assert(
+    civicConfig.audio.synthConfig.baseFrequency > 0 &&
+    civicConfig.audio.synthConfig.harmonics.length > 0 &&
+    civicConfig.audio.synthConfig.gainMax > 0,
+    'Civic Si possui synthConfig de áudio completo com harmônicos e frequência base'
+  )
+
+  assert(
+    golQuadradoConfig.audio.synthConfig.baseFrequency > 0 &&
+    golQuadradoConfig.audio.synthConfig.harmonics.length > 0 &&
+    golQuadradoConfig.audio.synthConfig.gainMax > 0,
+    'Gol Quadrado possui synthConfig de áudio completo com harmônicos e frequência base'
+  )
+
   console.log('\n═══════════════════════════════════════════════════════════════')
   console.log(`RESULTADO FINAL: ${passed} PASSOU | ${failed} FALHOU`)
   console.log('═══════════════════════════════════════════════════════════════\n')

@@ -39,6 +39,7 @@ export class SynthEngine implements IAudioEngine {
 
   private context: AudioContext | null = null
   private masterGain: GainNode | null = null
+  private userVolume: number = 1.0
 
   // Cadeia de Combustão & Escape
   private combustionGain: GainNode | null = null
@@ -92,7 +93,16 @@ export class SynthEngine implements IAudioEngine {
     maxRpm: number,
     customProfile?: Partial<EngineAcousticProfile>,
   ) {
-    this.config = config
+    // Normaliza a configuração: garante valores padrão seguros para evitar que
+    // um config.json incompleto (sem harmonics/baseFrequency) derrube o áudio inteiro.
+    this.config = {
+      ...config,
+      baseFrequency: Number.isFinite(config?.baseFrequency) ? config.baseFrequency : 65,
+      harmonics: Array.isArray(config?.harmonics) && config.harmonics.length > 0 ? config.harmonics : [1, 2, 3, 4, 6],
+      gainIdle: Number.isFinite(config?.gainIdle) ? config.gainIdle : 0.2,
+      gainMax: Number.isFinite(config?.gainMax) ? config.gainMax : 0.75,
+      cylinders: config?.cylinders ?? 4,
+    }
     this.idleRpm = idleRpm
     this.maxRpm = maxRpm
     this.currentRpm = idleRpm
@@ -389,7 +399,7 @@ export class SynthEngine implements IAudioEngine {
 
     // Fade in suave
     this.masterGain.gain.setTargetAtTime(
-      this.config.gainIdle,
+      this.config.gainIdle * this.userVolume,
       this.context.currentTime,
       0.08,
     )
@@ -493,14 +503,15 @@ export class SynthEngine implements IAudioEngine {
 
     const now = this.context.currentTime
 
-    // 1. Ganho Master geral proporcional ao acelerador e giro
-    const targetGain = mapRange(
-      this.currentThrottle,
-      0,
-      1,
-      this.config.gainIdle,
-      this.config.gainMax,
-    )
+    // 1. Ganho Master geral proporcional ao acelerador, giro e volume do usuário
+    const targetGain =
+      mapRange(
+        this.currentThrottle,
+        0,
+        1,
+        this.config.gainIdle,
+        this.config.gainMax,
+      ) * this.userVolume
     this.masterGain.gain.setTargetAtTime(clamp(targetGain, 0, 1), now, 0.04)
 
     // 2. Ronco de Admissão (Induction Roar): abre agressivamente a partir de 25% de pé
@@ -526,8 +537,10 @@ export class SynthEngine implements IAudioEngine {
   }
 
   setMasterGain(gain: number): void {
+    this.userVolume = clamp(gain, 0, 1)
     if (!this.masterGain || !this.context) return
-    this.masterGain.gain.setTargetAtTime(clamp(gain, 0, 1), this.context.currentTime, 0.05)
+    const currentGain = mapRange(this.currentThrottle, 0, 1, this.config.gainIdle, this.config.gainMax)
+    this.masterGain.gain.setTargetAtTime(clamp(currentGain * this.userVolume, 0, 1), this.context.currentTime, 0.05)
   }
 
   /**

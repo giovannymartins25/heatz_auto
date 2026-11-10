@@ -2,6 +2,8 @@ import { memo, useState } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import type { VehicleConfig, DrivingMode } from '@/types'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
+import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { EngineButton } from '@/components/controls/EngineButton'
@@ -71,11 +73,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const isCvtWithManual = vehicle.transmission.hasManualMode === true
   const isManualSimulated = transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
-  const hasInfotainment =
-    vehicle.dashboard?.hasInfotainment ??
-    (vehicle.id !== 'gol-g6' &&
-      vehicle.id !== 'cb1000r' &&
-      vehicle.info.category !== 'motorcycle')
+  const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
+  const activeCar = resolveInstanceForVehicle(vehicle.id)
+  const { hasInfotainment, showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
   const [centerMode, setCenterMode] = useState<'cluster' | 'multimedia' | 'hud'>('cluster')
 
   // Formatação de valores centrais
@@ -378,7 +378,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               </div>
 
               {/* Turbo Boost se tiver */}
-              {hasTurbo && (
+              {(hasTurbo || showAftermarketBoostGauge) && (
                 <div className="flex flex-col items-center">
                   <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={65} showPeak={false} />
                 </div>
@@ -499,6 +499,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
         isOpen={isTuningOpen}
         onClose={() => setIsTuningOpen(false)}
         vehicle={vehicle}
+        carInstance={activeCar}
       />
     </div>
   )

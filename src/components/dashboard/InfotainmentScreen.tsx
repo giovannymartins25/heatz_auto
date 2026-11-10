@@ -2,7 +2,7 @@ import { memo } from 'react'
 import type { VehicleConfig } from '@/types/vehicle'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { GolfGTIDiscoverPro, PorschePCM6, ToyotaSmartConnect, CivicSiInfotainment } from './infotainment'
+import { GolfGTIDiscoverPro, PorschePCM6, ToyotaSmartConnect, CivicSiInfotainment, Retrofit2DinInfotainment } from './infotainment'
 
 interface InfotainmentScreenProps {
   vehicle: VehicleConfig
@@ -82,9 +82,21 @@ export const InfotainmentScreen = memo(function InfotainmentScreen({
     )
   }
 
-  // 4. Volkswagen Golf GTI Mk7 (Discover Pro Sport HMI) ou Kit Retrofit 2-DIN
+  // 4. Volkswagen Golf GTI Mk7 (Discover Pro Sport HMI)
+  if (id.includes('golf') || name.includes('golf') || name.includes('gti')) {
+    return (
+      <GolfGTIDiscoverPro
+        vehicle={vehicle}
+        telemetry={telemetry}
+        compact={compact}
+        className={className}
+      />
+    )
+  }
+
+  // 5. Central Multimídia 2-DIN Retrofit para demais modelos (Gol G6, Gol Quadrado, etc.)
   return (
-    <GolfGTIDiscoverPro
+    <Retrofit2DinInfotainment
       vehicle={vehicle}
       telemetry={telemetry}
       compact={compact}

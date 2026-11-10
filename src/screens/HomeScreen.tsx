@@ -51,7 +51,10 @@ export function HomeScreen() {
   const [newNameInput, setNewNameInput] = useState('')
 
   // Modal de Oficina
-  const [tuningModalVehicle, setTuningModalVehicle] = useState<VehicleConfig | null>(null)
+  const [tuningModalData, setTuningModalData] = useState<{
+    vehicle: VehicleConfig
+    instance: GarageCarInstance
+  } | null>(null)
 
   useEffect(() => {
     loadVehicleList()
@@ -137,7 +140,7 @@ export function HomeScreen() {
     setActiveCar(instance.instanceId)
     const config = await selectVehicle(instance.vehicleId)
     if (config) {
-      setTuningModalVehicle(config)
+      setTuningModalData({ vehicle: config, instance })
       HapticFeedback.light()
     }
   }
@@ -386,6 +389,13 @@ export function HomeScreen() {
                           {up.tires === 'semi_slick' ? '🏁 SEMI-SLICK' : 'RUA RADIAL'}
                         </span>
 
+                        {/* Manômetro Aftermarket */}
+                        {up.boostGaugeKit && (
+                          <span className="px-2 py-0.5 rounded-md font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-400/40">
+                            ⏱️ MANÔMETRO DE TURBO
+                          </span>
+                        )}
+
                         {/* Multimídia */}
                         {up.multimediaKit && (
                           <span className="px-2 py-0.5 rounded-md font-bold uppercase bg-purple-500/20 text-purple-300 border border-purple-400/40">
@@ -567,11 +577,12 @@ export function HomeScreen() {
       )}
 
       {/* ─── Modal da Oficina de Peças (TuningGarageModal) ─── */}
-      {tuningModalVehicle && (
+      {tuningModalData && (
         <TuningGarageModal
-          isOpen={Boolean(tuningModalVehicle)}
-          onClose={() => setTuningModalVehicle(null)}
-          vehicle={tuningModalVehicle}
+          isOpen={Boolean(tuningModalData)}
+          onClose={() => setTuningModalData(null)}
+          vehicle={tuningModalData.vehicle}
+          carInstance={tuningModalData.instance}
         />
       )}
 

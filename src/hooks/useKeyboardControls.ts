@@ -42,6 +42,7 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
   const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const isRunning = useSimulationStore((s) => s.isRunning)
+  const isAutomaticVehicle = useSimulationStore((s) => s.isAutomaticVehicle)
   const setActiveKey = useUIStore((s) => s.setActiveKey)
 
   const keysPressedRef = useRef({ w: false, e: false, q: false })
@@ -112,16 +113,17 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
         toggleSimulatedManual()
       }
       // Modos Automáticos de Câmbio: P (Park), R (Reverse), N (Neutral), D (Drive)
-      else if (key === 'p' && !event.repeat && isRunning) {
+      // Somente para veículos automáticos/CVT/PDK/DSG — carros manuais ignoram P/R/D
+      else if (key === 'p' && !event.repeat && isRunning && isAutomaticVehicle) {
         selectPark()
       }
-      else if (key === 'r' && !event.repeat && isRunning) {
+      else if (key === 'r' && !event.repeat && isRunning && isAutomaticVehicle) {
         selectReverse()
       }
       else if (key === 'n' && !event.repeat && isRunning) {
         selectNeutral()
       }
-      else if (key === 'd' && !event.repeat && isRunning) {
+      else if (key === 'd' && !event.repeat && isRunning && isAutomaticVehicle) {
         selectDrive()
       }
       // Toggle TCS — T
@@ -231,6 +233,7 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null) {
     hasManualMode,
     isManualSimulated,
     isRunning,
+    isAutomaticVehicle,
     tcsEnabled,
     setThrottle,
     setBrake,

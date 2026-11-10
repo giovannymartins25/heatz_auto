@@ -2,10 +2,12 @@ import { memo, useState } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import type { VehicleConfig, DrivingMode } from '@/types'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
+import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { EngineButton } from '@/components/controls/EngineButton'
-import { WarningLights, AuxGauges } from '@/components/gauges'
+import { WarningLights, AuxGauges, BoostGauge } from '@/components/gauges'
 import { ClusterView } from './ClusterView'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
@@ -54,16 +56,17 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const isRaining = useSimulationStore((s) => s.isRaining)
   const toggleRain = useSimulationStore((s) => s.toggleRain)
   const tuningStage = useSimulationStore((s) => s.tuningStage)
+  const hasTurbo = useSimulationStore((s) => s.hasTurbo)
+  const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
+  const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
 
   const [isTuningOpen, setIsTuningOpen] = useState(false)
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const supportedModes = vehicle.transmission.supportedModes || []
-  const hasInfotainment =
-    vehicle.dashboard?.hasInfotainment ??
-    (vehicle.id !== 'gol-g6' &&
-      vehicle.id !== 'cb1000r' &&
-      vehicle.info.category !== 'motorcycle')
+  const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
+  const activeCar = resolveInstanceForVehicle(vehicle.id)
+  const { hasInfotainment, showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
   const [portraitMode, setPortraitMode] = useState<'cluster' | 'multimedia' | 'hud'>('cluster')
 
   const displaySpeed = Math.round(telemetry.speedometer.speed)
@@ -290,24 +293,31 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               )}
             </div>
 
-            {/* Destaque: Marcha, Velocidade e RPM em grande formato */}
-            <div className="flex items-center justify-center gap-5 w-full">
+            {/* Destaque: Marcha, Velocidade, Turbo e RPM em grande formato */}
+            <div className="flex items-center justify-center gap-3 sm:gap-5 w-full">
               {/* Velocidade */}
               <div className="flex flex-col items-center">
-                <span className="text-4xl sm:text-5xl font-mono font-black tracking-tight text-white leading-none">
+                <span className="text-3xl sm:text-5xl font-mono font-black tracking-tight text-white leading-none">
                   {displaySpeed}
                 </span>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-zinc-500">
                   KM/H
                 </span>
               </div>
 
+              {/* Manômetro Turbo se tiver de fábrica ou aftermarket */}
+              {(hasTurbo || showAftermarketBoostGauge) && (
+                <div className="flex flex-col items-center scale-90 sm:scale-100">
+                  <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={60} showPeak={false} />
+                </div>
+              )}
+
               {/* Moldura de Marcha */}
-              <div className="relative flex flex-col items-center justify-center w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-zinc-900/90 border-2 border-[var(--color-accent)] shadow-[0_0_20px_var(--color-accent-muted)]">
-                <span className="text-3xl sm:text-4xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
+              <div className="relative flex flex-col items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-zinc-900/90 border-2 border-[var(--color-accent)] shadow-[0_0_20px_var(--color-accent-muted)]">
+                <span className="text-2xl sm:text-4xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
                   {telemetry.gear.label}
                 </span>
-                <span className="text-[8px] font-mono font-bold text-zinc-400 uppercase">
+                <span className="text-[7px] sm:text-[8px] font-mono font-bold text-zinc-400 uppercase">
                   {telemetry.gear.subLabel}
                 </span>
               </div>
@@ -315,13 +325,13 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               {/* RPM */}
               <div className="flex flex-col items-center">
                 <span
-                  className={`text-4xl sm:text-5xl font-mono font-black tracking-tight leading-none ${
+                  className={`text-3xl sm:text-5xl font-mono font-black tracking-tight leading-none ${
                     displayRpm > maxRpm * 0.9 ? 'text-red-500 animate-pulse' : 'text-zinc-200'
                   }`}
                 >
                   {displayRpm}
                 </span>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-zinc-500">
                   RPM
                 </span>
               </div>
@@ -443,6 +453,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         isOpen={isTuningOpen}
         onClose={() => setIsTuningOpen(false)}
         vehicle={vehicle}
+        carInstance={activeCar}
       />
     </div>
   )

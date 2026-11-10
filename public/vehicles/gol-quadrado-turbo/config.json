@@ -28,15 +28,42 @@
       "hasBlowOff": true
     },
     "torqueCurve": [
-      { "rpm": 950,  "torque": 160 },
-      { "rpm": 1800, "torque": 190 },
-      { "rpm": 2600, "torque": 260 },
-      { "rpm": 3400, "torque": 370 },
-      { "rpm": 4600, "torque": 470 },
-      { "rpm": 5800, "torque": 450 },
-      { "rpm": 6800, "torque": 390 },
-      { "rpm": 7400, "torque": 320 },
-      { "rpm": 7600, "torque": 260 }
+      {
+        "rpm": 950,
+        "torque": 160
+      },
+      {
+        "rpm": 1800,
+        "torque": 190
+      },
+      {
+        "rpm": 2600,
+        "torque": 260
+      },
+      {
+        "rpm": 3400,
+        "torque": 370
+      },
+      {
+        "rpm": 4600,
+        "torque": 470
+      },
+      {
+        "rpm": 5800,
+        "torque": 450
+      },
+      {
+        "rpm": 6800,
+        "torque": 390
+      },
+      {
+        "rpm": 7400,
+        "torque": 320
+      },
+      {
+        "rpm": 7600,
+        "torque": 260
+      }
     ]
   },
   "transmission": {
@@ -46,14 +73,29 @@
     "hasClutch": true,
     "hasManualMode": true,
     "gearRatios": [
-      { "gear": 1, "ratio": 3.450 },
-      { "gear": 2, "ratio": 2.050 },
-      { "gear": 3, "ratio": 1.350 },
-      { "gear": 4, "ratio": 0.970 },
-      { "gear": 5, "ratio": 0.760 }
+      {
+        "gear": 1,
+        "ratio": 3.45
+      },
+      {
+        "gear": 2,
+        "ratio": 2.05
+      },
+      {
+        "gear": 3,
+        "ratio": 1.35
+      },
+      {
+        "gear": 4,
+        "ratio": 0.97
+      },
+      {
+        "gear": 5,
+        "ratio": 0.76
+      }
     ],
-    "finalDrive": 3.890,
-    "reverseRatio": 3.170,
+    "finalDrive": 3.89,
+    "reverseRatio": 3.17,
     "launchControl": {
       "enabled": true,
       "launchRpm": 4800,
@@ -61,13 +103,23 @@
     }
   },
   "audio": {
+    "useSamples": false,
     "engineType": "i4_ap",
     "synthConfig": {
+      "baseFrequency": 58,
+      "harmonics": [
+        1,
+        2,
+        3,
+        4.05,
+        6
+      ],
       "gainIdle": 0.28,
       "gainMax": 0.82,
-      "gainCurve": "exponential",
-      "fundamentalHarmonic": 1,
       "cylinders": 4,
+      "engineType": "i4_ap",
+      "exhaustResonanceHz": 160,
+      "intakeResonanceHz": 480,
       "hasBrapOnShift": true
     }
   },
@@ -87,4 +139,3 @@
     }
   }
 }
-

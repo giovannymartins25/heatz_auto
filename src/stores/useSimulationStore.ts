@@ -24,7 +24,7 @@ export type TransmissionMode = 'manual' | 'automatic' | 'manual_simulated'
 
 interface SimulationActions {
   /** Inicializa a simulação com um veículo e eventuais peças equipadas */
-  init: (config: VehicleConfig, initialUpgrades?: Partial<CarUpgrades>) => void
+  init: (config: VehicleConfig, initialUpgrades?: Partial<CarUpgrades>, garageInstanceId?: string | null) => void
   /** Atualiza peças e upgrades equipados */
   setEquippedUpgrades: (upgrades: Partial<CarUpgrades>) => void
   /** Asa traseira aerodinâmica (Porsche / Supercarros) */
@@ -169,6 +169,10 @@ interface SimulationState {
 
   // Peças & Customizações Equipadas da Loja
   hasRetrofitInfotainment: boolean
+  /** Manômetro de turbo/vácuo aftermarket instalado no interior */
+  hasBoostGaugeKit: boolean
+  /** Unidade da garagem carregada no simulador (null = carro de fábrica sem garagem) */
+  garageInstanceId: string | null
   exhaustType: 'stock' | 'sport' | 'straight_pipe'
   intakeType: 'stock' | 'cold_air'
   tires: 'street' | 'semi_slick'
@@ -212,6 +216,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   currentGear: 0,
   // Peças & Customizações Equipadas da Loja
   hasRetrofitInfotainment: false,
+  hasBoostGaugeKit: false,
+  garageInstanceId: null,
   exhaustType: 'stock',
   intakeType: 'stock',
   tires: 'street',
@@ -267,7 +273,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   _accumulator: 0,
   _isInitialized: false,
 
-  init: (config: VehicleConfig, initialUpgrades?: Partial<CarUpgrades>) => {
+  init: (config: VehicleConfig, initialUpgrades?: Partial<CarUpgrades>, garageInstanceId?: string | null) => {
     const isAutoOrCvt =
       config.transmission.type === 'automatic' ||
       config.transmission.type === 'cvt' ||
@@ -343,6 +349,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       hasTurbo,
       hasLaunchControl,
       hasRetrofitInfotainment: Boolean(initialUpgrades?.multimediaKit),
+      hasBoostGaugeKit: Boolean(initialUpgrades?.boostGaugeKit),
+      garageInstanceId: garageInstanceId ?? null,
       exhaustType: initialUpgrades?.exhaustType || (hasTurbo ? 'sport' : 'stock'),
       intakeType: initialUpgrades?.intakeType || 'stock',
       tires: initialUpgrades?.tires || 'street',
@@ -497,6 +505,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       const tuningStage = upgrades.tuningStage ?? state.tuningStage
       const hasRetrofitInfotainment =
         upgrades.multimediaKit !== undefined ? upgrades.multimediaKit : state.hasRetrofitInfotainment
+      const hasBoostGaugeKit =
+        upgrades.boostGaugeKit !== undefined ? upgrades.boostGaugeKit : state.hasBoostGaugeKit
+      const exhaustValveOpen = upgrades.exhaustValveOpen ?? state.exhaustValveOpen
 
       if (_physics) {
         let baseFric = tires === 'semi_slick' ? 1.22 : 0.95
@@ -512,6 +523,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         tires,
         tuningStage,
         hasRetrofitInfotainment,
+        hasBoostGaugeKit,
+        exhaustValveOpen,
       }
     })
   },
@@ -693,8 +706,19 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   selectShifterMode: (mode: 'P' | 'R' | 'N' | 'D' | 'S' | 'M') => {
-    const { _transmission, _autoTransmission, _physics, _config, speed } = get()
+    const { _transmission, _autoTransmission, _physics, _config, speed, isAutomaticVehicle } = get()
     if (!_transmission || !_config) return
+
+    // Carros com câmbio manual convencional (Gol, Civic Si, Gol Quadrado, CB1000R)
+    // NÃO possuem alavanca P/R/N/D/S/M. Apenas o Neutro é permitido, sem trocar o modo.
+    if (!isAutomaticVehicle) {
+      if (mode === 'N') {
+        _transmission.neutral()
+        HapticFeedback.light()
+        set({ currentGear: 0, shifterPosition: 'N' })
+      }
+      return
+    }
 
     switch (mode) {
       case 'P': {
@@ -1106,6 +1130,18 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       currentBoost += (targetBoost - currentBoost) * clamp(frameTime * boostSpeed, 0, 1)
       currentBoost = Math.round(currentBoost * 100) / 100
       peakBoost = Math.max(peakBoost, currentBoost)
+    } else if (state.hasBoostGaugeKit) {
+      // Motor aspirado com manômetro aftermarket: funciona como vacuômetro do coletor
+      // (-0.75 bar em marcha lenta/desaceleração até ~-0.05 bar com borboleta toda aberta)
+      let targetVacuum = 0
+      if (latestIsRunning) {
+        targetVacuum = state.throttle < 0.08
+          ? -0.75 + clamp((latestRpm - 1000) / 8000, 0, 0.1)
+          : -0.7 + state.throttle * 0.65
+      }
+      currentBoost += (targetVacuum - currentBoost) * clamp(frameTime * 7, 0, 1)
+      currentBoost = Math.round(currentBoost * 100) / 100
+      peakBoost = 0
     } else {
       currentBoost = 0
       peakBoost = 0
@@ -1183,6 +1219,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       currentGear: 0,
       // Peças & Customizações Equipadas da Loja
   hasRetrofitInfotainment: false,
+  hasBoostGaugeKit: false,
+  garageInstanceId: null,
   exhaustType: 'stock',
   intakeType: 'stock',
   tires: 'street',

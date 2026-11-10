@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useGarageStore } from '@/stores/useGarageStore'
 import { useUIStore } from '@/stores/useUIStore'
@@ -7,6 +7,7 @@ import { useSimulationLoop } from '@/hooks/useSimulationLoop'
 import { useAudio } from '@/hooks/useAudio'
 import { useKeyboardControls } from '@/hooks/useKeyboardControls'
 import { useOrientation } from '@/hooks/useOrientation'
+import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { DashboardSystem } from '@/systems/dashboard'
 import { ClusterView } from './ClusterView'
 import { CockpitView } from './CockpitView'
@@ -16,7 +17,7 @@ import { RotateDeviceOverlay } from './RotateDeviceOverlay'
 import { PerformanceBox } from './PerformanceBox'
 import { KeyboardHUD } from './KeyboardHUD'
 import { InfotainmentScreen } from './InfotainmentScreen'
-import { PedalTelemetry } from '@/components/gauges'
+import { PedalTelemetry, AftermarketPillarGaugePod } from '@/components/gauges'
 import { Pedals, GearShift, EngineButton } from '@/components/controls'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { TuningGarageModal } from '@/components/tuning'
@@ -71,26 +72,22 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const toggleRain = useSimulationStore((s) => s.toggleRain)
   const tuningStage = useSimulationStore((s) => s.tuningStage)
 
-  const [isTuningOpen, setIsTuningOpen] = useState(false)
-  const activeCar = useGarageStore((s) => s.getActiveCar())
-  const hasRetrofitInfotainment = useSimulationStore((s) => s.hasRetrofitInfotainment)
+  const [searchParams] = useSearchParams()
+  const instanceIdFromUrl = searchParams.get('instance')
+  const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
+  const activeCar = resolveInstanceForVehicle(vehicle.id, instanceIdFromUrl)
 
-  const hasInfotainment =
-    hasRetrofitInfotainment ||
-    (vehicle.dashboard?.hasInfotainment ??
-      (vehicle.id !== 'gol-g6' &&
-        vehicle.id !== 'gol-quadrado-turbo' &&
-        vehicle.id !== 'cb1000r' &&
-        vehicle.info.category !== 'motorcycle'))
+  const [isTuningOpen, setIsTuningOpen] = useState(false)
+  const { hasInfotainment, showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
 
   const viewMode = useUIStore((s) => s.viewMode)
   const setViewMode = useUIStore((s) => s.setViewMode)
   const allowPortraitCockpit = useUIStore((s) => s.allowPortraitCockpit)
   const setAllowPortraitCockpit = useUIStore((s) => s.setAllowPortraitCockpit)
 
-  // Inicializar a física com as especificações do veículo e peças equipadas da garagem
+  // Inicializar a física com as especificações do veículo e peças equipadas da unidade exata da garagem
   useEffect(() => {
-    init(vehicle, activeCar?.vehicleId === vehicle.id ? activeCar.upgrades : undefined)
+    init(vehicle, activeCar?.upgrades, activeCar?.instanceId)
     return () => {
       reset()
     }
@@ -469,7 +466,14 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
 
         {/* ── Painel de Instrumentos Modular (ClusterView) ou Visão de Cabine (CockpitView) ── */}
         <div className="relative w-full flex flex-col xl:flex-row items-center justify-center gap-4">
-          <div className="w-full max-w-5xl flex items-center justify-center">
+          <div className="w-full max-w-5xl flex items-center justify-center relative">
+            {/* Manômetro Esportivo de Coluna Aftermarket (visível quando equipado em carros sem manômetro original) */}
+            {showAftermarketBoostGauge && viewMode === 'cluster' && (
+              <div className="hidden sm:flex absolute left-2 lg:left-4 top-1/2 -translate-y-1/2 z-20 animate-in zoom-in-95 duration-200">
+                <AftermarketPillarGaugePod size={88} />
+              </div>
+            )}
+
             {viewMode === 'cluster' ? (
               <ClusterView telemetry={telemetry} />
             ) : (
@@ -541,6 +545,7 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
         isOpen={isTuningOpen}
         onClose={() => setIsTuningOpen(false)}
         vehicle={vehicle}
+        carInstance={activeCar}
       />
     </div>
   )
