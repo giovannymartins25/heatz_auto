@@ -151,10 +151,21 @@ export class DashboardSystem {
       dashboardConfig,
     } = input
 
-    const maxRpm = dashboardConfig.tachometerMax || engineConfig.maxRpm || 8000
-    const redlineStart = dashboardConfig.redlineStart || engineConfig.revLimiter || 6000
+    const maxRpm =
+      dashboardConfig.tachometerMax ||
+      (dashboardConfig as any).tachometer?.maxRpm ||
+      engineConfig.maxRpm ||
+      8000
+    const redlineStart =
+      dashboardConfig.redlineStart ||
+      (dashboardConfig as any).tachometer?.redlineRpm ||
+      engineConfig.revLimiter ||
+      6000
     const shiftLightOffset = dashboardConfig.shiftLightOffsetRpm ?? 500
-    const maxSpeed = dashboardConfig.speedometerMax || 220
+    const maxSpeed =
+      dashboardConfig.speedometerMax ||
+      (dashboardConfig as any).speedometer?.maxSpeed ||
+      220
     const theme: DashboardTheme = dashboardConfig.theme || 'default'
 
     // 1. Tacômetro

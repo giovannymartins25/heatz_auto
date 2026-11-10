@@ -27,6 +27,8 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
   const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const isLaunching = useSimulationStore((s) => s.isLaunching)
+  const liveRpm = useSimulationStore((s) => s.rpm)
+  const isRevLimiting = useSimulationStore((s) => s.isRevLimiting)
 
   // ── AutoMeter Monster Tachometer Geometry (0 a 10.000 RPM) ──
   const tachSize = 280
@@ -35,11 +37,13 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
   const tachStartAngle = -225
   const tachEndAngle = 45
 
-  const clampedRpm = clamp(tachometer.rpm, 0, 10000)
+  // RPM ao vivo sem atraso e limitado à escala do AutoMeter Monster
+  const currentRpm = Math.max(0, liveRpm || tachometer.rpm || 0)
+  const clampedRpm = clamp(currentRpm, 0, 10000)
   const tachAngle = mapRange(clampedRpm, 0, 10000, tachStartAngle, tachEndAngle)
 
-  // Shift Light ativa a partir de 7.000 RPM ou durante corte
-  const isShiftLightActive = clampedRpm >= 7000 || isLaunchControlArmed
+  // Shift Light ativa a partir de 7.000 RPM, durante corte de giro ou no 3-Step
+  const isShiftLightActive = clampedRpm >= 7000 || isRevLimiting || isLaunchControlArmed
 
   // Marcações do Conta-Giros AutoMeter (0 a 10 x1000 RPM)
   const tachMarks = useMemo(() => {
@@ -236,7 +240,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
             <div
               className={`w-12 h-12 rounded-full border-2 border-zinc-600 flex items-center justify-center transition-all shadow-xl ${
                 isShiftLightActive
-                  ? 'bg-amber-400 border-amber-300 shadow-[0_0_35px_rgba(251,191,36,1)] animate-ping'
+                  ? 'bg-amber-400 border-amber-300 shadow-[0_0_35px_rgba(251,191,36,1)] animate-pulse'
                   : 'bg-zinc-900 border-zinc-700'
               }`}
             >
@@ -357,8 +361,8 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
             <div className="px-3 py-0.5 rounded bg-zinc-900 border border-zinc-700 font-black text-amber-400 text-sm shadow">
               {gear.label}
             </div>
-            <span className="text-[10px] text-zinc-400 font-bold">
-              {clampedRpm} <span className="text-[8px] text-zinc-500">RPM</span>
+            <span className="text-[10px] text-zinc-400 font-bold font-mono">
+              {Math.round(clampedRpm)} <span className="text-[8px] text-zinc-500">RPM</span>
             </span>
           </div>
         </div>

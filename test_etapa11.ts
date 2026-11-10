@@ -227,6 +227,30 @@ async function runEtapa11Tests() {
     'Gol Quadrado possui synthConfig de áudio completo com harmônicos e frequência base'
   )
 
+  // ─── TESTE 15: Configuração do Tacômetro AutoMeter 10.000 RPM do Gol Quadrado ───
+  assert(
+    golQuadradoConfig.dashboard.tachometerMax === 10000 &&
+    golQuadradoConfig.dashboard.speedometerMax === 260 &&
+    golQuadradoConfig.dashboard.redlineStart === 7200,
+    'Gol Quadrado possui escala AutoMeter Monster calibrada para 10.000 RPM e redline aos 7.200 RPM'
+  )
+
+  // ─── TESTE 16: Compra da Multimídia 2-DIN para carro sem multimídia original ───
+  const golQuadCar = useGarageStore.getState().buyCar('gol-quadrado-turbo', 'Gol Quadrado com Multimídia', 65000)
+  assert(!golQuadradoConfig.dashboard.hasInfotainment, 'Gol Quadrado sai de fábrica sem multimídia')
+
+  // Equipar multimídia 2-DIN
+  useGarageStore.getState().installUpgrade(golQuadCar.instanceId, { multimediaKit: true })
+  const updatedQuad = useGarageStore.getState().getCarById(golQuadCar.instanceId)
+  assert(updatedQuad?.upgrades.multimediaKit === true, 'Multimídia 2-DIN comprada e persistida no Gol Quadrado')
+
+  useSimulationStore.getState().reset()
+  useSimulationStore.getState().init(golQuadradoConfig, updatedQuad?.upgrades, updatedQuad?.instanceId)
+  assert(
+    useSimulationStore.getState().hasRetrofitInfotainment === true,
+    'Simulador inicializa com central multimídia 2-DIN ativa no Gol Quadrado'
+  )
+
   console.log('\n═══════════════════════════════════════════════════════════════')
   console.log(`RESULTADO FINAL: ${passed} PASSOU | ${failed} FALHOU`)
   console.log('═══════════════════════════════════════════════════════════════\n')

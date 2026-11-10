@@ -124,18 +124,15 @@
     }
   },
   "dashboard": {
+    "type": "default",
     "theme": "square_turbo",
-    "hasInfotainment": false,
-    "tachometer": {
-      "maxRpm": 10000,
-      "redlineRpm": 7200,
-      "majorTickInterval": 1000,
-      "minorTickInterval": 500
-    },
-    "speedometer": {
-      "maxSpeed": 260,
-      "majorTickInterval": 20,
-      "minorTickInterval": 10
-    }
+    "tachometerMax": 10000,
+    "speedometerMax": 260,
+    "redlineStart": 7200,
+    "shiftLightOffsetRpm": 400,
+    "fuelCapacity": 55,
+    "coolantTempTarget": 90,
+    "hasBoostGauge": true,
+    "hasInfotainment": false
   }
 }

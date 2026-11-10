@@ -125,18 +125,14 @@
     }
   },
   "dashboard": {
+    "type": "default",
     "theme": "civic_si",
-    "hasInfotainment": true,
-    "tachometer": {
-      "maxRpm": 9000,
-      "redlineRpm": 8000,
-      "majorTickInterval": 1000,
-      "minorTickInterval": 500
-    },
-    "speedometer": {
-      "maxSpeed": 260,
-      "majorTickInterval": 20,
-      "minorTickInterval": 10
-    }
+    "tachometerMax": 9000,
+    "speedometerMax": 260,
+    "redlineStart": 8000,
+    "shiftLightOffsetRpm": 400,
+    "fuelCapacity": 50,
+    "coolantTempTarget": 90,
+    "hasInfotainment": true
   }
 }

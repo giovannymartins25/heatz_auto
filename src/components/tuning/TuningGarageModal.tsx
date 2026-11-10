@@ -51,14 +51,20 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const sandboxMode = useGarageStore((s) => s.sandboxMode)
   const toggleSandboxMode = useGarageStore((s) => s.toggleSandboxMode)
   const addCredits = useGarageStore((s) => s.addCredits)
-  const getActiveCar = useGarageStore((s) => s.getActiveCar)
-  const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const installUpgrade = useGarageStore((s) => s.installUpgrade)
 
   if (!isOpen) return null
 
-  // Resolve com precisão a unidade exata que está sendo customizada
-  const activeCar = carInstance || resolveInstanceForVehicle(vehicle.id) || getActiveCar()
+  // Obtém reativamente a unidade exata que está sendo customizada na loja
+  const liveCar = useGarageStore((s) => {
+    if (carInstance?.instanceId) {
+      return s.getCarById(carInstance.instanceId)
+    }
+    return s.resolveInstanceForVehicle(vehicle.id) || s.getActiveCar()
+  }) || carInstance
+
+  const upgrades = liveCar?.upgrades
+
   const isOriginalTurboCar = Boolean(vehicle.engine.turbo?.enabled)
   const hasFactoryBoost = vehicle.id === 'golf-gti' || vehicle.id === 'porsche-gt3' || vehicle.id === 'gol-quadrado-turbo'
   const isOriginalInfotainmentCar = Boolean(
@@ -68,6 +74,15 @@ export const TuningGarageModal = memo(function TuningGarageModal({
       vehicle.id !== 'cb1000r' &&
       vehicle.info.category !== 'motorcycle')
   )
+
+  // Upgrades ativos no carro selecionado
+  const activeStage = upgrades?.tuningStage ?? tuningStage
+  const activeExhaust = upgrades?.exhaustType ?? exhaustType
+  const activeIntake = upgrades?.intakeType ?? intakeType
+  const activeTires = upgrades?.tires ?? tires
+  const isTurboInstalled = isOriginalTurboCar || Boolean(upgrades?.turboKit ?? hasTurbo)
+  const isMultimediaInstalled = Boolean(upgrades?.multimediaKit ?? hasRetrofitInfotainment)
+  const isBoostGaugeInstalled = Boolean(upgrades?.boostGaugeKit ?? hasBoostGaugeKit)
 
   const showNotification = (msg: string) => {
     setFeedbackMsg(msg)
@@ -92,8 +107,8 @@ export const TuningGarageModal = memo(function TuningGarageModal({
 
     const partialUpgrade: Partial<CarUpgrades> = { [upgradeKey]: value }
 
-    if (activeCar) {
-      installUpgrade(activeCar.instanceId, partialUpgrade)
+    if (liveCar) {
+      installUpgrade(liveCar.instanceId, partialUpgrade)
     }
     setEquippedUpgrades(partialUpgrade)
 
@@ -110,16 +125,16 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const baseTorque = vehicle.engine.maxTorque || 200
   const baseBoost = vehicle.engine.turbo?.maxBoostBar || 1.15
 
-  const stageMult = tuningStage === 1 ? 1.25 : tuningStage === 2 ? 1.50 : tuningStage === 3 ? 1.85 : 1.0
-  const turboMult = (!isOriginalTurboCar && hasTurbo) ? 1.45 : 1.0
-  const intakeMult = intakeType === 'cold_air' ? 1.06 : 1.0
-  const exhaustMult = exhaustType === 'straight_pipe' ? 1.08 : exhaustType === 'sport' ? 1.04 : 1.0
+  const stageMult = activeStage === 1 ? 1.25 : activeStage === 2 ? 1.50 : activeStage === 3 ? 1.85 : 1.0
+  const turboMult = (!isOriginalTurboCar && isTurboInstalled) ? 1.45 : 1.0
+  const intakeMult = activeIntake === 'cold_air' ? 1.06 : 1.0
+  const exhaustMult = activeExhaust === 'straight_pipe' ? 1.08 : activeExhaust === 'sport' ? 1.04 : 1.0
 
   const totalMult = stageMult * turboMult * intakeMult * exhaustMult
   const estimatedPower = Math.round(basePower * totalMult)
   const estimatedTorque = Math.round(baseTorque * totalMult)
-  const estimatedBoost = hasTurbo
-    ? (isOriginalTurboCar ? baseBoost : 1.1) + (tuningStage === 1 ? 0.35 : tuningStage === 2 ? 0.65 : tuningStage === 3 ? 1.15 : 0)
+  const estimatedBoost = isTurboInstalled
+    ? (isOriginalTurboCar ? baseBoost : 1.1) + (activeStage === 1 ? 0.35 : activeStage === 2 ? 0.65 : activeStage === 3 ? 1.15 : 0)
     : 0
 
   return (
@@ -136,7 +151,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                   LOJA DE PEÇAS & APRIMORAMENTOS
                 </h2>
                 <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  {activeCar?.customName || vehicle.info.name}
+                  {liveCar?.customName || vehicle.info.name}
                 </span>
               </div>
               <span className="text-[10px] text-zinc-400">
@@ -210,23 +225,23 @@ export const TuningGarageModal = memo(function TuningGarageModal({
           <div className="flex flex-col items-center justify-center p-1 rounded-xl bg-zinc-900/40">
             <span className="text-[8px] text-zinc-500 uppercase tracking-wider">Pressão de Turbo</span>
             <span className="text-sm font-black text-sky-400">
-              {hasTurbo ? `${estimatedBoost.toFixed(2)} bar` : 'Aspirado'}
+              {isTurboInstalled ? `${estimatedBoost.toFixed(2)} bar` : 'Aspirado'}
             </span>
-            <span className="text-[8px] text-sky-300 font-bold">{hasTurbo ? 'Turbinado' : 'Natural'}</span>
+            <span className="text-[8px] text-sky-300 font-bold">{isTurboInstalled ? 'Turbinado' : 'Natural'}</span>
           </div>
 
           <div className="flex flex-col items-center justify-center p-1 rounded-xl bg-zinc-900/40">
             <span className="text-[8px] text-zinc-500 uppercase tracking-wider">Aderência Pneus</span>
             <span className="text-sm font-black text-rose-400">
-              {tires === 'semi_slick' ? '1.22 µ (Grip Max)' : '0.95 µ (Rua)'}
+              {activeTires === 'semi_slick' ? '1.22 µ (Grip Max)' : '0.95 µ (Rua)'}
             </span>
-            <span className="text-[8px] text-rose-300 font-bold">{tires === 'semi_slick' ? 'Semi-Slick' : 'Radial'}</span>
+            <span className="text-[8px] text-rose-300 font-bold">{activeTires === 'semi_slick' ? 'Semi-Slick' : 'Radial'}</span>
           </div>
 
           <div className="col-span-2 sm:col-span-1 flex flex-col items-center justify-center p-1 rounded-xl bg-zinc-900/40">
             <span className="text-[8px] text-zinc-500 uppercase tracking-wider">Escape & Tiros</span>
-            <span className={`text-xs font-black ${exhaustType === 'straight_pipe' ? 'text-orange-400' : 'text-zinc-300'}`}>
-              {exhaustType === 'straight_pipe' ? '💥 TIROS / DIRETO' : exhaustType === 'sport' ? '⚡ ESPORTIVO' : 'ORIGINAL'}
+            <span className={`text-xs font-black ${activeExhaust === 'straight_pipe' ? 'text-orange-400' : 'text-zinc-300'}`}>
+              {activeExhaust === 'straight_pipe' ? '💥 TIROS / DIRETO' : activeExhaust === 'sport' ? '⚡ ESPORTIVO' : 'ORIGINAL'}
             </span>
             <span className="text-[8px] text-zinc-400 font-bold">{exhaustValveOpen ? 'Válvula Aberta' : 'Silencioso'}</span>
           </div>
@@ -307,7 +322,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                     <h3 className="text-xs sm:text-sm font-black text-white uppercase">
                       KIT TURBOCOMPRESSOR FORJADO + INTERCOOLER
                     </h3>
-                    {hasTurbo && (
+                    {isTurboInstalled && (
                       <span className="px-2 py-0.5 rounded text-[8px] font-black bg-sky-500/20 text-sky-300 border border-sky-400/30">
                         INSTALADO
                       </span>
@@ -326,18 +341,18 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                   onClick={() =>
                     handlePurchaseAndEquip(
                       'turboKit',
-                      !hasTurbo,
-                      hasTurbo ? 0 : 14500,
-                      hasTurbo ? 'Kit Turbo removido' : 'Kit Turbo Forjado'
+                      !isTurboInstalled,
+                      isTurboInstalled ? 0 : 14500,
+                      isTurboInstalled ? 'Kit Turbo removido' : 'Kit Turbo Forjado'
                     )
                   }
                   className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all shrink-0 ${
-                    hasTurbo
+                    isTurboInstalled
                       ? 'bg-zinc-800 text-zinc-400 hover:text-red-400 border border-white/10'
                       : 'bg-sky-500 hover:bg-sky-400 text-black font-black shadow-[0_0_15px_rgba(14,165,233,0.6)]'
                   }`}
                 >
-                  {hasTurbo ? 'DESINSTALAR KIT' : 'COMPRAR KIT TURBO (R$ 14.500)'}
+                  {isTurboInstalled ? 'DESINSTALAR KIT' : 'COMPRAR KIT TURBO (R$ 14.500)'}
                 </button>
               ) : (
                 <span className="text-[10px] text-emerald-400 font-bold px-3 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/20 shrink-0">
@@ -345,6 +360,56 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                 </span>
               )}
             </div>
+
+            {/* Seção Central Multimídia Retrofit Smart Connect (Destaque na Loja de Aprimoramentos) */}
+            {vehicle.info.category !== 'motorcycle' && (
+              <div className="p-3.5 rounded-2xl bg-zinc-900/60 border border-purple-500/20 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg shadow-purple-950/20">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">📺</span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs sm:text-sm font-black text-white uppercase">
+                        KIT CENTRAL MULTIMÍDIA 2-DIN TOUCHSCREEN SMART CONNECT
+                      </h3>
+                      {(isMultimediaInstalled || isOriginalInfotainmentCar) && (
+                        <span className="px-2 py-0.5 rounded text-[8px] font-black bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                          {isOriginalInfotainmentCar ? 'ORIGINAL' : 'INSTALADA'}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-zinc-400 mt-0.5 max-w-lg">
+                      {isOriginalInfotainmentCar
+                        ? 'Este modelo já vem equipado de fábrica com central multimídia de alta definição integrada ao painel.'
+                        : 'Muda o interior do veículo, instalando uma tela multimídia 2-DIN no console (ideal para Gol G6 e Gol Quadrado!). Permite ouvir músicas, assistir YouTube, climatização digital e luz ambiente RGB.'}
+                    </p>
+                  </div>
+                </div>
+
+                {!isOriginalInfotainmentCar ? (
+                  <button
+                    onClick={() =>
+                      handlePurchaseAndEquip(
+                        'multimediaKit',
+                        !isMultimediaInstalled,
+                        isMultimediaInstalled ? 0 : 2800,
+                        isMultimediaInstalled ? 'Multimídia removida' : 'Kit Multimídia 2-DIN Retrofit'
+                      )
+                    }
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all shrink-0 ${
+                      isMultimediaInstalled
+                        ? 'bg-zinc-800 text-zinc-400 hover:text-red-400 border border-white/10'
+                        : 'bg-purple-600 hover:bg-purple-500 text-white font-black shadow-[0_0_15px_rgba(147,51,234,0.6)]'
+                    }`}
+                  >
+                    {isMultimediaInstalled ? 'REMOVER MULTIMÍDIA' : 'COMPRAR & INSTALAR (R$ 2.800)'}
+                  </button>
+                ) : (
+                  <span className="text-[10px] text-emerald-400 font-bold px-3 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/20 shrink-0">
+                    MULTIMÍDIA DE FÁBRICA
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Seção Estágios de Reprogramação (ECU Stages) */}
             <div className="flex flex-col gap-2">
@@ -399,7 +464,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                     activeBg: 'bg-red-950/70 border-red-500 text-red-200 shadow-[0_0_25px_rgba(239,68,68,0.7)]',
                   },
                 ].map((st) => {
-                  const isSelected = tuningStage === st.stage
+                  const isSelected = activeStage === st.stage
                   return (
                     <div
                       key={st.stage}
@@ -520,7 +585,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                   activeBg: 'bg-red-950/70 border-red-500 text-red-200 shadow-[0_0_25px_rgba(239,68,68,0.7)]',
                 },
               ].map((ex) => {
-                const isSelected = exhaustType === ex.id
+                const isSelected = activeExhaust === ex.id
                 return (
                   <div
                     key={ex.id}
@@ -607,7 +672,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                 activeBg: 'bg-sky-950/70 border-sky-400 text-sky-200 shadow-[0_0_20px_rgba(2,132,199,0.5)]',
               },
             ].map((it) => {
-              const isSelected = intakeType === it.id
+              const isSelected = activeIntake === it.id
               return (
                 <div
                   key={it.id}
@@ -695,7 +760,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                 activeBg: 'bg-emerald-950/70 border-emerald-400 text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.5)]',
               },
             ].map((tp) => {
-              const isSelected = tires === tp.id
+              const isSelected = activeTires === tp.id
               return (
                 <div
                   key={tp.id}
@@ -777,7 +842,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                     <h3 className="text-xs sm:text-sm font-black text-white uppercase">
                       MANÔMETRO ESPORTIVO DE TURBO / VÁCUO (POD DE COLUNA)
                     </h3>
-                    {(hasBoostGaugeKit || hasFactoryBoost) && (
+                    {(isBoostGaugeInstalled || hasFactoryBoost) && (
                       <span className="px-2 py-0.5 rounded text-[8px] font-black bg-amber-500/20 text-amber-300 border border-amber-400/30">
                         {hasFactoryBoost ? 'DE FÁBRICA' : 'INSTALADO NA COLUNA'}
                       </span>
@@ -808,7 +873,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
 
               <div className="flex items-center justify-between pt-2 border-t border-white/10">
                 <span className="text-[10px] text-zinc-400">
-                  Status: {hasBoostGaugeKit || hasFactoryBoost ? '✅ Visível no Cockpit / Coluna' : '❌ Não Instalado'}
+                  Status: {isBoostGaugeInstalled || hasFactoryBoost ? '✅ Visível no Cockpit / Coluna' : '❌ Não Instalado'}
                 </span>
 
                 {!hasFactoryBoost ? (
@@ -816,18 +881,18 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                     onClick={() =>
                       handlePurchaseAndEquip(
                         'boostGaugeKit',
-                        !hasBoostGaugeKit,
-                        hasBoostGaugeKit ? 0 : 1500,
-                        hasBoostGaugeKit ? 'Manômetro de coluna removido' : 'Manômetro de Turbo Aftermarket'
+                        !isBoostGaugeInstalled,
+                        isBoostGaugeInstalled ? 0 : 1500,
+                        isBoostGaugeInstalled ? 'Manômetro de coluna removido' : 'Manômetro de Turbo Aftermarket'
                       )
                     }
                     className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${
-                      hasBoostGaugeKit
+                      isBoostGaugeInstalled
                         ? 'bg-zinc-800 text-zinc-400 hover:text-red-400 border border-white/10'
                         : 'bg-amber-500 hover:bg-amber-400 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.6)]'
                     }`}
                   >
-                    {hasBoostGaugeKit ? 'REMOVER MANÔMETRO' : 'COMPRAR & INSTALAR (R$ 1.500)'}
+                    {isBoostGaugeInstalled ? 'REMOVER MANÔMETRO' : 'COMPRAR & INSTALAR (R$ 1.500)'}
                   </button>
                 ) : (
                   <span className="text-[10px] text-emerald-400 font-bold px-3 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/20">
@@ -846,7 +911,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                     <h3 className="text-xs sm:text-sm font-black text-white uppercase">
                       KIT CENTRAL MULTIMÍDIA 2-DIN TOUCHSCREEN SMART CONNECT
                     </h3>
-                    {(hasRetrofitInfotainment || isOriginalInfotainmentCar) && (
+                    {(isMultimediaInstalled || isOriginalInfotainmentCar) && (
                       <span className="px-2 py-0.5 rounded text-[8px] font-black bg-purple-500/20 text-purple-300 border border-purple-400/30">
                         {isOriginalInfotainmentCar ? 'ORIGINAL' : 'INSTALADA'}
                       </span>
@@ -877,7 +942,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
 
               <div className="flex items-center justify-between pt-2 border-t border-white/10">
                 <span className="text-[10px] text-zinc-400">
-                  Status: {hasRetrofitInfotainment || isOriginalInfotainmentCar ? '✅ Habilitado no Console' : '❌ Não Instalado'}
+                  Status: {isMultimediaInstalled || isOriginalInfotainmentCar ? '✅ Habilitado no Console' : '❌ Não Instalado'}
                 </span>
 
                 {!isOriginalInfotainmentCar ? (
@@ -885,18 +950,18 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                     onClick={() =>
                       handlePurchaseAndEquip(
                         'multimediaKit',
-                        !hasRetrofitInfotainment,
-                        hasRetrofitInfotainment ? 0 : 2800,
-                        hasRetrofitInfotainment ? 'Multimídia removida' : 'Kit Multimídia 2-DIN Retrofit'
+                        !isMultimediaInstalled,
+                        isMultimediaInstalled ? 0 : 2800,
+                        isMultimediaInstalled ? 'Multimídia removida' : 'Kit Multimídia 2-DIN Retrofit'
                       )
                     }
                     className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${
-                      hasRetrofitInfotainment
+                      isMultimediaInstalled
                         ? 'bg-zinc-800 text-zinc-400 hover:text-red-400 border border-white/10'
                         : 'bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_15px_rgba(147,51,234,0.6)]'
                     }`}
                   >
-                    {hasRetrofitInfotainment ? 'REMOVER MULTIMÍDIA' : 'COMPRAR & INSTALAR (R$ 2.800)'}
+                    {isMultimediaInstalled ? 'REMOVER MULTIMÍDIA' : 'COMPRAR & INSTALAR (R$ 2.800)'}
                   </button>
                 ) : (
                   <span className="text-[10px] text-emerald-400 font-bold px-3 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/20">

@@ -2,6 +2,7 @@ import { memo } from 'react'
 import type { VehicleConfig } from '@/types/vehicle'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
 import { GolfGTIDiscoverPro, PorschePCM6, ToyotaSmartConnect, CivicSiInfotainment, Retrofit2DinInfotainment } from './infotainment'
 
 interface InfotainmentScreenProps {
@@ -27,7 +28,9 @@ export const InfotainmentScreen = memo(function InfotainmentScreen({
   compact = false,
   className = '',
 }: InfotainmentScreenProps) {
-  const hasRetrofitInfotainment = useSimulationStore((s) => s.hasRetrofitInfotainment)
+  const activeCar = useGarageStore((s) => s.resolveInstanceForVehicle(vehicle.id))
+  const storeRetrofit = useSimulationStore((s) => s.hasRetrofitInfotainment)
+  const hasRetrofitInfotainment = Boolean(activeCar?.upgrades?.multimediaKit || storeRetrofit)
 
   // Verificar se o veículo possui multimídia de fábrica habilitada ou instalada pela Loja de Peças
   const hasInfotainment =

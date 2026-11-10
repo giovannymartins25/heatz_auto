@@ -1,4 +1,5 @@
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
 import type { DashboardTheme, VehicleConfig } from '@/types/vehicle'
 
 /** Temas de painel cujo quadro de instrumentos de fábrica já exibe a pressão do turbo */
@@ -30,9 +31,14 @@ export function supportsInteriorAccessories(vehicle: VehicleConfig): boolean {
  * equipamento de fábrica + acessórios comprados na Loja de Peças da unidade pilotada.
  */
 export function useInteriorAccessories(vehicle: VehicleConfig) {
-  const hasRetrofitInfotainment = useSimulationStore((s) => s.hasRetrofitInfotainment)
-  const hasBoostGaugeKit = useSimulationStore((s) => s.hasBoostGaugeKit)
-  const hasTurbo = useSimulationStore((s) => s.hasTurbo)
+  const activeCar = useGarageStore((s) => s.resolveInstanceForVehicle(vehicle.id))
+  const storeRetrofit = useSimulationStore((s) => s.hasRetrofitInfotainment)
+  const storeBoostGauge = useSimulationStore((s) => s.hasBoostGaugeKit)
+  const storeTurbo = useSimulationStore((s) => s.hasTurbo)
+
+  const hasRetrofitInfotainment = Boolean(activeCar?.upgrades?.multimediaKit || storeRetrofit)
+  const hasBoostGaugeKit = Boolean(activeCar?.upgrades?.boostGaugeKit || storeBoostGauge)
+  const hasTurbo = Boolean(vehicle.engine.turbo?.enabled || activeCar?.upgrades?.turboKit || storeTurbo)
 
   const supportsAccessories = supportsInteriorAccessories(vehicle)
   const factoryInfotainment = hasFactoryInfotainment(vehicle)
