@@ -1,12 +1,12 @@
 import { memo, useState } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
-import type { VehicleConfig, DrivingMode } from '@/types'
+import type { VehicleConfig } from '@/types'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, MobileStartButton } from '@/components/controls'
+import { QuickClutchButton, MobileStartButton, DrivingModesSelector } from '@/components/controls'
 import { WarningLights, AuxGauges } from '@/components/gauges'
 import { VehicleDashboardCluster } from './VehicleDashboardCluster'
 import { DrivingMapViewport } from './DrivingMapViewport'
@@ -53,7 +53,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const setClutch = useSimulationStore((s) => s.setClutch)
   const isRunning = useSimulationStore((s) => s.isRunning)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
-  const setDrivingMode = useSimulationStore((s) => s.setDrivingMode)
   const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
   const setHorn = useSimulationStore((s) => s.setHorn)
   const toggleHandbrake = useSimulationStore((s) => s.toggleHandbrake)
@@ -71,6 +70,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const nosPressurePercent = useSimulationStore((s) => s.nosPressurePercent)
   const setNosActive = useSimulationStore((s) => s.setNosActive)
   const purgeNos = useSimulationStore((s) => s.purgeNos)
+  const transmissionMode = useSimulationStore((s) => s.transmissionMode)
+  const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isTuningOpen, setIsTuningOpen] = useState(false)
@@ -79,6 +80,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const isMotorcycle = vehicle.info.category === 'motorcycle'
+  const isCvtWithManual = vehicle.transmission.hasManualMode === true && !hasClutch
+  const isManualSimulated = transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
   const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const activeCar = carInstance || resolveInstanceForVehicle(vehicle.id)
@@ -177,20 +180,9 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         </div>
 
         {supportedModes.length > 0 && (
-          <div className="flex items-center bg-zinc-900 p-0.5 rounded-full border border-white/10 flex-shrink-0">
-            {supportedModes.map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setDrivingMode(mode as DrivingMode)}
-                className={`px-2 py-1 uppercase rounded-full font-bold transition-all cursor-pointer ${
-                  drivingMode === mode ? 'bg-white text-zinc-950 shadow' : 'text-zinc-500'
-                }`}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
+          <span className="text-[8.5px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border bg-zinc-900 border-white/10 text-zinc-400">
+            MODO: <b className="text-white">{drivingMode}</b>
+          </span>
         )}
       </div>
 
@@ -332,49 +324,101 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         )}
       </main>
 
-      {/* ─── 4. Câmbio ─── */}
-      <div className="w-full flex justify-center pt-1 pb-2 border-t border-white/5">
-        <GearShift size="compact" orientation="horizontal" />
+      {/* ─── 4. Câmbio e Perfis de Condução (Lateral Direita) ─── */}
+      <div className="w-full flex items-center justify-between gap-2 px-1 pt-1 pb-1.5 border-t border-white/5">
+        <div className="flex-1 flex justify-center min-w-0">
+          <GearShift size="compact" orientation="horizontal" />
+        </div>
+        {supportedModes.length > 0 && (
+          <div className="flex-shrink-0 flex items-center pr-1">
+            <DrivingModesSelector
+              supportedModes={supportedModes}
+              orientation="horizontal"
+              size="compact"
+            />
+          </div>
+        )}
       </div>
 
       {/* ─── 5. Zona dos polegares: botões laterais + pedais ─── */}
       <footer className="w-full grid grid-cols-[68px_1fr_68px] sm:grid-cols-[80px_1fr_80px] items-end gap-2">
-        {/* Coluna esquerda: Buzina · Freio de mão · START */}
-        <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onPointerDown={() => setHorn(true)}
-            onPointerUp={() => setHorn(false)}
-            onPointerLeave={() => setHorn(false)}
-            onPointerCancel={() => setHorn(false)}
-            className="h-11 rounded-2xl bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-lg transition-all active:scale-95 cursor-pointer"
-            title="Buzina"
-            aria-label="Buzina"
-          >
-            📢
-          </button>
-          <button
-            type="button"
-            onClick={toggleHandbrake}
-            className={`h-11 rounded-2xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
-              handbrake
-                ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.7)]'
-                : 'bg-zinc-900 text-zinc-400 border-white/10'
-            }`}
-            aria-label="Freio de mão"
-          >
-            <span className="text-[13px]">(P)</span>
-            <span className="text-[7px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
-          </button>
-          <MobileStartButton variant="square" className="h-16 w-full" />
+        {/* Coluna esquerda: Buzina · Freio de mão · START · (QuickClutch 100% à esquerda se manual) */}
+        <div className="flex flex-col gap-1.5">
+          {hasClutch ? (
+            <>
+              <div className="grid grid-cols-2 gap-1">
+                <button
+                  type="button"
+                  onPointerDown={() => setHorn(true)}
+                  onPointerUp={() => setHorn(false)}
+                  onPointerLeave={() => setHorn(false)}
+                  onPointerCancel={() => setHorn(false)}
+                  className="h-10 rounded-xl bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-base transition-all active:scale-95 cursor-pointer"
+                  title="Buzina"
+                  aria-label="Buzina"
+                >
+                  📢
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleHandbrake}
+                  className={`h-10 rounded-xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
+                    handbrake
+                      ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.7)]'
+                      : 'bg-zinc-900 text-zinc-400 border-white/10'
+                  }`}
+                  aria-label="Freio de mão"
+                >
+                  <span className="text-[11px]">(P)</span>
+                  <span className="text-[6.5px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
+                </button>
+              </div>
+              <MobileStartButton variant="square" className="h-11 w-full" />
+              <QuickClutchButton
+                layout="stack"
+                className="h-15 w-full"
+                label={isMotorcycle ? 'MANETE' : 'EMBR'}
+                sublabel={isMotorcycle ? '100%' : '100%'}
+              />
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onPointerDown={() => setHorn(true)}
+                onPointerUp={() => setHorn(false)}
+                onPointerLeave={() => setHorn(false)}
+                onPointerCancel={() => setHorn(false)}
+                className="h-11 rounded-2xl bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-lg transition-all active:scale-95 cursor-pointer"
+                title="Buzina"
+                aria-label="Buzina"
+              >
+                📢
+              </button>
+              <button
+                type="button"
+                onClick={toggleHandbrake}
+                className={`h-11 rounded-2xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
+                  handbrake
+                    ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.7)]'
+                    : 'bg-zinc-900 text-zinc-400 border-white/10'
+                }`}
+                aria-label="Freio de mão"
+              >
+                <span className="text-[13px]">(P)</span>
+                <span className="text-[7px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
+              </button>
+              <MobileStartButton variant="square" className="h-16 w-full" />
+            </>
+          )}
         </div>
 
         {/* Centro: pedais */}
         <div className="flex items-end justify-center gap-1.5 sm:gap-3">
           {hasClutch && (
             <AnalogPedal
-              label="EMBR"
-              sublabel="CLUTCH"
+              label={isMotorcycle ? 'MANETE' : 'EMBR'}
+              sublabel={isMotorcycle ? 'EMBREAGEM' : 'CLUTCH'}
               value={clutchPosition}
               onChange={setClutch}
               colorTheme="amber"
@@ -408,7 +452,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           />
         </div>
 
-        {/* Coluna direita: NOS · Embreagem 100% */}
+        {/* Coluna direita: Controles Secundários / Nitro / Moto (SEM QuickClutch) */}
         <div className="flex flex-col gap-2">
           {isMotorcycle && (
             <button
@@ -421,6 +465,21 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               aria-label="Manete de freio dianteiro"
             >
               F. DIANT.
+            </button>
+          )}
+          {isCvtWithManual && (
+            <button
+              type="button"
+              onClick={toggleSimulatedManual}
+              disabled={!isRunning}
+              className={`h-11 rounded-2xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
+                isManualSimulated
+                  ? 'bg-sky-500/20 border-sky-500 text-sky-300'
+                  : 'bg-zinc-900 border-white/10 text-zinc-400'
+              }`}
+            >
+              <span className="text-[11px]">{isManualSimulated ? 'M' : 'AUTO'}</span>
+              <span className="text-[6.5px] mt-0.5">MODO</span>
             </button>
           )}
           {hasNosKit && (
@@ -455,7 +514,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               </button>
             </>
           )}
-          {hasClutch && <QuickClutchButton layout="stack" className="h-16 w-full" />}
         </div>
       </footer>
 

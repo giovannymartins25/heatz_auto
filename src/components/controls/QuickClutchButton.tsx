@@ -7,6 +7,8 @@ export interface QuickClutchButtonProps {
   size?: 'compact' | 'normal' | 'large'
   /** 'row' = ícone + texto lado a lado | 'stack' = texto empilhado (colunas estreitas) */
   layout?: 'row' | 'stack'
+  label?: string
+  sublabel?: string
 }
 
 /**
@@ -21,6 +23,8 @@ export const QuickClutchButton = memo(function QuickClutchButton({
   className = '',
   size = 'normal',
   layout = 'row',
+  label = 'EMBR',
+  sublabel = '100%',
 }: QuickClutchButtonProps) {
   const isRunning = useSimulationStore((s) => s.isRunning)
   const clutchPosition = useSimulationStore((s) => s.clutchPosition)
@@ -108,8 +112,8 @@ export const QuickClutchButton = memo(function QuickClutchButton({
     >
       {layout === 'stack' ? (
         <>
-          <span className="text-[12px] leading-none font-black">EMBR</span>
-          <span className="text-[10px] leading-none font-black">100%</span>
+          <span className="text-[12px] leading-none font-black">{label}</span>
+          <span className="text-[10px] leading-none font-black">{sublabel}</span>
           <span
             className={`text-[6.5px] font-sans tracking-normal leading-none mt-0.5 ${
               isFullyPressed ? 'text-black font-bold' : 'text-zinc-400'
@@ -122,7 +126,7 @@ export const QuickClutchButton = memo(function QuickClutchButton({
         <>
           <span className="text-xs">⚡</span>
           <div className="flex flex-col items-start text-left leading-tight">
-            <span className="font-mono font-black tracking-tight">EMBR 100%</span>
+            <span className="font-mono font-black tracking-tight">{label} {sublabel}</span>
             <span
               className={`text-[7px] font-sans tracking-normal opacity-80 ${
                 isFullyPressed ? 'text-black font-bold' : 'text-zinc-400'

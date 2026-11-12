@@ -1,13 +1,13 @@
 import { memo, useState } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
-import type { VehicleConfig, DrivingMode } from '@/types'
+import type { VehicleConfig } from '@/types'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useUIStore } from '@/stores/useUIStore'
 import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, MobileStartButton } from '@/components/controls'
+import { QuickClutchButton, MobileStartButton, DrivingModesSelector } from '@/components/controls'
 import { VehicleDashboardCluster } from './VehicleDashboardCluster'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { InfotainmentScreen } from './InfotainmentScreen'
@@ -50,7 +50,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 
   const isRunning = useSimulationStore((s) => s.isRunning)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
-  const setDrivingMode = useSimulationStore((s) => s.setDrivingMode)
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
   const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
@@ -103,20 +102,28 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
         paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))',
       }}
     >
-      {/* ═══ 1. ESQUERDA: PEDAIS (POLEGAR ESQUERDO) ═══ */}
-      <aside className="flex items-end justify-center gap-2.5 sm:gap-3 h-full py-1 pr-2 border-r border-white/5 flex-shrink-0">
+      {/* ═══ 1. ESQUERDA: PEDAIS & QUICKCLUTCH (POLEGAR ESQUERDO) ═══ */}
+      <aside className="flex items-end justify-center gap-2 sm:gap-2.5 h-full py-1 pr-2 border-r border-white/5 flex-shrink-0">
         {hasClutch && (
-          <AnalogPedal
-            label="EMBR"
-            sublabel="CLUTCH"
-            value={clutchPosition}
-            onChange={setClutch}
-            colorTheme="amber"
-            widthClass="w-13 sm:w-14"
-            heightClass="h-[76dvh]"
-            disabled={false}
-            showPercent={true}
-          />
+          <div className="flex flex-col items-center justify-end gap-1.5 h-full">
+            <QuickClutchButton
+              layout="stack"
+              className="w-13 sm:w-14 h-12 flex-shrink-0"
+              label={isMotorcycle ? 'MANETE' : 'EMBR'}
+              sublabel={isMotorcycle ? '100%' : '100%'}
+            />
+            <AnalogPedal
+              label={isMotorcycle ? 'MANETE' : 'EMBR'}
+              sublabel={isMotorcycle ? 'EMBREAGEM' : 'CLUTCH'}
+              value={clutchPosition}
+              onChange={setClutch}
+              colorTheme="amber"
+              widthClass="w-13 sm:w-14"
+              heightClass="h-[60dvh]"
+              disabled={false}
+              showPercent={true}
+            />
+          </div>
         )}
         <AnalogPedal
           label={isMotorcycle ? 'F. TRAS' : 'FREIO'}
@@ -183,20 +190,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           </div>
 
           {supportedModes.length > 0 && (
-            <div className="hidden xs:flex items-center bg-zinc-900 p-0.5 rounded-xl border border-white/10 flex-shrink-0 text-[9px] font-mono">
-              {supportedModes.map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setDrivingMode(mode as DrivingMode)}
-                  className={`h-7 px-2 uppercase rounded-lg font-bold transition-all cursor-pointer ${
-                    drivingMode === mode ? 'bg-white text-zinc-950 shadow' : 'text-zinc-500'
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
+            <span className="hidden xs:inline-flex text-[8.5px] font-mono font-bold uppercase tracking-wider px-2 py-1 rounded-lg border bg-zinc-900 border-white/10 text-zinc-400">
+              MODO: <b className="text-white ml-1">{drivingMode}</b>
+            </span>
           )}
         </header>
 
@@ -292,27 +288,23 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 
       {/* ═══ 3. DIREITA: CONTROLES (POLEGAR DIREITO) ═══ */}
       <aside className="flex flex-col items-stretch justify-between h-full py-1 pl-2 border-l border-white/5 flex-shrink-0 w-[132px] sm:w-[150px] gap-1.5">
-        {/* Topo: Embreagem 100% / Buzina / NOS */}
+        {/* Topo: Buzina / CVT / Moto / NOS (SEM QuickClutch) */}
         <div className="flex flex-col gap-1.5">
-          <div className="grid grid-cols-2 gap-1.5">
-            {hasClutch ? (
-              <QuickClutchButton layout="stack" className="h-12 w-full" />
-            ) : isCvtWithManual ? (
+          <div className={`grid ${isCvtWithManual ? 'grid-cols-2' : 'grid-cols-1'} gap-1.5`}>
+            {isCvtWithManual && (
               <button
                 type="button"
                 onClick={toggleSimulatedManual}
                 disabled={!isRunning}
-                className={`h-12 rounded-2xl border-2 font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
+                className={`h-11 rounded-xl border-2 font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
                   isManualSimulated
                     ? 'bg-sky-500/20 border-sky-500 text-sky-300'
                     : 'bg-zinc-900 border-white/10 text-zinc-400'
                 }`}
               >
-                <span className="text-[12px]">{isManualSimulated ? 'M' : 'AUTO'}</span>
+                <span className="text-[11px]">{isManualSimulated ? 'M' : 'AUTO'}</span>
                 <span className="text-[6.5px] mt-0.5">TROCAR MODO</span>
               </button>
-            ) : (
-              <div />
             )}
             <button
               type="button"
@@ -320,7 +312,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               onPointerUp={() => setHorn(false)}
               onPointerLeave={() => setHorn(false)}
               onPointerCancel={() => setHorn(false)}
-              className="h-12 rounded-2xl bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-lg transition-all active:scale-95 cursor-pointer"
+              className="h-11 rounded-xl bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-lg transition-all active:scale-95 cursor-pointer"
               title="Buzina (H)"
               aria-label="Buzina"
             >
@@ -335,7 +327,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               onPointerUp={() => setBrake(0)}
               onPointerLeave={() => setBrake(0)}
               onPointerCancel={() => setBrake(0)}
-              className="h-12 rounded-2xl border border-red-400/50 bg-red-950/50 font-mono text-[9px] font-black text-red-200 active:bg-red-500/40"
+              className="h-11 rounded-xl border border-red-400/50 bg-red-950/50 font-mono text-[9px] font-black text-red-200 active:bg-red-500/40"
               aria-label="Manete de freio dianteiro"
             >
               F. DIANTEIRO
@@ -376,8 +368,17 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           )}
         </div>
 
-        {/* Meio: Câmbio */}
-        <div className="flex-1 flex items-center justify-center min-h-0">
+        {/* Meio: Perfis de Condução (ECO, NORMAL, SPORT) & Câmbio */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-1.5 min-h-0 w-full py-1">
+          {supportedModes.length > 0 && (
+            <DrivingModesSelector
+              supportedModes={supportedModes}
+              orientation="grid"
+              size="compact"
+              showTitle={true}
+              className="w-full"
+            />
+          )}
           <GearShift orientation="vertical" size="compact" />
         </div>
 
