@@ -8,7 +8,6 @@ import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { QuickClutchButton, MobileStartButton } from '@/components/controls'
 import { WarningLights, AuxGauges } from '@/components/gauges'
-import { ClusterView } from './ClusterView'
 import { VehicleDashboardCluster } from './VehicleDashboardCluster'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { useUIStore } from '@/stores/useUIStore'
@@ -209,18 +208,16 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         )}
 
         {portraitMode === 'cluster' ? (
-          <div className="w-full flex-1 flex items-center justify-center overflow-hidden pointer-events-none max-h-[34vh]">
-            <div className="scale-[0.45] xs:scale-[0.52] sm:scale-[0.62] origin-center flex items-center justify-center">
-              <ClusterView telemetry={telemetry} />
-            </div>
+          <div className="w-full flex-1 flex items-center justify-center min-h-0">
+            <VehicleDashboardCluster telemetry={telemetry} />
           </div>
         ) : portraitMode === 'multimedia' ? (
           <div className="w-full flex-1 flex items-center justify-center">
             <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={true} />
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center w-full gap-2 min-h-0">
-            <VehicleDashboardCluster telemetry={telemetry} compact />
+          <div className="flex flex-1 flex-col items-center justify-center w-full gap-2 min-h-0">
+            <VehicleDashboardCluster telemetry={telemetry} />
             <DrivingMapViewport size={mapViewportSize} onSizeChange={setMapViewportSize} compact />
             {portraitMode === 'legacy' && <div>
             {/* LEDs de giro */}

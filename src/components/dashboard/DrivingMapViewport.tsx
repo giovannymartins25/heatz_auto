@@ -5,6 +5,7 @@ interface DrivingMapViewportProps {
   size: MapViewportSize
   onSizeChange: (size: MapViewportSize) => void
   compact?: boolean
+  className?: string
 }
 
 /** Espaço visual estável para o mapa 2D; não participa da simulação nesta fase. */
@@ -12,15 +13,16 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
   size,
   onSizeChange,
   compact = false,
+  className = '',
 }: DrivingMapViewportProps) {
   const heightClass = compact
-    ? { compact: 'h-[18vh]', balanced: 'h-[23vh]', expanded: 'h-[29vh]' }[size]
-    : { compact: 'h-[25vh]', balanced: 'h-[34vh]', expanded: 'h-[43vh]' }[size]
+    ? { compact: 'h-[10dvh]', balanced: 'h-[14dvh]', expanded: 'h-[18dvh]' }[size]
+    : { compact: 'h-[12dvh]', balanced: 'h-[17dvh]', expanded: 'h-[22dvh]' }[size]
 
   return (
     <section
       aria-label="Mapa de direção em desenvolvimento"
-      className={`relative isolate w-full ${heightClass} min-h-28 overflow-hidden rounded-2xl border border-slate-500/30 bg-[#070b12] shadow-inner transition-[height] duration-200`}
+      className={`relative isolate w-full shrink-0 ${heightClass} min-h-20 overflow-hidden rounded-2xl border border-slate-500/30 bg-[#070b12] shadow-inner transition-[height] duration-200 ${className}`}
     >
       <div className="absolute inset-0 opacity-70 [background-image:linear-gradient(28deg,transparent_46%,#5b6471_47%,#5b6471_51%,transparent_52%),linear-gradient(112deg,transparent_43%,#39424e_44%,#39424e_47%,transparent_48%),linear-gradient(0deg,transparent_48%,#4b5563_49%,#4b5563_52%,transparent_53%)] [background-size:150px_110px,120px_90px,100px_75px]" />
       <div className="absolute inset-4 rounded-xl border border-black/70 bg-black/50 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.025)]" />

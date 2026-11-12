@@ -8,7 +8,6 @@ import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { QuickClutchButton, MobileStartButton } from '@/components/controls'
-import { ClusterView } from './ClusterView'
 import { VehicleDashboardCluster } from './VehicleDashboardCluster'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { InfotainmentScreen } from './InfotainmentScreen'
@@ -240,10 +239,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 
         {/* Conteúdo central */}
         {centerMode === 'cluster' ? (
-          <div className="w-full flex-1 flex items-center justify-center overflow-hidden relative min-h-0">
-            <div className="scale-[0.50] xs:scale-[0.60] sm:scale-[0.72] md:scale-[0.84] origin-center flex items-center justify-center pointer-events-none">
-              <ClusterView telemetry={telemetry} />
-            </div>
+          <div className="w-full flex-1 flex items-center justify-center relative min-h-0">
+            <VehicleDashboardCluster telemetry={telemetry} />
             {(hasTurbo || showAftermarketBoostGauge) && (
               <span className="absolute right-1 top-1 px-2 py-0.5 rounded-full bg-black/85 border border-amber-500/40 text-[9px] font-mono text-amber-300">
                 TURBO{' '}
@@ -256,9 +253,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={false} />
           </div>
         ) : (
-          <div className="flex-1 flex min-h-0 w-full items-center gap-2 overflow-hidden">
-            <div className="min-w-0 flex-1"><VehicleDashboardCluster telemetry={telemetry} /></div>
-            <div className="min-w-0 flex-1"><DrivingMapViewport size={mapViewportSize} onSizeChange={setMapViewportSize} /></div>
+          <div className="flex-1 flex min-h-0 w-full flex-col gap-1 overflow-hidden">
+            <VehicleDashboardCluster telemetry={telemetry} />
+            <DrivingMapViewport size={mapViewportSize} onSizeChange={setMapViewportSize} />
           </div>
         )}
 
