@@ -37,6 +37,7 @@
   },
   "transmission": {
     "type": "manual",
+    "supportedSelectorPositions": ["N"],
     "gearCount": 5,
     "gearRatios": [
       { "gear": 1, "ratio": 3.727 },

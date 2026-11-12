@@ -154,21 +154,21 @@ test('Câmbio Automático: P, R, N, D, S e M são mutuamente exclusivos', () => 
   // Seleciona N
   store.selectNeutral()
   let state = useSimulationStore.getState()
-  assert(state.shifterPosition === 'N', 'Shifter deve estar em N')
+  assert(state.gearSelectorPosition === 'N', 'Shifter deve estar em N')
   assert(state.currentGear === 0, 'Marcha deve ser 0 (Neutro)')
   assert(state.transmissionMode === 'automatic', 'transmissionMode deve ser automatic')
 
   // Seleciona M
   store.selectManual()
   state = useSimulationStore.getState()
-  assert(state.shifterPosition === 'M', 'Shifter deve estar em M')
+  assert(state.gearSelectorPosition === 'M', 'Shifter deve estar em M')
   assert(state.currentGear >= 1, 'Marcha deve ser >= 1')
   assert(state.transmissionMode === 'manual_simulated', 'transmissionMode deve ser manual_simulated')
 
   // Ao voltar para N a partir de M, transmissionMode reseta e M desliga
   store.selectNeutral()
   state = useSimulationStore.getState()
-  assert(state.shifterPosition === 'N', 'Shifter deve estar em N')
+  assert(state.gearSelectorPosition === 'N', 'Shifter deve estar em N')
   assert(state.currentGear === 0, 'Marcha deve ser 0 (Neutro)')
   assert(state.transmissionMode === 'automatic', 'transmissionMode deve voltar a automatic')
 })

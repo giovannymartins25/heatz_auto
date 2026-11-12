@@ -24,8 +24,7 @@ export const GearShift = memo(function GearShift({
   const currentGear = useSimulationStore((s) => s.currentGear)
   const isAutomaticVehicle = useSimulationStore((s) => s.isAutomaticVehicle)
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
-  const drivingMode = useSimulationStore((s) => s.drivingMode)
-  const shifterPosition = useSimulationStore((s) => s.shifterPosition)
+  const gearSelectorPosition = useSimulationStore((s) => s.gearSelectorPosition)
   const isRunning = useSimulationStore((s) => s.isRunning)
   const lastShiftReason = useSimulationStore((s) => s.lastShiftReason)
 
@@ -93,12 +92,16 @@ export const GearShift = memo(function GearShift({
   }[size]
 
   // Posições ativas do câmbio automático — exatamente UMA única ativa por vez
-  const isP = shifterPosition === 'P' || currentGear === -2
-  const isR = !isP && (shifterPosition === 'R' || currentGear === -1)
-  const isN = !isP && !isR && (shifterPosition === 'N' || (currentGear === 0 && transmissionMode !== 'manual_simulated'))
-  const isM = !isP && !isR && !isN && (shifterPosition === 'M' || transmissionMode === 'manual_simulated')
-  const isS = !isP && !isR && !isN && !isM && (shifterPosition === 'S' || drivingMode === 'sport')
+  const isP = gearSelectorPosition === 'P' || currentGear === -2
+  const isR = !isP && (gearSelectorPosition === 'R' || currentGear === -1)
+  const isN = !isP && !isR && (gearSelectorPosition === 'N' || (currentGear === 0 && transmissionMode !== 'manual_simulated'))
+  const isM = !isP && !isR && !isN && (gearSelectorPosition === 'M' || transmissionMode === 'manual_simulated')
+  const isS = !isP && !isR && !isN && !isM && gearSelectorPosition === 'S'
   const isD = !isP && !isR && !isN && !isM && !isS
+
+  const supportedPositions = vehicleConfig?.transmission.supportedSelectorPositions ?? (
+    isAutomaticVehicle ? ['P', 'R', 'N', 'D', 'M'] : ['N']
+  )
 
   const activeLabel =
     isP ? 'PARK'
@@ -117,7 +120,7 @@ export const GearShift = memo(function GearShift({
         </div>
       )}
 
-      {/* ── SELETOR AUTOMÁTICO PRNDS (Para Porsche, Golf GTI e Yaris) ── */}
+      {/* ── SELETOR AUTOMÁTICO PRNDS (Filtrado estritamente pelas posições suportadas) ── */}
       {isAutomaticVehicle ? (
         <div className="flex flex-col items-center gap-1.5 p-1.5 rounded-2xl bg-zinc-950/90 border border-white/10 shadow-xl">
           <div className="w-full flex items-center justify-between px-1 text-[8px] text-zinc-400 font-bold">
@@ -127,7 +130,7 @@ export const GearShift = memo(function GearShift({
             </span>
           </div>
 
-          {/* Barra de Seleção PRNDS / M */}
+          {/* Barra de Seleção com apenas as posições suportadas */}
           <div
             className={
               orientation === 'vertical'
@@ -136,88 +139,100 @@ export const GearShift = memo(function GearShift({
             }
           >
             {/* P - PARK */}
-            <button
-              onClick={selectPark}
-              disabled={!isRunning}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
-                isP
-                  ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.8)]'
-                  : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
-              }`}
-              title="Park (P) — Trava mecânica de estacionamento"
-            >
-              P
-            </button>
+            {supportedPositions.includes('P') && (
+              <button
+                onClick={selectPark}
+                disabled={!isRunning}
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                  isP
+                    ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.8)]'
+                    : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
+                }`}
+                title="Park (P) — Trava mecânica de estacionamento"
+              >
+                P
+              </button>
+            )}
 
             {/* R - REVERSE */}
-            <button
-              onClick={selectReverse}
-              disabled={!isRunning}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
-                isR
-                  ? 'bg-red-600 text-white border-red-400 shadow-[0_0_12px_rgba(220,38,38,0.8)]'
-                  : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
-              }`}
-              title="Reverse (R) — Marcha ré"
-            >
-              R
-            </button>
+            {supportedPositions.includes('R') && (
+              <button
+                onClick={selectReverse}
+                disabled={!isRunning}
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                  isR
+                    ? 'bg-red-600 text-white border-red-400 shadow-[0_0_12px_rgba(220,38,38,0.8)]'
+                    : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
+                }`}
+                title="Reverse (R) — Marcha ré"
+              >
+                R
+              </button>
+            )}
 
             {/* N - NEUTRAL */}
-            <button
-              onClick={selectNeutral}
-              disabled={!isRunning}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
-                isN
-                  ? 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.8)]'
-                  : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
-              }`}
-              title="Neutral (N) — Ponto morto / Roda livre"
-            >
-              N
-            </button>
+            {supportedPositions.includes('N') && (
+              <button
+                onClick={selectNeutral}
+                disabled={!isRunning}
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                  isN
+                    ? 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.8)]'
+                    : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
+                }`}
+                title="Neutral (N) — Ponto morto / Roda livre"
+              >
+                N
+              </button>
+            )}
 
             {/* D - DRIVE */}
-            <button
-              onClick={selectDrive}
-              disabled={!isRunning}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
-                isD
-                  ? 'bg-sky-600 text-white border-sky-400 shadow-[0_0_12px_rgba(2,132,199,0.8)]'
-                  : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
-              }`}
-              title="Drive (D) — Marchas automáticas para frente"
-            >
-              D
-            </button>
+            {supportedPositions.includes('D') && (
+              <button
+                onClick={selectDrive}
+                disabled={!isRunning}
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                  isD
+                    ? 'bg-sky-600 text-white border-sky-400 shadow-[0_0_12px_rgba(2,132,199,0.8)]'
+                    : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
+                }`}
+                title="Drive (D) — Marchas automáticas para frente"
+              >
+                D
+              </button>
+            )}
 
             {/* S - SPORT */}
-            <button
-              onClick={selectSport}
-              disabled={!isRunning}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
-                isS
-                  ? 'bg-rose-600 text-white border-rose-400 shadow-[0_0_12px_rgba(225,29,72,0.8)]'
-                  : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
-              }`}
-              title="Sport (S) — Modo esportivo com giro elevado"
-            >
-              S
-            </button>
+            {supportedPositions.includes('S') && (
+              <button
+                onClick={selectSport}
+                disabled={!isRunning}
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                  isS
+                    ? 'bg-rose-600 text-white border-rose-400 shadow-[0_0_12px_rgba(225,29,72,0.8)]'
+                    : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
+                }`}
+                title="Sport (S) — Modo esportivo com giro elevado"
+              >
+                S
+              </button>
+            )}
 
             {/* M - MANUAL / TIPTRONIC */}
-            <button
-              onClick={selectManual}
-              disabled={!isRunning}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
-                isM
-                  ? 'bg-amber-400 text-black border-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.8)]'
-                  : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
-              }`}
-              title="Manual (M) — Trocas manuais sequenciais pelas borboletas"
-            >
-              M
-            </button>
+            {supportedPositions.includes('M') && (
+              <button
+                onClick={selectManual}
+                disabled={!isRunning}
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                  isM
+                    ? 'bg-amber-400 text-black border-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.8)]'
+                    : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
+                }`}
+                title="Manual (M) — Trocas manuais sequenciais pelas borboletas"
+              >
+                M
+              </button>
+            )}
           </div>
 
           {/* Borboletas Paddle Shift para Trocas Rápidas */}

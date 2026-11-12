@@ -138,7 +138,6 @@ interface SimulationState {
   isKickdown: boolean
   lastShiftReason: string     // 'none' | 'clutch_required' | 'over_rev' | 'gear_limit'
   gearSelectorPosition: 'P' | 'R' | 'N' | 'D' | 'S' | 'M'
-  shifterPosition: 'P' | 'R' | 'N' | 'D' | 'S' | 'M'
 
   // Iluminação de Cabine e Painel
   ambientLightColor: AmbientLightColor
@@ -290,7 +289,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isKickdown: false,
   lastShiftReason: 'none',
   gearSelectorPosition: 'P',
-  shifterPosition: 'P',
   clutchSlipRpm: 0,
   clutchSlipRatio: 0,
   clutchTorqueTransfer: 0,
@@ -486,7 +484,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isBogWarning: false,
       lastShiftReason: 'none',
       gearSelectorPosition: isAutoOrCvt ? 'P' : 'N',
-      shifterPosition: isAutoOrCvt ? 'P' : 'N',
       clutchSlipRpm: 0,
       clutchSlipRatio: 0,
       clutchTorqueTransfer: 0,
@@ -756,7 +753,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         _config,
       )
       _transmission.shiftTo(targetGear, speed)
-      set({ transmissionMode: 'manual_simulated', currentGear: targetGear, gearSelectorPosition: 'M', shifterPosition: 'M' })
+      set({ transmissionMode: 'manual_simulated', currentGear: targetGear, gearSelectorPosition: 'M' })
       HapticFeedback.gearShift()
     } else if (transmissionMode === 'manual_simulated') {
       // MANUAL_SIMULATED -> AUTO
@@ -767,7 +764,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         transmissionMode: 'automatic',
         isKickdown: false,
         gearSelectorPosition: 'D',
-        shifterPosition: 'D',
       })
       HapticFeedback.light()
     }
@@ -794,7 +790,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         set({
           transmissionMode: 'manual_simulated',
           gearSelectorPosition: 'M',
-          shifterPosition: 'M',
           currentGear: targetG,
           rpm: _engine.getRpm(),
           lastShiftReason: 'none',
@@ -857,7 +852,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         set({
           transmissionMode: 'manual_simulated',
           gearSelectorPosition: 'M',
-          shifterPosition: 'M',
           currentGear: targetG,
           rpm: _engine.getRpm(),
           lastShiftReason: 'none',
@@ -927,6 +921,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   selectShifterMode: (mode: 'P' | 'R' | 'N' | 'D' | 'S' | 'M') => {
     const { _transmission, _autoTransmission, _physics, _config, speed, isAutomaticVehicle } = get()
     if (!_transmission || !_config) return
+    const supported = _config.transmission.supportedSelectorPositions ?? []
+    if (!supported.includes(mode)) return
 
     // Carros com câmbio manual convencional (Gol, Civic Si, Gol Quadrado, CB1000R)
     // NÃO possuem alavanca P/R/N/D/S/M. Apenas o Neutro é permitido, sem trocar o modo.
@@ -934,7 +930,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       if (mode === 'N') {
         _transmission.neutral()
         HapticFeedback.light()
-        set({ currentGear: 0, gearSelectorPosition: 'N', shifterPosition: 'N' })
+        set({ currentGear: 0, gearSelectorPosition: 'N' })
       }
       return
     }
@@ -944,20 +940,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         _transmission.shiftTo(-2, 0, undefined, true)
         _physics?.reset()
         HapticFeedback.gearShift()
-        set({ currentGear: -2, gearSelectorPosition: 'P', shifterPosition: 'P', transmissionMode: 'automatic' })
+        set({ currentGear: -2, gearSelectorPosition: 'P', transmissionMode: 'automatic' })
         break
       }
       case 'R': {
         _autoTransmission?.reset()
         _transmission.shiftTo(-1, speed, undefined, true)
         HapticFeedback.gearShift()
-        set({ currentGear: -1, gearSelectorPosition: 'R', shifterPosition: 'R', transmissionMode: 'automatic' })
+        set({ currentGear: -1, gearSelectorPosition: 'R', transmissionMode: 'automatic' })
         break
       }
       case 'N': {
         _transmission.neutral()
         HapticFeedback.light()
-        set({ currentGear: 0, gearSelectorPosition: 'N', shifterPosition: 'N', transmissionMode: 'automatic' })
+        set({ currentGear: 0, gearSelectorPosition: 'N', transmissionMode: 'automatic' })
         break
       }
       case 'D': {
@@ -968,7 +964,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         set({
           currentGear: targetGear,
           gearSelectorPosition: 'D',
-          shifterPosition: 'D',
           transmissionMode: 'automatic',
         })
         break
@@ -981,8 +976,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         set({
           currentGear: targetGear,
           gearSelectorPosition: 'S',
-          shifterPosition: 'S',
           transmissionMode: 'automatic',
+          drivingMode: 'sport',
         })
         break
       }
@@ -993,7 +988,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         set({
           currentGear: gear,
           gearSelectorPosition: 'M',
-          shifterPosition: 'M',
           transmissionMode: 'manual_simulated',
         })
         break
@@ -1016,7 +1010,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     set({
       currentGear: 0,
       gearSelectorPosition: 'N',
-      shifterPosition: 'N',
       transmissionMode: get().isAutomaticVehicle ? 'automatic' : get().transmissionMode,
     })
   },
@@ -1081,7 +1074,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (targetGear === 0) {
       _transmission.neutral()
       HapticFeedback.light()
-      set({ currentGear: 0, gearSelectorPosition: 'N', shifterPosition: 'N', isGearGrinding: false, lastShiftReason: 'none' })
+      set({ currentGear: 0, gearSelectorPosition: 'N', isGearGrinding: false, lastShiftReason: 'none' })
       return
     }
 
@@ -1135,12 +1128,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _engine.setRpm(clampedRpm)
     }
     HapticFeedback.gearShift()
+    const supported = _config.transmission.supportedSelectorPositions ?? ['N']
+    const newSelector = targetGear === 0
+      ? 'N'
+      : (targetGear === -1 && supported.includes('R') ? 'R' : (supported.includes('M') ? 'M' : 'N'))
     set({
       currentGear: targetGear,
       isGearGrinding: false,
       lastShiftReason: 'none',
-      gearSelectorPosition: targetGear === -1 ? 'R' : targetGear === 0 ? 'N' : 'M',
-      shifterPosition: targetGear === -1 ? 'R' : targetGear === 0 ? 'N' : 'M',
+      gearSelectorPosition: newSelector,
     })
   },
 
@@ -1845,6 +1841,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   reset: () => {
     const isManual = !get().isAutomaticVehicle
+    const supported = get()._config?.transmission.supportedSelectorPositions ?? []
+    const defaultSelector = isManual
+      ? (supported.includes('N') ? 'N' : (supported[0] ?? 'N'))
+      : (supported.includes('P') ? 'P' : (supported[0] ?? 'N'))
     set({
       rpm: 0,
       isRunning: false,
@@ -1852,23 +1852,22 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isBogWarning: false,
       status: 'off',
       isRevLimiting: false,
-      currentGear: 0,
+      currentGear: isManual ? 0 : -2,
       // Peças & Customizações Equipadas da Loja
-  hasRetrofitInfotainment: false,
-  hasBoostGaugeKit: false,
-  garageInstanceId: null,
-  exhaustType: 'stock',
-  intakeType: 'stock',
-  tires: 'street',
-  isAeroWingExtended: false,
+      hasRetrofitInfotainment: false,
+      hasBoostGaugeKit: false,
+      garageInstanceId: null,
+      exhaustType: 'stock',
+      intakeType: 'stock',
+      tires: 'street',
+      isAeroWingExtended: false,
 
-  clutchPosition: 0,
-      transmissionMode: 'manual',
+      clutchPosition: 0,
+      transmissionMode: isManual ? 'manual' : 'automatic',
       drivingMode: 'normal',
       isKickdown: false,
       lastShiftReason: 'none',
-  gearSelectorPosition: 'P',
-  shifterPosition: 'P',
+      gearSelectorPosition: defaultSelector,
       clutchSlipRpm: 0,
       clutchSlipRatio: 0,
       clutchTorqueTransfer: 0,

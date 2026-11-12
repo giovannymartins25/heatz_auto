@@ -20,7 +20,6 @@ export const KeyboardHUD = memo(function KeyboardHUD({
   const headlightsMode = useSimulationStore((s) => s.headlightsMode)
   const isRaining = useSimulationStore((s) => s.isRaining)
   const isAutomaticVehicle = useSimulationStore((s) => s.isAutomaticVehicle)
-  const shifterPosition = useSimulationStore((s) => s.shifterPosition)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
   const hasNosKit = useSimulationStore((s) => s.hasNosKit)
   const nosActive = useSimulationStore((s) => s.nosActive)
@@ -80,13 +79,13 @@ export const KeyboardHUD = memo(function KeyboardHUD({
       {isAutomaticVehicle && (
         <span
           className={`px-2 py-0.5 rounded font-bold transition-all ${
-            activeKeys.s || shifterPosition === 'S' || drivingMode === 'sport'
+            activeKeys.s || drivingMode === 'sport'
               ? 'bg-rose-600 text-white shadow-[0_0_10px_rgba(225,29,72,0.8)] scale-105'
               : 'bg-zinc-900 text-zinc-400 border border-white/5'
           }`}
           title="Pressione S para ativar o Modo Sport"
         >
-          S · Sport {shifterPosition === 'S' || drivingMode === 'sport' ? 'ON' : ''}
+          S · Perfil Sport {drivingMode === 'sport' ? 'ON' : ''}
         </span>
       )}
 

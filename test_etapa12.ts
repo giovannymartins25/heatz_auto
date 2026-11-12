@@ -1,4 +1,3 @@
-import { useGarageStore } from './src/stores/useGarageStore'
 import { useSimulationStore } from './src/stores/useSimulationStore'
 import { calculateDynoProfile } from './src/utils/dynoCalculator'
 import { readFileSync } from 'fs'
@@ -148,10 +147,14 @@ async function runEtapa12Tests() {
   console.log('\n▶ [4/6] Burnout, Fumaça de Pneu & Temperatura de Freios com Fade')
   useSimulationStore.getState().init(golQuadradoConfig, { turboKit: true })
   useSimulationStore.getState().startEngine()
+  for (let i = 0; i < 45; i++) {
+    useSimulationStore.getState().update(0.016)
+  }
   assert(useSimulationStore.getState().brakeDiscTemp === 60, 'Discos de freio inicializam em 60°C')
 
   // Simular Burnout: Parado em 1ª marcha, acelerador fundo e freio pressionado
-  useSimulationStore.setState({ speed: 5, currentGear: 1, rpm: 4500 })
+  useSimulationStore.getState().shiftHPattern(1)
+  useSimulationStore.setState({ speed: 5, rpm: 4500 })
   useSimulationStore.getState().setThrottle(0.9)
   useSimulationStore.getState().setBrake(0.8)
   for (let i = 0; i < 20; i++) {

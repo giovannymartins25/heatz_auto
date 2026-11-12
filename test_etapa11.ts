@@ -161,23 +161,23 @@ async function runEtapa11Tests() {
   useSimulationStore.getState().init(civicConfig) // Civic Si é Manual 6M
 
   assert(useSimulationStore.getState().isAutomaticVehicle === false, 'Civic Si identificado corretamente como manual')
-  assert(useSimulationStore.getState().shifterPosition === 'N', 'Carro manual inicia em N (Neutro)')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'N', 'Carro manual inicia em N (Neutro)')
 
   // Tentar selecionar P, D, R, S, M
   useSimulationStore.getState().selectShifterMode('P')
-  assert(useSimulationStore.getState().shifterPosition === 'N', 'selectShifterMode("P") rejeitado em carro manual')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'N', 'selectShifterMode("P") rejeitado em carro manual')
 
   useSimulationStore.getState().selectShifterMode('D')
-  assert(useSimulationStore.getState().shifterPosition === 'N', 'selectShifterMode("D") rejeitado em carro manual')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'N', 'selectShifterMode("D") rejeitado em carro manual')
 
   useSimulationStore.getState().selectShifterMode('R')
-  assert(useSimulationStore.getState().shifterPosition === 'N', 'selectShifterMode("R") rejeitado em carro manual')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'N', 'selectShifterMode("R") rejeitado em carro manual')
 
   useSimulationStore.getState().selectShifterMode('S')
-  assert(useSimulationStore.getState().shifterPosition === 'N', 'selectShifterMode("S") rejeitado em carro manual')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'N', 'selectShifterMode("S") rejeitado em carro manual')
 
   useSimulationStore.getState().selectSport()
-  assert(useSimulationStore.getState().shifterPosition === 'N', 'selectSport() rejeitado em carro manual')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'N', 'selectSport() rejeitado em carro manual')
 
   // Ativação do Modo Sport no automático (Golf GTI)
   useSimulationStore.getState().reset()
@@ -185,10 +185,10 @@ async function runEtapa11Tests() {
   assert(useSimulationStore.getState().isAutomaticVehicle === true, 'Golf GTI identificado como automático')
   
   useSimulationStore.getState().selectDrive()
-  assert(useSimulationStore.getState().shifterPosition === 'D' && useSimulationStore.getState().drivingMode === 'normal', 'selectDrive() ativa D e modo normal no automático')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'D' && useSimulationStore.getState().drivingMode === 'normal', 'selectDrive() ativa D e modo normal no automático')
 
   useSimulationStore.getState().selectSport()
-  assert(useSimulationStore.getState().shifterPosition === 'S' && useSimulationStore.getState().drivingMode === 'sport', 'Tecla S / selectSport() ativa S e modo sport no automático')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'S' && useSimulationStore.getState().drivingMode === 'sport', 'Tecla S / selectSport() ativa S e modo sport no automático')
 
   // Troca D <-> S em velocidade preserva marcha sem resetar para 1ª marcha
   useSimulationStore.setState({ currentGear: 4, speed: 80 })

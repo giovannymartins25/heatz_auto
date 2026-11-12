@@ -44,6 +44,7 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
   const isRevLimiting = useSimulationStore((s) => s.isRevLimiting)
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
+  const gearSelectorPosition = useSimulationStore((s) => s.gearSelectorPosition)
   const isKickdown = useSimulationStore((s) => s.isKickdown)
   const isBogWarning = useSimulationStore((s) => s.isBogWarning)
   const throttle = useSimulationStore((s) => s.throttle)
@@ -136,6 +137,7 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
       currentGear,
       transmissionMode,
       drivingMode,
+      gearSelectorPosition,
       isKickdown,
       throttle,
       brake,
@@ -160,6 +162,7 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
     currentGear,
     transmissionMode,
     drivingMode,
+    gearSelectorPosition,
     isKickdown,
     throttle,
     brake,

@@ -42,6 +42,7 @@
     "isSimulatedGears": true,
     "hasManualMode": true,
     "defaultMode": "automatic",
+    "supportedSelectorPositions": ["P", "R", "N", "D", "M"],
     "gearCount": 7,
     "gearRatios": [
       { "gear": 1, "ratio": 2.480 },

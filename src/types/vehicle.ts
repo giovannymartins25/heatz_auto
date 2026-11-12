@@ -60,9 +60,13 @@ export interface LaunchControlConfig {
   targetBoostBar?: number    // Pressão gerada no turbo com launch armado (anti-lag spool)
 }
 
+export type SelectorPosition = 'P' | 'R' | 'N' | 'D' | 'S' | 'M'
+
 /** Configuração da transmissão */
 export interface TransmissionConfig {
   type: TransmissionType
+  /** Posições físicas/operacionais realmente disponíveis no seletor deste veículo. */
+  supportedSelectorPositions: SelectorPosition[]
   gearCount: number
   gearRatios: GearRatio[]
   reverseRatio: number

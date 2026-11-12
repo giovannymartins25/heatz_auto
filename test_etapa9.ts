@@ -184,44 +184,44 @@ test('Transmissão: Porsche PDK e Golf GTI DSG suportam modo Automático e toggl
 // 8. Câmbio Automático: Suporte a P (Park), R (Reverse), N (Neutral), D (Drive), S (Sport) e M (Manual)
 test('Câmbio Automático: Suporte a P (Park), R (Reverse), N (Neutral), D (Drive), S (Sport) e M (Manual)', () => {
   const store = useSimulationStore.getState()
-  store.init(porscheConfig)
+  store.init(gtiConfig)
   startAndRunEngine()
 
   // Inicia em Park (P / -2)
   assert(useSimulationStore.getState().currentGear === -2, 'Deve iniciar em Park (gear -2)')
-  assert(useSimulationStore.getState().shifterPosition === 'P', 'shifterPosition deve ser P')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'P', 'gearSelectorPosition deve ser P')
 
   // Posição D (Drive)
   store.selectDrive()
   assert(useSimulationStore.getState().currentGear === 1, 'Drive deve engatar 1ª marcha')
-  assert(useSimulationStore.getState().shifterPosition === 'D', 'shifterPosition deve ser D')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'D', 'gearSelectorPosition deve ser D')
   assert(useSimulationStore.getState().drivingMode === 'normal', 'drivingMode deve ser normal')
 
   // Posição S (Sport)
   store.selectSport()
   assert(useSimulationStore.getState().currentGear === 1, 'Sport deve manter marcha')
-  assert(useSimulationStore.getState().shifterPosition === 'S', 'shifterPosition deve ser S')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'S', 'gearSelectorPosition deve ser S')
   assert(useSimulationStore.getState().drivingMode === 'sport', 'drivingMode deve ser sport')
 
   // Posição M (Manual / Tiptronic)
   store.selectManual()
   assert(useSimulationStore.getState().transmissionMode === 'manual_simulated', 'Manual deve ativar manual_simulated')
-  assert(useSimulationStore.getState().shifterPosition === 'M', 'shifterPosition deve ser M')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'M', 'gearSelectorPosition deve ser M')
 
   // Posição N (Neutral)
   store.selectNeutral()
   assert(useSimulationStore.getState().currentGear === 0, 'Neutral deve desengatar para marcha 0')
-  assert(useSimulationStore.getState().shifterPosition === 'N', 'shifterPosition deve ser N')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'N', 'gearSelectorPosition deve ser N')
 
   // Posição R (Reverse)
   store.selectReverse()
   assert(useSimulationStore.getState().currentGear === -1, 'Reverse deve engatar marcha -1')
-  assert(useSimulationStore.getState().shifterPosition === 'R', 'shifterPosition deve ser R')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'R', 'gearSelectorPosition deve ser R')
 
   // Volta para P (Park)
   store.selectPark()
   assert(useSimulationStore.getState().currentGear === -2, 'Park deve engatar marcha -2')
-  assert(useSimulationStore.getState().shifterPosition === 'P', 'shifterPosition deve ser P')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'P', 'gearSelectorPosition deve ser P')
 })
 
 // 9. Multimídia Inteligente: Gol G6 e CB1000R não possuem multimídia; Golf GTI, Porsche e Yaris possuem multimídia com YouTube

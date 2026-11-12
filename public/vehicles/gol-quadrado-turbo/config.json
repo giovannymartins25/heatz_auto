@@ -69,6 +69,7 @@
   "transmission": {
     "type": "manual",
     "defaultMode": "manual",
+    "supportedSelectorPositions": ["N"],
     "gearCount": 5,
     "hasClutch": true,
     "hasManualMode": true,

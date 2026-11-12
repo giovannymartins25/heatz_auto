@@ -18,6 +18,7 @@ export interface DashboardInput {
   currentGear: number
   transmissionMode: TransmissionMode
   drivingMode: DrivingMode
+  gearSelectorPosition?: 'P' | 'R' | 'N' | 'D' | 'S' | 'M'
   isKickdown: boolean
   hasClutch: boolean
   throttle: number
@@ -61,6 +62,7 @@ export interface DashboardTelemetry {
     isReverse: boolean
     transmissionMode: TransmissionMode
     drivingMode: DrivingMode
+    gearSelectorPosition?: 'P' | 'R' | 'N' | 'D' | 'S' | 'M'
     isKickdown: boolean
   }
   engine: {
@@ -135,6 +137,7 @@ export class DashboardSystem {
       currentGear,
       transmissionMode,
       drivingMode,
+      gearSelectorPosition,
       isKickdown,
       hasClutch,
       throttle,
@@ -210,7 +213,7 @@ export class DashboardSystem {
       gearLabel = 'R'
       gearSubLabel = 'RÉ'
     } else if (isAutomatic) {
-      const modeLetter = drivingMode === 'sport' ? 'S' : 'D'
+      const modeLetter = gearSelectorPosition === 'S' ? 'S' : 'D'
       gearLabel = `${modeLetter}${currentGear > 0 ? currentGear : 1}`
       gearSubLabel = drivingMode.toUpperCase()
     } else if (isManualSimulated) {
@@ -289,6 +292,7 @@ export class DashboardSystem {
         isReverse,
         transmissionMode,
         drivingMode,
+        gearSelectorPosition,
         isKickdown,
       },
       engine: {
@@ -346,6 +350,7 @@ export class DashboardSystem {
       currentGear: number
       transmissionMode: TransmissionMode
       drivingMode: DrivingMode
+      gearSelectorPosition?: 'P' | 'R' | 'N' | 'D' | 'S' | 'M'
       isKickdown: boolean
       throttle: number
       brake: number
@@ -374,6 +379,7 @@ export class DashboardSystem {
       currentGear: state.currentGear,
       transmissionMode: state.transmissionMode,
       drivingMode: state.drivingMode,
+      gearSelectorPosition: state.gearSelectorPosition,
       isKickdown: state.isKickdown,
       hasClutch: config.transmission.hasClutch,
       throttle: state.throttle,

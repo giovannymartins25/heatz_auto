@@ -42,6 +42,7 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
   const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
+  const gearSelectorPosition = useSimulationStore((s) => s.gearSelectorPosition)
   const currentGear = useSimulationStore((s) => s.currentGear)
   const current0to100 = useSimulationStore((s) => s.current0to100)
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
@@ -109,7 +110,7 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
 
   // Rótulo da marcha DSG
   const dsgModeLabel = transmissionMode === 'automatic'
-    ? (drivingMode === 'sport' ? `S${currentGear || 1}` : `D${currentGear || 1}`)
+    ? `${gearSelectorPosition === 'S' ? 'S' : 'D'}${currentGear || 1}`
     : (currentGear === 0 ? 'N' : currentGear === -1 ? 'R' : `M${currentGear}`)
 
   return (
