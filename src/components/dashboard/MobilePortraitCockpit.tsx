@@ -6,7 +6,7 @@ import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, MobileStartButton, DrivingModesSelector } from '@/components/controls'
+import { QuickClutchButton, MobileStartButton, DrivingModesSelector, AutomaticShiftButton } from '@/components/controls'
 import { WarningLights, AuxGauges } from '@/components/gauges'
 import { VehicleDashboardCluster } from './VehicleDashboardCluster'
 import { DrivingMapViewport } from './DrivingMapViewport'
@@ -54,6 +54,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const isRunning = useSimulationStore((s) => s.isRunning)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
   const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
+  const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
   const setHorn = useSimulationStore((s) => s.setHorn)
   const toggleHandbrake = useSimulationStore((s) => s.toggleHandbrake)
   const handbrake = useSimulationStore((s) => s.handbrake)
@@ -108,14 +109,14 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
     <div
       className="fixed inset-0 w-screen h-dvh bg-zinc-950 text-white flex flex-col select-none touch-none overflow-hidden z-40"
       style={{
-        paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
-        paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+        paddingLeft: portraitMode === 'cluster' ? 'max(0.25rem, env(safe-area-inset-left))' : 'max(0.75rem, env(safe-area-inset-left))',
+        paddingRight: portraitMode === 'cluster' ? 'max(0.25rem, env(safe-area-inset-right))' : 'max(0.75rem, env(safe-area-inset-right))',
         paddingTop: 'max(0.5rem, env(safe-area-inset-top))',
         paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))',
       }}
     >
       {/* ─── 1. Barra superior limpa ─── */}
-      <header className="flex items-center gap-2 w-full pb-1.5">
+      <header className={`flex items-center gap-1.5 w-full pb-1.5 ${portraitMode === 'cluster' ? 'px-2' : ''}`}>
         <button
           type="button"
           onClick={() => setIsMenuOpen(true)}
@@ -128,6 +129,17 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               S{tuningStage}
             </span>
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={onBack}
+          className="h-10 px-2 flex-shrink-0 rounded-xl bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-zinc-200 text-[10px] font-mono font-black uppercase tracking-wide flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
+          aria-label="Voltar para a garagem"
+          title="Voltar para a garagem"
+        >
+          <span>←</span>
+          <span>Garagem</span>
         </button>
 
         <div className="flex-1 min-w-0 leading-tight">
@@ -155,7 +167,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
       </header>
 
       {/* ─── 2. Faixa de status ─── */}
-      <div className="flex items-center justify-between w-full gap-2 pb-1 border-b border-white/5 text-[9px] font-mono">
+      <div className={`flex items-center justify-between w-full gap-2 pb-1 border-b border-white/5 text-[9px] font-mono ${portraitMode === 'cluster' ? 'px-2' : ''}`}>
         <div className="flex items-center gap-1.5 min-w-0">
           <WarningLights lights={telemetry.warningLights} />
           <span className="px-2 py-0.5 rounded-full bg-zinc-900 border border-white/10 text-zinc-500 whitespace-nowrap">
@@ -165,17 +177,21 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             </b>
           </span>
           {vehicle.transmission.tcs?.enabled && (
-            <span
-              className={`px-1.5 py-0.5 rounded-full border font-black ${
+            <button
+              type="button"
+              onClick={() => setTcsEnabled(!tcsEnabled)}
+              aria-pressed={tcsEnabled}
+              title={tcsEnabled ? 'Desativar controle de tração (TCS)' : 'Ativar controle de tração (TCS)'}
+              className={`px-2 py-0.5 rounded-full border font-black cursor-pointer transition-all active:scale-95 ${
                 !tcsEnabled
-                  ? 'text-zinc-600 border-zinc-800 line-through'
+                  ? 'bg-zinc-900 text-zinc-500 border-zinc-700 line-through opacity-75'
                   : telemetry.tcs.intervening
-                  ? 'text-amber-300 border-amber-500 animate-pulse'
-                  : 'text-emerald-400 border-emerald-500/40'
+                  ? 'bg-amber-500/15 text-amber-300 border-amber-500 animate-pulse'
+                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/50'
               }`}
             >
               TCS
-            </span>
+            </button>
           )}
         </div>
 
@@ -187,7 +203,19 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
       </div>
 
       {/* ─── 3. Painel central ─── */}
-      <main className="flex-1 flex flex-col justify-center items-center px-1 py-1 min-h-0 overflow-hidden">
+      <main
+        className={`relative flex-1 flex flex-col justify-center items-center min-h-0 overflow-hidden ${
+          portraitMode === 'cluster' ? 'px-0 py-0' : 'px-1 py-1'
+        }`}
+      >
+        {/* Botões de Troca de Marcha: (-) na esquerda e (+) na direita, posicionados mais para cima */}
+        <div className="absolute left-1.5 top-2 z-30 pointer-events-auto">
+          <AutomaticShiftButton direction="down" />
+        </div>
+        <div className="absolute right-1.5 top-2 z-30 pointer-events-auto">
+          <AutomaticShiftButton direction="up" />
+        </div>
+
         {isLaunchControlArmed && (
           <div className="w-full py-1 px-2 rounded-lg bg-amber-500/20 border border-amber-400 text-amber-300 text-center text-[10px] font-mono font-black animate-pulse mb-1">
             🏁 LAUNCH CONTROL ATIVO · SOLTE O FREIO!
@@ -200,16 +228,18 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         )}
 
         {portraitMode === 'cluster' ? (
-          <div className="w-full flex-1 flex items-center justify-center min-h-0">
-            <VehicleDashboardCluster telemetry={telemetry} />
+          <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
+            <VehicleDashboardCluster telemetry={telemetry} expanded={true} />
           </div>
         ) : portraitMode === 'multimedia' ? (
-          <div className="w-full flex-1 flex items-center justify-center">
+          <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
             <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={true} />
           </div>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center w-full gap-2 min-h-0">
-            <VehicleDashboardCluster telemetry={telemetry} />
+          <div className="flex flex-1 flex-col items-center justify-center w-full gap-2 min-h-0 self-stretch">
+            <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
+              <VehicleDashboardCluster telemetry={telemetry} />
+            </div>
             <DrivingMapViewport size={mapViewportSize} onSizeChange={setMapViewportSize} compact />
             {portraitMode === 'legacy' && <div>
             {/* LEDs de giro */}
@@ -325,9 +355,9 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
       </main>
 
       {/* ─── 4. Câmbio e Perfis de Condução (Lateral Direita) ─── */}
-      <div className="w-full flex items-center justify-between gap-2 px-1 pt-1 pb-1.5 border-t border-white/5">
+      <div className={`w-full flex items-center justify-between gap-2 pt-1 pb-1.5 border-t border-white/5 ${portraitMode === 'cluster' ? 'px-2' : 'px-1'}`}>
         <div className="flex-1 flex justify-center min-w-0">
-          <GearShift size="compact" orientation="horizontal" />
+          <GearShift size="compact" orientation="horizontal" showPaddles={false} />
         </div>
         {supportedModes.length > 0 && (
           <div className="flex-shrink-0 flex items-center pr-1">
@@ -341,7 +371,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
       </div>
 
       {/* ─── 5. Zona dos polegares: botões laterais + pedais ─── */}
-      <footer className="w-full grid grid-cols-[68px_1fr_68px] sm:grid-cols-[80px_1fr_80px] items-end gap-2">
+      <footer className={`w-full grid grid-cols-[68px_1fr_68px] sm:grid-cols-[80px_1fr_80px] items-end gap-2 ${portraitMode === 'cluster' ? 'px-2' : ''}`}>
         {/* Coluna esquerda: Buzina · Freio de mão · START · (QuickClutch 100% à esquerda se manual) */}
         <div className="flex flex-col gap-1.5">
           {hasClutch ? (

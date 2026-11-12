@@ -5,6 +5,7 @@ import { HPatternShifter } from './HPatternShifter'
 export interface GearShiftProps {
   orientation?: 'horizontal' | 'vertical'
   size?: 'normal' | 'compact' | 'large'
+  showPaddles?: boolean
 }
 
 /**
@@ -20,6 +21,7 @@ export interface GearShiftProps {
 export const GearShift = memo(function GearShift({
   orientation = 'horizontal',
   size = 'normal',
+  showPaddles = true,
 }: GearShiftProps) {
   const currentGear = useSimulationStore((s) => s.currentGear)
   const isAutomaticVehicle = useSimulationStore((s) => s.isAutomaticVehicle)
@@ -236,38 +238,40 @@ export const GearShift = memo(function GearShift({
           </div>
 
           {/* Borboletas Paddle Shift para Trocas Rápidas */}
-          <div
-            className={`w-full flex ${
-              orientation === 'vertical' ? 'flex-col gap-1' : 'items-center justify-between'
-            } pt-1 border-t border-white/10`}
-          >
-            <button
-              onPointerDown={handleShiftDown}
-              onTouchStart={handleShiftDown}
-              onClick={handleShiftDown}
-              disabled={!isRunning}
-              className={`${
-                orientation === 'vertical' ? 'w-full py-1 text-[9px]' : 'flex-1 py-1 mx-0.5 text-[10px]'
-              } rounded-lg bg-zinc-900 border border-white/10 active:bg-zinc-800 font-black text-zinc-300 flex items-center justify-center gap-1 cursor-pointer transition-transform active:scale-95 shadow`}
-              title="Reduzir Marcha / Tiptronic [-]"
+          {showPaddles && (
+            <div
+              className={`w-full flex ${
+                orientation === 'vertical' ? 'flex-col gap-1' : 'items-center justify-between'
+              } pt-1 border-t border-white/10`}
             >
-              <span>▼</span>
-              <span>PADDLE [-]</span>
-            </button>
-            <button
-              onPointerDown={handleShiftUp}
-              onTouchStart={handleShiftUp}
-              onClick={handleShiftUp}
-              disabled={!isRunning}
-              className={`${
-                orientation === 'vertical' ? 'w-full py-1 text-[9px]' : 'flex-1 py-1 mx-0.5 text-[10px]'
-              } rounded-lg bg-zinc-900 border border-white/10 active:bg-zinc-800 font-black text-amber-400 flex items-center justify-center gap-1 cursor-pointer transition-transform active:scale-95 shadow`}
-              title="Subir Marcha / Tiptronic [+]"
-            >
-              <span>PADDLE [+]</span>
-              <span>▲</span>
-            </button>
-          </div>
+              <button
+                onPointerDown={handleShiftDown}
+                onTouchStart={handleShiftDown}
+                onClick={handleShiftDown}
+                disabled={!isRunning}
+                className={`${
+                  orientation === 'vertical' ? 'w-full py-1 text-[9px]' : 'flex-1 py-1 mx-0.5 text-[10px]'
+                } rounded-lg bg-zinc-900 border border-white/10 active:bg-zinc-800 font-black text-zinc-300 flex items-center justify-center gap-1 cursor-pointer transition-transform active:scale-95 shadow`}
+                title="Reduzir Marcha / Tiptronic [-]"
+              >
+                <span>▼</span>
+                <span>PADDLE [-]</span>
+              </button>
+              <button
+                onPointerDown={handleShiftUp}
+                onTouchStart={handleShiftUp}
+                onClick={handleShiftUp}
+                disabled={!isRunning}
+                className={`${
+                  orientation === 'vertical' ? 'w-full py-1 text-[9px]' : 'flex-1 py-1 mx-0.5 text-[10px]'
+                } rounded-lg bg-zinc-900 border border-white/10 active:bg-zinc-800 font-black text-amber-400 flex items-center justify-center gap-1 cursor-pointer transition-transform active:scale-95 shadow`}
+                title="Subir Marcha / Tiptronic [+]"
+              >
+                <span>PADDLE [+]</span>
+                <span>▲</span>
+              </button>
+            </div>
+          )}
         </div>
       ) : shifterLayout === 'h_pattern' ? (
         /* ── CÂMBIO MANUAL REAL EM GRADE H (Gated Shifter) ── */

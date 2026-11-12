@@ -114,7 +114,7 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
     : (currentGear === 0 ? 'N' : currentGear === -1 ? 'R' : `M${currentGear}`)
 
   return (
-    <div className={`relative flex flex-col items-center w-full max-w-5xl p-3 sm:p-5 rounded-[2.5rem] bg-gradient-to-b from-[#131418] via-[#0d0e12] to-[#060709] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
+    <div className={`@container relative flex flex-col items-center w-full max-w-5xl p-3 sm:p-5 rounded-[2.5rem] bg-gradient-to-b from-[#131418] via-[#0d0e12] to-[#060709] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
       {/* ── Faixa Superior Iluminada com Luz Ambiente da Cabine ── */}
       <div className={`w-full flex items-center justify-between px-4 pb-2 border-b ${ambientTheme.headerBorderClass} text-[10px] font-mono`}>
         <div className="flex items-center gap-2">
@@ -154,7 +154,7 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
       )}
 
       {/* ── Conjunto de Instrumentos: Tacômetro + MFD Central + Velocímetro ── */}
-      <div className="flex items-center justify-center gap-3 sm:gap-5 w-full flex-wrap xl:flex-nowrap mt-1">
+      <div className="flex items-center justify-center gap-3 sm:gap-5 w-full flex-wrap @[680px]:flex-nowrap mt-1">
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 1. MOSTRADOR ESQUERDO: TACÔMETRO GTI (0-80 x100/MIN) + ÁGUA         */}
         {/* ═══════════════════════════════════════════════════════════════════ */}

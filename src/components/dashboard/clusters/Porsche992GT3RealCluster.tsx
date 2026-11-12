@@ -100,7 +100,7 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
   const gForceY = Math.min(1.4, Math.max(-1.4, (speedometer.speed > 5 ? 0.6 : 0) * (tachometer.rpm > 5000 ? 1 : 0.4)))
 
   return (
-    <div className={`relative flex flex-col items-center w-full max-w-6xl p-3 sm:p-5 rounded-[2.5rem] bg-gradient-to-b from-[#0a0b0e] via-zinc-950 to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
+    <div className={`@container relative flex flex-col items-center w-full max-w-6xl p-3 sm:p-5 rounded-[2.5rem] bg-gradient-to-b from-[#0a0b0e] via-zinc-950 to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
       {/* ── Régua Superior de Shift Lights F1 / GT3 RS Duplos Convergentes ── */}
       <div className="flex flex-col items-center w-full max-w-xl mb-2">
         <div className="flex items-center justify-between w-full px-2 mb-1 text-[10px] font-mono">
@@ -166,7 +166,7 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
       )}
 
       {/* ── Conjunto Triplo de Instrumentos GT3 RS ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 w-full items-center justify-items-center">
+      <div className="grid grid-cols-1 @[660px]:grid-cols-3 gap-3 sm:gap-4 w-full items-center justify-items-center">
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 1. MOSTRADOR ESQUERDO: VELOCÍMETRO ANALÓGICO PORSCHE (0-350 KM/H)  */}
         {/* ═══════════════════════════════════════════════════════════════════ */}

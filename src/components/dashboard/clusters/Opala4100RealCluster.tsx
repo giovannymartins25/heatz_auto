@@ -80,7 +80,7 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
   }, [startAngle, endAngle])
 
   return (
-    <div className="relative flex flex-col items-center justify-center p-3 sm:p-5 rounded-3xl bg-gradient-to-b from-stone-900 via-neutral-950 to-black border-4 border-stone-800 shadow-[0_20px_50px_rgba(0,0,0,0.9)] max-w-4xl w-full select-none font-mono">
+    <div className="@container relative flex flex-col items-center justify-center p-3 sm:p-5 rounded-3xl bg-gradient-to-b from-stone-900 via-neutral-950 to-black border-4 border-stone-800 shadow-[0_20px_50px_rgba(0,0,0,0.9)] max-w-4xl w-full select-none font-mono">
       {/* Moldura Clássica de Acabamento em Madeira Nobre Jacarandá */}
       <div className="w-full h-2.5 rounded-full bg-gradient-to-r from-amber-950 via-amber-900 to-amber-950 border-y border-amber-800/40 mb-3 shadow-inner" />
 
@@ -109,7 +109,7 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
       </div>
 
       {/* Painel Principal de Instrumentos */}
-      <div className="flex flex-col md:flex-row items-center justify-around w-full gap-4 p-2 rounded-2xl bg-neutral-950/90 border border-neutral-800">
+      <div className="flex flex-col @[580px]:flex-row items-center justify-around w-full gap-4 p-2 rounded-2xl bg-neutral-950/90 border border-neutral-800">
         {/* ─── 1. CONTA-GIROS CLÁSSICO 4.1L (ESQUERDA) ─── */}
         <div className="relative flex flex-col items-center">
           <svg width={gaugeSize} height={gaugeSize} className="drop-shadow-lg">

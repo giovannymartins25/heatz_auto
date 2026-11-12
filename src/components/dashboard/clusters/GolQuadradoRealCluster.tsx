@@ -98,7 +98,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
   const fuelAngle = mapRange(clamp(auxGauges.fuelPercent, 0, 100), 0, 100, -45, 45)
 
   return (
-    <div className="relative flex flex-col items-center justify-center p-3 sm:p-5 rounded-3xl bg-[#0d0f12] border-4 border-[#24272e] shadow-[0_15px_50px_rgba(0,0,0,0.9),inset_0_2px_8px_rgba(255,255,255,0.06)] font-mono select-none overflow-hidden max-w-4xl w-full">
+    <div className="@container relative flex flex-col items-center justify-center p-3 sm:p-5 rounded-3xl bg-[#0d0f12] border-4 border-[#24272e] shadow-[0_15px_50px_rgba(0,0,0,0.9),inset_0_2px_8px_rgba(255,255,255,0.06)] font-mono select-none overflow-hidden max-w-4xl w-full">
       {/* Textura de Fundo do Painel Satélite Quadrado */}
       <div className="absolute inset-0 bg-[radial-gradient(#1a1d24_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none" />
 
@@ -140,7 +140,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
       </div>
 
       {/* Conteúdo Principal do Painel */}
-      <div className="relative z-10 flex flex-wrap items-center justify-center gap-3 sm:gap-6 w-full">
+      <div className="relative z-10 flex flex-wrap @[640px]:flex-nowrap items-center justify-center gap-3 sm:gap-6 w-full">
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 1. VELOCÍMETRO CLÁSSICO RETRÔ VW (0-240 KM/H)                      */}
         {/* ═══════════════════════════════════════════════════════════════════ */}

@@ -81,7 +81,7 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
   }, [startAngle, endAngle])
 
   return (
-    <div className="relative flex flex-col items-center w-full max-w-4xl p-4 sm:p-6 rounded-[2.5rem] bg-gradient-to-b from-zinc-950 via-zinc-900 to-black border-2 border-zinc-800 shadow-[0_20px_60px_rgba(0,0,0,0.9)] select-none">
+    <div className="@container relative flex flex-col items-center w-full max-w-4xl p-4 sm:p-6 rounded-[2.5rem] bg-gradient-to-b from-zinc-950 via-zinc-900 to-black border-2 border-zinc-800 shadow-[0_20px_60px_rgba(0,0,0,0.9)] select-none">
       {/* Moldura de topo estilo painel binnacle com textura automotiva */}
       <div className="absolute inset-x-8 top-0 h-1.5 bg-gradient-to-r from-transparent via-zinc-700/60 to-transparent rounded-t-full" />
 
@@ -156,7 +156,7 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
       </div>
 
       {/* ── Conjunto de Instrumentos: Tacômetro + I-System + Velocímetro ── */}
-      <div className="flex items-center justify-center gap-2 sm:gap-6 w-full flex-wrap lg:flex-nowrap">
+      <div className="flex items-center justify-center gap-2 sm:gap-6 w-full flex-wrap @[640px]:flex-nowrap">
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 1. MOSTRADOR ESQUERDO: TACÔMETRO + MINI TEMP                      */}
         {/* ═══════════════════════════════════════════════════════════════════ */}

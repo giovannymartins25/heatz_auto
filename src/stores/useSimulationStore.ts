@@ -430,10 +430,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       config.id === 'golf-gti'
         ? 'red'
         : config.id === 'porsche-gt3'
-        ? 'amber'
-        : config.id?.includes('yaris')
-        ? 'cyan'
-        : 'red'
+          ? 'amber'
+          : config.id?.includes('yaris')
+            ? 'cyan'
+            : 'red'
 
     set({
       _engine: engine,

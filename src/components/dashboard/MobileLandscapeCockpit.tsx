@@ -7,7 +7,7 @@ import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, MobileStartButton, DrivingModesSelector } from '@/components/controls'
+import { QuickClutchButton, MobileStartButton, DrivingModesSelector, AutomaticShiftButton } from '@/components/controls'
 import { VehicleDashboardCluster } from './VehicleDashboardCluster'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { InfotainmentScreen } from './InfotainmentScreen'
@@ -53,6 +53,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
   const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
+  const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
   const setHorn = useSimulationStore((s) => s.setHorn)
   const handbrake = useSimulationStore((s) => s.handbrake)
   const toggleHandbrake = useSimulationStore((s) => s.toggleHandbrake)
@@ -91,6 +92,11 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
     { id: 'hud', label: 'DIRIGIR' },
     ...(hasInfotainment ? [{ id: 'multimedia' as const, label: 'MÍDIA' }] : []),
   ]
+  const hasActiveAlert =
+    telemetry.engine.isBogWarning ||
+    (hasClutch && telemetry.clutchTelemetry.isSlipping) ||
+    telemetry.shiftLight.isActive ||
+    !isRunning
 
   return (
     <div
@@ -150,9 +156,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
       </aside>
 
       {/* ═══ 2. CENTRO: PAINEL ═══ */}
-      <main className="flex-1 flex flex-col items-center px-3 py-0.5 min-w-0 h-full">
+      <main className={`flex-1 flex flex-col items-center py-0.5 min-w-0 h-full ${centerMode === 'cluster' ? 'px-1.5' : 'px-3'}`}>
         {/* Barra superior limpa */}
-        <header className="flex items-center gap-2 w-full pb-1 border-b border-white/5">
+        <header className="flex items-center gap-1.5 w-full pb-1 border-b border-white/5">
           <button
             type="button"
             onClick={() => setIsMenuOpen(true)}
@@ -165,6 +171,17 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                 S{tuningStage}
               </span>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={onBack}
+            className="h-9 px-2 flex-shrink-0 rounded-xl bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-zinc-200 text-[9.5px] font-mono font-black uppercase tracking-wide flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
+            aria-label="Voltar para a garagem"
+            title="Voltar para a garagem"
+          >
+            <span>←</span>
+            <span>Garagem</span>
           </button>
 
           <div className="min-w-0 leading-tight">
@@ -201,17 +218,21 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           <WarningLights lights={telemetry.warningLights} />
           <div className="flex items-center gap-1.5">
             {vehicle.transmission.tcs?.enabled && (
-              <span
-                className={`px-1.5 py-0.5 rounded-full border font-black ${
+              <button
+                type="button"
+                onClick={() => setTcsEnabled(!tcsEnabled)}
+                aria-pressed={tcsEnabled}
+                title={tcsEnabled ? 'Desativar controle de tração (TCS)' : 'Ativar controle de tração (TCS)'}
+                className={`px-2 py-0.5 rounded-full border font-black cursor-pointer transition-all active:scale-95 ${
                   !tcsEnabled
-                    ? 'text-zinc-600 border-zinc-800 line-through'
+                    ? 'bg-zinc-900 text-zinc-500 border-zinc-700 line-through opacity-75'
                     : telemetry.tcs.intervening
-                    ? 'text-amber-300 border-amber-500 animate-pulse'
-                    : 'text-emerald-400 border-emerald-500/40'
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500 animate-pulse'
+                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/50'
                 }`}
               >
                 TCS
-              </span>
+              </button>
             )}
             <span className="px-2 py-0.5 rounded-full bg-zinc-900 border border-white/10 text-zinc-500">
               0-100{' '}
@@ -234,29 +255,46 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
         )}
 
         {/* Conteúdo central */}
-        {centerMode === 'cluster' ? (
-          <div className="w-full flex-1 flex items-center justify-center relative min-h-0">
-            <VehicleDashboardCluster telemetry={telemetry} />
-            {(hasTurbo || showAftermarketBoostGauge) && (
-              <span className="absolute right-1 top-1 px-2 py-0.5 rounded-full bg-black/85 border border-amber-500/40 text-[9px] font-mono text-amber-300">
-                TURBO{' '}
-                <b>{boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : boostPressureBar.toFixed(2)} BAR</b>
-              </span>
-            )}
+        <div className="relative w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
+          {/* Botões de Troca de Marcha (- na esquerda e + na direita, posicionados mais para cima) */}
+          <div className="absolute left-2 top-2 z-30 pointer-events-auto">
+            <AutomaticShiftButton direction="down" />
           </div>
-        ) : centerMode === 'multimedia' ? (
-          <div className="w-full flex-1 flex items-center justify-center min-h-0">
-            <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={false} />
+          <div className="absolute right-2 top-2 z-30 pointer-events-auto">
+            <AutomaticShiftButton direction="up" />
           </div>
-        ) : (
-          <div className="flex-1 flex min-h-0 w-full flex-col gap-1 overflow-hidden">
-            <VehicleDashboardCluster telemetry={telemetry} />
-            <DrivingMapViewport size={mapViewportSize} onSizeChange={setMapViewportSize} />
-          </div>
-        )}
 
-        {/* Alertas (altura fixa) */}
-        <div className="flex items-center justify-center gap-2 h-6 w-full">
+          {centerMode === 'cluster' ? (
+            <div className="w-full h-full flex items-center justify-center relative min-h-0 self-stretch">
+              <VehicleDashboardCluster telemetry={telemetry} expanded={true} />
+              {(hasTurbo || showAftermarketBoostGauge) && (
+                <span
+                  className={`pointer-events-none absolute top-0.5 px-2 py-0.5 rounded-full bg-black/85 border border-amber-500/40 text-[9px] font-mono text-amber-300 ${
+                    isCvtWithManual ? 'right-16' : 'right-16'
+                  }`}
+                >
+                  TURBO{' '}
+                  <b>{boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : boostPressureBar.toFixed(2)} BAR</b>
+                </span>
+              )}
+            </div>
+          ) : centerMode === 'multimedia' ? (
+            <div className="w-full h-full flex items-center justify-center min-h-0 self-stretch">
+              <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={false} />
+            </div>
+          ) : (
+            <div className="flex-1 flex min-h-0 w-full h-full flex-col gap-1 overflow-hidden self-stretch">
+              <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
+                <VehicleDashboardCluster telemetry={telemetry} />
+              </div>
+              <DrivingMapViewport size={mapViewportSize} onSizeChange={setMapViewportSize} />
+            </div>
+          )}
+        </div>
+
+        {/* Alertas (oculta barra vazia no modo PAINEL para ampliar o cluster) */}
+        {(centerMode !== 'cluster' || hasActiveAlert) && (
+          <div className="flex items-center justify-center gap-2 h-6 w-full">
           {telemetry.engine.isBogWarning && (
             <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 border border-yellow-500 text-yellow-300 text-[9px] font-mono font-black animate-pulse">
               MOTOR AMARRANDO
@@ -283,7 +321,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               {telemetry.engine.isStalled ? '⚠️ MOTOR APAGOU · RELIGUE NO START ↘' : 'MOTOR DESLIGADO · TOQUE EM START ↘'}
             </span>
           )}
-        </div>
+          </div>
+        )}
       </main>
 
       {/* ═══ 3. DIREITA: CONTROLES (POLEGAR DIREITO) ═══ */}
@@ -379,7 +418,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               className="w-full"
             />
           )}
-          <GearShift orientation="vertical" size="compact" />
+          <GearShift orientation="vertical" size="compact" showPaddles={false} />
         </div>
 
         {/* Base: Freio de mão + START */}
