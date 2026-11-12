@@ -4,7 +4,7 @@ import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 
 export interface EngineButtonProps {
   className?: string
-  size?: 'sm' | 'md' | 'lg' | 'pill'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'pill'
   showStatusText?: boolean
 }
 
@@ -57,7 +57,53 @@ export const EngineButton = memo(function EngineButton({
     [isRunning, status, startEngine, stopEngine]
   )
 
-  // Dimensões responsivas do botão
+  // Formato compacto tipo pílula para headers superiores
+  if (size === 'xs') {
+    return (
+      <div className={`relative flex items-center select-none touch-none ${className}`}>
+        <button
+          type="button"
+          onPointerDown={handleTrigger}
+          onClick={handleTrigger}
+          style={{ touchAction: 'none' }}
+          disabled={isStarting}
+          className={`h-7 px-2 sm:px-2.5 rounded-lg border font-mono font-black text-[8.5px] uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow ${
+            isStalled
+              ? 'border-amber-400 bg-amber-950/80 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)] animate-pulse'
+              : isStarting
+              ? 'border-cyan-400 bg-cyan-950/80 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.7)] animate-pulse'
+              : isRunning
+              ? 'border-red-500/80 bg-red-950/80 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.4)]'
+              : 'border-emerald-500/80 bg-emerald-950/70 text-emerald-300 hover:border-emerald-400 hover:text-white animate-pulse'
+          }`}
+          title={
+            isRunning
+              ? 'Desligar motor (STOP)'
+              : isStalled
+              ? 'Religar motor apagado (RESTART)'
+              : isStarting
+              ? 'Dando partida (CRANK)'
+              : 'Ligar motor (START)'
+          }
+        >
+          <div
+            className={`w-2 h-2 rounded-full transition-all ${
+              isStalled
+                ? 'bg-amber-400 animate-ping'
+                : isStarting
+                ? 'bg-cyan-400 animate-pulse'
+                : isRunning
+                ? 'bg-emerald-400 shadow-[0_0_6px_#10b981]'
+                : 'bg-emerald-500 animate-pulse'
+            }`}
+          />
+          <span>{isStalled ? 'RELIGAR' : isStarting ? 'PARTIDA...' : isRunning ? 'STOP' : 'START'}</span>
+        </button>
+      </div>
+    )
+  }
+
+  // Dimensões responsivas do botão circular padrão
   const sizeClasses =
     size === 'sm'
       ? 'w-14 h-14 text-[9px]'

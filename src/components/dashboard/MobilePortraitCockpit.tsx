@@ -6,7 +6,7 @@ import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { EngineButton } from '@/components/controls/EngineButton'
+import { EngineButton, QuickClutchButton } from '@/components/controls'
 import { WarningLights, AuxGauges } from '@/components/gauges'
 import { ClusterView } from './ClusterView'
 import { InfotainmentScreen } from './InfotainmentScreen'
@@ -69,6 +69,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const nosPressurePercent = useSimulationStore((s) => s.nosPressurePercent)
   const setNosActive = useSimulationStore((s) => s.setNosActive)
   const purgeNos = useSimulationStore((s) => s.purgeNos)
+  const isAutomaticVehicle = useSimulationStore((s) => s.isAutomaticVehicle)
 
   const [isTuningOpen, setIsTuningOpen] = useState(false)
   const [isDragStripOpen, setIsDragStripOpen] = useState(false)
@@ -189,6 +190,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             >
               {isMuted ? '🔇' : '🔊'}
             </button>
+            <EngineButton size="xs" />
           </div>
         </div>
 
@@ -384,18 +386,32 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               </div>
             </div>
 
-            {/* Banner Orientativo Quando Desligado / Estolado */}
+            {/* Banner Orientativo e Botão Central de Partida Quando Desligado / Estolado */}
             {!isRunning && (
-              <div
-                className={`w-full max-w-xs py-1 px-2 rounded-xl text-center font-mono font-black text-[9.5px] border transition-all ${
-                  telemetry.engine.isStalled
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-bounce'
-                    : 'bg-white/5 text-zinc-300 border-white/10 animate-pulse'
-                }`}
-              >
-                {telemetry.engine.isStalled
-                  ? '⚠️ MOTOR MORREU · TOQUE EM ENGINE P/ RELIGAR'
-                  : '⚡ TOQUE NO BOTÃO ENGINE START P/ LIGAR O CARRO'}
+              <div className="flex flex-col items-center gap-1.5 my-1 w-full max-w-xs">
+                <button
+                  type="button"
+                  onClick={() => useSimulationStore.getState().startEngine()}
+                  className={`w-full py-2.5 px-4 rounded-2xl border font-mono font-black text-xs uppercase tracking-wider shadow-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 ${
+                    telemetry.engine.isStalled
+                      ? 'bg-gradient-to-r from-amber-600 to-red-600 text-white border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.7)] animate-bounce'
+                      : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 text-white border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.7)] animate-pulse'
+                  }`}
+                >
+                  <span className="text-sm">⚡</span>
+                  <span>{telemetry.engine.isStalled ? 'RELIGAR MOTOR' : 'LIGAR O CARRO (START)'}</span>
+                </button>
+                <div
+                  className={`w-full py-0.5 px-2 rounded-lg text-center font-mono font-bold text-[8.5px] border ${
+                    telemetry.engine.isStalled
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                      : 'bg-white/5 text-zinc-400 border-white/10'
+                  }`}
+                >
+                  {telemetry.engine.isStalled
+                    ? '⚠️ MOTOR MORREU · TOQUE NO BOTÃO P/ RELIGAR'
+                    : '⚡ MOTOR DESLIGADO · TOQUE NO BOTÃO PARA DAR PARTIDA'}
+                </div>
               </div>
             )}
 
@@ -429,10 +445,17 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           {/* Seletor de Câmbio: PRNDS/M para automáticos e [-][N][+] para manuais */}
           <GearShift size="compact" orientation="horizontal" />
 
-          {/* Botões de Ação: Start Engine, Nitro, Buzina e Freio de Mão */}
+          {/* Botões de Ação: Embreagem Rápida, Nitro, Buzina e Freio de Mão */}
           <div className="flex items-center justify-between w-full px-1 gap-2">
-            {/* Botão de Partida Principal */}
-            <EngineButton size="md" showStatusText={true} />
+            {/* Botão Rápido de Embreagem 100% para celular (apenas carros manuais) */}
+            {hasClutch ? (
+              <QuickClutchButton size="normal" />
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-zinc-950/80 border border-white/10 text-zinc-400 text-[10px] font-mono shadow">
+                <span className="text-amber-400 font-bold">CÂMBIO</span>
+                <span className="text-white font-black">{isAutomaticVehicle ? 'AUTO' : 'CVT'}</span>
+              </div>
+            )}
 
             {/* Grupo de Ações Rápidas */}
             <div className="flex items-center gap-2">

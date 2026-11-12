@@ -6,7 +6,7 @@ import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { EngineButton } from '@/components/controls/EngineButton'
+import { EngineButton, QuickClutchButton } from '@/components/controls'
 import { ClusterView } from './ClusterView'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { BoostGauge } from '@/components/gauges'
@@ -341,6 +341,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                 TCS
               </button>
             )}
+
+            {/* Partida no Cabeçalho */}
+            <EngineButton size="xs" />
           </div>
         </header>
 
@@ -473,18 +476,32 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               </div>
             </div>
 
-            {/* Banner Orientativo Quando Desligado / Estolado */}
+            {/* Banner Orientativo e Botão Central de Partida Quando Desligado / Estolado */}
             {!isRunning && (
-              <div
-                className={`py-1 px-4 rounded-xl text-center font-mono font-black text-[10px] border transition-all ${
-                  telemetry.engine.isStalled
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-bounce'
-                    : 'bg-white/5 text-zinc-300 border-white/10 animate-pulse'
-                }`}
-              >
-                {telemetry.engine.isStalled
-                  ? '⚠️ MOTOR MORREU · TOQUE EM ENGINE RESTART NO PAINEL DIREITO'
-                  : '⚡ MOTOR DESLIGADO · TOQUE EM ENGINE START P/ LIGAR'}
+              <div className="flex flex-col items-center gap-1 my-1">
+                <button
+                  type="button"
+                  onClick={() => useSimulationStore.getState().startEngine()}
+                  className={`py-1.5 px-5 rounded-2xl border font-mono font-black text-xs uppercase tracking-wider shadow-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 ${
+                    telemetry.engine.isStalled
+                      ? 'bg-gradient-to-r from-amber-600 to-red-600 text-white border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.7)] animate-bounce'
+                      : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 text-white border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.7)] animate-pulse'
+                  }`}
+                >
+                  <span className="text-sm">⚡</span>
+                  <span>{telemetry.engine.isStalled ? 'RELIGAR MOTOR' : 'LIGAR O CARRO (START)'}</span>
+                </button>
+                <div
+                  className={`py-0.5 px-3 rounded-lg text-center font-mono font-bold text-[8.5px] border ${
+                    telemetry.engine.isStalled
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                      : 'bg-white/5 text-zinc-400 border-white/10'
+                  }`}
+                >
+                  {telemetry.engine.isStalled
+                    ? '⚠️ MOTOR MORREU · TOQUE NO BOTÃO P/ RELIGAR'
+                    : '⚡ MOTOR DESLIGADO · TOQUE NO BOTÃO PARA DAR PARTIDA'}
+                </div>
               </div>
             )}
           </div>
@@ -507,9 +524,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
       {/* 3. LADO DIREITO: CONTROLES SECUNDÁRIOS & CÂMBIO (POLEGAR DIREITO)    */}
       {/* ═════════════════════════════════════════════════════════════════════ */}
       <aside className="flex flex-col items-center justify-between h-full py-1 pl-2 border-l border-white/5 flex-shrink-0">
-        {/* Topo do lado direito: Start Engine & Ações Rápidas */}
+        {/* Topo do lado direito: Ações Rápidas & Embreagem (para manuais) */}
         <div className="w-full flex items-center gap-2 justify-center">
-          <EngineButton size="sm" showStatusText={false} />
+          {hasClutch && <QuickClutchButton size="compact" />}
 
           {/* Buzina Touch */}
           <button

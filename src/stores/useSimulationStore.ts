@@ -783,31 +783,44 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (transmissionMode === 'automatic') {
       if (_config.transmission.hasManualMode) {
         // Tiptronic override: paddle shifter ativa modo manual imediatamente
-        get().toggleSimulatedManual()
-        get().shiftUp()
+        const currentG = _transmission.currentGear > 0 ? _transmission.currentGear : 1
+        const targetG = Math.min(_config.transmission.gearCount, currentG + 1)
+        _transmission.shiftTo(targetG, speed, undefined, true)
+        const newRpm = clamp(
+          _transmission.calculator.speedToRpm(speed, targetG),
+          _config.engine.idleRpm,
+          _config.engine.maxRpm
+        )
+        if (newRpm > 0) _engine.setRpm(newRpm)
+        HapticFeedback.gearShift()
+        set({
+          transmissionMode: 'manual_simulated',
+          shifterPosition: 'M',
+          currentGear: targetG,
+          rpm: _engine.getRpm(),
+          lastShiftReason: 'none',
+        })
       }
       return
     }
 
     if (transmissionMode === 'manual_simulated') {
-      // Modo manual simulado: sem embreagem, proteção via canShiftTo
+      // Modo manual simulado: sem embreagem, troca instantânea mesmo acelerando a fundo
       const nextGear = _transmission.currentGear + 1
       if (nextGear > _config.transmission.gearCount) return
 
-      // Proteção over-rev no upshift (raro, mas seguro verificar)
-      if (!_transmission.canShiftTo(nextGear, speed, _config.engine.maxRpm)) return
-
-      const result = _transmission.shiftTo(nextGear, speed)
-      // Sincroniza RPM baseado na nova relação e velocidade atual
-      const newRpm = clamp(result.newRpm, _config.engine.idleRpm, _config.engine.maxRpm)
-      if (result.newRpm > 0) _engine.setRpm(newRpm)
-
-      HapticFeedback.gearShift()
-      set({ currentGear: result.gear, rpm: _engine.getRpm(), lastShiftReason: 'none' })
+      // Upshift reduz rotação, portanto é 100% seguro contra over-rev; bypassClutchCheck = true
+      const result = _transmission.shiftTo(nextGear, speed, undefined, true)
+      if (result.success) {
+        const newRpm = clamp(result.newRpm, _config.engine.idleRpm, _config.engine.maxRpm)
+        if (result.newRpm > 0) _engine.setRpm(newRpm)
+        HapticFeedback.gearShift()
+        set({ currentGear: result.gear, rpm: _engine.getRpm(), lastShiftReason: 'none' })
+      }
       return
     }
 
-    // Modo 'manual' convencional (Gol G6, CB1000R) com validação de embreagem
+    // Modo 'manual' convencional (Gol G6, CB1000R, Opala, etc.) com validação de embreagem
     if (!_clutch) return
     const result = _transmission.shiftUp(_engine.getRpm(), speed, _config.engine.maxRpm)
 
@@ -830,29 +843,49 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (transmissionMode === 'automatic') {
       if (_config.transmission.hasManualMode) {
         // Tiptronic override: paddle shifter ativa modo manual imediatamente
-        get().toggleSimulatedManual()
-        get().shiftDown()
+        const currentG = _transmission.currentGear > 1 ? _transmission.currentGear : 2
+        const targetG = Math.max(1, currentG - 1)
+        const projectedRpm = _transmission.calculator.speedToRpm(speed, targetG)
+        if (projectedRpm > _config.engine.maxRpm * 1.05) {
+          HapticFeedback.light()
+          set({ lastShiftReason: 'over_rev' })
+          return
+        }
+        _transmission.shiftTo(targetG, speed, undefined, true)
+        const newRpm = clamp(projectedRpm, _config.engine.idleRpm, _config.engine.maxRpm)
+        if (newRpm > 0) _engine.setRpm(newRpm)
+        HapticFeedback.gearShift()
+        set({
+          transmissionMode: 'manual_simulated',
+          shifterPosition: 'M',
+          currentGear: targetG,
+          rpm: _engine.getRpm(),
+          lastShiftReason: 'none',
+        })
       }
       return
     }
 
     if (transmissionMode === 'manual_simulated') {
-      // Modo manual simulado: sem embreagem
+      // Modo manual simulado: sem embreagem, permite redução esportiva sob aceleração
       const nextGear = _transmission.currentGear - 1
-      if (nextGear < 1) return // não vai para neutro/reverso no modo simulado
+      if (nextGear < 1) return
 
-      // Proteção CRÍTICA contra over-rev no downshift
-      if (!_transmission.canShiftTo(nextGear, speed, _config.engine.maxRpm)) {
+      // Proteção realista contra over-rev mecânico (permite até 105% do corte)
+      const projectedRpm = _transmission.calculator.speedToRpm(speed, nextGear)
+      if (projectedRpm > _config.engine.maxRpm * 1.05) {
         HapticFeedback.light()
+        set({ lastShiftReason: 'over_rev' })
         return
       }
 
-      const result = _transmission.shiftTo(nextGear, speed)
-      const newRpm = clamp(result.newRpm, _config.engine.idleRpm, _config.engine.maxRpm)
-      if (result.newRpm > 0) _engine.setRpm(newRpm)
-
-      HapticFeedback.gearShift()
-      set({ currentGear: result.gear, rpm: _engine.getRpm(), lastShiftReason: 'none' })
+      const result = _transmission.shiftTo(nextGear, speed, undefined, true)
+      if (result.success) {
+        const newRpm = clamp(result.newRpm, _config.engine.idleRpm, _config.engine.maxRpm)
+        if (result.newRpm > 0) _engine.setRpm(newRpm)
+        HapticFeedback.gearShift()
+        set({ currentGear: result.gear, rpm: _engine.getRpm(), lastShiftReason: 'none' })
+      }
       return
     }
 
@@ -1344,6 +1377,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       }
 
       const gear = _transmission.currentGear
+      latestGear = gear
       const gearRatio = _transmission.calculator.getGearRatio(gear)
       const finalDrive = _config.transmission.finalDrive
       const isInNeutral = gear === 0 || gear === -2
