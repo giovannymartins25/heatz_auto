@@ -50,8 +50,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 
   const isRunning = useSimulationStore((s) => s.isRunning)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
-  const transmissionMode = useSimulationStore((s) => s.transmissionMode)
-  const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
   const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
   const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
   const setHorn = useSimulationStore((s) => s.setHorn)
@@ -77,8 +75,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const isMotorcycle = vehicle.info.category === 'motorcycle'
-  const isCvtWithManual = vehicle.transmission.hasManualMode === true && !hasClutch
-  const isManualSimulated = transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
   const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const activeCar = carInstance || resolveInstanceForVehicle(vehicle.id)
@@ -268,11 +264,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             <div className="w-full h-full flex items-center justify-center relative min-h-0 self-stretch">
               <VehicleDashboardCluster telemetry={telemetry} expanded={true} />
               {(hasTurbo || showAftermarketBoostGauge) && (
-                <span
-                  className={`pointer-events-none absolute top-0.5 px-2 py-0.5 rounded-full bg-black/85 border border-amber-500/40 text-[9px] font-mono text-amber-300 ${
-                    isCvtWithManual ? 'right-16' : 'right-16'
-                  }`}
-                >
+                <span className="pointer-events-none absolute top-0.5 right-16 px-2 py-0.5 rounded-full bg-black/85 border border-amber-500/40 text-[9px] font-mono text-amber-300">
                   TURBO{' '}
                   <b>{boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : boostPressureBar.toFixed(2)} BAR</b>
                 </span>
@@ -327,24 +319,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 
       {/* ═══ 3. DIREITA: CONTROLES (POLEGAR DIREITO) ═══ */}
       <aside className="flex flex-col items-stretch justify-between h-full py-1 pl-2 border-l border-white/5 flex-shrink-0 w-[132px] sm:w-[150px] gap-1.5">
-        {/* Topo: Buzina / CVT / Moto / NOS (SEM QuickClutch) */}
+        {/* Topo: Buzina / Moto / NOS (SEM QuickClutch) */}
         <div className="flex flex-col gap-1.5">
-          <div className={`grid ${isCvtWithManual ? 'grid-cols-2' : 'grid-cols-1'} gap-1.5`}>
-            {isCvtWithManual && (
-              <button
-                type="button"
-                onClick={toggleSimulatedManual}
-                disabled={!isRunning}
-                className={`h-11 rounded-xl border-2 font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
-                  isManualSimulated
-                    ? 'bg-sky-500/20 border-sky-500 text-sky-300'
-                    : 'bg-zinc-900 border-white/10 text-zinc-400'
-                }`}
-              >
-                <span className="text-[11px]">{isManualSimulated ? 'M' : 'AUTO'}</span>
-                <span className="text-[6.5px] mt-0.5">TROCAR MODO</span>
-              </button>
-            )}
+          <div className="grid grid-cols-1 gap-1.5">
             <button
               type="button"
               onPointerDown={() => setHorn(true)}

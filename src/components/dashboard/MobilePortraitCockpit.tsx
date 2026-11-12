@@ -71,8 +71,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const nosPressurePercent = useSimulationStore((s) => s.nosPressurePercent)
   const setNosActive = useSimulationStore((s) => s.setNosActive)
   const purgeNos = useSimulationStore((s) => s.purgeNos)
-  const transmissionMode = useSimulationStore((s) => s.transmissionMode)
-  const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isTuningOpen, setIsTuningOpen] = useState(false)
@@ -81,8 +79,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const isMotorcycle = vehicle.info.category === 'motorcycle'
-  const isCvtWithManual = vehicle.transmission.hasManualMode === true && !hasClutch
-  const isManualSimulated = transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
   const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const activeCar = carInstance || resolveInstanceForVehicle(vehicle.id)
@@ -495,21 +491,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               aria-label="Manete de freio dianteiro"
             >
               F. DIANT.
-            </button>
-          )}
-          {isCvtWithManual && (
-            <button
-              type="button"
-              onClick={toggleSimulatedManual}
-              disabled={!isRunning}
-              className={`h-11 rounded-2xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
-                isManualSimulated
-                  ? 'bg-sky-500/20 border-sky-500 text-sky-300'
-                  : 'bg-zinc-900 border-white/10 text-zinc-400'
-              }`}
-            >
-              <span className="text-[11px]">{isManualSimulated ? 'M' : 'AUTO'}</span>
-              <span className="text-[6.5px] mt-0.5">MODO</span>
             </button>
           )}
           {hasNosKit && (
