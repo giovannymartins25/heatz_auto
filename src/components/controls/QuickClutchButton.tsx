@@ -5,6 +5,8 @@ import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 export interface QuickClutchButtonProps {
   className?: string
   size?: 'compact' | 'normal' | 'large'
+  /** 'row' = ícone + texto lado a lado | 'stack' = texto empilhado (colunas estreitas) */
+  layout?: 'row' | 'stack'
 }
 
 /**
@@ -18,6 +20,7 @@ export interface QuickClutchButtonProps {
 export const QuickClutchButton = memo(function QuickClutchButton({
   className = '',
   size = 'normal',
+  layout = 'row',
 }: QuickClutchButtonProps) {
   const isRunning = useSimulationStore((s) => s.isRunning)
   const clutchPosition = useSimulationStore((s) => s.clutchPosition)
@@ -93,7 +96,9 @@ export const QuickClutchButton = memo(function QuickClutchButton({
         e.stopPropagation()
       }}
       style={{ touchAction: 'none' }}
-      className={`relative select-none touch-none rounded-2xl font-mono font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer border-2 shadow-lg ${sizeClasses} ${
+      className={`relative select-none touch-none rounded-2xl font-mono font-black uppercase tracking-wider flex items-center justify-center transition-all active:scale-95 cursor-pointer border-2 shadow-lg ${
+        layout === 'stack' ? 'flex-col gap-0.5 px-1 text-[10px]' : `gap-1.5 ${sizeClasses}`
+      } ${
         isFullyPressed
           ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-black border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.8)] scale-98'
           : 'bg-gradient-to-b from-zinc-900 to-black text-amber-400 border-amber-500/40 hover:border-amber-400'
@@ -101,19 +106,33 @@ export const QuickClutchButton = memo(function QuickClutchButton({
       title="Segure ou toque para acionar 100% da embreagem instantaneamente"
       aria-label="Embreagem 100%"
     >
-      <span className="text-xs">⚡</span>
-      <div className="flex flex-col items-start text-left leading-tight">
-        <span className="font-mono font-black tracking-tight">
-          {isFullyPressed ? 'EMBR 100%' : 'EMBR 100%'}
-        </span>
-        <span
-          className={`text-[7px] font-sans tracking-normal opacity-80 ${
-            isFullyPressed ? 'text-black font-bold' : 'text-zinc-400'
-          }`}
-        >
-          {isFullyPressed ? 'DESACOPLADA' : 'SEGURE P/ TROCAR'}
-        </span>
-      </div>
+      {layout === 'stack' ? (
+        <>
+          <span className="text-[12px] leading-none font-black">EMBR</span>
+          <span className="text-[10px] leading-none font-black">100%</span>
+          <span
+            className={`text-[6.5px] font-sans tracking-normal leading-none mt-0.5 ${
+              isFullyPressed ? 'text-black font-bold' : 'text-zinc-400'
+            }`}
+          >
+            {isFullyPressed ? 'SOLTA' : 'SEGURE'}
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="text-xs">⚡</span>
+          <div className="flex flex-col items-start text-left leading-tight">
+            <span className="font-mono font-black tracking-tight">EMBR 100%</span>
+            <span
+              className={`text-[7px] font-sans tracking-normal opacity-80 ${
+                isFullyPressed ? 'text-black font-bold' : 'text-zinc-400'
+              }`}
+            >
+              {isFullyPressed ? 'DESACOPLADA' : 'SEGURE P/ TROCAR'}
+            </span>
+          </div>
+        </>
+      )}
     </button>
   )
 })
