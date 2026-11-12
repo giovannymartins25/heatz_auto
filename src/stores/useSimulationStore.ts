@@ -137,6 +137,7 @@ interface SimulationState {
   drivingMode: DrivingMode
   isKickdown: boolean
   lastShiftReason: string     // 'none' | 'clutch_required' | 'over_rev' | 'gear_limit'
+  gearSelectorPosition: 'P' | 'R' | 'N' | 'D' | 'S' | 'M'
   shifterPosition: 'P' | 'R' | 'N' | 'D' | 'S' | 'M'
 
   // Iluminação de Cabine e Painel
@@ -288,6 +289,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   drivingMode: 'normal',
   isKickdown: false,
   lastShiftReason: 'none',
+  gearSelectorPosition: 'P',
   shifterPosition: 'P',
   clutchSlipRpm: 0,
   clutchSlipRatio: 0,
@@ -483,6 +485,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isKickdown: false,
       isBogWarning: false,
       lastShiftReason: 'none',
+      gearSelectorPosition: isAutoOrCvt ? 'P' : 'N',
       shifterPosition: isAutoOrCvt ? 'P' : 'N',
       clutchSlipRpm: 0,
       clutchSlipRatio: 0,
@@ -616,13 +619,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setDrivingMode: (mode: DrivingMode) => {
-    const { transmissionMode, shifterPosition } = get()
-    let newShifter = shifterPosition
-    if (transmissionMode === 'automatic') {
-      if (mode === 'sport') newShifter = 'S'
-      else if (mode === 'normal' || mode === 'eco') newShifter = 'D'
-    }
-    set({ drivingMode: mode, shifterPosition: newShifter })
+    set({ drivingMode: mode })
     HapticFeedback.light()
   },
 
@@ -759,7 +756,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         _config,
       )
       _transmission.shiftTo(targetGear, speed)
-      set({ transmissionMode: 'manual_simulated', currentGear: targetGear, shifterPosition: 'M' })
+      set({ transmissionMode: 'manual_simulated', currentGear: targetGear, gearSelectorPosition: 'M', shifterPosition: 'M' })
       HapticFeedback.gearShift()
     } else if (transmissionMode === 'manual_simulated') {
       // MANUAL_SIMULATED -> AUTO
@@ -769,7 +766,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       set({
         transmissionMode: 'automatic',
         isKickdown: false,
-        shifterPosition: get().drivingMode === 'sport' ? 'S' : 'D',
+        gearSelectorPosition: 'D',
+        shifterPosition: 'D',
       })
       HapticFeedback.light()
     }
@@ -795,6 +793,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         HapticFeedback.gearShift()
         set({
           transmissionMode: 'manual_simulated',
+          gearSelectorPosition: 'M',
           shifterPosition: 'M',
           currentGear: targetG,
           rpm: _engine.getRpm(),
@@ -857,6 +856,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         HapticFeedback.gearShift()
         set({
           transmissionMode: 'manual_simulated',
+          gearSelectorPosition: 'M',
           shifterPosition: 'M',
           currentGear: targetG,
           rpm: _engine.getRpm(),
@@ -934,7 +934,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       if (mode === 'N') {
         _transmission.neutral()
         HapticFeedback.light()
-        set({ currentGear: 0, shifterPosition: 'N' })
+        set({ currentGear: 0, gearSelectorPosition: 'N', shifterPosition: 'N' })
       }
       return
     }
@@ -944,20 +944,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         _transmission.shiftTo(-2, 0, undefined, true)
         _physics?.reset()
         HapticFeedback.gearShift()
-        set({ currentGear: -2, shifterPosition: 'P', transmissionMode: 'automatic' })
+        set({ currentGear: -2, gearSelectorPosition: 'P', shifterPosition: 'P', transmissionMode: 'automatic' })
         break
       }
       case 'R': {
         _autoTransmission?.reset()
         _transmission.shiftTo(-1, speed, undefined, true)
         HapticFeedback.gearShift()
-        set({ currentGear: -1, shifterPosition: 'R', transmissionMode: 'automatic' })
+        set({ currentGear: -1, gearSelectorPosition: 'R', shifterPosition: 'R', transmissionMode: 'automatic' })
         break
       }
       case 'N': {
         _transmission.neutral()
         HapticFeedback.light()
-        set({ currentGear: 0, shifterPosition: 'N', transmissionMode: 'automatic' })
+        set({ currentGear: 0, gearSelectorPosition: 'N', shifterPosition: 'N', transmissionMode: 'automatic' })
         break
       }
       case 'D': {
@@ -967,9 +967,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         HapticFeedback.gearShift()
         set({
           currentGear: targetGear,
+          gearSelectorPosition: 'D',
           shifterPosition: 'D',
           transmissionMode: 'automatic',
-          drivingMode: 'normal',
         })
         break
       }
@@ -980,9 +980,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         HapticFeedback.gearShift()
         set({
           currentGear: targetGear,
+          gearSelectorPosition: 'S',
           shifterPosition: 'S',
           transmissionMode: 'automatic',
-          drivingMode: 'sport',
         })
         break
       }
@@ -992,6 +992,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         HapticFeedback.gearShift()
         set({
           currentGear: gear,
+          gearSelectorPosition: 'M',
           shifterPosition: 'M',
           transmissionMode: 'manual_simulated',
         })
@@ -1014,6 +1015,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     HapticFeedback.light()
     set({
       currentGear: 0,
+      gearSelectorPosition: 'N',
       shifterPosition: 'N',
       transmissionMode: get().isAutomaticVehicle ? 'automatic' : get().transmissionMode,
     })
@@ -1079,7 +1081,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (targetGear === 0) {
       _transmission.neutral()
       HapticFeedback.light()
-      set({ currentGear: 0, shifterPosition: 'N', isGearGrinding: false, lastShiftReason: 'none' })
+      set({ currentGear: 0, gearSelectorPosition: 'N', shifterPosition: 'N', isGearGrinding: false, lastShiftReason: 'none' })
       return
     }
 
@@ -1137,6 +1139,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       currentGear: targetGear,
       isGearGrinding: false,
       lastShiftReason: 'none',
+      gearSelectorPosition: targetGear === -1 ? 'R' : targetGear === 0 ? 'N' : 'M',
       shifterPosition: targetGear === -1 ? 'R' : targetGear === 0 ? 'N' : 'M',
     })
   },
@@ -1864,6 +1867,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       drivingMode: 'normal',
       isKickdown: false,
       lastShiftReason: 'none',
+  gearSelectorPosition: 'P',
   shifterPosition: 'P',
       clutchSlipRpm: 0,
       clutchSlipRatio: 0,
