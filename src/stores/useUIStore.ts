@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 type Screen = 'home' | 'simulator'
+export type MapViewportSize = 'compact' | 'balanced' | 'expanded'
 
 export interface ActiveKeysState {
   w: boolean
@@ -25,6 +26,8 @@ interface UIStoreState {
   viewMode: 'cluster' | 'cockpit'
   /** Se o usuário aceitou jogar em modo retrato vertical no celular */
   allowPortraitCockpit: boolean
+  /** Tamanho do espaço reservado ao futuro mapa de direção. */
+  mapViewportSize: MapViewportSize
   /** Teclas do teclado ativas para feedback visual no PC */
   activeKeys: ActiveKeysState
 }
@@ -35,6 +38,7 @@ interface UIStoreActions {
   toggleVehicleInfo: () => void
   setViewMode: (mode: 'cluster' | 'cockpit') => void
   setAllowPortraitCockpit: (allowed: boolean) => void
+  setMapViewportSize: (size: MapViewportSize) => void
   setActiveKey: (key: keyof ActiveKeysState, pressed: boolean) => void
 }
 
@@ -46,6 +50,7 @@ export const useUIStore = create<UIStore>((set) => ({
   showVehicleInfo: false,
   viewMode: 'cluster',
   allowPortraitCockpit: false,
+  mapViewportSize: 'balanced',
   activeKeys: {
     w: false,
     e: false,
@@ -63,6 +68,7 @@ export const useUIStore = create<UIStore>((set) => ({
   toggleVehicleInfo: () => set((s) => ({ showVehicleInfo: !s.showVehicleInfo })),
   setViewMode: (mode) => set({ viewMode: mode }),
   setAllowPortraitCockpit: (allowed) => set({ allowPortraitCockpit: allowed }),
+  setMapViewportSize: (size) => set({ mapViewportSize: size }),
   setActiveKey: (key, pressed) =>
     set((s) => {
       if (s.activeKeys[key] === pressed) return s

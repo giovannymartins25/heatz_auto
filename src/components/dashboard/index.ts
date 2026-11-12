@@ -6,4 +6,7 @@ export { CockpitView } from './CockpitView'
 export { PerformanceBox } from './PerformanceBox'
 export { KeyboardHUD } from './KeyboardHUD'
 export { InfotainmentScreen } from './InfotainmentScreen'
+export { VehicleDashboardCluster } from './VehicleDashboardCluster'
+export { DrivingMapViewport } from './DrivingMapViewport'
+export { InfotainmentOverlay } from './InfotainmentOverlay'
 

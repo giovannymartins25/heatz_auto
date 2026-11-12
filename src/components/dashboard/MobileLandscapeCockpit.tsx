@@ -2,15 +2,18 @@ import { memo, useState } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import type { VehicleConfig, DrivingMode } from '@/types'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useUIStore } from '@/stores/useUIStore'
 import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { QuickClutchButton, MobileStartButton } from '@/components/controls'
 import { ClusterView } from './ClusterView'
+import { VehicleDashboardCluster } from './VehicleDashboardCluster'
+import { DrivingMapViewport } from './DrivingMapViewport'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { MobileQuickMenu } from './MobileQuickMenu'
-import { BoostGauge, WarningLights } from '@/components/gauges'
+import { WarningLights } from '@/components/gauges'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
 import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
@@ -61,7 +64,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const isLaunching = useSimulationStore((s) => s.isLaunching)
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
-  const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
   const tuningStage = useSimulationStore((s) => s.tuningStage)
   const hasNosKit = useSimulationStore((s) => s.hasNosKit)
   const nosActive = useSimulationStore((s) => s.nosActive)
@@ -75,21 +77,20 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const [isDynoOpen, setIsDynoOpen] = useState(false)
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
+  const isMotorcycle = vehicle.info.category === 'motorcycle'
   const isCvtWithManual = vehicle.transmission.hasManualMode === true && !hasClutch
   const isManualSimulated = transmissionMode === 'manual_simulated'
   const supportedModes = vehicle.transmission.supportedModes || []
   const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const activeCar = carInstance || resolveInstanceForVehicle(vehicle.id)
   const { hasInfotainment, showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
-  const [centerMode, setCenterMode] = useState<'cluster' | 'multimedia' | 'hud'>('cluster')
-
-  const displaySpeed = Math.round(telemetry.speedometer.speed)
-  const displayRpm = Math.round(telemetry.tachometer.rpm)
-  const maxRpm = vehicle.engine.maxRpm
+  const [centerMode, setCenterMode] = useState<'cluster' | 'multimedia' | 'hud'>('hud')
+  const mapViewportSize = useUIStore((s) => s.mapViewportSize)
+  const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
 
   const viewTabs: { id: 'cluster' | 'hud' | 'multimedia'; label: string }[] = [
     { id: 'cluster', label: 'PAINEL' },
-    { id: 'hud', label: 'HUD' },
+    { id: 'hud', label: 'DIRIGIR' },
     ...(hasInfotainment ? [{ id: 'multimedia' as const, label: 'MÍDIA' }] : []),
   ]
 
@@ -119,8 +120,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           />
         )}
         <AnalogPedal
-          label="FREIO"
-          sublabel="BRAKE"
+          label={isMotorcycle ? 'F. TRAS' : 'FREIO'}
+          sublabel={isMotorcycle ? 'TRASEIRO' : 'BRAKE'}
           value={brake}
           onChange={setBrake}
           colorTheme="red"
@@ -130,8 +131,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           showPercent={true}
         />
         <AnalogPedal
-          label="ACEL"
-          sublabel="GAS"
+          label={isMotorcycle ? 'PUNHO' : 'ACEL'}
+          sublabel={isMotorcycle ? 'ACELERAR' : 'GAS'}
           value={throttle}
           onChange={setThrottle}
           colorTheme="accent"
@@ -255,63 +256,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={false} />
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center w-full gap-2 min-h-0">
-            <div className="flex items-center w-full max-w-lg gap-1 px-4">
-              {Array.from({ length: 16 }).map((_, i) => {
-                const isLit = displayRpm / maxRpm >= i / 16
-                const isRedline = i >= 13
-                const isMid = i >= 8 && i < 13
-                const colorClass = isLit
-                  ? isRedline
-                    ? 'bg-red-500 shadow-[0_0_10px_#ef4444]'
-                    : isMid
-                    ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
-                    : 'bg-emerald-400 shadow-[0_0_8px_#10b981]'
-                  : 'bg-zinc-800/80'
-                return (
-                  <div
-                    key={i}
-                    className={`flex-1 h-2 rounded-sm transition-all duration-75 ${colorClass} ${
-                      isRedline && telemetry.shiftLight.isActive ? 'animate-ping' : ''
-                    }`}
-                  />
-                )
-              })}
-            </div>
-
-            <div className="flex items-center justify-center gap-6 sm:gap-8 w-full">
-              <div className="flex flex-col items-center">
-                <span className="text-4xl sm:text-6xl font-mono font-black tracking-tight text-white leading-none">
-                  {displaySpeed}
-                </span>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 font-bold mt-1">KM/H</span>
-              </div>
-
-              {(hasTurbo || showAftermarketBoostGauge) && (
-                <BoostGauge boostBar={boostPressureBar} peakBar={peakBoostBar} size={68} showPeak={false} />
-              )}
-
-              <div className="relative flex flex-col items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-b from-zinc-900 via-neutral-950 to-zinc-900 border-2 border-[var(--color-accent)] shadow-[0_0_25px_var(--color-accent-muted)]">
-                <span className="text-4xl sm:text-5xl font-mono font-black tracking-tighter text-[var(--color-accent)] leading-none">
-                  {telemetry.gear.label}
-                </span>
-                <span className="text-[9px] font-mono font-bold text-zinc-400 uppercase mt-0.5">{telemetry.gear.subLabel}</span>
-                {telemetry.shiftLight.isActive && (
-                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 animate-ping" />
-                )}
-              </div>
-
-              <div className="flex flex-col items-center">
-                <span
-                  className={`text-4xl sm:text-6xl font-mono font-black tracking-tight leading-none ${
-                    displayRpm > maxRpm * 0.9 ? 'text-red-500 animate-pulse' : 'text-zinc-200'
-                  }`}
-                >
-                  {displayRpm}
-                </span>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 font-bold mt-1">RPM</span>
-              </div>
-            </div>
+          <div className="flex-1 flex min-h-0 w-full items-center gap-2 overflow-hidden">
+            <div className="min-w-0 flex-1"><VehicleDashboardCluster telemetry={telemetry} /></div>
+            <div className="min-w-0 flex-1"><DrivingMapViewport size={mapViewportSize} onSizeChange={setMapViewportSize} /></div>
           </div>
         )}
 
@@ -383,6 +330,20 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               📢
             </button>
           </div>
+
+          {isMotorcycle && (
+            <button
+              type="button"
+              onPointerDown={() => setBrake(1)}
+              onPointerUp={() => setBrake(0)}
+              onPointerLeave={() => setBrake(0)}
+              onPointerCancel={() => setBrake(0)}
+              className="h-12 rounded-2xl border border-red-400/50 bg-red-950/50 font-mono text-[9px] font-black text-red-200 active:bg-red-500/40"
+              aria-label="Manete de freio dianteiro"
+            >
+              F. DIANTEIRO
+            </button>
+          )}
 
           {hasNosKit && (
             <div className="grid grid-cols-[1fr_40px] gap-1.5">

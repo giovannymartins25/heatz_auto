@@ -9,6 +9,9 @@ import { GearShift } from '@/components/controls/GearShift'
 import { QuickClutchButton, MobileStartButton } from '@/components/controls'
 import { WarningLights, AuxGauges } from '@/components/gauges'
 import { ClusterView } from './ClusterView'
+import { VehicleDashboardCluster } from './VehicleDashboardCluster'
+import { DrivingMapViewport } from './DrivingMapViewport'
+import { useUIStore } from '@/stores/useUIStore'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { MobileQuickMenu } from './MobileQuickMenu'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
@@ -76,11 +79,14 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const [isDynoOpen, setIsDynoOpen] = useState(false)
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
+  const isMotorcycle = vehicle.info.category === 'motorcycle'
   const supportedModes = vehicle.transmission.supportedModes || []
   const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const activeCar = carInstance || resolveInstanceForVehicle(vehicle.id)
   const { hasInfotainment, showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
-  const [portraitMode, setPortraitMode] = useState<'cluster' | 'multimedia' | 'hud'>('hud')
+  const [portraitMode, setPortraitMode] = useState<'cluster' | 'multimedia' | 'hud' | 'legacy'>('hud')
+  const mapViewportSize = useUIStore((s) => s.mapViewportSize)
+  const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
 
   const displaySpeed = Math.round(telemetry.speedometer.speed)
   const displayRpm = Math.round(telemetry.tachometer.rpm)
@@ -91,7 +97,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const pedalHeight = 'h-36 sm:h-44'
 
   const viewTabs: { id: 'hud' | 'cluster' | 'multimedia'; label: string }[] = [
-    { id: 'hud', label: 'HUD' },
+    { id: 'hud', label: 'DIRIGIR' },
     { id: 'cluster', label: 'PAINEL' },
     ...(hasInfotainment ? [{ id: 'multimedia' as const, label: 'MÍDIA' }] : []),
   ]
@@ -213,7 +219,10 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={true} />
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center w-full gap-2">
+          <div className="flex flex-col items-center justify-center w-full gap-2 min-h-0">
+            <VehicleDashboardCluster telemetry={telemetry} compact />
+            <DrivingMapViewport size={mapViewportSize} onSizeChange={setMapViewportSize} compact />
+            {portraitMode === 'legacy' && <div>
             {/* LEDs de giro */}
             <div className="flex items-center w-full max-w-sm gap-1 px-2">
               {Array.from({ length: 14 }).map((_, i) => {
@@ -321,6 +330,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
                 isTempOptimal={telemetry.auxGauges.isTempOptimal}
               />
             </div>
+          </div>}
           </div>
         )}
       </main>
@@ -378,8 +388,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             />
           )}
           <AnalogPedal
-            label="FREIO"
-            sublabel="BRAKE"
+            label={isMotorcycle ? 'F. TRAS' : 'FREIO'}
+            sublabel={isMotorcycle ? 'TRASEIRO' : 'BRAKE'}
             value={brake}
             onChange={setBrake}
             colorTheme="red"
@@ -389,8 +399,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             showPercent={true}
           />
           <AnalogPedal
-            label="ACEL"
-            sublabel="GAS"
+            label={isMotorcycle ? 'PUNHO' : 'ACEL'}
+            sublabel={isMotorcycle ? 'ACELERAR' : 'GAS'}
             value={throttle}
             onChange={setThrottle}
             colorTheme="accent"
@@ -403,6 +413,19 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 
         {/* Coluna direita: NOS · Embreagem 100% */}
         <div className="flex flex-col gap-2">
+          {isMotorcycle && (
+            <button
+              type="button"
+              onPointerDown={() => setBrake(1)}
+              onPointerUp={() => setBrake(0)}
+              onPointerLeave={() => setBrake(0)}
+              onPointerCancel={() => setBrake(0)}
+              className="h-11 rounded-2xl border border-red-400/50 bg-red-950/50 font-mono text-[8px] font-black text-red-200 active:bg-red-500/40"
+              aria-label="Manete de freio dianteiro"
+            >
+              F. DIANT.
+            </button>
+          )}
           {hasNosKit && (
             <>
               <button
