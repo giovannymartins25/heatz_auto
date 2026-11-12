@@ -80,6 +80,11 @@ runTest('Cockpits mobile possuem botão TCS interativo, voltar para garagem, - n
     'utf-8',
   )
   assert.ok(shiftBtnsCode.includes('!isAutomaticVehicle || !hasManualMode'), 'Botões -/+ exclusivos de automáticos com modo manual')
+  assert.ok(shiftBtnsCode.includes('isManualActive'), 'Botões -/+ só aparecem quando o modo manual estiver ativo')
+  assert.ok(
+    shiftBtnsCode.includes("transmissionMode === 'manual_simulated' || gearSelectorPosition === 'M'"),
+    'Modo manual definido por M ou manual_simulated',
+  )
   assert.ok(!shiftBtnsCode.includes('PADDLE'), 'Botões ao lado do painel exibem apenas - e +, sem texto PADDLE')
 
   for (const file of ['MobilePortraitCockpit.tsx', 'MobileLandscapeCockpit.tsx']) {

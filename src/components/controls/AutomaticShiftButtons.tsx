@@ -18,12 +18,17 @@ export const AutomaticShiftButton = memo(function AutomaticShiftButton({
 }: AutomaticShiftButtonProps) {
   const isAutomaticVehicle = useSimulationStore((s) => s.isAutomaticVehicle)
   const hasManualMode = useSimulationStore((s) => Boolean(s._config?.transmission.hasManualMode))
+  const transmissionMode = useSimulationStore((s) => s.transmissionMode)
+  const gearSelectorPosition = useSimulationStore((s) => s.gearSelectorPosition)
   const isRunning = useSimulationStore((s) => s.isRunning)
   const shiftDown = useSimulationStore((s) => s.shiftDown)
   const shiftUp = useSimulationStore((s) => s.shiftUp)
   const lastTriggerRef = useRef(0)
 
-  if (!isAutomaticVehicle || !hasManualMode) {
+  // Exibe apenas em veículos automáticos com modo manual E quando o modo manual estiver ativado (M / manual_simulated)
+  const isManualActive = transmissionMode === 'manual_simulated' || gearSelectorPosition === 'M'
+
+  if (!isAutomaticVehicle || !hasManualMode || !isManualActive) {
     return null
   }
 
@@ -103,8 +108,12 @@ export const AutomaticShiftButtons = memo(function AutomaticShiftButtons({
 }: AutomaticShiftButtonsProps) {
   const isAutomaticVehicle = useSimulationStore((s) => s.isAutomaticVehicle)
   const hasManualMode = useSimulationStore((s) => Boolean(s._config?.transmission.hasManualMode))
+  const transmissionMode = useSimulationStore((s) => s.transmissionMode)
+  const gearSelectorPosition = useSimulationStore((s) => s.gearSelectorPosition)
 
-  if (!isAutomaticVehicle || !hasManualMode) {
+  const isManualActive = transmissionMode === 'manual_simulated' || gearSelectorPosition === 'M'
+
+  if (!isAutomaticVehicle || !hasManualMode || !isManualActive) {
     return null
   }
 
