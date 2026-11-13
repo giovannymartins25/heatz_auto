@@ -46,6 +46,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   carInstance,
 }: MobilePortraitCockpitProps) {
   const throttle = useSimulationStore((s) => s.throttle)
+  const throttleLock = useSimulationStore((s) => s.throttleLock)
+  const toggleThrottleLock = useSimulationStore((s) => s.toggleThrottleLock)
   const brake = useSimulationStore((s) => s.brake)
   const clutchPosition = useSimulationStore((s) => s.clutchPosition)
   const setThrottle = useSimulationStore((s) => s.setThrottle)
@@ -465,17 +467,35 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             disabled={false}
             showPercent={true}
           />
-          <AnalogPedal
-            label={isMotorcycle ? 'PUNHO' : 'ACEL'}
-            sublabel={isMotorcycle ? 'ACELERAR' : 'GAS'}
-            value={throttle}
-            onChange={setThrottle}
-            colorTheme="accent"
-            widthClass={pedalWidth}
-            heightClass={pedalHeight}
-            disabled={false}
-            showPercent={true}
-          />
+          <div className="flex flex-col items-center">
+            <button
+              type="button"
+              onClick={toggleThrottleLock}
+              onPointerDown={(e) => { e.stopPropagation() }}
+              onTouchStart={(e) => { e.stopPropagation() }}
+              style={{ touchAction: 'none' }}
+              className={`w-full py-0.5 px-1 mb-1 rounded-md font-mono text-[7.5px] font-black uppercase tracking-wider border transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-0.5 ${
+                throttleLock
+                  ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.85)] animate-pulse'
+                  : 'bg-zinc-900/90 text-zinc-400 border-white/10 hover:text-white'
+              }`}
+              title="Travar acelerador em 100% (solta ao pisar no freio)"
+            >
+              <span>{throttleLock ? '🔒' : '🔓'}</span>
+              <span>{throttleLock ? 'TRAVADO' : 'TRAVA'}</span>
+            </button>
+            <AnalogPedal
+              label={isMotorcycle ? 'PUNHO' : 'ACEL'}
+              sublabel={isMotorcycle ? 'ACELERAR' : 'GAS'}
+              value={throttle}
+              onChange={setThrottle}
+              colorTheme="accent"
+              widthClass={pedalWidth}
+              heightClass={pedalHeight}
+              disabled={false}
+              showPercent={true}
+            />
+          </div>
         </div>
 
         {/* Coluna direita: Controles Secundários / Nitro / Moto (SEM QuickClutch) */}

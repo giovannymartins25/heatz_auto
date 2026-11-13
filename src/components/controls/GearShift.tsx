@@ -143,7 +143,10 @@ export const GearShift = memo(function GearShift({
             {/* P - PARK */}
             {supportedPositions.includes('P') && (
               <button
-                onClick={selectPark}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); selectPark(); }}
+                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); selectPark(); }}
+                onClick={(e) => { e.preventDefault(); selectPark(); }}
+                style={{ touchAction: 'none' }}
                 disabled={!isRunning}
                 className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isP
@@ -159,7 +162,10 @@ export const GearShift = memo(function GearShift({
             {/* R - REVERSE */}
             {supportedPositions.includes('R') && (
               <button
-                onClick={selectReverse}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); selectReverse(); }}
+                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); selectReverse(); }}
+                onClick={(e) => { e.preventDefault(); selectReverse(); }}
+                style={{ touchAction: 'none' }}
                 disabled={!isRunning}
                 className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isR
@@ -175,7 +181,10 @@ export const GearShift = memo(function GearShift({
             {/* N - NEUTRAL */}
             {supportedPositions.includes('N') && (
               <button
-                onClick={selectNeutral}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); selectNeutral(); }}
+                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); selectNeutral(); }}
+                onClick={(e) => { e.preventDefault(); selectNeutral(); }}
+                style={{ touchAction: 'none' }}
                 disabled={!isRunning}
                 className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isN
@@ -191,7 +200,10 @@ export const GearShift = memo(function GearShift({
             {/* D - DRIVE */}
             {supportedPositions.includes('D') && (
               <button
-                onClick={selectDrive}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); selectDrive(); }}
+                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); selectDrive(); }}
+                onClick={(e) => { e.preventDefault(); selectDrive(); }}
+                style={{ touchAction: 'none' }}
                 disabled={!isRunning}
                 className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isD
@@ -207,7 +219,10 @@ export const GearShift = memo(function GearShift({
             {/* S - SPORT */}
             {supportedPositions.includes('S') && (
               <button
-                onClick={selectSport}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); selectSport(); }}
+                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); selectSport(); }}
+                onClick={(e) => { e.preventDefault(); selectSport(); }}
+                style={{ touchAction: 'none' }}
                 disabled={!isRunning}
                 className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isS
@@ -223,7 +238,10 @@ export const GearShift = memo(function GearShift({
             {/* M - MANUAL / TIPTRONIC */}
             {supportedPositions.includes('M') && (
               <button
-                onClick={selectManual}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); selectManual(); }}
+                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); selectManual(); }}
+                onClick={(e) => { e.preventDefault(); selectManual(); }}
+                style={{ touchAction: 'none' }}
                 disabled={!isRunning}
                 className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isM

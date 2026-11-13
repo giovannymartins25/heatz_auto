@@ -229,10 +229,22 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
                 <button
                   key={g.label}
                   disabled={isEngineBlown}
-                  onClick={(e) => {
+                  onPointerDown={(e) => {
+                    e.preventDefault()
                     e.stopPropagation()
                     handleSelectGear(g.gear)
                   }}
+                  onTouchStart={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleSelectGear(g.gear)
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleSelectGear(g.gear)
+                  }}
+                  style={{ touchAction: 'none' }}
                   className={`flex items-center justify-center rounded-xl font-mono font-black transition-all active:scale-95 cursor-pointer shadow-md border ${
                     isCompact ? 'w-8 h-8 text-[11px]' : 'w-10 h-10 text-xs'
                   } ${
@@ -259,10 +271,22 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
         {/* ── Linha Central: Botão de Neutro (Ponto Morto) ── */}
         <div className="relative z-10 flex justify-center items-center w-full">
           <button
-            onClick={(e) => {
+            onPointerDown={(e) => {
+              e.preventDefault()
               e.stopPropagation()
               handleSelectGear(0)
             }}
+            onTouchStart={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleSelectGear(0)
+            }}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleSelectGear(0)
+            }}
+            style={{ touchAction: 'none' }}
             className={`rounded-full px-3 py-1 font-mono font-black transition-all active:scale-95 cursor-pointer border shadow ${
               isCompact ? 'text-[9px] py-0.5' : 'text-[10px] py-1'
             } ${
@@ -286,10 +310,22 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
                 <button
                   key={g.label}
                   disabled={isEngineBlown}
-                  onClick={(e) => {
+                  onPointerDown={(e) => {
+                    e.preventDefault()
                     e.stopPropagation()
                     handleSelectGear(g.gear)
                   }}
+                  onTouchStart={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleSelectGear(g.gear)
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleSelectGear(g.gear)
+                  }}
+                  style={{ touchAction: 'none' }}
                   className={`flex items-center justify-center rounded-xl font-mono font-black transition-all active:scale-95 cursor-pointer shadow-md border ${
                     isCompact ? 'w-8 h-8 text-[11px]' : 'w-10 h-10 text-xs'
                   } ${

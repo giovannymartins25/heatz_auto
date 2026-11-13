@@ -151,7 +151,10 @@ export const DrivingModesSelector = memo(function DrivingModesSelector({
             <button
               key={mode}
               type="button"
+              onPointerDown={(e) => handleSelectMode(mode, e)}
+              onTouchStart={(e) => handleSelectMode(mode, e)}
               onClick={(e) => handleSelectMode(mode, e)}
+              style={{ touchAction: 'none' }}
               className={buttonClasses(mode, isActive)}
               title={config.title}
               aria-pressed={isActive}

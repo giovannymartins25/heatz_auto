@@ -36,6 +36,10 @@ interface SimulationActions {
   stopEngine: () => void
   /** Define a posição do acelerador (0-1) */
   setThrottle: (value: number) => void
+  /** Trava o acelerador em 100% ou destrava */
+  setThrottleLock: (locked: boolean) => void
+  /** Alterna trava do acelerador */
+  toggleThrottleLock: () => void
   /** Define a posição do freio (0-1) */
   setBrake: (value: number) => void
   /** Define a posição da embreagem (0-1: 0 = acoplada, 1 = desacoplada) */
@@ -157,6 +161,7 @@ interface SimulationState {
   // Estado do veículo
   speed: number
   throttle: number
+  throttleLock: boolean
   brake: number
   handbrake: boolean
 
@@ -299,6 +304,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   tcsInterventionLevel: 0,
   speed: 0,
   throttle: 0,
+  throttleLock: false,
   brake: 0,
   handbrake: false,
   isHornActive: false,
@@ -476,6 +482,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       speed: 0,
       currentGear: isAutoOrCvt ? -2 : 0,
       throttle: 0,
+      throttleLock: false,
       brake: 0,
       clutchPosition: isAutoOrCvt ? 0 : 0,
       transmissionMode: defaultTransMode,
@@ -593,6 +600,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       status: 'off',
       rpm: 0,
       throttle: 0,
+      throttleLock: false,
       isKickdown: false,
       tcsIntervening: false,
       tcsInterventionLevel: 0,
@@ -600,11 +608,46 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setThrottle: (value: number) => {
-    set({ throttle: clamp(value, 0, 1) })
+    const clamped = clamp(value, 0, 1)
+    const { throttleLock } = get()
+    // Se estiver travado e o valor recebido for soltura (< 0.05), mantém 100% acelerado
+    if (throttleLock && clamped < 0.05) {
+      return
+    }
+    // Se o usuário acelerar acima de 95% ou alterar ativamente, atualiza
+    set({ throttle: clamped })
+  },
+
+  setThrottleLock: (locked: boolean) => {
+    set({
+      throttleLock: locked,
+      throttle: locked ? 1.0 : get().throttle,
+    })
+    HapticFeedback.light()
+  },
+
+  toggleThrottleLock: () => {
+    const next = !get().throttleLock
+    set({
+      throttleLock: next,
+      throttle: next ? 1.0 : 0.0,
+    })
+    HapticFeedback.light()
   },
 
   setBrake: (value: number) => {
-    set({ brake: clamp(value, 0, 1) })
+    const clamped = clamp(value, 0, 1)
+    // Tocar no freio (>= 10%) destrava automaticamente o acelerador travado (segurança estilo cruise control)
+    if (clamped >= 0.1 && get().throttleLock) {
+      set({
+        brake: clamped,
+        throttleLock: false,
+        throttle: 0.0,
+      })
+      HapticFeedback.light()
+      return
+    }
+    set({ brake: clamped })
   },
 
   setClutch: (value: number) => {
@@ -1878,6 +1921,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       tcsInterventionLevel: 0,
       speed: 0,
       throttle: 0,
+      throttleLock: false,
       brake: 0,
       handbrake: false,
       isHornActive: false,

@@ -37,6 +37,7 @@ export const AnalogPedal = memo(function AnalogPedal({
 }: AnalogPedalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const isPointerDownRef = useRef(false)
+  const activePointerIdRef = useRef<number | null>(null)
   const animFrameRef = useRef<number>(0)
   const [internalValue, setInternalValue] = useState(value)
 
@@ -69,6 +70,10 @@ export const AnalogPedal = memo(function AnalogPedal({
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (disabled) return
+    // Se outro ponteiro já estiver interagindo com este pedal, ignora novo ponteiro
+    if (activePointerIdRef.current !== null && activePointerIdRef.current !== e.pointerId) return
+
+    activePointerIdRef.current = e.pointerId
     isPointerDownRef.current = true
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
 
@@ -85,6 +90,9 @@ export const AnalogPedal = memo(function AnalogPedal({
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isPointerDownRef.current || disabled) return
+    // Apenas responde ao ponteiro que iniciou a interação neste pedal
+    if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return
+
     const newVal = calculatePedalValue(e.clientY)
     setInternalValue(newVal)
     onChange(newVal)
@@ -92,6 +100,10 @@ export const AnalogPedal = memo(function AnalogPedal({
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isPointerDownRef.current) return
+    // Se o evento for de outro dedo levantado na tela, não cancela este pedal
+    if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return
+
+    activePointerIdRef.current = null
     isPointerDownRef.current = false
 
     try {
@@ -184,6 +196,7 @@ export const AnalogPedal = memo(function AnalogPedal({
             : 'border-zinc-800 bg-zinc-950/70 hover:border-zinc-700'
         }`}
         style={{
+          touchAction: 'none',
           boxShadow: internalValue > 0.05 ? undefined : 'inset 0 2px 6px rgba(0,0,0,0.8)',
         }}
       >

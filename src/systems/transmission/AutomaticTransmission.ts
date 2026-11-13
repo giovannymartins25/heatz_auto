@@ -62,32 +62,70 @@ export class AutomaticTransmission {
   }
 
   /**
-   * Determina a faixa ideal de RPM de acordo com o modo de condução e intensidade do acelerador.
+   * Determina as faixas de RPM de subida (upshift) e descida (downshift) de acordo com o
+   * perfil de condução (ECO, NORMAL, SPORT, TRACK) e nível de aceleração (throttle).
    */
-  private getTargetRpmBand(drivingMode: DrivingMode, throttle: number): { min: number; max: number } {
+  private getTargetRpmBand(drivingMode: DrivingMode, throttle: number): {
+    min: number
+    max: number
+    downshiftThreshold: number
+  } {
     const { maxRpm } = this.config
+
+    // ─── PISOU FUNDO / KICKDOWN (throttle >= 0.85) em QUALQUER MODO ───
+    // Todo carro automático real (DSG, PDK, CVT) sob aceleração plena estica as marchas
+    // até a faixa de potência máxima / próximo ao redline, independente do modo de condução ativo.
+    if (throttle >= 0.85) {
+      const kickdownUpshiftRpm = this.config.isCvt
+        ? Math.min(this.config.maxRpm * 0.89, 5700)
+        : Math.min(maxRpm * 0.94, maxRpm - 350)
+      const kickdownDownshiftRpm = maxRpm * 0.58
+      return {
+        min: 2400,
+        max: kickdownUpshiftRpm,
+        downshiftThreshold: kickdownDownshiftRpm,
+      }
+    }
 
     switch (drivingMode) {
       case 'eco': {
-        // ECO: Alvo baixo em aceleração leve (~1800-2100 RPM), sobe até ~3200 em throttle alto
-        const minTarget = 1600 + throttle * 800
-        const maxTarget = 1950 + throttle * 1100
-        return { min: minTarget, max: Math.min(maxTarget, maxRpm * 0.70) }
+        // ECO: Trocas antecipadas para máxima economia de combustível
+        const minTarget = 1500 + throttle * 600
+        const maxTarget = 2000 + throttle * 900
+        const downshiftThreshold = 1350 + throttle * 350
+        return {
+          min: minTarget,
+          max: Math.min(maxTarget, maxRpm * 0.70),
+          downshiftThreshold,
+        }
       }
 
-      case 'sport': {
-        // SPORT: Mantém rotação alta para resposta imediata (4500-6000 RPM sob carga)
-        const minTarget = 3400 + throttle * 2000
-        const maxTarget = 4600 + throttle * 1500
-        return { min: minTarget, max: Math.min(maxTarget, maxRpm * 0.96) }
+      case 'sport':
+      case 'track': {
+        // SPORT / TRACK: Rotação alta para resposta imediata
+        // Exemplo: se troca em ~6000 RPM, ao descer de ~4000 RPM reduz a marcha
+        const minTarget = 3600 + throttle * 1200
+        const maxTarget = 5400 + throttle * 1200
+        const downshiftThreshold = 4000 + throttle * 400
+        return {
+          min: minTarget,
+          max: Math.min(maxTarget, maxRpm * 0.95),
+          downshiftThreshold: Math.min(downshiftThreshold, maxRpm * 0.65),
+        }
       }
 
       case 'normal':
       default: {
-        // NORMAL: Equilíbrio (~2600-3000 RPM em aceleração moderada)
-        const minTarget = 1900 + throttle * 1200
-        const maxTarget = 2400 + throttle * 1400
-        return { min: minTarget, max: Math.min(maxTarget, maxRpm * 0.85) }
+        // NORMAL: Equilíbrio urbano e rodoviário
+        // Exemplo: se o carro muda de marcha a ~3000 RPM, reduz ao descer de ~2000 RPM
+        const minTarget = 1900 + throttle * 800
+        const maxTarget = 2700 + throttle * 900
+        const downshiftThreshold = 2000 + throttle * 350
+        return {
+          min: minTarget,
+          max: Math.min(maxTarget, maxRpm * 0.82),
+          downshiftThreshold,
+        }
       }
     }
   }
@@ -139,12 +177,13 @@ export class AutomaticTransmission {
     }
 
     // ─── 2. Detecção de KICKDOWN (prioridade máxima — sobrepõe cooldown) ───
-    // Pressionamento forte do acelerador (>= 85%): reduz para a menor marcha virtual segura
-    if (isThrottleAggressive && vehicleSpeedKmh > 5 && currentGear > 1) {
+    // Pressionamento forte do acelerador (>= 85%): reduz para a menor marcha se o giro atual
+    // ainda estiver baixo/médio e a marcha menor colocar o motor na faixa de potência sem sobregiro
+    if (isThrottleAggressive && vehicleSpeedKmh > 8 && currentGear > 1) {
       for (let testGear = 1; testGear < currentGear; testGear++) {
         const projectedRpm = this.speedToRpm(vehicleSpeedKmh, testGear)
-        // Só reduz se o giro não ultrapassar a faixa de segurança (94% do redline)
-        if (projectedRpm < this.config.maxRpm * 0.94) {
+        // Só reduz via kickdown se a marcha menor cair em até 86% do giro máximo e der ganho substancial de giro
+        if (projectedRpm <= this.config.maxRpm * 0.86 && projectedRpm > currentRpm + 500) {
           this.shiftTimer = 0
           return {
             targetGear: testGear,
@@ -157,7 +196,7 @@ export class AutomaticTransmission {
     }
 
     // Se acabou de trocar, aguarda histerese mínima para evitar trocas intermitentes normais
-    const shiftCooldown = 1.0
+    const shiftCooldown = 0.75
     if (this.shiftTimer < shiftCooldown) {
       return {
         targetGear: currentGear,
@@ -167,24 +206,22 @@ export class AutomaticTransmission {
       }
     }
 
-    const { max: targetMaxRpm } = this.getTargetRpmBand(drivingMode, throttle)
+    const { max: targetMaxRpm, downshiftThreshold } = this.getTargetRpmBand(drivingMode, throttle)
 
-    // ─── 3. REDUÇÃO AUTOMÁTICA (Downshift) POR VELOCIDADE / SUB-ROTAÇÃO ───
+    // ─── 3. REDUÇÃO AUTOMÁTICA (Downshift) POR VELOCIDADE / ROTAÇÃO ───
     if (currentGear > 1) {
-      const currentTheoreticalRpm = this.speedToRpm(vehicleSpeedKmh, currentGear)
-      // Só reduz se a rotação cair perto da marcha lenta para evitar bater pino / sub-rotação
-      const downshiftThreshold = Math.max(1100, this.config.idleRpm * 1.35)
-      if (currentTheoreticalRpm < downshiftThreshold) {
-        const lowerGear = currentGear - 1
-        const projectedRpm = this.speedToRpm(vehicleSpeedKmh, lowerGear)
-        if (projectedRpm < this.config.maxRpm * 0.92) {
-          this.shiftTimer = 0
-          return {
-            targetGear: lowerGear,
-            targetClutchEngagement: 1.0,
-            isKickdown: false,
-            targetRpm: projectedRpm,
-          }
+      const lowerGear = currentGear - 1
+      const projectedRpm = this.speedToRpm(vehicleSpeedKmh, lowerGear)
+
+      // Se a rotação cair abaixo do threshold do modo (ex: 2000 no normal, 4000 no sport)
+      // OU se o veículo estiver quase parando (< 8 km/h):
+      if ((currentRpm <= downshiftThreshold || vehicleSpeedKmh < 8) && projectedRpm < this.config.maxRpm * 0.94) {
+        this.shiftTimer = 0
+        return {
+          targetGear: lowerGear,
+          targetClutchEngagement: 1.0,
+          isKickdown: false,
+          targetRpm: projectedRpm,
         }
       }
     }
@@ -192,11 +229,11 @@ export class AutomaticTransmission {
     // ─── 4. SUBIDA DE RELAÇÃO (Upshift) ───
     if (currentGear < maxGear) {
       // Se o RPM ultrapassou o alvo do modo atual e não estamos com freio pressionado
-      if (currentRpm > targetMaxRpm && brake < 0.1) {
+      if (currentRpm >= targetMaxRpm && brake < 0.1) {
         const higherGear = currentGear + 1
         const projectedRpm = this.speedToRpm(vehicleSpeedKmh, higherGear)
-        // Só sobe se a próxima marcha não for cair para uma rotação excessivamente baixa
-        if (projectedRpm > this.config.idleRpm * 1.3) {
+        // Só sobe se a próxima marcha não for cair abaixo da marcha lenta segura
+        if (projectedRpm >= this.config.idleRpm * 1.35) {
           this.shiftTimer = 0
           return {
             targetGear: higherGear,

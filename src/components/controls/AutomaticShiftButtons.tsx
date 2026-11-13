@@ -55,6 +55,11 @@ export const AutomaticShiftButton = memo(function AutomaticShiftButton({
         e.stopPropagation()
         triggerShift()
       }}
+      onTouchStart={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        triggerShift()
+      }}
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
