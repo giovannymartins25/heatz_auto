@@ -220,36 +220,21 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 
       {/* ─── 2. Painel central ─── */}
       <main
-        className={`relative flex-1 flex flex-col justify-center items-center min-h-0 overflow-hidden ${
+        className={`relative flex-1 flex flex-row items-stretch justify-center min-h-0 overflow-hidden ${
           portraitMode === 'cluster' ? 'px-0 py-0' : 'px-1 py-1'
         }`}
       >
-        {/* Seletor vertical compacto de visualização: [PAINEL] [DIRIGIR] [MÍDIA] */}
-        <div className="absolute left-1 top-1 z-30 flex flex-col gap-1 bg-zinc-900/90 backdrop-blur-sm p-0.5 rounded-lg border border-white/10 shadow-lg pointer-events-auto">
-          {viewTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setPortraitMode(tab.id)}
-              className={`px-1.5 py-0.5 text-[8px] font-mono font-black rounded uppercase tracking-wider transition-all cursor-pointer ${
-                portraitMode === tab.id ? 'bg-white text-zinc-950 shadow' : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {isLaunchControlArmed && (
-          <div className="w-full py-1 px-2 rounded-lg bg-amber-500/20 border border-amber-400 text-amber-300 text-center text-[10px] font-mono font-black animate-pulse mb-1">
-            🏁 LAUNCH CONTROL ATIVO · SOLTE O FREIO!
-          </div>
-        )}
-        {isLaunching && (
-          <div className="w-full py-1 px-2 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-center text-[10px] font-mono font-black mb-1">
-            🚀 LARGADA!
-          </div>
-        )}
+        <div className="flex-1 flex flex-col justify-center items-center min-h-0 min-w-0 self-stretch overflow-hidden">
+          {isLaunchControlArmed && (
+            <div className="w-full py-1 px-2 rounded-lg bg-amber-500/20 border border-amber-400 text-amber-300 text-center text-[10px] font-mono font-black animate-pulse mb-1">
+              🏁 LAUNCH CONTROL ATIVO · SOLTE O FREIO!
+            </div>
+          )}
+          {isLaunching && (
+            <div className="w-full py-1 px-2 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-center text-[10px] font-mono font-black mb-1">
+              🚀 LARGADA!
+            </div>
+          )}
 
         {portraitMode === 'cluster' ? (
           <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch relative px-1">
@@ -418,6 +403,26 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           </div>}
           </div>
         )}
+        </div>
+
+        {/* ═══ SELETOR LATERAL COMPACTO: [PAINEL] [DIRIGIR] [MÍDIA] ═══ */}
+        {/* Posicionado em coluna vertical fixa à direita do painel/mapa, sem sobrepor o canvas */}
+        <div className="flex flex-col justify-start items-center gap-1 py-0.5 pl-1 flex-shrink-0 z-30">
+          <div className="flex flex-col gap-1 bg-zinc-900/90 backdrop-blur-sm p-0.5 rounded-lg border border-white/10 shadow-lg pointer-events-auto">
+            {viewTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setPortraitMode(tab.id)}
+                className={`px-1.5 py-1 text-[8px] font-mono font-black rounded uppercase tracking-wider transition-all cursor-pointer ${
+                  portraitMode === tab.id ? 'bg-white text-zinc-950 shadow' : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </main>
 
       {/* ─── 4. Câmbio e Perfis de Condução ─── */}

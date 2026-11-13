@@ -20,6 +20,7 @@
     "revLimiter": 6800,
     "flywheelMass": 4.9,
     "engineBrakeFactor": 0.28,
+    "throttleProgressionExponent": 1.45,
     "turbo": {
       "enabled": true,
       "maxBoostBar": 1.35,
@@ -59,7 +60,7 @@
     "defaultDrivingMode": "normal",
     "supportedModes": ["eco", "normal", "sport"],
     "supportsPaddleShifters": true,
-    "manualShiftControls": ["paddle_shifters"],
+    "manualShiftControls": ["paddle_shifters", "gear_selector_gesture"],
     "supportsNos": true,
     "tcs": {
       "enabled": true,

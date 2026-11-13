@@ -35,10 +35,16 @@ export const VehicleDashboardCluster = memo(function VehicleDashboardCluster({
     if (!element) return
 
     const update = () => {
-      const w = element.clientWidth
-      const h = element.clientHeight
+      const w = Math.round(element.clientWidth)
+      const h = Math.round(element.clientHeight)
       if (w > 0 && h > 0) {
-        setBounds({ width: w, height: h })
+        setBounds((prev) => {
+          // Deadband de 2px para evitar oscilações de subpixel no DevTools/DPR fracionário
+          if (Math.abs(prev.width - w) < 2 && Math.abs(prev.height - h) < 2) {
+            return prev
+          }
+          return { width: w, height: h }
+        })
       }
     }
 
@@ -55,17 +61,18 @@ export const VehicleDashboardCluster = memo(function VehicleDashboardCluster({
     bounds.height > 0 ? bounds.height : typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.4) : 260
 
   const maxScale = expanded ? 1.6 : 1.35
-  const scale = Math.min(maxScale, effectiveWidth / profile.width, effectiveHeight / profile.height)
+  const rawScale = Math.min(maxScale, effectiveWidth / profile.width, effectiveHeight / profile.height)
+  const scale = Math.round(rawScale * 1000) / 1000
 
   return (
     <section
       ref={containerRef}
       aria-label="Painel de instrumentos original"
-      className="relative flex h-full w-full min-h-0 flex-1 self-stretch items-center justify-center overflow-visible"
+      className="relative flex h-full w-full min-h-0 flex-1 self-stretch items-center justify-center overflow-hidden"
     >
       <div
-        className="relative shrink-0 transition-transform duration-150"
-        style={{ width: profile.width * scale, height: profile.height * scale }}
+        className="relative shrink-0 will-change-transform"
+        style={{ width: Math.round(profile.width * scale), height: Math.round(profile.height * scale) }}
       >
         <div
           className="absolute left-0 top-0 pointer-events-none"

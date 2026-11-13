@@ -108,7 +108,7 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
   const gForceY = Math.min(1.4, Math.max(-1.4, (speedometer.speed > 5 ? 0.6 : 0) * (tachometer.rpm > 5000 ? 1 : 0.4)))
 
   return (
-    <div className={`@container relative flex flex-col items-center w-full max-w-6xl p-1.5 rounded-2xl bg-gradient-to-b from-[#0a0b0e] via-zinc-950 to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
+    <div className={`@container relative flex flex-col items-center w-full max-w-6xl p-1.5 rounded-2xl bg-gradient-to-b from-[#0a0b0e] via-zinc-950 to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-colors duration-300`}>
       {/* ── Régua Superior Compacta: 3 Luzes-Espia · 16 LEDs F1 · 3 Luzes-Espia ── */}
       <div className="flex items-center justify-between gap-2 w-full max-w-2xl mb-1">
         <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-zinc-900/90 border border-white/10">
@@ -508,7 +508,7 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
             {/* Barra horizontal de boost da Porsche */}
             <div className="w-full h-2 bg-zinc-950 rounded-full border border-white/10 overflow-hidden relative">
               <div
-                className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-red-500 transition-all duration-75"
+                className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-red-500"
                 style={{ width: `${clamp((boostPressureBar + 1.0) / 2.6, 0, 1) * 100}%` }}
               />
             </div>

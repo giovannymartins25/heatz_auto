@@ -83,7 +83,7 @@ test('1.3 VW Golf GTI MK7.5: modos eco/normal/sport, DSG, apenas paddles de fáb
   assert.deepStrictEqual(caps.supportedDrivingModes, ['eco', 'normal', 'sport'])
   assert.strictEqual(caps.transmissionType, 'automatic')
   assert.strictEqual(caps.supportsPaddleShifters, true)
-  assert.deepStrictEqual(caps.manualShiftControls, ['paddle_shifters'], 'Golf possui apenas paddle shifters')
+  assert.deepStrictEqual(caps.manualShiftControls, ['paddle_shifters', 'gear_selector_gesture'], 'Golf possui paddle shifters e seletor gestual')
   assert.strictEqual(caps.supportsNos, true)
 })
 
@@ -219,16 +219,20 @@ test('5.1 Acelerador entrega demanda proporcional e contínua de torque (0 a 100
   const tick0 = engine.tick({ throttle: 0, loadTorque: 0, deltaTime: 0.001 })
   assert.strictEqual(tick0.torqueOutput, 0, '0% pedal gera 0 torque')
 
-  // Testa diferentes posições do acelerador com proporcionalidade contínua
+  // Testa diferentes posições do acelerador com progressividade contínua e monotônica
+  let prevTorque = 0
   for (const t of [0.25, 0.50, 0.75, 1.0]) {
     const rpmBefore = engine.getRpm()
     const avail = engine.getTorqueAtRpm(rpmBefore)
     const tick = engine.tick({ throttle: t, loadTorque: 0, deltaTime: 0.001 })
-    const expected = avail * t
+    const exp = golf.engine.throttleProgressionExponent ?? 1.45
+    const expected = avail * Math.pow(t, exp)
     assert.ok(
       Math.abs(tick.torqueOutput - expected) < 15,
-      `Acelerador a ${(t * 100).toFixed(0)}% entrega torque proporcional (${tick.torqueOutput.toFixed(1)} Nm vs esperado ${expected.toFixed(1)} Nm)`,
+      `Acelerador a ${(t * 100).toFixed(0)}% entrega torque progressivo (${tick.torqueOutput.toFixed(1)} Nm vs esperado ${expected.toFixed(1)} Nm)`,
     )
+    assert.ok(tick.torqueOutput > prevTorque, `Torque cresce monotonicamente a ${(t * 100).toFixed(0)}%`)
+    prevTorque = tick.torqueOutput
   }
 })
 

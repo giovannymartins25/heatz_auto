@@ -92,7 +92,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.cyan
 
   return (
-    <div className={`@container relative flex flex-col items-center w-full max-w-4xl p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-[#060d16] via-[#03070d] to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
+    <div className={`@container relative flex flex-col items-center w-full max-w-4xl p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-[#060d16] via-[#03070d] to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-colors duration-300`}>
       {/* Luz ambiente de fundo Optitron sincronizada */}
       <div
         className={`absolute inset-x-12 top-0 h-1 bg-gradient-to-r ${ambientTheme.haloGradient} rounded-t-full`}

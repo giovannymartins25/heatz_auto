@@ -123,7 +123,7 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
       : (currentGear === 0 ? 'N' : currentGear === -1 ? 'R' : `M${currentGear}`)
 
   return (
-    <div className={`@container relative flex flex-col items-center w-full max-w-5xl p-1.5 rounded-2xl bg-gradient-to-b from-[#131418] via-[#0d0e12] to-[#060709] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
+    <div className={`@container relative flex flex-col items-center w-full max-w-5xl p-1.5 rounded-2xl bg-gradient-to-b from-[#131418] via-[#0d0e12] to-[#060709] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-colors duration-300`}>
       {/* ── Banner de Launch Control Ativo (somente quando armado/em largada) ── */}
       {isLaunchControlArmed && (
         <div className="w-full max-w-lg mb-1 px-3 py-0.5 rounded-lg bg-red-600/20 border border-red-500 text-red-300 text-center text-[10px] font-mono font-black animate-pulse flex items-center justify-center gap-2">
@@ -338,7 +338,7 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
               <div className="absolute left-[40%] inset-y-0 w-0.5 bg-white/40 z-10" />
 
               <div
-                className={`h-full transition-all duration-75 ${
+                className={`h-full ${
                   boostPressureBar > 1.2
                     ? 'bg-gradient-to-r from-emerald-500 via-amber-400 to-red-500'
                     : boostPressureBar > 0

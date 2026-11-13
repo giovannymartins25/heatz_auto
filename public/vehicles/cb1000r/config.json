@@ -20,6 +20,7 @@
     "revLimiter": 11300,
     "flywheelMass": 3.2,
     "engineBrakeFactor": 0.25,
+    "throttleProgressionExponent": 1.15,
     "torqueCurve": [
       { "rpm": 1100,  "torque": 28 },
       { "rpm": 2000,  "torque": 42 },

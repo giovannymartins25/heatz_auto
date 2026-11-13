@@ -2,12 +2,25 @@ import { memo } from 'react'
 import type { MapViewportSize } from '@/stores/useUIStore'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 
-interface DrivingMapViewportProps {
+export interface MapNavigationTelemetry {
+  /** Coordenadas no plano cartográfico 2D (metros ou unidades virtuais do grid) */
+  coordinates?: { x: number; y: number }
+  /** Rumo / heading em graus (0° = Norte, 90° = Leste, 180° = Sul, 270° = Oeste) */
+  headingDeg?: number
+  /** Velocidade vetorial ou escalar em km/h */
+  speedKmh?: number
+  /** Deslocamento acumulado em metros */
+  distanceTraveledMeters?: number
+}
+
+export interface DrivingMapViewportProps {
   size: MapViewportSize
   onSizeChange: (size: MapViewportSize) => void
   compact?: boolean
   className?: string
   telemetry?: DashboardTelemetry
+  /** Telemetria preparatória de navegação para futura movimentação dinâmica do mapa */
+  navigation?: MapNavigationTelemetry
 }
 
 /**

@@ -38,6 +38,7 @@ export interface EngineConfig {
   revLimiter: number         // RPM do limitador
   flywheelMass: number       // kg — massa do volante do motor
   engineBrakeFactor: number  // Fator de freio motor (0-1)
+  throttleProgressionExponent?: number // Expoente de progressividade do acelerador (ex: 1.45 para carros, 1.15 para motos)
   torqueCurve: TorqueCurvePoint[]
   turbo?: TurboConfig
 }
@@ -268,7 +269,7 @@ export function getVehicleCapabilities(vehicle: VehicleConfig): VehicleCapabilit
     } else if (vehicle.id.includes('porsche-gt3')) {
       manualShiftControls = ['paddle_shifters', 'gear_selector_gesture']
     } else if (vehicle.id.includes('golf-gti')) {
-      manualShiftControls = ['paddle_shifters']
+      manualShiftControls = ['paddle_shifters', 'gear_selector_gesture']
     }
   }
 
