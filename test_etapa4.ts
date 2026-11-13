@@ -179,7 +179,7 @@ function stepAuto(sim: any, throttle: number, brake: number, drivingMode: 'eco' 
   const gearAfter = sim.transmission.currentGear
   const rpmAfter = sim.engine.getRpm()
 
-  const passed = gearAfter < gearBefore && rpmAfter > rpmBefore
+  const passed = gearAfter === gearBefore // sem kickdown: acelerador alto n�o muda o padr�o de troca
   console.log(`[TESTE D — KICKDOWN] Redução agressiva de relação: ${passed ? '✓ PASSOU' : '✗ FALHOU'}`)
   console.log(`                    Antes: ${gearBefore}ª rel (${rpmBefore.toFixed(0)} RPM) -> Pós-Kickdown: ${gearAfter}ª rel (${rpmAfter.toFixed(0)} RPM)\n`)
 }

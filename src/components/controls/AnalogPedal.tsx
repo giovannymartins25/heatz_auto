@@ -61,11 +61,11 @@ export const AnalogPedal = memo(function AnalogPedal({
     const rect = containerRef.current.getBoundingClientRect()
     // A base do pedal é 0%, o topo é 100%
     const raw = (rect.bottom - clientY) / rect.height
-    // Deadzone ergonômica para touch: nos 20% superiores (>= 0.80) atinge 100%
-    // permitindo alcançar facilmente 100% (>= 95%) para trocas de marcha com o polegar
-    if (raw >= 0.80) return 1
-    if (raw <= 0.04) return 0
-    return clamp((raw - 0.04) / (0.80 - 0.04), 0, 1)
+    // Mapeamento linear 1:1 (50% da altura = 50% de acelerador), com pequenas zonas
+    // mortas nas pontas para garantir 0% e 100% no toque
+    if (raw >= 0.97) return 1
+    if (raw <= 0.03) return 0
+    return clamp((raw - 0.03) / (0.97 - 0.03), 0, 1)
   }, [])
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {

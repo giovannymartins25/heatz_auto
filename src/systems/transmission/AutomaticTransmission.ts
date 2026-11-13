@@ -163,26 +163,13 @@ export class AutomaticTransmission {
       }
     }
 
-    // ─── 2. Redução para Ultrapassagem em Aceleração Plena (>= 85%) ───
-    // Reduz apenas 1 marcha em marchas altas (> 2) para dar torque de ultrapassagem.
-    // Nunca reduz para a 1ª marcha em movimento e nunca altera o modo de rotação do motor.
-    if (throttle >= 0.85 && vehicleSpeedKmh > 12 && currentGear > 2) {
-      const lowerGear = currentGear - 1
-      const projectedRpm = this.speedToRpm(vehicleSpeedKmh, lowerGear)
-      if (projectedRpm < this.config.maxRpm * 0.88 && projectedRpm > currentRpm + 300) {
-        this.shiftTimer = 0
-        return {
-          targetGear: lowerGear,
-          targetClutchEngagement: 1.0,
-          isKickdown: false,
-          targetRpm: projectedRpm,
-        }
-      }
-    }
+    // Sem kickdown: acelerador alto (80%+/100%) NUNCA muda o padrão de troca do modo ativo.
 
     // Se acabou de trocar, aguarda histerese mínima para evitar trocas intermitentes normais
     const shiftCooldown = 0.75
-    if (this.shiftTimer < shiftCooldown) {
+    const rpmBandMax = this.getTargetRpmBand(drivingMode, throttle).max
+    const mustUpshiftSoon = currentRpm >= rpmBandMax && this.shiftTimer >= 0.3
+    if (this.shiftTimer < shiftCooldown && !mustUpshiftSoon) {
       return {
         targetGear: currentGear,
         targetClutchEngagement,
