@@ -211,6 +211,29 @@ runTest('Componentes possuem handlers de ponteiro/touch isolados com touch-actio
   assert.ok(landscapeCode.includes('toggleThrottleLock'), 'MobileLandscapeCockpit possui botão de travar acelerador')
 })
 
+// ─── TESTE 6: Display PDK da Porsche e DSG do Golf exibem 'P' no modo Park ───
+runTest('Display PDK da Porsche 992 GT3 e DSG do Golf GTI exibem P quando no modo Park (não D-2 ou D2)', () => {
+  const porscheClusterCode = fs.readFileSync(path.join(__dirname, 'src/components/dashboard/clusters/Porsche992GT3RealCluster.tsx'), 'utf-8')
+  assert.ok(
+    porscheClusterCode.includes("gearSelectorPosition === 'P' || currentGear === -2"),
+    'Porsche cluster verifica explicitamente P e currentGear -2'
+  )
+  assert.ok(
+    porscheClusterCode.includes("? 'P'"),
+    'Porsche cluster retorna P para o display PDK no modo Park'
+  )
+
+  const golfClusterCode = fs.readFileSync(path.join(__dirname, 'src/components/dashboard/clusters/GolfGTIRealCluster.tsx'), 'utf-8')
+  assert.ok(
+    golfClusterCode.includes("gearSelectorPosition === 'P' || currentGear === -2"),
+    'Golf GTI cluster verifica explicitamente P e currentGear -2'
+  )
+  assert.ok(
+    golfClusterCode.includes("? 'P'"),
+    'Golf GTI cluster retorna P para o display DSG no modo Park'
+  )
+})
+
 console.log('\n═══════════════════════════════════════════════════════════════')
 console.log(`RESULTADO FINAL: ${passed} PASSOU | ${failed} FALHOU`)
 console.log('═══════════════════════════════════════════════════════════════\n')

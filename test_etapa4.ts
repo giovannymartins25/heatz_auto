@@ -174,14 +174,14 @@ function stepAuto(sim: any, throttle: number, brake: number, drivingMode: 'eco' 
   const gearBefore = sim.transmission.currentGear
   const rpmBefore = sim.engine.getRpm()
 
-  // PISA FUNDO (100% Throttle) -> Dispara Kickdown
+  // PISA FUNDO (100% Throttle) -> Respeita o modo ativo sem kickdown agressivo
   stepAuto(sim, 1.0, 0, 'normal', 12)
   const gearAfter = sim.transmission.currentGear
   const rpmAfter = sim.engine.getRpm()
 
-  const passed = gearAfter === gearBefore // sem kickdown: acelerador alto n�o muda o padr�o de troca
-  console.log(`[TESTE D — KICKDOWN] Redução agressiva de relação: ${passed ? '✓ PASSOU' : '✗ FALHOU'}`)
-  console.log(`                    Antes: ${gearBefore}ª rel (${rpmBefore.toFixed(0)} RPM) -> Pós-Kickdown: ${gearAfter}ª rel (${rpmAfter.toFixed(0)} RPM)\n`)
+  const passed = gearAfter === gearBefore
+  console.log(`[TESTE D — SEM KICKDOWN] Pisar fundo mantém a relação do modo: ${passed ? '✓ PASSOU' : '✗ FALHOU'}`)
+  console.log(`                    Antes: ${gearBefore}ª rel (${rpmBefore.toFixed(0)} RPM) -> Pós-Aceleração: ${gearAfter}ª rel (${rpmAfter.toFixed(0)} RPM)\n`)
 }
 
 // ─── TESTE E: VELOCIDADE ALTA + THROTTLE 100% — Proteção de Over-Rev ───

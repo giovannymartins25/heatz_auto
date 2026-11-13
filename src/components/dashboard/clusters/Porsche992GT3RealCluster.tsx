@@ -42,9 +42,16 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.amber
 
-  const pdkDisplay = transmissionMode === 'automatic'
-    ? (currentGear === 0 ? 'N' : currentGear === -1 ? 'R' : gearSelectorPosition === 'S' ? `S${currentGear || 1}` : `D${currentGear || 1}`)
-    : gear.label
+  const pdkDisplay =
+    gearSelectorPosition === 'P' || currentGear === -2
+      ? 'P'
+      : gearSelectorPosition === 'R' || currentGear === -1
+      ? 'R'
+      : gearSelectorPosition === 'N' || currentGear === 0
+      ? 'N'
+      : transmissionMode === 'automatic'
+      ? (gearSelectorPosition === 'S' ? `S${currentGear > 0 ? currentGear : 1}` : `D${currentGear > 0 ? currentGear : 1}`)
+      : gear.label
 
   // Configurações geométricas dos mostradores
   const size = 260

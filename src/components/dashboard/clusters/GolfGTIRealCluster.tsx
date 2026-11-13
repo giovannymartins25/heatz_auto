@@ -109,9 +109,16 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
   const isPositiveBoost = boostPressureBar > 0.05
 
   // Rótulo da marcha DSG
-  const dsgModeLabel = transmissionMode === 'automatic'
-    ? `${gearSelectorPosition === 'S' ? 'S' : 'D'}${currentGear || 1}`
-    : (currentGear === 0 ? 'N' : currentGear === -1 ? 'R' : `M${currentGear}`)
+  const dsgModeLabel =
+    gearSelectorPosition === 'P' || currentGear === -2
+      ? 'P'
+      : gearSelectorPosition === 'R' || currentGear === -1
+      ? 'R'
+      : gearSelectorPosition === 'N' || currentGear === 0
+      ? 'N'
+      : transmissionMode === 'automatic'
+      ? `${gearSelectorPosition === 'S' ? 'S' : 'D'}${currentGear > 0 ? currentGear : 1}`
+      : (currentGear === 0 ? 'N' : currentGear === -1 ? 'R' : `M${currentGear}`)
 
   return (
     <div className={`@container relative flex flex-col items-center w-full max-w-5xl p-3 sm:p-5 rounded-[2.5rem] bg-gradient-to-b from-[#131418] via-[#0d0e12] to-[#060709] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
