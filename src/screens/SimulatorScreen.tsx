@@ -4,6 +4,7 @@ import { useVehicleStore } from '@/stores/useVehicleStore'
 import { useGarageStore } from '@/stores/useGarageStore'
 import { useSessionStore, type SessionEntryMode } from '@/stores/useSessionStore'
 import { VehicleDashboard } from '@/components/dashboard'
+import { PerformanceMonitorOverlay } from '@/components/debug/PerformanceMonitorOverlay'
 
 export function SimulatorScreen() {
   const { vehicleId } = useParams<{ vehicleId: string }>()
@@ -75,5 +76,10 @@ export function SimulatorScreen() {
   }
 
   // Renderiza o painel completo integrado com o modo de entrada selecionado
-  return <VehicleDashboard vehicle={selectedVehicle} entryMode={entryMode} />
+  return (
+    <>
+      <PerformanceMonitorOverlay />
+      <VehicleDashboard vehicle={selectedVehicle} entryMode={entryMode} />
+    </>
+  )
 }

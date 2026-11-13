@@ -24,8 +24,9 @@ export default defineConfig({
         description: 'Simulador realista de motores veiculares',
         theme_color: '#0a0a0b',
         background_color: '#0a0a0b',
-        display: 'standalone',
-        orientation: 'landscape',
+        display: 'fullscreen',
+        display_override: ['fullscreen', 'standalone'],
+        orientation: 'any',
         scope: '/',
         start_url: '/',
         icons: [

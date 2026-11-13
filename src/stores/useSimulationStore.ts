@@ -13,6 +13,11 @@ import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 import { clamp } from '@/utils/math'
 import type { AmbientLightColor } from '@/utils/ambientLighting'
 import { useGarageStore, type CarUpgrades } from './useGarageStore'
+import { useUIStore } from './useUIStore'
+import { performanceMonitor } from '@/utils/performanceMonitor'
+
+let _lastVisualUpdate = 0
+let _lastSlowTelemetryUpdate = 0
 
 
 /**
@@ -1407,6 +1412,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     while (accumulator >= PHYSICS_TIMESTEP && substeps < MAX_SUBSTEPS) {
       const dt = PHYSICS_TIMESTEP
+      performanceMonitor.recordPhysicsTick()
 
       // ─── 1. Tomada de Decisão da Transmissão ───
       if (state.transmissionMode === 'automatic' && _autoTransmission) {
@@ -1876,6 +1882,31 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       }
     }
 
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    const isBrowser = typeof window !== 'undefined'
+    const profile = isBrowser ? useUIStore.getState().graphicProfile : 'high'
+    const minVisualInterval = profile === 'eco' ? 28 : profile === 'normal' ? 15.5 : 0
+
+    const shouldUpdateVisual = !isBrowser || frameTime >= 0.05 || (now - _lastVisualUpdate >= minVisualInterval)
+    if (!shouldUpdateVisual) {
+      state._accumulator = accumulator
+      return
+    }
+    _lastVisualUpdate = now
+
+    const shouldUpdateSlow =
+      !isBrowser ||
+      frameTime >= 0.05 ||
+      latestIsEngineBlown !== state.isEngineBlown ||
+      latestIsOutOfFuel !== state.isOutOfFuel ||
+      latestIsRevLimiting !== state.isRevLimiting ||
+      latestDragStage !== state.dragStage ||
+      (now - _lastSlowTelemetryUpdate >= 150)
+
+    if (shouldUpdateSlow) {
+      _lastSlowTelemetryUpdate = now
+    }
+
     set({
       rpm: latestRpm,
       speed: latestSpeed,
@@ -1905,17 +1936,17 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _timer0to100State: timer0to100State,
       _accumulator: accumulator,
 
-      // Novos Estados de Realismo
-      fuelLevelLiters: latestFuelLevel,
-      isOutOfFuel: latestIsOutOfFuel,
-      coolantTemp: latestCoolantTemp,
-      oilTemp: latestOilTemp,
+      // Telemetria secundária desacoplada para evitar re-renderizações desnecessárias a 120Hz
+      fuelLevelLiters: shouldUpdateSlow ? latestFuelLevel : state.fuelLevelLiters,
+      isOutOfFuel: shouldUpdateSlow ? latestIsOutOfFuel : state.isOutOfFuel,
+      coolantTemp: shouldUpdateSlow ? latestCoolantTemp : state.coolantTemp,
+      oilTemp: shouldUpdateSlow ? latestOilTemp : state.oilTemp,
       isEngineBlown: latestIsEngineBlown,
       damageReason: latestDamageReason,
       engineBlownTrigger: latestEngineBlownTrigger,
-      brakeDiscTemp: latestBrakeDiscTemp,
+      brakeDiscTemp: shouldUpdateSlow ? latestBrakeDiscTemp : state.brakeDiscTemp,
       isBrakeGlowing: latestIsBrakeGlowing,
-      brakeFadeFactor: latestBrakeFadeFactor,
+      brakeFadeFactor: shouldUpdateSlow ? latestBrakeFadeFactor : state.brakeFadeFactor,
       isBurningOut,
       tireSmokeDensity: latestSmoke,
       nosPressurePercent: latestNosPressure,

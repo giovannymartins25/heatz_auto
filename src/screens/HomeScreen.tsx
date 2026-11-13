@@ -11,6 +11,8 @@ import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.9.0'
 const buildId = typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev'
 
+import { requestAppFullscreen } from '@/utils/fullscreen'
+
 export const VEHICLE_PRICES: Record<string, { price: number; badge: string; description: string }> = {
   'gol-g6': { price: 42000, badge: 'POPULAR HATCH', description: '1.6 MSI 8V · Câmbio Manual 5M · Ágil e robusto' },
   'gol-quadrado-turbo': { price: 38000, badge: 'FORJADO DE RUA', description: '1.9 AP Turbo · Turbina .50 · 3-Step a 4.800 RPM · 380 cv' },
@@ -177,6 +179,7 @@ export function HomeScreen() {
   const handleSelectMode = (instance: GarageCarInstance, mode: 'cluster' | 'drive') => {
     setActiveCar(instance.instanceId)
     HapticFeedback.gearShift()
+    requestAppFullscreen().catch(() => {})
     navigate(`/simulator/${instance.vehicleId}?instance=${instance.instanceId}&mode=${mode}`)
   }
 

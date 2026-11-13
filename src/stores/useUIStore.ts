@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 type Screen = 'home' | 'simulator'
 export type MapViewportSize = 'compact' | 'balanced' | 'expanded'
+export type GraphicProfile = 'eco' | 'normal' | 'high'
 
 export interface ActiveKeysState {
   w: boolean
@@ -28,6 +29,10 @@ interface UIStoreState {
   allowPortraitCockpit: boolean
   /** Tamanho do espaço reservado ao futuro mapa de direção. */
   mapViewportSize: MapViewportSize
+  /** Perfil de desempenho visual e renderização mobile (ECO / NORMAL / ALTO) */
+  graphicProfile: GraphicProfile
+  /** Exibir HUD diagnóstico interno de desempenho (FPS, frame time, P95, física) */
+  showPerformanceMonitor: boolean
   /** Teclas do teclado ativas para feedback visual no PC */
   activeKeys: ActiveKeysState
 }
@@ -39,6 +44,8 @@ interface UIStoreActions {
   setViewMode: (mode: 'cluster' | 'cockpit') => void
   setAllowPortraitCockpit: (allowed: boolean) => void
   setMapViewportSize: (size: MapViewportSize) => void
+  setGraphicProfile: (profile: GraphicProfile) => void
+  togglePerformanceMonitor: () => void
   setActiveKey: (key: keyof ActiveKeysState, pressed: boolean) => void
 }
 
@@ -51,6 +58,8 @@ export const useUIStore = create<UIStore>((set) => ({
   viewMode: 'cluster',
   allowPortraitCockpit: false,
   mapViewportSize: 'balanced',
+  graphicProfile: 'normal',
+  showPerformanceMonitor: false,
   activeKeys: {
     w: false,
     e: false,
@@ -69,6 +78,8 @@ export const useUIStore = create<UIStore>((set) => ({
   setViewMode: (mode) => set({ viewMode: mode }),
   setAllowPortraitCockpit: (allowed) => set({ allowPortraitCockpit: allowed }),
   setMapViewportSize: (size) => set({ mapViewportSize: size }),
+  setGraphicProfile: (profile) => set({ graphicProfile: profile }),
+  togglePerformanceMonitor: () => set((s) => ({ showPerformanceMonitor: !s.showPerformanceMonitor })),
   setActiveKey: (key, pressed) =>
     set((s) => {
       if (s.activeKeys[key] === pressed) return s

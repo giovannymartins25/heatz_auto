@@ -1,6 +1,7 @@
 import { memo, useLayoutEffect, useRef, useState } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { ClusterView } from './ClusterView'
+import { performanceMonitor } from '@/utils/performanceMonitor'
 
 type ClusterProfile = { width: number; height: number }
 
@@ -36,6 +37,7 @@ export const VehicleDashboardCluster = memo(function VehicleDashboardCluster({
   telemetry,
   expanded = false,
 }: VehicleDashboardClusterProps) {
+  performanceMonitor.recordReactRender()
   const containerRef = useRef<HTMLElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [bounds, setBounds] = useState({ width: 0, height: 0 })

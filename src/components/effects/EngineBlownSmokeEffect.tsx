@@ -1,5 +1,6 @@
 import React from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useUIStore } from '@/stores/useUIStore'
 
 /**
  * EngineBlownSmokeEffect — Efeito de vapor/fumaça de motor fundido ou superaquecido
@@ -12,17 +13,24 @@ export const EngineBlownSmokeEffect: React.FC = () => {
   const isOutOfFuel = useSimulationStore((s) => s.isOutOfFuel)
   const repairEngine = useSimulationStore((s) => s.repairEngine)
   const refuel = useSimulationStore((s) => s.refuel)
+  const graphicProfile = useUIStore((s) => s.graphicProfile)
 
   const isOverheating = coolantTemp >= 118
 
   if (!isEngineBlown && !isOverheating && !isOutOfFuel) return null
 
+  const blurClass = graphicProfile === 'eco' ? 'blur-md' : 'blur-3xl'
+
   return (
     <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden flex flex-col items-center justify-start pt-12">
       {/* Vapor espesso do capô */}
-      <div className="absolute top-0 inset-x-0 h-96 bg-gradient-to-b from-white/30 via-slate-200/20 to-transparent blur-3xl animate-pulse" />
-      <div className="absolute top-8 left-1/3 h-64 w-80 rounded-full bg-white/25 blur-2xl animate-ping" />
-      <div className="absolute top-12 right-1/3 h-64 w-80 rounded-full bg-white/25 blur-2xl animate-ping delay-300" />
+      <div className={`absolute top-0 inset-x-0 h-96 bg-gradient-to-b from-white/30 via-slate-200/20 to-transparent ${blurClass} animate-pulse`} />
+      {graphicProfile !== 'eco' && (
+        <>
+          <div className="absolute top-8 left-1/3 h-64 w-80 rounded-full bg-white/25 blur-2xl animate-ping" />
+          <div className="absolute top-12 right-1/3 h-64 w-80 rounded-full bg-white/25 blur-2xl animate-ping delay-300" />
+        </>
+      )}
 
       {/* Banner de Diagnóstico e Ação de Reparo (com pointer-events-auto) */}
       <div className="pointer-events-auto relative mt-4 max-w-md rounded-2xl border-2 border-red-500/80 bg-black/90 p-5 text-center shadow-2xl shadow-red-500/40 backdrop-blur-xl animate-in fade-in zoom-in-95">

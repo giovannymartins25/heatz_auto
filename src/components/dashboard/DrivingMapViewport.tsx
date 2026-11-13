@@ -284,4 +284,17 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
       </div>
     </section>
   )
+}, (prev, next) => {
+  const prevSpeed = prev.telemetry ? Math.round(prev.telemetry.speedometer.speed) : 0
+  const nextSpeed = next.telemetry ? Math.round(next.telemetry.speedometer.speed) : 0
+  const prevMoving = prevSpeed > 0
+  const nextMoving = nextSpeed > 0
+
+  return (
+    prev.size === next.size &&
+    prev.compact === next.compact &&
+    prev.className === next.className &&
+    prevMoving === nextMoving &&
+    prev.onSizeChange === next.onSizeChange
+  )
 })

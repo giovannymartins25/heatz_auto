@@ -1,6 +1,8 @@
-import { memo } from 'react'
+import { memo, useState, useEffect } from 'react'
 import type { VehicleConfig, DrivingMode } from '@/types'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useUIStore, type GraphicProfile } from '@/stores/useUIStore'
+import { isDocumentFullscreen, toggleAppFullscreen, onFullscreenChange } from '@/utils/fullscreen'
 
 export interface MobileQuickMenuProps {
   isOpen: boolean
@@ -66,6 +68,29 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
   const drivingMode = useSimulationStore((s) => s.drivingMode)
   const setDrivingMode = useSimulationStore((s) => s.setDrivingMode)
   const best0to100 = useSimulationStore((s) => s.best0to100)
+
+  const graphicProfile = useUIStore((s) => s.graphicProfile)
+  const setGraphicProfile = useUIStore((s) => s.setGraphicProfile)
+  const showPerformanceMonitor = useUIStore((s) => s.showPerformanceMonitor)
+  const togglePerformanceMonitor = useUIStore((s) => s.togglePerformanceMonitor)
+
+  const [isFullscreen, setIsFullscreen] = useState(isDocumentFullscreen())
+
+  useEffect(() => {
+    setIsFullscreen(isDocumentFullscreen())
+    return onFullscreenChange(setIsFullscreen)
+  }, [])
+
+  const handleToggleFullscreen = async () => {
+    const next = await toggleAppFullscreen()
+    setIsFullscreen(next)
+  }
+
+  const cycleGraphicProfile = () => {
+    const next: GraphicProfile =
+      graphicProfile === 'normal' ? 'eco' : graphicProfile === 'eco' ? 'high' : 'normal'
+    setGraphicProfile(next)
+  }
 
   if (!isOpen) return null
 
@@ -178,6 +203,35 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
           <Tile icon="🔧" label="Oficina" sub={tuningStage > 0 ? `STAGE ${tuningStage}` : 'STOCK'} onClick={openAndClose(onOpenTuning)} />
           <Tile icon="🏁" label="402M" sub={best0to100 ? `0-100 ${best0to100.toFixed(2)}s` : 'ARRANCADA'} onClick={openAndClose(onOpenDragStrip)} />
           <Tile icon="📈" label="Dyno" sub="POTÊNCIA" onClick={openAndClose(onOpenDyno)} />
+        </div>
+
+        {/* Sistema & Performance (Fase 1.5.2) */}
+        <span className="block mb-1.5 text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Sistema & Performance</span>
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <Tile
+            icon={isFullscreen ? '📴' : '📱'}
+            label="Tela Cheia"
+            sub={isFullscreen ? 'IMERSIVO' : 'NORMAL'}
+            active={isFullscreen}
+            activeClass="bg-cyan-500/20 border-cyan-400 text-cyan-200"
+            onClick={handleToggleFullscreen}
+          />
+          <Tile
+            icon="⚡"
+            label="Gráficos"
+            sub={graphicProfile === 'eco' ? 'ECO (LEVE)' : graphicProfile === 'normal' ? 'NORMAL' : 'ALTO (120HZ)'}
+            active={graphicProfile !== 'normal'}
+            activeClass="bg-purple-500/20 border-purple-400 text-purple-200"
+            onClick={cycleGraphicProfile}
+          />
+          <Tile
+            icon="📊"
+            label="Diagnóstico"
+            sub={showPerformanceMonitor ? 'FPS VISÍVEL' : 'DESLIGADO'}
+            active={showPerformanceMonitor}
+            activeClass="bg-emerald-500/20 border-emerald-400 text-emerald-200"
+            onClick={togglePerformanceMonitor}
+          />
         </div>
 
         <button
