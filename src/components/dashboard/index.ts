@@ -9,4 +9,5 @@ export { InfotainmentScreen } from './InfotainmentScreen'
 export { VehicleDashboardCluster } from './VehicleDashboardCluster'
 export { DrivingMapViewport } from './DrivingMapViewport'
 export { InfotainmentOverlay } from './InfotainmentOverlay'
+export { SwipeableClusterMediaSlot } from './SwipeableClusterMediaSlot'
 

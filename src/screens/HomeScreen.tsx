@@ -22,6 +22,44 @@ export const VEHICLE_PRICES: Record<string, { price: number; badge: string; desc
   'opala-4100': { price: 68000, badge: '6 CILINDROS RWD', description: '4.1L 250-S · Tração Traseira · Câmbio 5M · Ronco Cavernoso' },
 }
 
+export function getVehicleSpecs(manifest?: any, vehicleId?: string) {
+  const id = vehicleId || manifest?.id || ''
+  let engine = 'Motor Original'
+  let drivetrain = 'FWD (Dianteira)'
+
+  if (id.includes('civic')) {
+    engine = '2.0 16V i-VTEC (K20Z3)'
+    drivetrain = 'FWD (Dianteira)'
+  } else if (id.includes('golf')) {
+    engine = '2.0 TSI (EA888 Gen 3)'
+    drivetrain = 'FWD (Dianteira)'
+  } else if (id.includes('gol-g6')) {
+    engine = '1.6 16V MSI (EA211)'
+    drivetrain = 'FWD (Dianteira)'
+  } else if (id.includes('gol-quadrado')) {
+    engine = '1.9 8V AP Forjado Turbo'
+    drivetrain = 'FWD (Dianteira)'
+  } else if (id.includes('porsche')) {
+    engine = '4.0 Boxer-6 9000 RPM'
+    drivetrain = 'RWD (Traseira)'
+  } else if (id.includes('opala')) {
+    engine = '4.1 6 Cilindros (250-S)'
+    drivetrain = 'RWD (Traseira)'
+  } else if (id.includes('yaris')) {
+    engine = '1.5 16V Dual VVT-i'
+    drivetrain = 'FWD (Dianteira)'
+  } else if (id.includes('cb1000r')) {
+    engine = '998cc 4 Cilindros DOHC'
+    drivetrain = 'RWD (Moto)'
+  }
+
+  const power = manifest?.powerHp ? `${manifest.powerHp} CV` : 'Potência'
+  const torque = manifest?.torqueKgfm ? `${manifest.torqueKgfm} kgfm` : 'Torque'
+  const transmission = manifest?.transmissionLabel || 'Câmbio'
+
+  return { engine, drivetrain, power, torque, transmission }
+}
+
 export function HomeScreen() {
   const navigate = useNavigate()
   const vehicleList = useVehicleStore((s) => s.vehicleList)
@@ -135,11 +173,11 @@ export function HomeScreen() {
     }
   }
 
-  // Pilotar Carro
-  const handleDriveCar = (instance: GarageCarInstance) => {
+  // Seleção de Modo: PAINEL ou DIRIGIR (Fase 1.5)
+  const handleSelectMode = (instance: GarageCarInstance, mode: 'cluster' | 'drive') => {
     setActiveCar(instance.instanceId)
     HapticFeedback.gearShift()
-    navigate(`/simulator/${instance.vehicleId}?instance=${instance.instanceId}`)
+    navigate(`/simulator/${instance.vehicleId}?instance=${instance.instanceId}&mode=${mode}`)
   }
 
   // Abrir Oficina para o Carro
@@ -303,6 +341,7 @@ export function HomeScreen() {
                 const manifest = vehicleList.find((v) => v.id === car.vehicleId)
                 const isActive = activeCarInstanceId === car.instanceId
                 const up = car.upgrades
+                const specs = getVehicleSpecs(manifest, car.vehicleId)
 
                 return (
                   <div
@@ -337,21 +376,37 @@ export function HomeScreen() {
                         )}
                       </div>
 
-                      {/* Imagem / Preview do Veículo */}
-                      <div className="w-full h-20 sm:h-24 md:h-28 lg:h-32 rounded-lg sm:rounded-xl bg-zinc-950 border border-white/5 overflow-hidden relative flex items-center justify-center my-1 sm:my-1.5 car-thumb-landscape">
+                      {/* Imagem / Preview do Veículo — escala moderada e 100% visível sem cortes */}
+                      <div className="w-full h-20 sm:h-24 md:h-28 lg:h-32 rounded-lg sm:rounded-xl bg-zinc-950/90 border border-white/5 overflow-hidden relative flex items-center justify-center my-1 sm:my-1.5 car-thumb-landscape">
                         {manifest?.thumbnailPath ? (
                           <img
                             src={manifest.thumbnailPath}
                             alt={car.customName}
-                            className="w-full h-full object-cover opacity-85 hover:scale-105 transition-transform duration-300"
+                            className="w-full h-full object-contain p-1.5 sm:p-2 opacity-95 hover:scale-105 transition-transform duration-300"
                           />
                         ) : (
                           <span className="text-2xl sm:text-3xl">🏎️</span>
                         )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none" />
-                        <span className="absolute bottom-1 left-1 text-[7.5px] sm:text-[8.5px] font-mono text-zinc-400 bg-black/70 px-1.5 py-0.5 rounded border border-white/10">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
+                        <span className="absolute bottom-1 left-1 text-[7.5px] sm:text-[8.5px] font-mono text-zinc-400 bg-black/80 px-1.5 py-0.5 rounded border border-white/10">
                           ODÔMETRO: {car.mileageKm.toLocaleString()} KM
                         </span>
+                      </div>
+
+                      {/* Especificações Técnicas Claras */}
+                      <div className="bg-zinc-900/70 rounded-lg p-1.5 sm:p-2 border border-white/5 my-1 sm:my-1.5 text-[8px] sm:text-[9px] font-mono space-y-0.5">
+                        <div className="flex justify-between items-center text-zinc-300">
+                          <span className="text-zinc-500 uppercase">MOTOR:</span>
+                          <span className="font-bold text-white truncate max-w-[68%] text-right">{specs.engine}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-zinc-300">
+                          <span className="text-zinc-500 uppercase">FORÇA:</span>
+                          <span className="font-bold text-amber-300">{specs.power} · {specs.torque}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-zinc-300">
+                          <span className="text-zinc-500 uppercase">CÂMBIO / TRAÇÃO:</span>
+                          <span className="font-bold text-zinc-200">{specs.transmission} · {specs.drivetrain}</span>
+                        </div>
                       </div>
 
                       {/* Tags de Peças Instaladas (Upgrades) */}
@@ -445,31 +500,43 @@ export function HomeScreen() {
                       </div>
                     </div>
 
-                    {/* Botões de Ação do Veículo */}
-                    <div className="flex flex-col gap-1 pt-1.5 border-t border-white/10 font-mono">
-                      <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
-                        {/* Botão de Pilotar */}
+                    {/* Botões de Ação do Veículo: PAINEL e DIRIGIR (Fase 1.5) */}
+                    <div className="flex flex-col gap-1.5 pt-1.5 border-t border-white/10 font-mono">
+                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                        {/* Botão Painel */}
                         <button
-                          onClick={() => handleDriveCar(car)}
-                          className="h-8 sm:h-9 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-black text-[9.5px] sm:text-[11px] uppercase tracking-wide transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                          onClick={() => handleSelectMode(car, 'cluster')}
+                          className="h-10 sm:h-11 rounded-xl bg-gradient-to-r from-zinc-800 to-zinc-700 hover:from-zinc-700 hover:to-zinc-600 text-white font-black text-[10px] sm:text-xs uppercase tracking-wider border border-white/20 shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                          title="Visualizar apenas o Painel Original do veículo (sem mapa)"
                         >
-                          <span>🏎️</span>
-                          <span>PILOTAR</span>
+                          <span className="text-sm sm:text-base">📟</span>
+                          <span>PAINEL</span>
                         </button>
 
-                        {/* Botão da Loja de Peças */}
+                        {/* Botão Dirigir */}
+                        <button
+                          onClick={() => handleSelectMode(car, 'drive')}
+                          className="h-10 sm:h-11 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-black text-[10px] sm:text-xs uppercase tracking-wider border border-red-400/40 shadow-lg shadow-red-600/30 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                          title="Abrir Cockpit Completo com Mapa e Controles"
+                        >
+                          <span className="text-sm sm:text-base">🏎️</span>
+                          <span>DIRIGIR</span>
+                        </button>
+                      </div>
+
+                      {/* Ações Secundárias */}
+                      <div className="grid grid-cols-2 gap-1 sm:gap-1.5">
                         <button
                           onClick={() => handleOpenWorkshop(car)}
-                          className="h-8 sm:h-9 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-amber-400/30 font-black text-[9.5px] sm:text-[11px] uppercase tracking-wide transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                          className="h-7 sm:h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-amber-400/30 font-bold text-[8.5px] sm:text-[9.5px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
                         >
                           <span>🔧</span>
                           <span>OFICINA</span>
                         </button>
 
-                        {/* Botão de Dinamômetro */}
                         <button
                           onClick={() => handleOpenDyno(car)}
-                          className="h-8 sm:h-9 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 text-sky-300 border border-sky-500/30 font-bold text-[9px] sm:text-[10px] uppercase tracking-wide transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-0.5"
+                          className="h-7 sm:h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-sky-300 border border-sky-500/30 font-bold text-[8.5px] sm:text-[9.5px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
                         >
                           <span>📈</span>
                           <span>DYNO</span>
@@ -480,7 +547,7 @@ export function HomeScreen() {
                       {ownedCars.length > 1 && (
                         <button
                           onClick={() => handleSellCar(car)}
-                          className="w-full py-0.5 rounded text-[7.5px] sm:text-[8.5px] text-zinc-500 hover:text-red-400 hover:bg-red-950/20 transition-all cursor-pointer text-center"
+                          className="w-full py-0.5 rounded text-[7.5px] sm:text-[8px] text-zinc-500 hover:text-red-400 hover:bg-red-950/20 transition-all cursor-pointer text-center"
                         >
                           Vender por R$ {Math.round((VEHICLE_PRICES[car.vehicleId]?.price || 50000) * 0.7).toLocaleString()}
                         </button>
@@ -527,12 +594,12 @@ export function HomeScreen() {
                       </h3>
 
                       {/* Imagem do modelo */}
-                      <div className="w-full h-20 sm:h-24 md:h-28 lg:h-32 rounded-lg sm:rounded-xl bg-zinc-950 border border-white/5 overflow-hidden relative flex items-center justify-center mb-1.5 sm:mb-2 car-thumb-landscape">
+                      <div className="w-full h-20 sm:h-24 md:h-28 lg:h-32 rounded-lg sm:rounded-xl bg-zinc-950/90 border border-white/5 overflow-hidden relative flex items-center justify-center mb-1.5 sm:mb-2 car-thumb-landscape">
                         {vehicle.thumbnailPath ? (
                           <img
                             src={vehicle.thumbnailPath}
                             alt={vehicle.name}
-                            className="w-full h-full object-cover opacity-85 hover:scale-105 transition-transform duration-300"
+                            className="w-full h-full object-contain p-1.5 sm:p-2 opacity-95 hover:scale-105 transition-transform duration-300"
                           />
                         ) : (
                           <span className="text-2xl sm:text-3xl">🏎️</span>

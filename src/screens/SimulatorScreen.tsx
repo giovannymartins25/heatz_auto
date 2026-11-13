@@ -2,17 +2,23 @@ import { useEffect } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useVehicleStore } from '@/stores/useVehicleStore'
 import { useGarageStore } from '@/stores/useGarageStore'
+import { useSessionStore, type SessionEntryMode } from '@/stores/useSessionStore'
 import { VehicleDashboard } from '@/components/dashboard'
 
 export function SimulatorScreen() {
   const { vehicleId } = useParams<{ vehicleId: string }>()
   const [searchParams] = useSearchParams()
   const instanceId = searchParams.get('instance')
+  const modeParam = searchParams.get('mode')
+  const entryMode: SessionEntryMode = modeParam === 'cluster' ? 'cluster' : 'drive'
+
   const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const setActiveCar = useGarageStore((s) => s.setActiveCar)
   const selectedVehicle = useVehicleStore((s) => s.selectedVehicle)
   const selectVehicle = useVehicleStore((s) => s.selectVehicle)
   const clearSelection = useVehicleStore((s) => s.clearSelection)
+  const startSession = useSessionStore((s) => s.startSession)
+  const endSession = useSessionStore((s) => s.endSession)
   const isLoading = useVehicleStore((s) => s.isLoading)
   const error = useVehicleStore((s) => s.error)
 
@@ -23,12 +29,14 @@ export function SimulatorScreen() {
         setActiveCar(targetInstance.instanceId)
       }
       selectVehicle(vehicleId)
+      startSession(vehicleId, entryMode, targetInstance?.instanceId || instanceId)
     }
 
     return () => {
       clearSelection()
+      endSession()
     }
-  }, [vehicleId, instanceId, setActiveCar, resolveInstanceForVehicle, selectVehicle, clearSelection])
+  }, [vehicleId, instanceId, entryMode, setActiveCar, resolveInstanceForVehicle, selectVehicle, clearSelection, startSession, endSession])
 
   // Estado de Carregamento Premium
   if (isLoading) {
@@ -66,6 +74,6 @@ export function SimulatorScreen() {
     )
   }
 
-  // Renderiza o painel completo integrado
-  return <VehicleDashboard vehicle={selectedVehicle} />
+  // Renderiza o painel completo integrado com o modo de entrada selecionado
+  return <VehicleDashboard vehicle={selectedVehicle} entryMode={entryMode} />
 }

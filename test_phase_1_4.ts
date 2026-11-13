@@ -237,34 +237,33 @@ test('5.1 Acelerador entrega demanda proporcional e contínua de torque (0 a 100
 })
 
 // ─── 6. COCKPIT MOBILE: SELETORES VERTICAIS, MAPA, PADDLES E NOS ───
-test('6.1 Cockpit Mobile: seletores de visualização em coluna vertical [PAINEL] [DIRIGIR] [MÍDIA]', () => {
+test('6.1 Cockpit Mobile: seletores de visualização em coluna vertical [PAINEL] [DIRIGIR] [MÍDIA] (Fase 1.5 - migrado para Garagem e Swipe)', () => {
   const landscape = fs.readFileSync(path.join(__dirname, 'src/components/dashboard/MobileLandscapeCockpit.tsx'), 'utf-8')
   const portrait = fs.readFileSync(path.join(__dirname, 'src/components/dashboard/MobilePortraitCockpit.tsx'), 'utf-8')
+  const home = fs.readFileSync(path.join(__dirname, 'src/screens/HomeScreen.tsx'), 'utf-8')
+  const slot = fs.readFileSync(path.join(__dirname, 'src/components/dashboard/SwipeableClusterMediaSlot.tsx'), 'utf-8')
 
-  // Verifica coluna vertical compacta de visualização
-  assert.ok(landscape.includes("viewTabs.map((tab)"), 'Landscape mapeia viewTabs')
-  assert.ok(landscape.includes("flex-col gap-1 bg-zinc-900/90"), 'Landscape possui container vertical de visão')
-  assert.ok(portrait.includes("viewTabs.map((tab)"), 'Portrait mapeia viewTabs')
-  assert.ok(portrait.includes("flex-col gap-1 bg-zinc-900/90"), 'Portrait possui container vertical de visão')
-
-  // Ordem correta: PAINEL, DIRIGIR, MÍDIA
-  assert.ok(landscape.includes("{ id: 'cluster', label: 'PAINEL' }"))
-  assert.ok(landscape.includes("{ id: 'hud', label: 'DIRIGIR' }"))
-  assert.ok(portrait.includes("{ id: 'cluster', label: 'PAINEL' }"))
-  assert.ok(portrait.includes("{ id: 'hud', label: 'DIRIGIR' }"))
+  // Na Fase 1.5, PAINEL e DIRIGIR são escolhidos na Garagem e MÍDIA por swipe no slot inferior
+  assert.ok(home.includes("handleSelectMode(car, 'cluster')"), 'Garagem oferece modo PAINEL')
+  assert.ok(home.includes("handleSelectMode(car, 'drive')"), 'Garagem oferece modo DIRIGIR')
+  assert.ok(slot.includes("'cluster' | 'multimedia'"), 'Slot inferior permite alternar Painel e Multimídia')
+  assert.ok(landscape.includes('SwipeableClusterMediaSlot'), 'Landscape utiliza SwipeableClusterMediaSlot')
+  assert.ok(portrait.includes('SwipeableClusterMediaSlot'), 'Portrait utiliza SwipeableClusterMediaSlot')
 })
 
 test('6.2 Cockpit Mobile: borboletas ladeiam o painel de instrumentos sem sobrepor o mapa', () => {
   const landscape = fs.readFileSync(path.join(__dirname, 'src/components/dashboard/MobileLandscapeCockpit.tsx'), 'utf-8')
   const portrait = fs.readFileSync(path.join(__dirname, 'src/components/dashboard/MobilePortraitCockpit.tsx'), 'utf-8')
+  const slot = fs.readFileSync(path.join(__dirname, 'src/components/dashboard/SwipeableClusterMediaSlot.tsx'), 'utf-8')
 
   // Borboletas aparecem apenas quando veículo suporta e modo manual ativo
-  assert.ok(landscape.includes('caps.supportsPaddleShifters && isManualActive'), 'Landscape condiciona paddles a suporte e modo manual')
-  assert.ok(portrait.includes('caps.supportsPaddleShifters && isManualActive'), 'Portrait condiciona paddles a suporte e modo manual')
+  assert.ok(landscape.includes('supportsPaddleShifters={caps.supportsPaddleShifters}'), 'Landscape repassa suporte de paddles')
+  assert.ok(portrait.includes('supportsPaddleShifters={caps.supportsPaddleShifters}'), 'Portrait repassa suporte de paddles')
+  assert.ok(slot.includes('supportsPaddleShifters && isManualActive'), 'Slot condiciona paddles a suporte e modo manual')
 
   // Borboleta [-] na esquerda e [+] na direita ladeando o cluster
-  assert.ok(landscape.includes('<AutomaticShiftButton direction="down" />'), 'Paddle down na esquerda')
-  assert.ok(landscape.includes('<AutomaticShiftButton direction="up" />'), 'Paddle up na direita')
+  assert.ok(slot.includes('<AutomaticShiftButton direction="down" />'), 'Paddle down na esquerda')
+  assert.ok(slot.includes('<AutomaticShiftButton direction="up" />'), 'Paddle up na direita')
 })
 
 test('6.3 Cockpit Mobile: Seletor Gestual Vertical para Yaris e Porsche ao lado do câmbio', () => {

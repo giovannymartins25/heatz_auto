@@ -26,12 +26,14 @@ import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEff
 import { DragStripTree } from './DragStripTree'
 import { TuningGarageModal } from '@/components/tuning'
 import type { VehicleConfig, DrivingMode } from '@/types'
+import type { SessionEntryMode } from '@/stores/useSessionStore'
 
 interface VehicleDashboardProps {
   vehicle: VehicleConfig
+  entryMode?: SessionEntryMode
 }
 
-export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
+export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashboardProps) {
   const navigate = useNavigate()
   const init = useSimulationStore((s) => s.init)
   const reset = useSimulationStore((s) => s.reset)
@@ -203,6 +205,7 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
           vehicle={vehicle}
           onBack={handleBack}
           carInstance={activeCar}
+          entryMode={entryMode}
         />
       )
     }
@@ -223,6 +226,7 @@ export function VehicleDashboard({ vehicle }: VehicleDashboardProps) {
         vehicle={vehicle}
         onBack={handleBack}
         carInstance={activeCar}
+        entryMode={entryMode}
       />
     )
   }

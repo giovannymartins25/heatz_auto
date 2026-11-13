@@ -181,31 +181,18 @@ test('3.1 Cabeçalho compacto em 2 linhas sem ocupar faixa central extensa', () 
   assert.ok(portrait.includes('{vehicleHeader.specsSummary}'))
 })
 
-test('3.2 Seletores PAINEL, DIRIGIR e MÍDIA reposicionados em coluna lateral fora do mapa e longe do pedal', () => {
+test('3.2 Seletores PAINEL e DIRIGIR na Garagem e MÍDIA por Swipe no slot inferior (Fase 1.5)', () => {
   const landscape = read('src/components/dashboard/MobileLandscapeCockpit.tsx')
   const portrait = read('src/components/dashboard/MobilePortraitCockpit.tsx')
+  const home = read('src/screens/HomeScreen.tsx')
+  const slot = read('src/components/dashboard/SwipeableClusterMediaSlot.tsx')
 
-  // No Landscape: não deve mais estar em absolute left-1 top-1 dentro de main (próximo do acelerador)
-  assert.ok(
-    !landscape.includes('<main className={`relative flex-1 flex flex-col items-center py-0.5 min-w-0 h-full ${centerMode === \'cluster\' ? \'px-0.5\' : \'px-1 sm:px-1.5\'}`}>\n\n        {/* Seletor vertical compacto'),
-    'Landscape removeu seletores de sobreposição dentro de main',
-  )
-
-  // Deve estar posicionado em coluna lateral fixa à direita do mapa
-  assert.ok(
-    landscape.includes('SELETOR LATERAL COMPACTO: [PAINEL] [DIRIGIR] [MÍDIA]'),
-    'Landscape possui doca lateral dedicada para visualização',
-  )
-  assert.ok(
-    portrait.includes('SELETOR LATERAL COMPACTO: [PAINEL] [DIRIGIR] [MÍDIA]'),
-    'Portrait possui doca lateral dedicada para visualização',
-  )
-
-  // Todas as 3 abas continuam presentes e funcionais
-  for (const tab of ['cluster', 'hud', 'multimedia']) {
-    assert.ok(landscape.includes(`id: '${tab}'`), `Landscape suporta aba ${tab}`)
-    assert.ok(portrait.includes(`id: '${tab}'`), `Portrait suporta aba ${tab}`)
-  }
+  // Na Fase 1.5, PAINEL e DIRIGIR foram movidos para a Garagem e MÍDIA para o slot inferior com swipe
+  assert.ok(home.includes("handleSelectMode(car, 'cluster')"), 'Garagem possui botão PAINEL')
+  assert.ok(home.includes("handleSelectMode(car, 'drive')"), 'Garagem possui botão DIRIGIR')
+  assert.ok(slot.includes("'cluster' | 'multimedia'"), 'Slot inferior permite alternar Painel e Mídia')
+  assert.ok(landscape.includes('SwipeableClusterMediaSlot'), 'Landscape utiliza o slot responsivo')
+  assert.ok(portrait.includes('SwipeableClusterMediaSlot'), 'Portrait utiliza o slot responsivo')
 })
 
 test('3.3 Preservação dos 3 modos do mapa (P, M, G) com expansão vertical sem distorção', () => {
