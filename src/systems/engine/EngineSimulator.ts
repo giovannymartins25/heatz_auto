@@ -146,7 +146,7 @@ export class EngineSimulator {
     // 3.1 Torque do motor baseado na curva de torque x resposta progressiva do acelerador
     const availableTorque = this.torqueCurve.getTorqueAtRpm(currentRpm)
     // Curva progressiva de borboleta de aceleração (0-100%)
-    const effectiveThrottle = throttle > 0 ? Math.pow(throttle, 0.75) : 0
+    const effectiveThrottle = throttle > 0 ? Math.pow(throttle, 1.0) : 0
     let engineTorque = availableTorque * effectiveThrottle
 
     // 3.2 Limitador de Rotação (Rev Limiter) — corta injeção
