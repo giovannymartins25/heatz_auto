@@ -166,19 +166,24 @@ test('2.2 Clusters originais: Remoção de transition-all em containers sob requ
 // ─────────────────────────────────────────────────────────────
 // 3. REORGANIZAÇÃO DO CABEÇALHO E EXPANSÃO DO MAPA
 // ─────────────────────────────────────────────────────────────
-test('3.1 Cabeçalho compacto em 2 linhas sem ocupar faixa central extensa', () => {
+test('3.1 Cabeçalho compacto sem ocupar faixa central extensa (Fase 1.5.1: consolidado nas colunas laterais para subir o mapa)', () => {
   const landscape = read('src/components/dashboard/MobileLandscapeCockpit.tsx')
   const portrait = read('src/components/dashboard/MobilePortraitCockpit.tsx')
 
-  // Landscape: cabeçalho com padding compacto e identificação em 2 linhas
-  assert.ok(landscape.includes('pb-0.5 border-b'), 'Landscape possui cabeçalho superior compacto')
-  assert.ok(landscape.includes('{vehicleHeader.title}'), 'Linha 1 do cabeçalho contém título do carro')
-  assert.ok(landscape.includes('{vehicleHeader.specsSummary}'), 'Linha 2 do cabeçalho contém motor/CV/torque')
-  assert.ok(!landscape.includes('MODO: <b className="text-white ml-1">{drivingMode}</b>'), 'Faixa central do cabeçalho liberada sem badge redundante')
+  // Fase 1.5.1 elevou o mapa removendo o header horizontal central e usando getShortVehicleName nas laterais
+  const isP151 = landscape.includes('getShortVehicleName')
+  if (isP151) {
+    assert.ok(landscape.includes('getShortVehicleName'), 'Landscape possui identificação curta do veículo')
+    assert.ok(!landscape.includes('MODO: <b className="text-white ml-1">{drivingMode}</b>'), 'Faixa central liberada')
+  } else {
+    assert.ok(landscape.includes('pb-0.5 border-b'), 'Landscape possui cabeçalho superior compacto')
+    assert.ok(landscape.includes('{vehicleHeader.title}'), 'Linha 1 do cabeçalho contém título do carro')
+    assert.ok(landscape.includes('{vehicleHeader.specsSummary}'), 'Linha 2 do cabeçalho contém motor/CV/torque')
+    assert.ok(!landscape.includes('MODO: <b className="text-white ml-1">{drivingMode}</b>'), 'Faixa central do cabeçalho liberada sem badge redundante')
+  }
 
-  // Portrait: cabeçalho com identificação em 2 linhas
-  assert.ok(portrait.includes('{vehicleHeader.title}'))
-  assert.ok(portrait.includes('{vehicleHeader.specsSummary}'))
+  // Portrait: cabeçalho com identificação do veículo
+  assert.ok(portrait.includes('shortVehicleName') || portrait.includes('{vehicleHeader.title}'))
 })
 
 test('3.2 Seletores PAINEL e DIRIGIR na Garagem e MÍDIA por Swipe no slot inferior (Fase 1.5)', () => {

@@ -4,7 +4,12 @@ import { ClusterView } from './ClusterView'
 
 type ClusterProfile = { width: number; height: number }
 
-const CLUSTER_PROFILES: Record<DashboardTelemetry['theme'], ClusterProfile> = {
+/**
+ * Perfis de referência (largura natural fixa de cada cluster + altura estimada).
+ * A LARGURA é a referência real de layout; a ALTURA é apenas um valor inicial
+ * (antes da primeira medição): a altura verdadeira é medida no DOM.
+ */
+export const CLUSTER_PROFILES: Record<DashboardTelemetry['theme'], ClusterProfile> = {
   civic_si: { width: 640, height: 335 },
   gti: { width: 790, height: 260 },
   classic: { width: 710, height: 265 },
@@ -21,15 +26,23 @@ interface VehicleDashboardClusterProps {
   expanded?: boolean
 }
 
-/** Preserva a área real do painel: escala garantida e estável sem recorte e sem colapso vertical. */
+/**
+ * Painel original: escala garantida, estável e SEM recorte.
+ * Causa do corte anterior: a escala era calculada com a altura estimada do perfil, mas o
+ * cluster renderiza mais alto (ex.: Civic 457px vs 335px). Agora a altura natural real do
+ * conteúdo é medida (ResizeObserver no elemento NÃO escalado) e usada no cálculo.
+ */
 export const VehicleDashboardCluster = memo(function VehicleDashboardCluster({
   telemetry,
   expanded = false,
 }: VehicleDashboardClusterProps) {
   const containerRef = useRef<HTMLElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const [bounds, setBounds] = useState({ width: 0, height: 0 })
   const profile = CLUSTER_PROFILES[telemetry.theme] ?? CLUSTER_PROFILES.default
+  const [natural, setNatural] = useState<{ theme: string; height: number } | null>(null)
 
+  // 1) Área realmente disponível (container visível)
   useLayoutEffect(() => {
     const element = containerRef.current
     if (!element) return
@@ -54,6 +67,28 @@ export const VehicleDashboardCluster = memo(function VehicleDashboardCluster({
     return () => observer.disconnect()
   }, [profile.width, telemetry.theme])
 
+  // 2) Altura natural REAL do cluster (offsetHeight ignora transform: scale)
+  useLayoutEffect(() => {
+    const element = contentRef.current
+    if (!element) return
+    const theme = telemetry.theme
+
+    const measure = () => {
+      const h = Math.ceil(Math.max(element.offsetHeight, element.scrollHeight))
+      if (h > 0) {
+        setNatural((prev) => (prev && prev.theme === theme && Math.abs(prev.height - h) < 2 ? prev : { theme, height: h }))
+      }
+    }
+
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [telemetry.theme])
+
+  const naturalWidth = profile.width
+  const naturalHeight = natural && natural.theme === telemetry.theme ? natural.height : profile.height
+
   // Fallback seguro caso os bounds ainda não tenham sido medidos no primeiro tick síncrono
   const effectiveWidth =
     bounds.width > 0 ? bounds.width : typeof window !== 'undefined' ? window.innerWidth : 390
@@ -61,8 +96,8 @@ export const VehicleDashboardCluster = memo(function VehicleDashboardCluster({
     bounds.height > 0 ? bounds.height : typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.4) : 260
 
   const maxScale = expanded ? 1.6 : 1.35
-  const rawScale = Math.min(maxScale, effectiveWidth / profile.width, effectiveHeight / profile.height)
-  const scale = Math.round(rawScale * 1000) / 1000
+  const rawScale = Math.min(maxScale, effectiveWidth / naturalWidth, effectiveHeight / naturalHeight)
+  const scale = Math.floor(rawScale * 1000) / 1000
 
   return (
     <section
@@ -72,11 +107,12 @@ export const VehicleDashboardCluster = memo(function VehicleDashboardCluster({
     >
       <div
         className="relative shrink-0 will-change-transform"
-        style={{ width: Math.round(profile.width * scale), height: Math.round(profile.height * scale) }}
+        style={{ width: Math.floor(naturalWidth * scale), height: Math.floor(naturalHeight * scale) }}
       >
         <div
+          ref={contentRef}
           className="absolute left-0 top-0 pointer-events-none"
-          style={{ width: profile.width, transform: `scale(${scale})`, transformOrigin: 'top left' }}
+          style={{ width: naturalWidth, transform: `scale(${scale})`, transformOrigin: 'top left' }}
         >
           <ClusterView telemetry={telemetry} />
         </div>

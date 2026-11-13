@@ -13,7 +13,7 @@ import { useUIStore } from '@/stores/useUIStore'
 import { SwipeableClusterMediaSlot } from './SwipeableClusterMediaSlot'
 import { MobileQuickMenu } from './MobileQuickMenu'
 import { formatZeroToHundredSeconds } from '@/systems/vehicle'
-import { formatVehicleHeaderInfo } from '@/utils/vehicleSpecs'
+import { formatVehicleHeaderInfo, getShortVehicleName } from '@/utils/vehicleSpecs'
 import { getVehicleCapabilities } from '@/types'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
@@ -115,12 +115,12 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             )}
           </button>
 
-          <div className="min-w-0 flex-1 leading-tight">
-            <span className="block text-xs sm:text-[13px] font-bold text-white tracking-tight truncate">
-              {vehicleHeader.title}
-            </span>
-            <span className="block text-[8px] sm:text-[8.5px] font-mono text-zinc-400 tracking-wide truncate">
-              {vehicleHeader.specsSummary}
+          <div className="min-w-0 flex-1 leading-tight" data-vehicle-id>
+            <span
+              className="block text-[10px] font-black font-mono tracking-wider text-zinc-400 truncate"
+              title={`${vehicleHeader.title} · ${vehicleHeader.specsSummary}`}
+            >
+              {getShortVehicleName(vehicle)}
             </span>
           </div>
         </div>

@@ -1,5 +1,31 @@
 import type { VehicleConfig } from '@/types'
 
+const SHORT_NAMES: Record<string, string> = {
+  'civic-si': 'CIVIC SI',
+  'golf-gti': 'GOLF GTI',
+  'gol-g6': 'GOL RALLYE',
+  'gol-rallye': 'GOL RALLYE',
+  'gol-quadrado-turbo': 'GOL TURBO',
+  'gol-turbo': 'GOL TURBO',
+  'porsche-gt3': '911 GT3 RS',
+  'porsche-911-gt3-rs': '911 GT3 RS',
+  'opala-4100': 'OPALA 4.1',
+  'opala-diplomata': 'OPALA 4.1',
+  'yaris-2019': 'YARIS XLS',
+  'yaris-xls': 'YARIS XLS',
+  cb1000r: 'CB1000R',
+}
+
+/** Identificação curta e discreta do veículo para o cockpit mobile. */
+export function getShortVehicleName(vehicle: (Partial<VehicleConfig> & { name?: string }) | null | undefined): string {
+  if (!vehicle) return ''
+  if (vehicle.id && SHORT_NAMES[vehicle.id]) return SHORT_NAMES[vehicle.id]
+  const name = vehicle.info?.name || vehicle.name || ''
+  if (!name) return vehicle.id?.toUpperCase() || ''
+  const words = name.toUpperCase().split(/\s+/).slice(0, 2)
+  return words.join(' ')
+}
+
 export interface VehicleHeaderSummary {
   title: string
   specsSummary: string

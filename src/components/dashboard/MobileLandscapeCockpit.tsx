@@ -13,7 +13,7 @@ import { DrivingMapViewport } from './DrivingMapViewport'
 import { SwipeableClusterMediaSlot } from './SwipeableClusterMediaSlot'
 import { MobileQuickMenu } from './MobileQuickMenu'
 import { formatZeroToHundredSeconds } from '@/systems/vehicle'
-import { formatVehicleHeaderInfo } from '@/utils/vehicleSpecs'
+import { formatVehicleHeaderInfo, getShortVehicleName } from '@/utils/vehicleSpecs'
 import { getVehicleCapabilities } from '@/types'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
@@ -94,6 +94,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const mapViewportSize = useUIStore((s) => s.mapViewportSize)
   const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
   const vehicleHeader = formatVehicleHeaderInfo(vehicle)
+  const shortName = getShortVehicleName(vehicle)
   const caps = getVehicleCapabilities(vehicle)
   const isManualActive = telemetry.gear.transmissionMode === 'manual_simulated' || telemetry.gear.gearSelectorPosition === 'M'
 
@@ -107,37 +108,168 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
         paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))',
       }}
     >
-      {/* ═══ CABEÇALHO SUPERIOR COMPACTO ═══ */}
-      <header className="flex items-start justify-between gap-2 w-full pb-0.5 border-b border-white/5 flex-shrink-0">
-        {/* Esquerda: Menu ☰ + Nome do Carro e Specs logo abaixo */}
-        <div className="flex items-center gap-1.5 min-w-0">
-          <button
-            type="button"
-            onClick={() => setIsMenuOpen(true)}
-            className="relative w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 rounded-lg bg-zinc-900 border border-white/15 hover:bg-zinc-800 text-zinc-100 text-xs sm:text-sm flex items-center justify-center active:scale-95 cursor-pointer shadow"
-            aria-label="Abrir menu e garagem"
-            title="Menu e garagem (Esc)"
-          >
-            ☰
-            {tuningStage > 0 && (
-              <span className="absolute -top-1 -right-1 px-1 rounded bg-amber-500 text-black text-[6.5px] font-black font-mono">
-                S{tuningStage}
-              </span>
-            )}
-          </button>
+      {/* ═══ CORPO PRINCIPAL ═══ */}
+      <div className="flex-1 flex min-h-0 w-full relative">
+        {/* Aviso flutuante de Launch Control (não empurra o layout) */}
+        {(isLaunchControlArmed || isLaunching) && (
+          <div className="absolute top-1 inset-x-0 z-30 pointer-events-none flex justify-center">
+            <div className={`py-0.5 px-3 rounded-full text-[9px] font-mono font-black shadow-lg ${
+              isLaunchControlArmed ? 'bg-amber-500 text-black animate-pulse' : 'bg-emerald-500 text-black'
+            }`}>
+              {isLaunchControlArmed ? '🏁 LAUNCH CONTROL ATIVO · SOLTE O FREIO!' : '🚀 LARGADA!'}
+            </div>
+          </div>
+        )}
 
-          <div className="min-w-0 leading-tight">
-            <span className="block text-[10.5px] sm:text-xs font-bold text-white tracking-tight truncate uppercase">
-              {vehicleHeader.title}
-            </span>
-            <span className="block text-[7.5px] sm:text-[8px] font-mono text-zinc-400 tracking-wide truncate">
-              {vehicleHeader.specsSummary}
+        {/* ═══ 1. ESQUERDA: MENU + IDENTIFICAÇÃO CURTA (topo) · PEDAIS (base, só no modo DIRIGIR) ═══ */}
+        <aside className="flex flex-col justify-between items-start h-full pt-0 pb-0.5 pr-1.5 border-r border-white/5 flex-shrink-0 gap-1">
+          <div className="flex items-center gap-1.5 min-w-0" data-vehicle-id>
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(true)}
+              className="relative w-8 h-8 flex-shrink-0 rounded-lg bg-zinc-900 border border-white/15 hover:bg-zinc-800 text-zinc-100 text-sm flex items-center justify-center active:scale-95 cursor-pointer shadow"
+              aria-label="Abrir menu e garagem"
+              title="Menu e garagem (Esc)"
+            >
+              ☰
+              {tuningStage > 0 && (
+                <span className="absolute -top-1 -right-1 px-1 rounded bg-amber-500 text-black text-[6.5px] font-black font-mono">
+                  S{tuningStage}
+                </span>
+              )}
+            </button>
+            <span
+              className="text-[9px] font-black font-mono tracking-wider text-zinc-400 whitespace-nowrap"
+              title={`${vehicleHeader.title} · ${vehicleHeader.specsSummary}`}
+            >
+              {shortName}
             </span>
           </div>
-        </div>
+          {isDriveMode && (
+          <div className="flex items-end justify-center gap-1.5 sm:gap-2 min-h-0">
+            {hasClutch && (
+              <div className="flex flex-col items-center justify-end gap-1 h-full">
+                <QuickClutchButton
+                  layout="stack"
+                  className="w-12 sm:w-13 h-9 sm:h-10 flex-shrink-0"
+                  label={isMotorcycle ? 'MANETE' : 'EMBR'}
+                  sublabel="100%"
+                />
+                <AnalogPedal
+                  label={isMotorcycle ? 'MANETE' : 'EMBR'}
+                  sublabel={isMotorcycle ? 'EMBREAGEM' : 'CLUTCH'}
+                  value={clutchPosition}
+                  onChange={setClutch}
+                  colorTheme="amber"
+                  widthClass="w-12 sm:w-13"
+                  heightClass="h-28 sm:h-32"
+                  disabled={false}
+                  showPercent={true}
+                />
+              </div>
+            )}
 
+            <AnalogPedal
+              label={isMotorcycle ? 'F. TRAS' : 'FREIO'}
+              sublabel={isMotorcycle ? 'TRASEIRO' : 'BRAKE'}
+              value={brake}
+              onChange={setBrake}
+              colorTheme="red"
+              widthClass="w-12 sm:w-13"
+              heightClass="h-32 sm:h-36"
+              disabled={false}
+              showPercent={true}
+            />
+
+            <div className="flex flex-col items-center justify-end h-full">
+              <button
+                type="button"
+                onClick={toggleThrottleLock}
+                onPointerDown={(e) => { e.stopPropagation() }}
+                onTouchStart={(e) => { e.stopPropagation() }}
+                style={{ touchAction: 'none' }}
+                className={`w-12 sm:w-13 py-0.5 mb-1 rounded-lg font-mono text-[7.5px] font-black uppercase tracking-wider border transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-0.5 shadow-sm ${
+                  throttleLock
+                    ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.85)] animate-pulse'
+                    : 'bg-zinc-900/90 text-zinc-400 border-white/10 hover:text-white'
+                }`}
+                title="Travar acelerador em 100% (solta ao pisar no freio)"
+              >
+                <span>{throttleLock ? '🔒' : '🔓'}</span>
+                <span>{throttleLock ? 'TRAV' : 'TRAVA'}</span>
+              </button>
+              <AnalogPedal
+                label={isMotorcycle ? 'PUNHO' : 'ACEL'}
+                sublabel={isMotorcycle ? 'ACELERAR' : 'GAS'}
+                value={throttle}
+                onChange={setThrottle}
+                colorTheme="accent"
+                widthClass="w-12 sm:w-13"
+                heightClass="h-28 sm:h-32"
+                disabled={false}
+                showPercent={true}
+              />
+            </div>
+          </div>
+          )}
+        </aside>
+
+        {/* ═══ 2. CENTRO: MAPA SUPERIOR + SLOT INFERIOR (PAINEL ↔ MULTIMÍDIA) ═══ */}
+        <main className={`relative flex-1 flex flex-col items-center min-w-0 h-full ${isDriveMode ? 'px-1 sm:px-1.5' : 'px-1'}`}>
+          {isDriveMode ? (
+            <div className="flex-1 flex min-h-0 w-full h-full flex-col gap-0.5 overflow-hidden self-stretch items-center">
+              {/* 1. MAPA DE CONDUÇÃO — PARTE SUPERIOR DA REGIÃO CENTRAL */}
+              <div
+                className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 ${
+                  mapViewportSize === 'compact'
+                    ? 'h-[30%] flex-shrink-0'
+                    : mapViewportSize === 'expanded'
+                    ? 'h-[58%] flex-shrink-0'
+                    : 'h-[44%] flex-shrink-0'
+                }`}
+              >
+                <DrivingMapViewport
+                  size={mapViewportSize}
+                  onSizeChange={setMapViewportSize}
+                  telemetry={telemetry}
+                />
+              </div>
+
+              {/* 2. SLOT INFERIOR RESPONSIVO: PAINEL ORIGINAL (<VehicleDashboardCluster telemetry={telemetry} />) ↔ MULTIMÍDIA VIA SWIPE */}
+              <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch relative">
+                <SwipeableClusterMediaSlot
+                  telemetry={telemetry}
+                  vehicle={vehicle}
+                  expanded={false}
+                  supportsPaddleShifters={caps.supportsPaddleShifters} /* AutomaticShiftButton direction="down" e AutomaticShiftButton direction="up" */
+                  isManualActive={isManualActive}
+                  hasTurbo={hasTurbo}
+                  showAftermarketBoostGauge={showAftermarketBoostGauge}
+                  boostPressureBar={boostPressureBar}
+                />
+              </div>
+            </div>
+          ) : (
+            /* MODO PAINEL: Foco exclusivo no painel do veículo, ocupando todo o espaço com swipe para multimídia */
+            <div className="w-full h-full flex items-center justify-center min-h-0 self-stretch relative">
+              <SwipeableClusterMediaSlot
+                telemetry={telemetry}
+                vehicle={vehicle}
+                expanded={true}
+                supportsPaddleShifters={caps.supportsPaddleShifters}
+                isManualActive={isManualActive}
+                hasTurbo={hasTurbo}
+                showAftermarketBoostGauge={showAftermarketBoostGauge}
+                boostPressureBar={boostPressureBar}
+              />
+            </div>
+          )}
+        </main>
+
+        {/* ═══ 3. DIREITA: CONTROLES (BUZINA/TCS no topo alinhado ao mapa · CÂMBIO · START) ═══ */}
+        <aside className={`flex flex-col items-stretch justify-between h-full pt-0 pb-0.5 pl-1.5 border-l border-white/5 flex-shrink-0 gap-1 ${isDriveMode ? 'w-[124px] sm:w-[140px]' : 'w-auto min-w-[88px]'}`}>
         {/* Direita superior: [ 📢 ] [ TCS ] em cima, 0–100 no meio, e botão NOS abaixo */}
-        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+        <div className="flex flex-col items-end gap-0.5 flex-shrink-0 w-full">
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -208,198 +340,62 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             </button>
           )}
         </div>
-      </header>
-
-      {/* ═══ CORPO PRINCIPAL ═══ */}
-      <div className="flex-1 flex min-h-0 w-full relative">
-        {/* Aviso flutuante de Launch Control (não empurra o layout) */}
-        {(isLaunchControlArmed || isLaunching) && (
-          <div className="absolute top-1 inset-x-0 z-30 pointer-events-none flex justify-center">
-            <div className={`py-0.5 px-3 rounded-full text-[9px] font-mono font-black shadow-lg ${
-              isLaunchControlArmed ? 'bg-amber-500 text-black animate-pulse' : 'bg-emerald-500 text-black'
-            }`}>
-              {isLaunchControlArmed ? '🏁 LAUNCH CONTROL ATIVO · SOLTE O FREIO!' : '🚀 LARGADA!'}
-            </div>
-          </div>
-        )}
-
-        {/* ═══ 1. ESQUERDA: PEDAIS (POLEGAR ESQUERDO) — APENAS NO MODO DIRIGIR ═══ */}
-        {isDriveMode && (
-          <aside className="flex items-end justify-center gap-1.5 sm:gap-2 h-full py-0.5 pr-1.5 border-r border-white/5 flex-shrink-0">
-            {hasClutch && (
-              <div className="flex flex-col items-center justify-end gap-1 h-full">
-                <QuickClutchButton
-                  layout="stack"
-                  className="w-12 sm:w-13 h-9 sm:h-10 flex-shrink-0"
-                  label={isMotorcycle ? 'MANETE' : 'EMBR'}
-                  sublabel="100%"
-                />
-                <AnalogPedal
-                  label={isMotorcycle ? 'MANETE' : 'EMBR'}
-                  sublabel={isMotorcycle ? 'EMBREAGEM' : 'CLUTCH'}
-                  value={clutchPosition}
-                  onChange={setClutch}
-                  colorTheme="amber"
-                  widthClass="w-12 sm:w-13"
-                  heightClass="h-28 sm:h-32"
-                  disabled={false}
-                  showPercent={true}
-                />
-              </div>
-            )}
-
-            <AnalogPedal
-              label={isMotorcycle ? 'F. TRAS' : 'FREIO'}
-              sublabel={isMotorcycle ? 'TRASEIRO' : 'BRAKE'}
-              value={brake}
-              onChange={setBrake}
-              colorTheme="red"
-              widthClass="w-12 sm:w-13"
-              heightClass="h-32 sm:h-36"
-              disabled={false}
-              showPercent={true}
-            />
-
-            <div className="flex flex-col items-center justify-end h-full">
-              <button
-                type="button"
-                onClick={toggleThrottleLock}
-                onPointerDown={(e) => { e.stopPropagation() }}
-                onTouchStart={(e) => { e.stopPropagation() }}
-                style={{ touchAction: 'none' }}
-                className={`w-12 sm:w-13 py-0.5 mb-1 rounded-lg font-mono text-[7.5px] font-black uppercase tracking-wider border transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-0.5 shadow-sm ${
-                  throttleLock
-                    ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.85)] animate-pulse'
-                    : 'bg-zinc-900/90 text-zinc-400 border-white/10 hover:text-white'
-                }`}
-                title="Travar acelerador em 100% (solta ao pisar no freio)"
-              >
-                <span>{throttleLock ? '🔒' : '🔓'}</span>
-                <span>{throttleLock ? 'TRAV' : 'TRAVA'}</span>
-              </button>
-              <AnalogPedal
-                label={isMotorcycle ? 'PUNHO' : 'ACEL'}
-                sublabel={isMotorcycle ? 'ACELERAR' : 'GAS'}
-                value={throttle}
-                onChange={setThrottle}
-                colorTheme="accent"
-                widthClass="w-12 sm:w-13"
-                heightClass="h-28 sm:h-32"
-                disabled={false}
-                showPercent={true}
-              />
-            </div>
-          </aside>
-        )}
-
-        {/* ═══ 2. CENTRO: MAPA SUPERIOR + SLOT INFERIOR (PAINEL ↔ MULTIMÍDIA) ═══ */}
-        <main className={`relative flex-1 flex flex-col items-center min-w-0 h-full ${isDriveMode ? 'px-1 sm:px-1.5' : 'px-1'}`}>
-          {isDriveMode ? (
-            <div className="flex-1 flex min-h-0 w-full h-full flex-col gap-0.5 overflow-hidden self-stretch items-center">
-              {/* 1. MAPA DE CONDUÇÃO — PARTE SUPERIOR DA REGIÃO CENTRAL */}
-              <div
-                className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 ${
-                  mapViewportSize === 'compact'
-                    ? 'h-[30%] flex-shrink-0'
-                    : mapViewportSize === 'expanded'
-                    ? 'h-[58%] flex-shrink-0'
-                    : 'h-[44%] flex-shrink-0'
-                }`}
-              >
-                <DrivingMapViewport
-                  size={mapViewportSize}
-                  onSizeChange={setMapViewportSize}
-                  telemetry={telemetry}
-                />
-              </div>
-
-              {/* 2. SLOT INFERIOR RESPONSIVO: PAINEL ORIGINAL (<VehicleDashboardCluster telemetry={telemetry} />) ↔ MULTIMÍDIA VIA SWIPE */}
-              <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch relative">
-                <SwipeableClusterMediaSlot
-                  telemetry={telemetry}
-                  vehicle={vehicle}
-                  expanded={false}
-                  supportsPaddleShifters={caps.supportsPaddleShifters} /* AutomaticShiftButton direction="down" e AutomaticShiftButton direction="up" */
-                  isManualActive={isManualActive}
-                  hasTurbo={hasTurbo}
-                  showAftermarketBoostGauge={showAftermarketBoostGauge}
-                  boostPressureBar={boostPressureBar}
-                />
-              </div>
-            </div>
-          ) : (
-            /* MODO PAINEL: Foco exclusivo no painel do veículo, ocupando todo o espaço com swipe para multimídia */
-            <div className="w-full h-full flex items-center justify-center min-h-0 self-stretch relative">
-              <SwipeableClusterMediaSlot
-                telemetry={telemetry}
-                vehicle={vehicle}
-                expanded={true}
-                supportsPaddleShifters={caps.supportsPaddleShifters}
-                isManualActive={isManualActive}
-                hasTurbo={hasTurbo}
-                showAftermarketBoostGauge={showAftermarketBoostGauge}
-                boostPressureBar={boostPressureBar}
-              />
-            </div>
-          )}
-        </main>
-
-        {/* ═══ 3. DIREITA: CONTROLES (POLEGAR DIREITO) — APENAS NO MODO DIRIGIR ═══ */}
-        {isDriveMode && (
-          <aside className="flex flex-col items-stretch justify-between h-full py-0.5 pl-1.5 border-l border-white/5 flex-shrink-0 w-[124px] sm:w-[140px] gap-1">
-            {/* Topo: Moto Freio dianteiro */}
-            {isMotorcycle && (
-              <button
-                type="button"
-                onPointerDown={() => setBrake(1)}
-                onPointerUp={() => setBrake(0)}
-                onPointerLeave={() => setBrake(0)}
-                onPointerCancel={() => setBrake(0)}
-                className="h-9 rounded-xl border border-red-400/50 bg-red-950/50 font-mono text-[8.5px] font-black text-red-200 active:bg-red-500/40"
-                aria-label="Manete de freio dianteiro"
-              >
-                F. DIANTEIRO
-              </button>
-            )}
-
-            {/* Meio: Perfis de Condução & Câmbio */}
-            <div className="flex-1 flex flex-col items-center justify-center gap-1 min-h-0 w-full py-0.5">
-              {caps.supportedDrivingModes.length > 1 && (
-                <DrivingModesSelector
-                  supportedModes={caps.supportedDrivingModes}
-                  orientation="grid"
-                  size="compact"
-                  showTitle={true}
-                  className="w-full"
-                />
+          {isDriveMode && (
+            <>
+              {/* Topo: Moto Freio dianteiro */}
+              {isMotorcycle && (
+                <button
+                  type="button"
+                  onPointerDown={() => setBrake(1)}
+                  onPointerUp={() => setBrake(0)}
+                  onPointerLeave={() => setBrake(0)}
+                  onPointerCancel={() => setBrake(0)}
+                  className="h-9 rounded-xl border border-red-400/50 bg-red-950/50 font-mono text-[8.5px] font-black text-red-200 active:bg-red-500/40"
+                  aria-label="Manete de freio dianteiro"
+                >
+                  F. DIANTEIRO
+                </button>
               )}
-              <div className="flex items-center justify-center gap-1.5">
-                <GearShift orientation="vertical" size="compact" showPaddles={false} />
-                {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
-                  <VerticalGestureShifter size="compact" />
+  
+              {/* Meio: Perfis de Condução & Câmbio */}
+              <div className="flex-1 flex flex-col items-center justify-center gap-1 min-h-0 w-full py-0.5">
+                {caps.supportedDrivingModes.length > 1 && (
+                  <DrivingModesSelector
+                    supportedModes={caps.supportedDrivingModes}
+                    orientation="grid"
+                    size="compact"
+                    showTitle={true}
+                    className="w-full"
+                  />
                 )}
+                <div className="flex items-center justify-center gap-1.5">
+                  <GearShift orientation="vertical" size="compact" showPaddles={false} />
+                  {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
+                    <VerticalGestureShifter size="compact" />
+                  )}
+                </div>
               </div>
-            </div>
-
-            {/* Base: Freio de mão + START — alturas compactas anti-corte */}
-            <div className="grid grid-cols-2 gap-1.5 flex-shrink-0">
-              <button
-                type="button"
-                onClick={toggleHandbrake}
-                className={`h-11 rounded-xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer shadow-sm ${
-                  handbrake
-                    ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_8px_rgba(249,115,22,0.8)]'
-                    : 'bg-zinc-900 border-white/10 text-zinc-400'
-                }`}
-                aria-label="Freio de mão"
-              >
-                <span className="text-[11px] sm:text-xs">(P)</span>
-                <span className="text-[6.5px] sm:text-[7px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
-              </button>
-              <MobileStartButton variant="square" className="h-11 w-full rounded-xl" />
-            </div>
-          </aside>
-        )}
+  
+              {/* Base: Freio de mão + START — alturas compactas anti-corte */}
+              <div className="grid grid-cols-2 gap-1.5 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={toggleHandbrake}
+                  className={`h-11 rounded-xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer shadow-sm ${
+                    handbrake
+                      ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_8px_rgba(249,115,22,0.8)]'
+                      : 'bg-zinc-900 border-white/10 text-zinc-400'
+                  }`}
+                  aria-label="Freio de mão"
+                >
+                  <span className="text-[11px] sm:text-xs">(P)</span>
+                  <span className="text-[6.5px] sm:text-[7px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
+                </button>
+                <MobileStartButton variant="square" className="h-11 w-full rounded-xl" />
+              </div>
+            </>
+          )}
+        </aside>
       </div>
 
       {/* ── Efeitos & Modais ── */}
