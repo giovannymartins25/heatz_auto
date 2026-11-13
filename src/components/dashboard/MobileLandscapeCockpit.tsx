@@ -157,6 +157,17 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
         <header className="flex items-center gap-1.5 w-full pb-1 border-b border-white/5">
           <button
             type="button"
+            onClick={onBack}
+            className="h-9 px-2 flex-shrink-0 rounded-xl bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-zinc-200 text-[9.5px] font-mono font-black uppercase tracking-wide flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
+            aria-label="Voltar para a garagem"
+            title="Voltar para a garagem"
+          >
+            <span>←</span>
+            <span>Garagem</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setIsMenuOpen(true)}
             className="relative w-9 h-9 flex-shrink-0 rounded-xl bg-zinc-900 border border-white/10 text-zinc-200 text-base flex items-center justify-center active:scale-95 cursor-pointer"
             aria-label="Abrir menu"
@@ -196,17 +207,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               MODO: <b className="text-white ml-1">{drivingMode}</b>
             </span>
           )}
-
-          <button
-            type="button"
-            onClick={onBack}
-            className="h-7 px-2 flex-shrink-0 rounded-xl bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-zinc-200 text-[9px] font-mono font-black uppercase tracking-wide flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
-            aria-label="Voltar para a garagem"
-            title="Voltar para a garagem"
-          >
-            <span>←</span>
-            <span>Garagem</span>
-          </button>
         </header>
 
         {/* Faixa de status */}

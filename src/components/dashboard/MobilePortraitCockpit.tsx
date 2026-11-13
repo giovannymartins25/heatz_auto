@@ -115,6 +115,17 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
       <header className={`flex items-center gap-1.5 w-full pb-1.5 ${portraitMode === 'cluster' ? 'px-2' : ''}`}>
         <button
           type="button"
+          onClick={onBack}
+          className="h-10 px-2 flex-shrink-0 rounded-xl bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-zinc-200 text-[10px] font-mono font-black uppercase tracking-wide flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
+          aria-label="Voltar para a garagem"
+          title="Voltar para a garagem"
+        >
+          <span>←</span>
+          <span>Garagem</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setIsMenuOpen(true)}
           className="relative w-10 h-10 flex-shrink-0 rounded-xl bg-zinc-900 border border-white/10 text-zinc-200 text-lg flex items-center justify-center active:scale-95 cursor-pointer"
           aria-label="Abrir menu"
@@ -149,17 +160,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             </button>
           ))}
         </div>
-
-        <button
-          type="button"
-          onClick={onBack}
-          className="h-9 px-2 flex-shrink-0 rounded-xl bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-zinc-200 text-[9.5px] font-mono font-black uppercase tracking-wide flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
-          aria-label="Voltar para a garagem"
-          title="Voltar para a garagem"
-        >
-          <span>←</span>
-          <span>Garagem</span>
-        </button>
       </header>
 
       {/* ─── 2. Faixa de status ─── */}
