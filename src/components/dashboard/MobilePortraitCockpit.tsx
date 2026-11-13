@@ -6,7 +6,7 @@ import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, MobileStartButton, DrivingModesSelector, AutomaticShiftButton } from '@/components/controls'
+import { QuickClutchButton, MobileStartButton, DrivingModesSelector, AutomaticShiftButton, VerticalGestureShifter } from '@/components/controls'
 import { AuxGauges } from '@/components/gauges'
 import { VehicleDashboardCluster } from './VehicleDashboardCluster'
 import { DrivingMapViewport } from './DrivingMapViewport'
@@ -15,6 +15,7 @@ import { InfotainmentScreen } from './InfotainmentScreen'
 import { MobileQuickMenu } from './MobileQuickMenu'
 import { formatZeroToHundredSeconds } from '@/systems/vehicle'
 import { formatVehicleHeaderInfo } from '@/utils/vehicleSpecs'
+import { getVehicleCapabilities } from '@/types'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
 import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
@@ -56,7 +57,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const setBrake = useSimulationStore((s) => s.setBrake)
   const setClutch = useSimulationStore((s) => s.setClutch)
   const isRunning = useSimulationStore((s) => s.isRunning)
-  const drivingMode = useSimulationStore((s) => s.drivingMode)
   const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
   const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
   const setHorn = useSimulationStore((s) => s.setHorn)
@@ -74,7 +74,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const nosActive = useSimulationStore((s) => s.nosActive)
   const nosPressurePercent = useSimulationStore((s) => s.nosPressurePercent)
   const setNosActive = useSimulationStore((s) => s.setNosActive)
-  const purgeNos = useSimulationStore((s) => s.purgeNos)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isTuningOpen, setIsTuningOpen] = useState(false)
@@ -83,7 +82,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const isMotorcycle = vehicle.info.category === 'motorcycle'
-  const supportedModes = vehicle.transmission.supportedModes || []
   const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const activeCar = carInstance || resolveInstanceForVehicle(vehicle.id)
   const { hasInfotainment, showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
@@ -91,6 +89,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const mapViewportSize = useUIStore((s) => s.mapViewportSize)
   const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
   const vehicleHeader = formatVehicleHeaderInfo(vehicle)
+  const caps = getVehicleCapabilities(vehicle)
+  const isManualActive = telemetry.gear.transmissionMode === 'manual_simulated' || telemetry.gear.gearSelectorPosition === 'M'
 
   const displaySpeed = Math.round(telemetry.speedometer.speed)
   const displayRpm = Math.round(telemetry.tachometer.rpm)
@@ -100,9 +100,9 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const pedalWidth = hasClutch ? 'w-11 sm:w-13' : 'w-14 sm:w-16'
   const pedalHeight = 'h-36 sm:h-44'
 
-  const viewTabs: { id: 'hud' | 'cluster' | 'multimedia'; label: string }[] = [
-    { id: 'hud', label: 'DIRIGIR' },
+  const viewTabs: { id: 'cluster' | 'hud' | 'multimedia'; label: string }[] = [
     { id: 'cluster', label: 'PAINEL' },
+    { id: 'hud', label: 'DIRIGIR' },
     ...(hasInfotainment ? [{ id: 'multimedia' as const, label: 'MÍDIA' }] : []),
   ]
 
@@ -191,45 +191,53 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               {formatZeroToHundredSeconds(last0to100)}
             </b>
           </div>
+
+          {/* Botão NOS oficial e exclusivo reposicionado no lado direito abaixo do 0–100 */}
+          {hasNosKit && (
+            <button
+              type="button"
+              onPointerDown={() => setNosActive(true)}
+              onPointerUp={() => setNosActive(false)}
+              onPointerLeave={() => setNosActive(false)}
+              onPointerCancel={() => setNosActive(false)}
+              disabled={nosPressurePercent <= 0 || !isRunning}
+              className={`h-6 px-2.5 rounded-full border font-mono text-[8.5px] font-black uppercase flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer ${
+                nosActive
+                  ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.9)] animate-pulse'
+                  : nosPressurePercent <= 0
+                  ? 'bg-zinc-900/50 text-zinc-600 border-zinc-800'
+                  : 'bg-cyan-950/70 text-cyan-300 border-cyan-500/50 hover:border-cyan-400'
+              }`}
+              title="Segure para disparar Nitro (+120 CV)"
+              aria-label="Disparar Nitro NOS"
+            >
+              <span>NOS</span>
+              <span>{Math.round(nosPressurePercent)}%</span>
+            </button>
+          )}
         </div>
       </header>
 
-      {/* ─── 2. Barra secundária enxuta: Visão + Modo ─── */}
-      <div className={`flex items-center justify-between w-full gap-2 pb-1 border-b border-white/5 text-[9px] font-mono ${portraitMode === 'cluster' ? 'px-2' : ''}`}>
-        <div className="flex items-center bg-zinc-900 p-0.5 rounded-xl border border-white/10 flex-shrink-0">
-          {viewTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setPortraitMode(tab.id)}
-              className={`h-7 px-2.5 text-[9px] font-mono font-black rounded-lg transition-all cursor-pointer ${
-                portraitMode === tab.id ? 'bg-white text-zinc-950 shadow' : 'text-zinc-500'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {supportedModes.length > 0 && (
-          <span className="text-[8.5px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border bg-zinc-900 border-white/10 text-zinc-400">
-            MODO: <b className="text-white">{drivingMode}</b>
-          </span>
-        )}
-      </div>
-
-      {/* ─── 3. Painel central ─── */}
+      {/* ─── 2. Painel central ─── */}
       <main
         className={`relative flex-1 flex flex-col justify-center items-center min-h-0 overflow-hidden ${
           portraitMode === 'cluster' ? 'px-0 py-0' : 'px-1 py-1'
         }`}
       >
-        {/* Botões de Troca de Marcha: (-) na esquerda e (+) na direita, posicionados mais para cima */}
-        <div className="absolute left-1.5 top-2 z-30 pointer-events-auto">
-          <AutomaticShiftButton direction="down" />
-        </div>
-        <div className="absolute right-1.5 top-2 z-30 pointer-events-auto">
-          <AutomaticShiftButton direction="up" />
+        {/* Seletor vertical compacto de visualização: [PAINEL] [DIRIGIR] [MÍDIA] */}
+        <div className="absolute left-1 top-1 z-30 flex flex-col gap-1 bg-zinc-900/90 backdrop-blur-sm p-0.5 rounded-lg border border-white/10 shadow-lg pointer-events-auto">
+          {viewTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setPortraitMode(tab.id)}
+              className={`px-1.5 py-0.5 text-[8px] font-mono font-black rounded uppercase tracking-wider transition-all cursor-pointer ${
+                portraitMode === tab.id ? 'bg-white text-zinc-950 shadow' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {isLaunchControlArmed && (
@@ -244,8 +252,20 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         )}
 
         {portraitMode === 'cluster' ? (
-          <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
-            <VehicleDashboardCluster telemetry={telemetry} expanded={true} />
+          <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch relative px-1">
+            {caps.supportsPaddleShifters && isManualActive && (
+              <div className="flex-shrink-0 mr-1 z-20 pointer-events-auto">
+                <AutomaticShiftButton direction="down" />
+              </div>
+            )}
+            <div className="flex-1 h-full min-w-0 flex items-center justify-center">
+              <VehicleDashboardCluster telemetry={telemetry} expanded={true} />
+            </div>
+            {caps.supportsPaddleShifters && isManualActive && (
+              <div className="flex-shrink-0 ml-1 z-20 pointer-events-auto">
+                <AutomaticShiftButton direction="up" />
+              </div>
+            )}
           </div>
         ) : portraitMode === 'multimedia' ? (
           <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
@@ -271,9 +291,21 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               />
             </div>
 
-            {/* 2. PAINEL ORIGINAL DO VEÍCULO — IMEDIATAMENTE ABAIXO DO MAPA */}
-            <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
-              <VehicleDashboardCluster telemetry={telemetry} />
+            {/* 2. PAINEL ORIGINAL DO VEÍCULO — IMEDIATAMENTE ABAIXO DO MAPA (ladeado por borboletas se suportadas) */}
+            <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch relative px-1">
+              {caps.supportsPaddleShifters && isManualActive && (
+                <div className="flex-shrink-0 mr-1 z-20 pointer-events-auto">
+                  <AutomaticShiftButton direction="down" />
+                </div>
+              )}
+              <div className="flex-1 h-full min-w-0 flex items-center justify-center">
+                <VehicleDashboardCluster telemetry={telemetry} />
+              </div>
+              {caps.supportsPaddleShifters && isManualActive && (
+                <div className="flex-shrink-0 ml-1 z-20 pointer-events-auto">
+                  <AutomaticShiftButton direction="up" />
+                </div>
+              )}
             </div>
             {portraitMode === 'legacy' && <div>
             {/* LEDs de giro */}
@@ -388,15 +420,18 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         )}
       </main>
 
-      {/* ─── 4. Câmbio e Perfis de Condução (Lateral Direita) ─── */}
+      {/* ─── 4. Câmbio e Perfis de Condução ─── */}
       <div className={`w-full flex items-center justify-between gap-2 pt-1 pb-1.5 border-t border-white/5 ${portraitMode === 'cluster' ? 'px-2' : 'px-1'}`}>
-        <div className="flex-1 flex justify-center min-w-0">
+        <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
           <GearShift size="compact" orientation="horizontal" showPaddles={false} />
+          {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
+            <VerticalGestureShifter size="compact" />
+          )}
         </div>
-        {supportedModes.length > 0 && (
+        {caps.supportedDrivingModes.length > 1 && (
           <div className="flex-shrink-0 flex items-center pr-1">
             <DrivingModesSelector
-              supportedModes={supportedModes}
+              supportedModes={caps.supportedDrivingModes}
               orientation="horizontal"
               size="compact"
             />
@@ -508,7 +543,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           </div>
         </div>
 
-        {/* Coluna direita: Controles Secundários / Nitro / Moto (SEM QuickClutch) */}
+        {/* Coluna direita: Controles Secundários / Moto */}
         <div className="flex flex-col gap-2">
           {isMotorcycle && (
             <button
@@ -522,38 +557,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             >
               F. DIANT.
             </button>
-          )}
-          {hasNosKit && (
-            <>
-              <button
-                type="button"
-                onPointerDown={() => setNosActive(true)}
-                onPointerUp={() => setNosActive(false)}
-                onPointerLeave={() => setNosActive(false)}
-                onPointerCancel={() => setNosActive(false)}
-                disabled={nosPressurePercent <= 0 || !isRunning}
-                className={`h-14 rounded-2xl border-2 font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
-                  nosActive
-                    ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.9)] animate-pulse'
-                    : nosPressurePercent <= 0
-                    ? 'bg-zinc-900/50 text-zinc-600 border-zinc-800'
-                    : 'bg-cyan-950/70 text-cyan-300 border-cyan-500/50'
-                }`}
-                title="Segure para disparar Nitro"
-              >
-                <span className="text-[12px]">NOS</span>
-                <span className="text-[10px] mt-0.5">{Math.round(nosPressurePercent)}%</span>
-              </button>
-              <button
-                type="button"
-                onClick={purgeNos}
-                disabled={nosPressurePercent <= 0}
-                className="h-8 rounded-xl border border-sky-400/40 bg-sky-950/50 text-sky-300 text-[9px] font-mono font-black uppercase transition-all active:scale-95 cursor-pointer"
-                title="Purga de Nitro"
-              >
-                💨 PURGA
-              </button>
-            </>
           )}
         </div>
       </footer>

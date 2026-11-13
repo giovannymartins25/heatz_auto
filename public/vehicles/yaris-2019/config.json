@@ -56,7 +56,11 @@
     "reverseRatio": 2.600,
     "finalDrive": 5.100,
     "hasClutch": false,
-    "supportedModes": ["eco", "normal", "sport"],
+    "defaultDrivingMode": "normal",
+    "supportedModes": ["normal"],
+    "supportsPaddleShifters": false,
+    "manualShiftControls": ["gear_selector_gesture"],
+    "supportsNos": true,
     "tcs": {
       "enabled": true,
       "slipThreshold": 0.15,

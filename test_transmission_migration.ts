@@ -205,26 +205,26 @@ test('Ativar modo SPORT não altera a posição física D do seletor', () => {
   assert(useSimulationStore.getState().gearSelectorPosition === 'D', 'Seletor permanece em D ao ativar perfil SPORT')
   assert(useSimulationStore.getState().drivingMode === 'sport', 'Perfil de condução atualizado para sport')
 
-  // Ativa perfil ECO
-  store.setDrivingMode('eco')
-  assert(useSimulationStore.getState().gearSelectorPosition === 'D', 'Seletor permanece em D ao ativar perfil ECO')
-  assert(useSimulationStore.getState().drivingMode === 'eco', 'Perfil de condução atualizado para eco')
+  // Ativa perfil TRACK (específico da Porsche GT3 RS)
+  store.setDrivingMode('track')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'D', 'Seletor permanece em D ao ativar perfil TRACK')
+  assert(useSimulationStore.getState().drivingMode === 'track', 'Perfil de condução atualizado para track')
 })
 
 test('No modo M, alternar perfil de condução preserva a posição M', () => {
   const store = useSimulationStore.getState()
-  const yaris = loadConfig('yaris-2019')
-  store.init(yaris)
+  const gti = loadConfig('golf-gti')
+  store.init(gti)
   store.startEngine()
   store.selectManual()
 
-  assert(useSimulationStore.getState().gearSelectorPosition === 'M', 'Yaris em M')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'M', 'GTI em M')
 
   store.setDrivingMode('sport')
-  assert(useSimulationStore.getState().gearSelectorPosition === 'M', 'Yaris preserva M com Sport')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'M', 'GTI preserva M com Sport')
 
   store.setDrivingMode('eco')
-  assert(useSimulationStore.getState().gearSelectorPosition === 'M', 'Yaris preserva M com Eco')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'M', 'GTI preserva M com Eco')
 })
 
 // ─────────────────────────────────────────────────────────────
@@ -234,8 +234,8 @@ console.log('\n▶ [Cenário E] Transmissão Automática e Estratégia')
 
 test('AutomaticTransmission recebe perfil de condução correto e opera normalmente', () => {
   const store = useSimulationStore.getState()
-  const yaris = loadConfig('yaris-2019')
-  store.init(yaris)
+  const gti = loadConfig('golf-gti')
+  store.init(gti)
   store.startEngine()
   store.selectDrive()
 

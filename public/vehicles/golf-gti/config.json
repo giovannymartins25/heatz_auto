@@ -56,7 +56,11 @@
     "finalDrive": 4.240,
     "hasClutch": false,
     "hasManualMode": true,
+    "defaultDrivingMode": "normal",
     "supportedModes": ["eco", "normal", "sport"],
+    "supportsPaddleShifters": true,
+    "manualShiftControls": ["paddle_shifters"],
+    "supportsNos": true,
     "tcs": {
       "enabled": true,
       "slipThreshold": 1.15,

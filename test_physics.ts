@@ -105,7 +105,8 @@ function step(sim: any, throttle: number, brake: number, steps = 1) {
   sim.clutch.setPosition(0)
   sim.transmission.shiftTo(1, 0)
   
-  while (sim.physics.getSpeedKmh() < 30) {
+  let safetyLoops = 0
+  while (sim.physics.getSpeedKmh() < 30 && safetyLoops++ < 1000) {
     step(sim, 0.6, 0, 1)
   }
   const rpmIn1st = sim.engine.getRpm()

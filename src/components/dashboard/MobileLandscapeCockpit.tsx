@@ -7,13 +7,14 @@ import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, MobileStartButton, DrivingModesSelector, AutomaticShiftButton } from '@/components/controls'
+import { QuickClutchButton, MobileStartButton, DrivingModesSelector, AutomaticShiftButton, VerticalGestureShifter } from '@/components/controls'
 import { VehicleDashboardCluster } from './VehicleDashboardCluster'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { MobileQuickMenu } from './MobileQuickMenu'
 import { formatZeroToHundredSeconds } from '@/systems/vehicle'
 import { formatVehicleHeaderInfo } from '@/utils/vehicleSpecs'
+import { getVehicleCapabilities } from '@/types'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
 import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
@@ -69,7 +70,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const nosActive = useSimulationStore((s) => s.nosActive)
   const nosPressurePercent = useSimulationStore((s) => s.nosPressurePercent)
   const setNosActive = useSimulationStore((s) => s.setNosActive)
-  const purgeNos = useSimulationStore((s) => s.purgeNos)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isTuningOpen, setIsTuningOpen] = useState(false)
@@ -78,7 +78,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 
   const hasClutch = vehicle.transmission.hasClutch ?? false
   const isMotorcycle = vehicle.info.category === 'motorcycle'
-  const supportedModes = vehicle.transmission.supportedModes || []
   const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const activeCar = carInstance || resolveInstanceForVehicle(vehicle.id)
   const { hasInfotainment, showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
@@ -86,6 +85,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const mapViewportSize = useUIStore((s) => s.mapViewportSize)
   const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
   const vehicleHeader = formatVehicleHeaderInfo(vehicle)
+  const caps = getVehicleCapabilities(vehicle)
+  const isManualActive = telemetry.gear.transmissionMode === 'manual_simulated' || telemetry.gear.gearSelectorPosition === 'M'
 
   const viewTabs: { id: 'cluster' | 'hud' | 'multimedia'; label: string }[] = [
     { id: 'cluster', label: 'PAINEL' },
@@ -109,8 +110,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
       }}
     >
       {/* ═══ CABEÇALHO SUPERIOR UNIFICADO ═══ */}
-      <header className="flex items-center justify-between gap-2 w-full pb-1 border-b border-white/5 flex-shrink-0">
-        {/* Esquerda (alinhada acima da coluna de pedais): Menu ☰ + Carro + Ficha */}
+      <header className="flex items-start justify-between gap-2 w-full pb-1 border-b border-white/5 flex-shrink-0">
+        {/* Esquerda: Menu ☰ + Carro (Linha 1) + Ficha resumida (Linha 2) */}
         <div className="flex items-center gap-1.5 min-w-0">
           <button
             type="button"
@@ -127,42 +128,27 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             )}
           </button>
 
-          <div className="min-w-0 leading-tight max-w-[185px] sm:max-w-[260px]">
-            <span className="block text-[11px] sm:text-xs font-bold text-white tracking-tight truncate">
+          <div className="min-w-0 leading-tight max-w-[200px] sm:max-w-[280px]">
+            <span className="block text-[11px] sm:text-xs font-bold text-white tracking-tight truncate uppercase">
               {vehicleHeader.title}
             </span>
-            <span className="block text-[8.5px] font-mono text-zinc-400 tracking-wide truncate">
+            <span className="block text-[8px] sm:text-[8.5px] font-mono text-zinc-400 tracking-wide truncate mt-0.5">
               {vehicleHeader.specsSummary}
             </span>
           </div>
         </div>
 
-        {/* Centro: Abas de visão + Modo */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <div className="flex items-center bg-zinc-900 p-0.5 rounded-xl border border-white/10 flex-shrink-0">
-            {viewTabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setCenterMode(tab.id)}
-                className={`h-7 px-2.5 text-[9px] font-mono font-black rounded-lg transition-all cursor-pointer ${
-                  centerMode === tab.id ? 'bg-white text-zinc-950 shadow' : 'text-zinc-500'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {supportedModes.length > 0 && (
-            <span className="hidden xs:inline-flex text-[8.5px] font-mono font-bold uppercase tracking-wider px-2 py-1 rounded-lg border bg-zinc-900 border-white/10 text-zinc-400">
+        {/* Centro: Badge de Modo quando o veículo suportar múltiplos modos */}
+        {caps.supportedDrivingModes.length > 1 && (
+          <div className="hidden xs:flex items-center flex-shrink-0">
+            <span className="text-[8.5px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border bg-zinc-900/90 border-white/10 text-zinc-400">
               MODO: <b className="text-white ml-1">{drivingMode}</b>
             </span>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Direita superior: Buzina + TCS circulares e 0–100 km/h imediatamente abaixo */}
-        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+        {/* Direita superior: [ 📢 ] [ TCS ] em cima, 0–100 no meio, e botão NOS abaixo */}
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -208,6 +194,30 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               {formatZeroToHundredSeconds(last0to100)}
             </b>
           </div>
+
+          {/* Botão NOS oficial e exclusivo reposicionado no lado direito abaixo do 0–100 */}
+          {hasNosKit && (
+            <button
+              type="button"
+              onPointerDown={() => setNosActive(true)}
+              onPointerUp={() => setNosActive(false)}
+              onPointerLeave={() => setNosActive(false)}
+              onPointerCancel={() => setNosActive(false)}
+              disabled={nosPressurePercent <= 0 || !isRunning}
+              className={`h-6 px-2.5 rounded-full border font-mono text-[8.5px] font-black uppercase flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer ${
+                nosActive
+                  ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.9)] animate-pulse'
+                  : nosPressurePercent <= 0
+                  ? 'bg-zinc-900/50 text-zinc-600 border-zinc-800'
+                  : 'bg-cyan-950/70 text-cyan-300 border-cyan-500/50 hover:border-cyan-400'
+              }`}
+              title="Segure para disparar Nitro (+120 CV)"
+              aria-label="Disparar Nitro NOS"
+            >
+              <span>NOS</span>
+              <span>{Math.round(nosPressurePercent)}%</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -279,7 +289,23 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
         </aside>
 
         {/* ═══ 2. CENTRO: MAPA + PAINEL ═══ */}
-        <main className={`flex-1 flex flex-col items-center py-0.5 min-w-0 h-full ${centerMode === 'cluster' ? 'px-0.5' : 'px-1 sm:px-1.5'}`}>
+        <main className={`relative flex-1 flex flex-col items-center py-0.5 min-w-0 h-full ${centerMode === 'cluster' ? 'px-0.5' : 'px-1 sm:px-1.5'}`}>
+
+        {/* Seletor vertical compacto de visualização: [PAINEL] [DIRIGIR] [MÍDIA] */}
+        <div className="absolute left-1 top-1 z-30 flex flex-col gap-1 bg-zinc-900/90 backdrop-blur-sm p-0.5 rounded-lg border border-white/10 shadow-lg pointer-events-auto">
+          {viewTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setCenterMode(tab.id)}
+              className={`px-2 py-1 text-[8px] font-mono font-black rounded uppercase tracking-wider transition-all cursor-pointer ${
+                centerMode === tab.id ? 'bg-white text-zinc-950 shadow' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
         {isLaunchControlArmed && (
           <div className="w-full py-1 px-2 rounded-lg bg-amber-500/20 border border-amber-400 text-amber-300 text-center text-[10px] font-mono font-black animate-pulse my-0.5">
@@ -294,17 +320,21 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 
         {/* Conteúdo central */}
         <div className="relative w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
-          {/* Botões de Troca de Marcha (- na esquerda e + na direita, posicionados mais para cima) */}
-          <div className="absolute left-2 top-2 z-30 pointer-events-auto">
-            <AutomaticShiftButton direction="down" />
-          </div>
-          <div className="absolute right-2 top-2 z-30 pointer-events-auto">
-            <AutomaticShiftButton direction="up" />
-          </div>
-
           {centerMode === 'cluster' ? (
-            <div className="w-full h-full flex items-center justify-center relative min-h-0 self-stretch">
-              <VehicleDashboardCluster telemetry={telemetry} expanded={true} />
+            <div className="w-full h-full flex items-center justify-center relative min-h-0 self-stretch px-1">
+              {caps.supportsPaddleShifters && isManualActive && (
+                <div className="flex-shrink-0 mr-1 sm:mr-2 z-20 pointer-events-auto">
+                  <AutomaticShiftButton direction="down" />
+                </div>
+              )}
+              <div className="flex-1 h-full min-w-0 flex items-center justify-center">
+                <VehicleDashboardCluster telemetry={telemetry} expanded={true} />
+              </div>
+              {caps.supportsPaddleShifters && isManualActive && (
+                <div className="flex-shrink-0 ml-1 sm:ml-2 z-20 pointer-events-auto">
+                  <AutomaticShiftButton direction="up" />
+                </div>
+              )}
               {(hasTurbo || showAftermarketBoostGauge) && (
                 <span className="pointer-events-none absolute top-0.5 right-16 px-2 py-0.5 rounded-full bg-black/85 border border-amber-500/40 text-[9px] font-mono text-amber-300">
                   TURBO{' '}
@@ -335,9 +365,21 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                 />
               </div>
 
-              {/* 2. PAINEL ORIGINAL DO VEÍCULO — IMEDIATAMENTE ABAIXO DO MAPA */}
-              <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
-                <VehicleDashboardCluster telemetry={telemetry} />
+              {/* 2. PAINEL ORIGINAL DO VEÍCULO — IMEDIATAMENTE ABAIXO DO MAPA (ladeado por borboletas se suportadas) */}
+              <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch relative px-1">
+                {caps.supportsPaddleShifters && isManualActive && (
+                  <div className="flex-shrink-0 mr-1 sm:mr-2 z-20 pointer-events-auto">
+                    <AutomaticShiftButton direction="down" />
+                  </div>
+                )}
+                <div className="flex-1 h-full min-w-0 flex items-center justify-center">
+                  <VehicleDashboardCluster telemetry={telemetry} />
+                </div>
+                {caps.supportsPaddleShifters && isManualActive && (
+                  <div className="flex-shrink-0 ml-1 sm:mr-2 z-20 pointer-events-auto">
+                    <AutomaticShiftButton direction="up" />
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -378,9 +420,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 
       {/* ═══ 3. DIREITA: CONTROLES (POLEGAR DIREITO) ═══ */}
       <aside className="flex flex-col items-stretch justify-between h-full py-1 pl-2 border-l border-white/5 flex-shrink-0 w-[132px] sm:w-[150px] gap-1.5">
-        {/* Topo: Moto / NOS (Buzina e TCS no topo direito do cabeçalho) */}
-        <div className="flex flex-col gap-1.5">
-          {isMotorcycle && (
+        {/* Topo: Moto (Buzina, TCS e NOS ficam no topo direito do cabeçalho) */}
+        {isMotorcycle && (
+          <div className="flex flex-col gap-1.5">
             <button
               type="button"
               onPointerDown={() => setBrake(1)}
@@ -392,54 +434,26 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             >
               F. DIANTEIRO
             </button>
-          )}
+          </div>
+        )}
 
-          {hasNosKit && (
-            <div className="grid grid-cols-[1fr_40px] gap-1.5">
-              <button
-                type="button"
-                onPointerDown={() => setNosActive(true)}
-                onPointerUp={() => setNosActive(false)}
-                onPointerLeave={() => setNosActive(false)}
-                onPointerCancel={() => setNosActive(false)}
-                disabled={nosPressurePercent <= 0 || !isRunning}
-                className={`h-10 rounded-xl border-2 font-mono text-[10px] font-black uppercase flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer ${
-                  nosActive
-                    ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.9)] animate-pulse'
-                    : nosPressurePercent <= 0
-                    ? 'bg-zinc-900/50 text-zinc-600 border-zinc-800'
-                    : 'bg-cyan-950/70 text-cyan-300 border-cyan-500/50'
-                }`}
-                title="Segure para disparar Nitro"
-              >
-                <span>NOS</span>
-                <span>{Math.round(nosPressurePercent)}%</span>
-              </button>
-              <button
-                type="button"
-                onClick={purgeNos}
-                disabled={nosPressurePercent <= 0}
-                className="h-10 rounded-xl border border-sky-400/40 bg-sky-950/50 text-sky-300 text-sm transition-all active:scale-95 cursor-pointer"
-                title="Purga de Nitro"
-              >
-                💨
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Meio: Perfis de Condução (ECO, NORMAL, SPORT) & Câmbio */}
+        {/* Meio: Perfis de Condução (se veículo suportar > 1) & Câmbio */}
         <div className="flex-1 flex flex-col items-center justify-center gap-1.5 min-h-0 w-full py-1">
-          {supportedModes.length > 0 && (
+          {caps.supportedDrivingModes.length > 1 && (
             <DrivingModesSelector
-              supportedModes={supportedModes}
+              supportedModes={caps.supportedDrivingModes}
               orientation="grid"
               size="compact"
               showTitle={true}
               className="w-full"
             />
           )}
-          <GearShift orientation="vertical" size="compact" showPaddles={false} />
+          <div className="flex items-center justify-center gap-2">
+            <GearShift orientation="vertical" size="compact" showPaddles={false} />
+            {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
+              <VerticalGestureShifter size="compact" />
+            )}
+          </div>
         </div>
 
         {/* Base: Freio de mão + START */}

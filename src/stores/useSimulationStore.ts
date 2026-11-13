@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { VehicleConfig, DrivingMode } from '@/types'
+import { getVehicleCapabilities } from '@/types'
 import type { EngineStatus, FuelType, DragTreeStage, DragTimeSlip } from '@/types/simulation'
 import { EngineSimulator } from '@/systems/engine'
 import { Transmission, AutomaticTransmission } from '@/systems/transmission'
@@ -383,10 +384,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   _isInitialized: false,
 
   init: (config: VehicleConfig, initialUpgrades?: Partial<CarUpgrades>, garageInstanceId?: string | null) => {
+    const caps = getVehicleCapabilities(config)
     const isAutoOrCvt =
-      config.transmission.type === 'automatic' ||
-      config.transmission.type === 'cvt' ||
-      config.transmission.type === 'dct' ||
+      caps.transmissionType === 'automatic' ||
+      caps.transmissionType === 'cvt' ||
+      caps.transmissionType === 'dct' ||
       config.transmission.defaultMode === 'automatic'
 
     const engine = new EngineSimulator(config.engine)
@@ -417,9 +419,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const pedalInput = new PedalInputSystem()
 
     const defaultTransMode: TransmissionMode = isAutoOrCvt ? 'automatic' : 'manual'
-    const defaultDriveMode: DrivingMode = config.transmission.supportedModes?.includes('normal')
-      ? 'normal'
-      : (config.transmission.supportedModes?.[0] ?? 'normal')
+    const defaultDriveMode: DrivingMode = caps.defaultDrivingMode
 
     // TCS ligado por padrão se o veículo tiver TCS configurado
     const hasTcs = !!config.transmission.tcs?.enabled
@@ -667,7 +667,21 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setDrivingMode: (mode: DrivingMode) => {
-    set({ drivingMode: mode })
+    const { _config, gearSelectorPosition } = get()
+    if (_config) {
+      const caps = getVehicleCapabilities(_config)
+      const allowed = caps.supportedDrivingModes.length > 0 ? caps.supportedDrivingModes : ['normal']
+      if (!allowed.includes(mode)) {
+        return
+      }
+    }
+
+    // Seletor S + modo ECO bloqueado: seletor retorna para D ao entrar em ECO
+    if (mode === 'eco' && gearSelectorPosition === 'S') {
+      set({ drivingMode: mode, gearSelectorPosition: 'D' })
+    } else {
+      set({ drivingMode: mode })
+    }
     HapticFeedback.light()
   },
 
@@ -1032,11 +1046,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         _autoTransmission?.reset()
         _transmission.shiftTo(targetGear, speed, undefined, true)
         HapticFeedback.gearShift()
+        // Seletor físico S: não força drivingMode='sport' (D e S são posições físicas independentes).
+        // Se estiver em ECO, comuta para NORMAL para impedir o conflito S + ECO.
+        const currentMode = get().drivingMode
+        const nextMode = currentMode === 'eco' ? 'normal' : currentMode
         set({
           currentGear: targetGear,
           gearSelectorPosition: 'S',
           transmissionMode: 'automatic',
-          drivingMode: 'sport',
+          drivingMode: nextMode,
         })
         break
       }
@@ -1057,8 +1075,25 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   selectPark: () => get().selectShifterMode('P'),
   selectReverse: () => get().selectShifterMode('R'),
   selectNeutral: () => get().selectShifterMode('N'),
-  selectDrive: () => get().selectShifterMode('D'),
-  selectSport: () => get().selectShifterMode('S'),
+  selectDrive: () => {
+    const { _config, isAutomaticVehicle } = get()
+    if (isAutomaticVehicle && _config) {
+      const caps = getVehicleCapabilities(_config)
+      if (caps.supportedDrivingModes.includes('normal')) {
+        set({ drivingMode: 'normal' })
+      }
+    }
+    get().selectShifterMode('D')
+  },
+  selectSport: () => {
+    const { _config, isAutomaticVehicle } = get()
+    if (!isAutomaticVehicle || !_config) return
+    const caps = getVehicleCapabilities(_config)
+    if (caps.supportedDrivingModes.includes('sport')) {
+      set({ drivingMode: 'sport' })
+    }
+    get().selectShifterMode('S')
+  },
   selectManual: () => get().selectShifterMode('M'),
 
   shiftNeutral: () => {
@@ -1392,6 +1427,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             brake: state.brake,
             currentGear: _transmission.currentGear,
             drivingMode: state.drivingMode,
+            selectorPosition: state.gearSelectorPosition,
+            maxPowerRpm: _config?.engine.maxPowerRpm,
+            maxTorqueRpm: _config?.engine.maxTorqueRpm,
             deltaTime: dt,
           })
 

@@ -58,6 +58,7 @@ export interface DashboardTelemetry {
   gear: {
     label: string
     subLabel: string
+    isPark: boolean
     isNeutral: boolean
     isReverse: boolean
     transmissionMode: TransmissionMode
@@ -288,6 +289,7 @@ export class DashboardSystem {
       gear: {
         label: gearLabel,
         subLabel: gearSubLabel,
+        isPark,
         isNeutral,
         isReverse,
         transmissionMode,

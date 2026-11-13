@@ -49,8 +49,12 @@
     "reverseRatio": 3.35,
     "finalDrive": 3.07,
     "hasClutch": true,
-    "hasManualMode": true,
-    "supportedModes": ["normal", "sport"]
+    "hasManualMode": false,
+    "defaultDrivingMode": "normal",
+    "supportedModes": [],
+    "supportsPaddleShifters": false,
+    "manualShiftControls": [],
+    "supportsNos": true
   },
   "audio": {
     "useSamples": false,

@@ -72,7 +72,12 @@
     "supportedSelectorPositions": ["N"],
     "gearCount": 5,
     "hasClutch": true,
-    "hasManualMode": true,
+    "hasManualMode": false,
+    "defaultDrivingMode": "normal",
+    "supportedModes": [],
+    "supportsPaddleShifters": false,
+    "manualShiftControls": [],
+    "supportsNos": true,
     "gearRatios": [
       {
         "gear": 1,

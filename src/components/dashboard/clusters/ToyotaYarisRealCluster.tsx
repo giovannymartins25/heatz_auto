@@ -373,21 +373,58 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
                 strokeWidth="1"
               />
               {/* Gate de Marchas Automático Multidrive Toyota */}
-              <text x="-40" y="3" className={`font-mono text-[9px] font-bold ${gear.label === 'P' ? 'fill-amber-400 font-black' : 'fill-zinc-600'}`}>
-                P
-              </text>
-              <text x="-24" y="3" className={`font-mono text-[9px] font-bold ${gear.isReverse ? 'fill-red-400 font-black' : 'fill-zinc-600'}`}>
-                R
-              </text>
-              <text x="-8" y="3" className={`font-mono text-[9px] font-bold ${gear.isNeutral ? 'fill-emerald-400 font-black' : 'fill-zinc-600'}`}>
-                N
-              </text>
-              <text x="8" y="3" className={`font-mono text-[9px] font-bold ${!gear.isNeutral && !gear.isReverse && !isManualSimulated ? 'fill-cyan-400 font-black' : 'fill-zinc-600'}`}>
-                D
-              </text>
-              <text x="26" y="3" className={`font-mono text-[9px] font-bold ${isManualSimulated ? 'fill-cyan-400 font-black' : 'fill-zinc-600'}`}>
-                {isManualSimulated ? gear.label : 'M'}
-              </text>
+              {(() => {
+                const activePos =
+                  gear.gearSelectorPosition ||
+                  (gear.isPark || gear.label === 'P'
+                    ? 'P'
+                    : gear.isReverse || gear.label === 'R'
+                    ? 'R'
+                    : gear.isNeutral || gear.label === 'N'
+                    ? 'N'
+                    : isManualSimulated || gear.label.startsWith('M')
+                    ? 'M'
+                    : 'D')
+                return (
+                  <>
+                    <text
+                      x="-40"
+                      y="3"
+                      className={`font-mono text-[9px] font-bold ${activePos === 'P' ? 'fill-amber-400 font-black' : 'fill-zinc-600'}`}
+                    >
+                      P
+                    </text>
+                    <text
+                      x="-24"
+                      y="3"
+                      className={`font-mono text-[9px] font-bold ${activePos === 'R' ? 'fill-red-400 font-black' : 'fill-zinc-600'}`}
+                    >
+                      R
+                    </text>
+                    <text
+                      x="-8"
+                      y="3"
+                      className={`font-mono text-[9px] font-bold ${activePos === 'N' ? 'fill-emerald-400 font-black' : 'fill-zinc-600'}`}
+                    >
+                      N
+                    </text>
+                    <text
+                      x="8"
+                      y="3"
+                      className={`font-mono text-[9px] font-bold ${activePos === 'D' ? 'fill-cyan-400 font-black' : 'fill-zinc-600'}`}
+                    >
+                      D
+                    </text>
+                    <text
+                      x="26"
+                      y="3"
+                      className={`font-mono text-[9px] font-bold ${activePos === 'M' ? 'fill-cyan-400 font-black' : 'fill-zinc-600'}`}
+                    >
+                      {isManualSimulated ? gear.label : 'M'}
+                    </text>
+                  </>
+                )
+              })()}
 
               <text x="0" y="11" textAnchor="middle" className="fill-zinc-400 font-mono text-[7px]">
                 EXT 27°C · 14:35

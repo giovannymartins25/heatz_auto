@@ -1,5 +1,6 @@
 import { memo, useRef } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { getVehicleCapabilities } from '@/types'
 
 export interface AutomaticShiftButtonProps {
   direction: 'down' | 'up'
@@ -20,15 +21,19 @@ export const AutomaticShiftButton = memo(function AutomaticShiftButton({
   const hasManualMode = useSimulationStore((s) => Boolean(s._config?.transmission.hasManualMode))
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const gearSelectorPosition = useSimulationStore((s) => s.gearSelectorPosition)
+  const vehicleConfig = useSimulationStore((s) => s._config)
   const isRunning = useSimulationStore((s) => s.isRunning)
   const shiftDown = useSimulationStore((s) => s.shiftDown)
   const shiftUp = useSimulationStore((s) => s.shiftUp)
   const lastTriggerRef = useRef(0)
 
-  // Exibe apenas em veículos automáticos com modo manual E quando o modo manual estiver ativado (M / manual_simulated)
+  const caps = vehicleConfig ? getVehicleCapabilities(vehicleConfig) : null
+  const supportsPaddles = caps?.supportsPaddleShifters ?? false
+
+  // Exibe apenas em veículos automáticos com borboletas de fábrica E quando o modo manual estiver ativado (M / manual_simulated)
   const isManualActive = transmissionMode === 'manual_simulated' || gearSelectorPosition === 'M'
 
-  if (!isAutomaticVehicle || !hasManualMode || !isManualActive) {
+  if (!isAutomaticVehicle || !hasManualMode || !supportsPaddles || !isManualActive) {
     return null
   }
 

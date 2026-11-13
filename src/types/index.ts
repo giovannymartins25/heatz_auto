@@ -1,7 +1,13 @@
+export { getVehicleCapabilities } from './vehicle'
+
 export type {
   VehicleCategory,
   TransmissionType,
   DrivingMode,
+  GearSelectorPosition,
+  SelectorPosition,
+  ManualShiftControl,
+  VehicleCapabilities,
   TorqueCurvePoint,
   EngineConfig,
   GearRatio,

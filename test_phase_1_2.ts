@@ -61,22 +61,19 @@ runTest('Veículos automáticos/DSG/CVT possuem hasClutch: false (Golf GTI, Pors
 })
 
 console.log('\n▶ [Cenário 2] Modos de Condução Suportados por Veículo')
-runTest('Golf GTI e Yaris suportam ["eco", "normal", "sport"]', () => {
+runTest('Golf GTI e CB1000R suportam ["eco", "normal", "sport"], Yaris suporta apenas ["normal"]', () => {
   assert.deepStrictEqual(vehicleConfigs['golf-gti'].transmission.supportedModes, ['eco', 'normal', 'sport'])
-  assert.deepStrictEqual(vehicleConfigs['yaris-2019'].transmission.supportedModes, ['eco', 'normal', 'sport'])
+  assert.deepStrictEqual(vehicleConfigs['cb1000r'].transmission.supportedModes, ['eco', 'normal', 'sport'])
+  assert.deepStrictEqual(vehicleConfigs['yaris-2019'].transmission.supportedModes, ['normal'])
 })
 
 runTest('Porsche GT3 suporta ["normal", "sport", "track"]', () => {
   assert.deepStrictEqual(vehicleConfigs['porsche-gt3'].transmission.supportedModes, ['normal', 'sport', 'track'])
 })
 
-runTest('Opala suporta ["normal", "sport"]', () => {
-  assert.deepStrictEqual(vehicleConfigs['opala-4100'].transmission.supportedModes, ['normal', 'sport'])
-})
-
-runTest('Veículos sem modos múltiplos possuem supportedModes indefinido ou vazio', () => {
-  const baseVehicles = ['civic-si', 'gol-g6', 'gol-quadrado-turbo', 'cb1000r']
-  for (const id of baseVehicles) {
+runTest('Veículos manuais sem modos eletrônicos possuem supportedModes vazio', () => {
+  const manualCars = ['civic-si', 'gol-g6', 'gol-quadrado-turbo', 'opala-4100']
+  for (const id of manualCars) {
     const modes = vehicleConfigs[id].transmission.supportedModes
     assert.ok(!modes || modes.length === 0, `${id} não deveria ter modos múltiplos`)
   }

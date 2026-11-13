@@ -10,6 +10,8 @@ export type TransmissionType = 'manual' | 'automatic' | 'sequential' | 'cvt' | '
 
 export type DrivingMode = 'eco' | 'normal' | 'sport' | 'track'
 
+export type GearSelectorPosition = SelectorPosition
+
 /** Ponto na curva de torque: RPM → torque em Nm */
 export interface TorqueCurvePoint {
   rpm: number
@@ -62,6 +64,23 @@ export interface LaunchControlConfig {
 
 export type SelectorPosition = 'P' | 'R' | 'N' | 'D' | 'S' | 'M'
 
+export type ManualShiftControl =
+  | 'paddle_shifters'
+  | 'gear_selector_gesture'
+  | 'gear_selector_buttons'
+  | 'sequential_lever'
+
+export interface VehicleCapabilities {
+  supportedDrivingModes: DrivingMode[]
+  defaultDrivingMode: DrivingMode
+  transmissionType: TransmissionType
+  supportedSelectorPositions: SelectorPosition[]
+  supportsManualMode: boolean
+  manualShiftControls: ManualShiftControl[]
+  supportsPaddleShifters: boolean
+  supportsNos: boolean
+}
+
 /** Configuração da transmissão */
 export interface TransmissionConfig {
   type: TransmissionType
@@ -75,7 +94,11 @@ export interface TransmissionConfig {
   isSimulatedGears?: boolean // Ex: relações virtuais no CVT
   hasManualMode?: boolean    // Permite trocar manualmente (borboletas / alavanca)
   defaultMode?: 'automatic' | 'manual'
+  defaultDrivingMode?: DrivingMode
   supportedModes?: DrivingMode[]
+  manualShiftControls?: ManualShiftControl[]
+  supportsPaddleShifters?: boolean
+  supportsNos?: boolean
   tcs?: TcsConfig
   launchControl?: LaunchControlConfig
 }
@@ -190,4 +213,76 @@ export interface VehicleManifestEntry {
   hasClutchPedal?: boolean
   thumbnailPath?: string
   configPath: string
+}
+
+/**
+ * Extrai e normaliza as capacidades individuais de um veículo.
+ * Centraliza regras para que a interface e a simulação consultem a mesma fonte.
+ */
+export function getVehicleCapabilities(vehicle: VehicleConfig): VehicleCapabilities {
+  const { transmission, info } = vehicle
+  const isMoto = info.category === 'motorcycle'
+  const isAutoOrCvt =
+    transmission.type === 'automatic' ||
+    transmission.type === 'cvt' ||
+    transmission.type === 'dct'
+
+  // Modos de condução suportados
+  let supportedDrivingModes: DrivingMode[] = transmission.supportedModes ?? []
+  if (vehicle.id === 'yaris-2019' || vehicle.id.includes('yaris')) {
+    // Yaris possui somente modo NORMAL de condução
+    supportedDrivingModes = ['normal']
+  } else if (!isAutoOrCvt && !isMoto) {
+    // Carros puramente manuais sem modos eletrônicos (Civic Si, Gol G6, Gol Quadrado, Opala)
+    supportedDrivingModes = []
+  }
+
+  const defaultDrivingMode: DrivingMode =
+    transmission.defaultDrivingMode ??
+    (supportedDrivingModes.includes('normal')
+      ? 'normal'
+      : (supportedDrivingModes[0] ?? 'normal'))
+
+  // Posições de seletor suportadas
+  let supportedSelectorPositions: SelectorPosition[] =
+    transmission.supportedSelectorPositions ?? (isAutoOrCvt ? ['P', 'R', 'N', 'D', 'M'] : ['N'])
+  if (!isAutoOrCvt) {
+    supportedSelectorPositions = ['N']
+  }
+
+  // Suporte a modo manual em automáticos/CVT
+  const supportsManualMode = Boolean(isAutoOrCvt && transmission.hasManualMode)
+
+  // Borboletas (Paddle Shifters)
+  const supportsPaddleShifters =
+    transmission.supportsPaddleShifters ??
+    (supportsManualMode && (vehicle.id.includes('golf-gti') || vehicle.id.includes('porsche-gt3')))
+
+  // Controles de troca manual
+  let manualShiftControls: ManualShiftControl[] = transmission.manualShiftControls ?? []
+  if (manualShiftControls.length === 0) {
+    if (isMoto) {
+      manualShiftControls = ['sequential_lever']
+    } else if (vehicle.id.includes('yaris')) {
+      manualShiftControls = ['gear_selector_gesture']
+    } else if (vehicle.id.includes('porsche-gt3')) {
+      manualShiftControls = ['paddle_shifters', 'gear_selector_gesture']
+    } else if (vehicle.id.includes('golf-gti')) {
+      manualShiftControls = ['paddle_shifters']
+    }
+  }
+
+  // Suporte a nitro (NOS): motos não possuem por padrão, carros suportam via oficina
+  const supportsNos = transmission.supportsNos ?? !isMoto
+
+  return {
+    supportedDrivingModes,
+    defaultDrivingMode,
+    transmissionType: transmission.type,
+    supportedSelectorPositions,
+    supportsManualMode,
+    manualShiftControls,
+    supportsPaddleShifters,
+    supportsNos,
+  }
 }
