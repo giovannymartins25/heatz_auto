@@ -3,6 +3,7 @@ import type { DashboardTelemetry } from '@/systems/dashboard'
 import { mapRange } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
+import { ClusterIndicatorIcon } from '@/components/gauges'
 
 interface ToyotaYarisRealClusterProps {
   telemetry: DashboardTelemetry
@@ -98,45 +99,26 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
         style={{ boxShadow: `0 0 20px ${ambientTheme.glowRgba}` }}
       />
 
-      {/* ── Faixa Superior: Luzes de Advertência e Farol ── */}
-      <div className="flex items-center justify-between w-full max-w-xl px-3 py-1 mb-1 rounded-xl bg-sky-950/20 border border-sky-500/10">
-        <div className="w-5 h-5 flex items-center justify-center text-emerald-400 font-bold text-sm">
+      {/* ── Faixa Superior: 6 Luzes-Espia Reais Toyota ── */}
+      <div className="flex items-center justify-between w-full max-w-xl px-3 py-0.5 mb-0.5 rounded-xl bg-sky-950/20 border border-sky-500/10">
+        <div className="w-5 h-4 flex items-center justify-center text-emerald-400 font-bold text-xs">
           ◀
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Farol Baixo / Lanterna Verde */}
-          <span className="text-emerald-400 text-xs" title="Luzes de Posição">
-            💡
-          </span>
-          {/* Cinto de Segurança */}
-          <span className="text-red-500 text-xs" title="Cinto de Segurança">
-            👤
-          </span>
-          {/* Freio de Mão */}
+          <ClusterIndicatorIcon kind="checkEngine" active={warningLights.checkEngine} sizeClass="w-3.5 h-3.5" />
+          <ClusterIndicatorIcon kind="oil" active={warningLights.oil} sizeClass="w-3.5 h-3.5" />
+          <ClusterIndicatorIcon kind="battery" active={warningLights.battery} sizeClass="w-3.5 h-3.5" />
           <span
-            className={`px-1 rounded text-[10px] font-mono font-bold transition-opacity duration-150 ${
+            className={`px-1 rounded text-[9.5px] font-mono font-bold transition-opacity duration-150 ${
               warningLights.brake ? 'bg-red-600 text-white opacity-100 shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'text-zinc-800 opacity-30'
             }`}
+            title="Freio"
           >
             (P)
           </span>
-          {/* TCS / VSC */}
-          <span
-            className={`text-xs transition-opacity duration-150 ${
-              warningLights.tcsFlash ? 'text-amber-400 animate-ping' : warningLights.tcs ? 'text-amber-400 opacity-100' : 'text-zinc-800 opacity-30'
-            }`}
-          >
-            🚗💨
-          </span>
-          {/* Check Engine */}
-          <span
-            className={`text-xs transition-opacity duration-150 ${
-              warningLights.checkEngine ? 'text-amber-400 opacity-100' : 'text-zinc-800 opacity-30'
-            }`}
-          >
-            ⚠️
-          </span>
+          <ClusterIndicatorIcon kind="tcs" active={warningLights.tcs} flashing={warningLights.tcsFlash} sizeClass="w-3.5 h-3.5" />
+          <ClusterIndicatorIcon kind="temp" active={warningLights.temp} sizeClass="w-3.5 h-3.5" />
           {shiftLight.isActive && (
             <span className="px-1.5 py-0.2 rounded bg-red-600 text-white text-[9px] font-mono font-black animate-pulse">
               REDLINE
@@ -144,7 +126,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
           )}
         </div>
 
-        <div className="w-5 h-5 flex items-center justify-center text-emerald-400 font-bold text-sm">
+        <div className="w-5 h-4 flex items-center justify-center text-emerald-400 font-bold text-xs">
           ▶
         </div>
       </div>
@@ -157,7 +139,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
         <div className="relative flex flex-col items-center">
           <svg
             viewBox={`0 0 ${size} ${size}`}
-            className="w-[230px] sm:w-[250px] drop-shadow-[0_10px_25px_rgba(0,0,0,0.8)]"
+            className="w-[242px] sm:w-[258px] drop-shadow-[0_10px_25px_rgba(0,0,0,0.8)]"
           >
             <defs>
               <radialGradient id="yarisTachBg" cx="50%" cy="50%" r="50%">
@@ -307,7 +289,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
         <div className="relative flex flex-col items-center">
           <svg
             viewBox={`0 0 ${size} ${size}`}
-            className="w-[250px] sm:w-[270px] drop-shadow-[0_12px_30px_rgba(0,0,0,0.9)]"
+            className="w-[258px] sm:w-[274px] drop-shadow-[0_12px_30px_rgba(0,0,0,0.9)]"
           >
             {/* Aro externo maior com moldura acetinada prateada */}
             <circle
@@ -554,10 +536,6 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
               <span className="font-bold text-sky-200">14.6 km/L</span>
             </div>
           </div>
-
-          <span className="text-[8px] font-mono tracking-widest text-sky-700 uppercase mt-1">
-            TOYOTA OPTITRON
-          </span>
         </div>
       </div>
     </div>

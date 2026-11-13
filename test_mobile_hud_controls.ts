@@ -89,8 +89,8 @@ runTest('Cockpits mobile possuem botão TCS interativo, voltar para garagem, - n
 
   for (const file of ['MobilePortraitCockpit.tsx', 'MobileLandscapeCockpit.tsx']) {
     const code = fs.readFileSync(path.join(__dirname, 'src/components/dashboard', file), 'utf-8')
-    assert.ok(code.includes('onClick={() => setTcsEnabled(!tcsEnabled)}'), `${file}: TCS deve ser botão interativo ao lado do 0-100`)
-    assert.ok(code.includes('onClick={onBack}'), `${file}: deve possuir botão direto onBack ao lado do botão ☰`)
+    assert.ok(code.includes('onClick={() => setTcsEnabled(!tcsEnabled)}'), `${file}: TCS deve ser botão interativo`)
+    assert.ok(code.includes('onExit={onBack}'), `${file}: deve navegar para garagem através do MobileQuickMenu (onExit={onBack})`)
     assert.ok(code.includes('showPaddles={false}'), `${file}: deve ocultar PADDLE [-]/[+] de GearShift`)
     assert.ok(code.includes('AutomaticShiftButton direction="down"'), `${file}: deve possuir botão - na esquerda`)
     assert.ok(code.includes('AutomaticShiftButton direction="up"'), `${file}: deve possuir botão + na direita`)

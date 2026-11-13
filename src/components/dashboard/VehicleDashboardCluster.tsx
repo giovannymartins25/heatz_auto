@@ -5,15 +5,15 @@ import { ClusterView } from './ClusterView'
 type ClusterProfile = { width: number; height: number }
 
 const CLUSTER_PROFILES: Record<DashboardTelemetry['theme'], ClusterProfile> = {
-  civic_si: { width: 640, height: 385 },
-  gti: { width: 750, height: 280 },
-  classic: { width: 700, height: 275 },
-  square_turbo: { width: 700, height: 290 },
-  supercar: { width: 750, height: 285 },
-  opala_classic: { width: 730, height: 265 },
-  modern: { width: 740, height: 280 },
-  motorcycle: { width: 490, height: 240 },
-  default: { width: 740, height: 280 },
+  civic_si: { width: 640, height: 335 },
+  gti: { width: 790, height: 260 },
+  classic: { width: 710, height: 265 },
+  square_turbo: { width: 700, height: 270 },
+  supercar: { width: 770, height: 268 },
+  opala_classic: { width: 730, height: 248 },
+  modern: { width: 750, height: 268 },
+  motorcycle: { width: 500, height: 228 },
+  default: { width: 750, height: 268 },
 }
 
 interface VehicleDashboardClusterProps {

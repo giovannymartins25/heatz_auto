@@ -51,6 +51,7 @@ interface GarageStoreActions {
 type GarageStore = GarageStoreState & GarageStoreActions
 
 const STORAGE_KEY = 'heatz_garage_v2'
+const POPS_DEFAULT_MIGRATION_KEY = 'heatz_pops_default_off_v1'
 
 export function createDefaultUpgrades(vehicleId: string): CarUpgrades {
   const isOriginallyTurbo =
@@ -79,7 +80,7 @@ export function createDefaultUpgrades(vehicleId: string): CarUpgrades {
     intakeType: 'stock',
     tires: 'street',
     tuningStage: 0,
-    exhaustValveOpen: true,
+    exhaustValveOpen: false,
     fuelType: defaultFuel,
     hasNosKit: false,
     paintColor: undefined,
@@ -169,8 +170,23 @@ function loadStoredState(): { ownedCars: GarageCarInstance[]; activeCarInstanceI
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed.ownedCars) && parsed.ownedCars.length > 0) {
+        let normalizedCars: GarageCarInstance[] = parsed.ownedCars.map(normalizeCar)
+        if (!localStorage.getItem(POPS_DEFAULT_MIGRATION_KEY)) {
+          normalizedCars = normalizedCars.map((car) => ({
+            ...car,
+            upgrades: { ...car.upgrades, exhaustValveOpen: false },
+          }))
+          localStorage.setItem(POPS_DEFAULT_MIGRATION_KEY, '1')
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+              ...parsed,
+              ownedCars: normalizedCars,
+            }),
+          )
+        }
         return {
-          ownedCars: parsed.ownedCars.map(normalizeCar),
+          ownedCars: normalizedCars,
           activeCarInstanceId: parsed.activeCarInstanceId || parsed.ownedCars[0].instanceId,
           credits: typeof parsed.credits === 'number' ? parsed.credits : 250000,
           sandboxMode: Boolean(parsed.sandboxMode),

@@ -94,12 +94,12 @@ export function useAudio(config: VehicleConfig | null) {
     synth.setTurboBoost(boostPressureBar)
     synth.setExhaustValve(exhaustValveOpen)
 
-    if (isRevLimiting) {
+    if (isRevLimiting && exhaustValveOpen) {
       synth.triggerBackfire()
       triggerBackfireFlame()
     }
 
-    if (isLaunchControlArmed) {
+    if (isLaunchControlArmed && exhaustValveOpen) {
       synth.triggerLaunchLimiter()
       if (Math.random() < 0.3) {
         triggerBackfireFlame()
@@ -126,7 +126,7 @@ export function useAudio(config: VehicleConfig | null) {
     if (!synth || !synth.isPlaying) return
 
     const prevGear = prevGearRef.current
-    if (currentGear > prevGear && prevGear > 0 && throttle > 0.4 && rpm > 3400) {
+    if (currentGear > prevGear && prevGear > 0 && throttle > 0.4 && rpm > 3400 && exhaustValveOpen) {
       synth.triggerShiftBrap()
       triggerBackfireFlame()
     }

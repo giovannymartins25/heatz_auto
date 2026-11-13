@@ -3,6 +3,8 @@ import type { DashboardTelemetry } from '@/systems/dashboard'
 import { mapRange, clamp } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
+import { ClusterIndicatorIcon } from '@/components/gauges'
+import { formatZeroToHundredSeconds } from '@/systems/vehicle'
 
 interface GolfGTIRealClusterProps {
   telemetry: DashboardTelemetry
@@ -44,7 +46,7 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
   const drivingMode = useSimulationStore((s) => s.drivingMode)
   const gearSelectorPosition = useSimulationStore((s) => s.gearSelectorPosition)
   const currentGear = useSimulationStore((s) => s.currentGear)
-  const current0to100 = useSimulationStore((s) => s.current0to100)
+  const last0to100 = useSimulationStore((s) => s.last0to100)
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.red
 
@@ -121,52 +123,30 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
       : (currentGear === 0 ? 'N' : currentGear === -1 ? 'R' : `M${currentGear}`)
 
   return (
-    <div className={`@container relative flex flex-col items-center w-full max-w-5xl p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-[#131418] via-[#0d0e12] to-[#060709] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
-      {/* ── Faixa Superior Iluminada com Luz Ambiente da Cabine ── */}
-      <div className={`w-full flex items-center justify-between px-3 pb-1 border-b ${ambientTheme.headerBorderClass} text-[9.5px] font-mono`}>
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: ambientTheme.hex }} />
-          <span className="font-black tracking-widest uppercase" style={{ color: ambientTheme.hex }}>GTI · PERFORMANCE</span>
-          <span className="text-zinc-500 font-bold hidden sm:inline">2.0 TSI EA888 · DSG DQ250</span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {warningLights.brake && (
-            <span className="px-1.5 py-0.2 rounded bg-red-600 text-white text-[8px] font-bold">
-              (P) FREIO
-            </span>
-          )}
-          {warningLights.checkEngine && <span className="text-amber-400 text-xs">⚠️</span>}
-          {telemetry.tcs.enabled && (
-            <span className="text-emerald-400 font-bold text-[8px]">ESP ON</span>
-          )}
-          <span className="text-zinc-400 font-bold">230 CV · 350 NM</span>
-        </div>
-      </div>
-
-      {/* ── Banner de Launch Control Ativo ── */}
+    <div className={`@container relative flex flex-col items-center w-full max-w-5xl p-1.5 rounded-2xl bg-gradient-to-b from-[#131418] via-[#0d0e12] to-[#060709] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
+      {/* ── Banner de Launch Control Ativo (somente quando armado/em largada) ── */}
       {isLaunchControlArmed && (
-        <div className="w-full max-w-lg my-1 px-3 py-1 rounded-lg bg-red-600/20 border border-red-500 text-red-300 text-center text-xs font-mono font-black animate-pulse flex items-center justify-center gap-2">
+        <div className="w-full max-w-lg mb-1 px-3 py-0.5 rounded-lg bg-red-600/20 border border-red-500 text-red-300 text-center text-[10px] font-mono font-black animate-pulse flex items-center justify-center gap-2">
           <span>🏁</span>
-          <span>LAUNCH CONTROL AKTIV · SEGURE O FREIO E ACELERE · SOLTE PARA LARGAR!</span>
+          <span>LAUNCH CONTROL AKTIV · SOLTE O FREIO PARA LARGAR!</span>
           <span>🏁</span>
         </div>
       )}
       {isLaunching && (
-        <div className="w-full max-w-lg my-1 px-3 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-center text-xs font-mono font-black flex items-center justify-center gap-2">
+        <div className="w-full max-w-lg mb-1 px-3 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-center text-[10px] font-mono font-black flex items-center justify-center gap-2">
           <span>🚀</span>
           <span>GTI DSG LAUNCH!</span>
           <span>🚀</span>
         </div>
       )}
 
-      {/* ── Conjunto de Instrumentos: Tacômetro + MFD Central + Velocímetro ── */}
-      <div className="flex items-center justify-center gap-2 sm:gap-4 w-full flex-wrap @[680px]:flex-nowrap mt-0.5">
+      {/* ── Conjunto de Instrumentos: Tacômetro + 3 Luzes + MFD Central + 3 Luzes + Velocímetro ── */}
+      <div className="flex items-center justify-center gap-1 sm:gap-2 w-full flex-wrap @[640px]:flex-nowrap">
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 1. MOSTRADOR ESQUERDO: TACÔMETRO GTI (0-80 x100/MIN) + ÁGUA         */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="relative flex flex-col items-center">
-          <svg viewBox={`0 0 ${dialSize} ${dialSize}`} className="w-[230px] sm:w-[250px]">
+          <svg viewBox={`0 0 ${dialSize} ${dialSize}`} className="w-[235px] sm:w-[248px]">
             <defs>
               <radialGradient id="gtiDialBg" cx="50%" cy="50%" r="50%">
                 <stop offset="70%" stopColor="#0b0c10" />
@@ -301,10 +281,17 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
           </svg>
         </div>
 
+        {/* ── 3 Luzes-Espia Reais à Esquerda da Tela Central ── */}
+        <div className="flex @[640px]:flex-col items-center justify-center gap-3 px-1 py-2 rounded-xl bg-black/55 border border-white/5">
+          <ClusterIndicatorIcon kind="checkEngine" active={warningLights.checkEngine} sizeClass="w-3.5 h-3.5" />
+          <ClusterIndicatorIcon kind="oil" active={warningLights.oil} sizeClass="w-3.5 h-3.5" />
+          <ClusterIndicatorIcon kind="battery" active={warningLights.battery} sizeClass="w-3.5 h-3.5" />
+        </div>
+
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 2. CENTRO: TELA MAXI-DOT / MFD COLORIDA COM TURBO BOOST GTI REAL    */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="flex flex-col items-center justify-between w-64 sm:w-72 h-[250px] p-3 rounded-2xl bg-black/95 border-2 border-zinc-700/60 shadow-[inset_0_2px_20px_rgba(0,0,0,0.9)]">
+        <div className="flex flex-col items-center justify-between w-56 sm:w-60 h-[242px] p-2.5 rounded-2xl bg-black/95 border-2 border-zinc-700/60 shadow-[inset_0_2px_20px_rgba(0,0,0,0.9)]">
           {/* Topo do MFD: Hora, Temp Externa e Rótulo GTI */}
           <div className="w-full flex justify-between items-center border-b border-white/10 pb-1 text-[9px] font-mono text-zinc-400">
             <span>12:45</span>
@@ -375,16 +362,23 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
           {/* Rodapé MFD: Temperatura do Óleo e Odômetro */}
           <div className="w-full flex justify-between items-center border-t border-white/10 pt-1 text-[8px] font-mono text-zinc-400">
             <span>ÖLTEMP: <strong className="text-white">92°C</strong></span>
-            <span className="text-zinc-500">TRIP 142.8 KM</span>
-            <span>0-100: <strong className="text-amber-400">{current0to100 ? `${current0to100.toFixed(2)}s` : '--'}</strong></span>
+            <span className="text-zinc-500">TRIP 142.8</span>
+            <span>0-100: <strong className="text-amber-400">{formatZeroToHundredSeconds(last0to100)}</strong></span>
           </div>
+        </div>
+
+        {/* ── 3 Luzes-Espia Reais à Direita da Tela Central ── */}
+        <div className="flex @[640px]:flex-col items-center justify-center gap-3 px-1 py-2 rounded-xl bg-black/55 border border-white/5">
+          <ClusterIndicatorIcon kind="brake" active={warningLights.brake} sizeClass="w-3.5 h-3.5" />
+          <ClusterIndicatorIcon kind="tcs" active={warningLights.tcs} flashing={warningLights.tcsFlash} sizeClass="w-3.5 h-3.5" />
+          <ClusterIndicatorIcon kind="temp" active={warningLights.temp} sizeClass="w-3.5 h-3.5" />
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 3. MOSTRADOR DIREITO: VELOCÍMETRO GTI (0-280 KM/H) + COMBUSTÍVEL    */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="relative flex flex-col items-center">
-          <svg viewBox={`0 0 ${dialSize} ${dialSize}`} className="w-[230px] sm:w-[250px]">
+          <svg viewBox={`0 0 ${dialSize} ${dialSize}`} className="w-[235px] sm:w-[248px]">
             {/* Aros cromados esportivos com iluminação ambiente sincronizada */}
             <circle cx={center} cy={center} r={radius + 18} fill="none" stroke="#4b5563" strokeWidth="3" />
             <circle cx={center} cy={center} r={radius + 15} fill="url(#gtiDialBg)" stroke={ambientTheme.hex} strokeWidth="2" strokeOpacity="0.75" />

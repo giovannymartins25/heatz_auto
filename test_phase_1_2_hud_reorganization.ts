@@ -83,9 +83,9 @@ runTest('MobileLandscapeCockpit possui proporções adaptativas para compact, ba
   )
   assert.ok(landscapeCode.includes("mapViewportSize === 'compact'"), 'Deve tratar modo compact')
   assert.ok(landscapeCode.includes("mapViewportSize === 'expanded'"), 'Deve tratar modo expanded')
-  assert.ok(landscapeCode.includes('h-[24%]'), 'compact deve ocupar ~24% de altura')
-  assert.ok(landscapeCode.includes('h-[36%]'), 'balanced deve ocupar ~36% de altura')
-  assert.ok(landscapeCode.includes('h-[50%]'), 'expanded deve ocupar ~50% de altura')
+  assert.ok(landscapeCode.includes('h-[30%]'), 'compact deve ocupar ~30% de altura')
+  assert.ok(landscapeCode.includes('h-[44%]'), 'balanced deve ocupar ~44% de altura')
+  assert.ok(landscapeCode.includes('h-[58%]'), 'expanded deve ocupar ~58% de altura')
 })
 
 // 4. Validar Hierarquia no MobilePortraitCockpit
@@ -113,9 +113,9 @@ runTest('MobilePortraitCockpit possui proporções adaptativas no HUD', () => {
   )
   assert.ok(portraitCode.includes("mapViewportSize === 'compact'"), 'Deve tratar modo compact no retrato')
   assert.ok(portraitCode.includes("mapViewportSize === 'expanded'"), 'Deve tratar modo expanded no retrato')
-  assert.ok(portraitCode.includes('h-[26%]'), 'compact deve ocupar ~26% no retrato')
-  assert.ok(portraitCode.includes('h-[36%]'), 'balanced deve ocupar ~36% no retrato')
-  assert.ok(portraitCode.includes('h-[48%]'), 'expanded deve ocupar ~48% no retrato')
+  assert.ok(portraitCode.includes('h-[30%]'), 'compact deve ocupar ~30% no retrato')
+  assert.ok(portraitCode.includes('h-[43%]'), 'balanced deve ocupar ~43% no retrato')
+  assert.ok(portraitCode.includes('h-[56%]'), 'expanded deve ocupar ~56% no retrato')
 })
 
 // 5. Validar Preservação dos 8 Clusters Originais
@@ -164,7 +164,10 @@ runTest('VehicleDashboardCluster possui perfis calibrados sem alturas fantasmas 
   assert.ok(!clusterCode.includes('height: 480'), 'Perfis não devem conter altura inflada de 480px')
   assert.ok(!clusterCode.includes('height: 460'), 'Perfis não devem conter altura inflada de 460px')
   assert.ok(!clusterCode.includes('height: 420'), 'Perfis não devem conter altura inflada de 420px')
-  assert.ok(clusterCode.includes('height: 280') || clusterCode.includes('height: 285'), 'Perfis devem refletir alturas reais dos instrumentos (~275-290px)')
+  assert.ok(
+    clusterCode.includes('height: 260') || clusterCode.includes('height: 268') || clusterCode.includes('height: 280'),
+    'Perfis devem refletir alturas reais dos instrumentos (~248-270px)',
+  )
   assert.ok(clusterCode.includes('maxScale = expanded ? 1.6 : 1.35'), 'maxScale deve permitir até 1.35x para preencher o cockpit')
 })
 

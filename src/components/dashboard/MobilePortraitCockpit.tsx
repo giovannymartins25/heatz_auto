@@ -7,12 +7,14 @@ import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { QuickClutchButton, MobileStartButton, DrivingModesSelector, AutomaticShiftButton } from '@/components/controls'
-import { WarningLights, AuxGauges } from '@/components/gauges'
+import { AuxGauges } from '@/components/gauges'
 import { VehicleDashboardCluster } from './VehicleDashboardCluster'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { useUIStore } from '@/stores/useUIStore'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { MobileQuickMenu } from './MobileQuickMenu'
+import { formatZeroToHundredSeconds } from '@/systems/vehicle'
+import { formatVehicleHeaderInfo } from '@/utils/vehicleSpecs'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
 import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
@@ -60,8 +62,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const setHorn = useSimulationStore((s) => s.setHorn)
   const toggleHandbrake = useSimulationStore((s) => s.toggleHandbrake)
   const handbrake = useSimulationStore((s) => s.handbrake)
-  const current0to100 = useSimulationStore((s) => s.current0to100)
-  const best0to100 = useSimulationStore((s) => s.best0to100)
+  const last0to100 = useSimulationStore((s) => s.last0to100)
+  const isTiming0to100 = useSimulationStore((s) => s.isTiming0to100)
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const isLaunching = useSimulationStore((s) => s.isLaunching)
   const tuningStage = useSimulationStore((s) => s.tuningStage)
@@ -88,6 +90,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const [portraitMode, setPortraitMode] = useState<'cluster' | 'multimedia' | 'hud' | 'legacy'>('hud')
   const mapViewportSize = useUIStore((s) => s.mapViewportSize)
   const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
+  const vehicleHeader = formatVehicleHeaderInfo(vehicle)
 
   const displaySpeed = Math.round(telemetry.speedometer.speed)
   const displayRpm = Math.round(telemetry.tachometer.rpm)
@@ -113,84 +116,99 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))',
       }}
     >
-      {/* ─── 1. Barra superior limpa ─── */}
-      <header className={`flex items-center gap-1.5 w-full pb-1.5 ${portraitMode === 'cluster' ? 'px-2' : ''}`}>
-        <button
-          type="button"
-          onClick={onBack}
-          className="h-10 px-2 flex-shrink-0 rounded-xl bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-zinc-200 text-[10px] font-mono font-black uppercase tracking-wide flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
-          aria-label="Voltar para a garagem"
-          title="Voltar para a garagem"
-        >
-          <span>←</span>
-          <span>Garagem</span>
-        </button>
+      {/* ─── 1. Cabeçalho superior unificado ─── */}
+      <header className={`flex items-start justify-between gap-2 w-full pb-1 ${portraitMode === 'cluster' ? 'px-2' : ''}`}>
+        <div className="flex items-center gap-2 min-w-0 flex-1 pt-0.5">
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen(true)}
+            className="relative w-10 h-10 flex-shrink-0 rounded-xl bg-zinc-900 border border-white/15 hover:bg-zinc-800 text-zinc-100 text-lg flex items-center justify-center active:scale-95 cursor-pointer"
+            aria-label="Abrir menu e garagem"
+            title="Menu e garagem (Esc)"
+          >
+            ☰
+            {tuningStage > 0 && (
+              <span className="absolute -top-1 -right-1 px-1 rounded bg-amber-500 text-black text-[7px] font-black font-mono">
+                S{tuningStage}
+              </span>
+            )}
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setIsMenuOpen(true)}
-          className="relative w-10 h-10 flex-shrink-0 rounded-xl bg-zinc-900 border border-white/10 text-zinc-200 text-lg flex items-center justify-center active:scale-95 cursor-pointer"
-          aria-label="Abrir menu"
-        >
-          ☰
-          {tuningStage > 0 && (
-            <span className="absolute -top-1 -right-1 px-1 rounded bg-amber-500 text-black text-[7px] font-black font-mono">
-              S{tuningStage}
+          <div className="min-w-0 flex-1 leading-tight">
+            <span className="block text-[13px] font-bold text-white tracking-tight truncate">
+              {vehicleHeader.title}
             </span>
-          )}
-        </button>
-
-        <div className="flex-1 min-w-0 leading-tight">
-          <span className="block text-[8px] font-mono text-zinc-500 uppercase tracking-widest truncate">
-            {vehicle.info.brand}
-          </span>
-          <span className="block text-[13px] font-bold text-white tracking-tight truncate">{vehicle.info.name}</span>
+            <span className="block text-[9px] font-mono text-zinc-400 tracking-wide truncate mt-0.5">
+              {vehicleHeader.specsSummary}
+            </span>
+          </div>
         </div>
 
-        {/* Alternador de visão */}
+        {/* Canto superior direito: Buzina + TCS circulares e 0–100 km/h imediatamente abaixo */}
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onPointerDown={() => setHorn(true)}
+              onPointerUp={() => setHorn(false)}
+              onPointerLeave={() => setHorn(false)}
+              onPointerCancel={() => setHorn(false)}
+              className="w-8 h-8 rounded-full bg-zinc-900 border border-white/15 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-sm transition-all active:scale-95 cursor-pointer"
+              title="Buzina (H)"
+              aria-label="Buzina"
+            >
+              📢
+            </button>
+
+            {vehicle.transmission.tcs?.enabled && (
+              <button
+                type="button"
+                onClick={() => setTcsEnabled(!tcsEnabled)}
+                aria-pressed={tcsEnabled}
+                title={tcsEnabled ? 'Desativar controle de tração (TCS)' : 'Ativar controle de tração (TCS)'}
+                className={`w-10 h-10 rounded-full border font-mono font-black leading-none flex flex-col items-center justify-center cursor-pointer transition-all active:scale-95 ${
+                  !tcsEnabled
+                    ? 'bg-zinc-900 text-zinc-500 border-zinc-700 opacity-75'
+                    : telemetry.tcs.intervening
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.45)] animate-pulse'
+                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/60'
+                }`}
+              >
+                <span className="text-[9px]">TCS</span>
+                <span className="text-[7px] opacity-85">{tcsEnabled ? 'ON' : 'OFF'}</span>
+              </button>
+            )}
+          </div>
+
+          <div
+            aria-label="Cronômetro 0 a 100 km/h"
+            className={`px-2 py-0.5 rounded-full bg-zinc-900/95 border text-[9px] font-mono leading-none flex items-center gap-1 whitespace-nowrap ${
+              isTiming0to100 ? 'border-amber-400/60 text-amber-300' : 'border-white/10 text-zinc-400'
+            }`}
+          >
+            <span>0–100 km/h</span>
+            <b className={last0to100 !== null ? 'text-amber-400 font-black' : 'text-zinc-500 font-bold'}>
+              {formatZeroToHundredSeconds(last0to100)}
+            </b>
+          </div>
+        </div>
+      </header>
+
+      {/* ─── 2. Barra secundária enxuta: Visão + Modo ─── */}
+      <div className={`flex items-center justify-between w-full gap-2 pb-1 border-b border-white/5 text-[9px] font-mono ${portraitMode === 'cluster' ? 'px-2' : ''}`}>
         <div className="flex items-center bg-zinc-900 p-0.5 rounded-xl border border-white/10 flex-shrink-0">
           {viewTabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setPortraitMode(tab.id)}
-              className={`h-8 px-2.5 text-[9px] font-mono font-black rounded-lg transition-all cursor-pointer ${
+              className={`h-7 px-2.5 text-[9px] font-mono font-black rounded-lg transition-all cursor-pointer ${
                 portraitMode === tab.id ? 'bg-white text-zinc-950 shadow' : 'text-zinc-500'
               }`}
             >
               {tab.label}
             </button>
           ))}
-        </div>
-      </header>
-
-      {/* ─── 2. Faixa de status ─── */}
-      <div className={`flex items-center justify-between w-full gap-2 pb-1 border-b border-white/5 text-[9px] font-mono ${portraitMode === 'cluster' ? 'px-2' : ''}`}>
-        <div className="flex items-center gap-1.5 min-w-0">
-          <WarningLights lights={telemetry.warningLights} />
-          <span className="px-2 py-0.5 rounded-full bg-zinc-900 border border-white/10 text-zinc-500 whitespace-nowrap">
-            0-100{' '}
-            <b className="text-amber-400">
-              {best0to100 ? `${best0to100.toFixed(2)}s` : current0to100 ? `${current0to100.toFixed(2)}s` : '--'}
-            </b>
-          </span>
-          {vehicle.transmission.tcs?.enabled && (
-            <button
-              type="button"
-              onClick={() => setTcsEnabled(!tcsEnabled)}
-              aria-pressed={tcsEnabled}
-              title={tcsEnabled ? 'Desativar controle de tração (TCS)' : 'Ativar controle de tração (TCS)'}
-              className={`px-2 py-0.5 rounded-full border font-black cursor-pointer transition-all active:scale-95 ${
-                !tcsEnabled
-                  ? 'bg-zinc-900 text-zinc-500 border-zinc-700 line-through opacity-75'
-                  : telemetry.tcs.intervening
-                  ? 'bg-amber-500/15 text-amber-300 border-amber-500 animate-pulse'
-                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/50'
-              }`}
-            >
-              TCS
-            </button>
-          )}
         </div>
 
         {supportedModes.length > 0 && (
@@ -239,10 +257,10 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             <div
               className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 ${
                 mapViewportSize === 'compact'
-                  ? 'h-[26%] flex-shrink-0'
+                  ? 'h-[30%] flex-shrink-0'
                   : mapViewportSize === 'expanded'
-                  ? 'h-[48%] flex-shrink-0'
-                  : 'h-[36%] flex-shrink-0'
+                  ? 'h-[56%] flex-shrink-0'
+                  : 'h-[43%] flex-shrink-0'
               }`}
             >
               <DrivingMapViewport
@@ -388,38 +406,24 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 
       {/* ─── 5. Zona dos polegares: botões laterais + pedais ─── */}
       <footer className={`w-full grid grid-cols-[68px_1fr_68px] sm:grid-cols-[80px_1fr_80px] items-end gap-2 ${portraitMode === 'cluster' ? 'px-2' : ''}`}>
-        {/* Coluna esquerda: Buzina · Freio de mão · START · (QuickClutch 100% à esquerda se manual) */}
+        {/* Coluna esquerda: Freio de mão · START · (QuickClutch 100% à esquerda se manual) */}
         <div className="flex flex-col gap-1.5">
           {hasClutch ? (
             <>
-              <div className="grid grid-cols-2 gap-1">
-                <button
-                  type="button"
-                  onPointerDown={() => setHorn(true)}
-                  onPointerUp={() => setHorn(false)}
-                  onPointerLeave={() => setHorn(false)}
-                  onPointerCancel={() => setHorn(false)}
-                  className="h-10 rounded-xl bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-base transition-all active:scale-95 cursor-pointer"
-                  title="Buzina"
-                  aria-label="Buzina"
-                >
-                  📢
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleHandbrake}
-                  className={`h-10 rounded-xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
-                    handbrake
-                      ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.7)]'
-                      : 'bg-zinc-900 text-zinc-400 border-white/10'
-                  }`}
-                  aria-label="Freio de mão"
-                >
-                  <span className="text-[11px]">(P)</span>
-                  <span className="text-[6.5px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
-                </button>
-              </div>
-              <MobileStartButton variant="square" className="h-11 w-full" />
+              <button
+                type="button"
+                onClick={toggleHandbrake}
+                className={`h-11 rounded-xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
+                  handbrake
+                    ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.7)]'
+                    : 'bg-zinc-900 text-zinc-400 border-white/10'
+                }`}
+                aria-label="Freio de mão"
+              >
+                <span className="text-[12px]">(P)</span>
+                <span className="text-[6.5px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
+              </button>
+              <MobileStartButton variant="square" className="h-12 w-full" />
               <QuickClutchButton
                 layout="stack"
                 className="h-15 w-full"
@@ -431,20 +435,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             <>
               <button
                 type="button"
-                onPointerDown={() => setHorn(true)}
-                onPointerUp={() => setHorn(false)}
-                onPointerLeave={() => setHorn(false)}
-                onPointerCancel={() => setHorn(false)}
-                className="h-11 rounded-2xl bg-zinc-900 border border-white/10 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-lg transition-all active:scale-95 cursor-pointer"
-                title="Buzina"
-                aria-label="Buzina"
-              >
-                📢
-              </button>
-              <button
-                type="button"
                 onClick={toggleHandbrake}
-                className={`h-11 rounded-2xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
+                className={`h-14 rounded-2xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer ${
                   handbrake
                     ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.7)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/10'

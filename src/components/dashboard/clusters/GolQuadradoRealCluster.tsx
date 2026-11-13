@@ -108,36 +108,20 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
       <div className="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-zinc-700 border border-zinc-900 shadow flex items-center justify-center text-[7px] text-zinc-950 font-black">+</div>
       <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-zinc-700 border border-zinc-900 shadow flex items-center justify-center text-[7px] text-zinc-950 font-black">+</div>
 
-      {/* Topo do Painel: Banner Satélite e 3-Step */}
-      <div className="relative z-10 w-full flex items-center justify-between mb-1 px-2.5 border-b border-zinc-800/80 pb-1">
-        <div className="flex items-center gap-2">
-          <div className="px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-[10px] font-black text-amber-400 tracking-wider">
-            VW AP 1.9 FORJADO
-          </div>
-          <span className="text-zinc-500 text-[10px] hidden sm:inline">TURBINA .50/.63</span>
+      {/* Alerta condicional de 3-Step / Launch Control (sem banner fixo de especificações) */}
+      {(isLaunchControlArmed || isLaunching) && (
+        <div className="relative z-10 w-full flex items-center justify-center mb-1">
+          {isLaunchControlArmed ? (
+            <div className="px-3 py-0.5 rounded bg-amber-500/20 border border-amber-400 text-amber-300 text-[10px] font-black tracking-widest animate-pulse">
+              ⚡ 3-STEP CORTE ATIVO
+            </div>
+          ) : (
+            <div className="px-3 py-0.5 rounded bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-[10px] font-black tracking-widest animate-bounce">
+              🚀 LARGADA FULL BOOST!
+            </div>
+          )}
         </div>
-
-        {/* Alerta de 3-Step / Launch Control */}
-        {isLaunchControlArmed ? (
-          <div className="px-3 py-0.5 rounded bg-amber-500/20 border border-amber-400 text-amber-300 text-[11px] font-black tracking-widest animate-pulse flex items-center gap-1.5 shadow-[0_0_15px_rgba(245,158,11,0.5)]">
-            <span>⚡ 3-STEP CORTE ATIVO [4.800 RPM]</span>
-          </div>
-        ) : isLaunching ? (
-          <div className="px-3 py-0.5 rounded bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-[11px] font-black tracking-widest animate-bounce flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.5)]">
-            <span>🚀 LARGADA FULL BOOST!</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-[10px] text-zinc-400">
-            <span>PICO TURBO:</span>
-            <span className="text-amber-400 font-black font-mono">+{peakBoostBar.toFixed(2)} BAR</span>
-          </div>
-        )}
-
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-zinc-500">CORTE:</span>
-          <span className="text-red-400 text-[10px] font-black">7.400 RPM</span>
-        </div>
-      </div>
+      )}
 
       {/* Conteúdo Principal do Painel */}
       <div className="relative z-10 flex flex-wrap @[640px]:flex-nowrap items-center justify-center gap-2 sm:gap-4 w-full">
@@ -145,7 +129,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
         {/* 1. VELOCÍMETRO CLÁSSICO RETRÔ VW (0-240 KM/H)                      */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="relative flex flex-col items-center">
-          <svg width={speedSize} height={speedSize} className="drop-shadow-[0_8px_20px_rgba(0,0,0,0.8)]">
+          <svg viewBox={`0 0 ${speedSize} ${speedSize}`} className="w-[234px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.8)]">
             {/* Aro externo preto acetinado */}
             <circle cx={speedCenter} cy={speedCenter} r={speedRadius + 18} fill="#14171d" stroke="#2a2e37" strokeWidth="4" />
             <circle cx={speedCenter} cy={speedCenter} r={speedRadius + 12} fill="#0d0e12" stroke="#1c1f26" strokeWidth="2" />
@@ -435,10 +419,13 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
                 <circle cx={boostCenter} cy={boostCenter} r="2.5" fill="#ef4444" />
               </g>
             </svg>
-            <div className="flex items-center gap-1 text-[11px] font-black font-mono">
+            <div className="flex items-center gap-1.5 text-[10px] font-black font-mono">
               <span className={boostPressureBar > 0 ? 'text-amber-400' : 'text-sky-400'}>
                 {boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : boostPressureBar.toFixed(2)} BAR
               </span>
+              {peakBoostBar > 0.05 && (
+                <span className="text-zinc-500 text-[9px]">PK +{peakBoostBar.toFixed(2)}</span>
+              )}
             </div>
           </div>
 
@@ -476,7 +463,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
       </div>
 
       {/* Luzes-Espia Retrô na Base */}
-      <div className="relative z-10 w-full flex items-center justify-center gap-3 sm:gap-6 mt-3 pt-2 border-t border-zinc-800/80">
+      <div className="relative z-10 w-full flex items-center justify-center gap-3 sm:gap-6 mt-1.5 pt-1 border-t border-zinc-800/80">
         <div className={`text-[10px] font-black ${warningLights.oil ? 'text-red-500 animate-pulse' : 'text-zinc-800'}`}>
           🛢️ ÓLEO
         </div>

@@ -84,35 +84,11 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
       {/* Moldura Clássica de Acabamento em Madeira Nobre Jacarandá */}
       <div className="w-full h-1.5 rounded-full bg-gradient-to-r from-amber-950 via-amber-900 to-amber-950 border-y border-amber-800/40 mb-1 shadow-inner" />
 
-      {/* Identificação do Modelo Clássico */}
-      <div className="flex items-center justify-between w-full px-4 mb-2 text-xs">
-        <div className="flex items-center gap-2">
-          <span className="font-serif italic text-amber-500 font-bold tracking-widest text-sm">
-            Diplomata SE
-          </span>
-          <span className="px-2 py-0.5 rounded bg-stone-800 text-stone-300 border border-white/10 text-[9px] font-bold">
-            4.1L 6 CILINDROS · 250-S
-          </span>
-        </div>
-
-        {hasNosKit && (
-          <span
-            className={`px-2 py-0.5 rounded-full text-[9px] font-bold border transition-all ${
-              nosActive
-                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.6)] animate-pulse'
-                : 'bg-stone-900 text-stone-400 border-white/10'
-            }`}
-          >
-            ⚡ NITRO NOS: {Math.round(nosPressurePercent)}%
-          </span>
-        )}
-      </div>
-
       {/* Painel Principal de Instrumentos */}
-      <div className="flex flex-col @[580px]:flex-row items-center justify-around w-full gap-2 p-1.5 rounded-xl bg-neutral-950/90 border border-neutral-800">
+      <div className="flex flex-col @[580px]:flex-row items-center justify-around w-full gap-2 p-1 rounded-xl bg-neutral-950/90 border border-neutral-800">
         {/* ─── 1. CONTA-GIROS CLÁSSICO 4.1L (ESQUERDA) ─── */}
         <div className="relative flex flex-col items-center">
-          <svg width={gaugeSize} height={gaugeSize} className="drop-shadow-lg">
+          <svg viewBox={`0 0 ${gaugeSize} ${gaugeSize}`} className="w-[236px] drop-shadow-lg">
             {/* Fundo do Mostrador */}
             <circle cx={center} cy={center} r={radius + 15} fill="#0a0a0c" stroke="#262626" strokeWidth={3} />
             <circle cx={center} cy={center} r={radius} fill="#141417" stroke="#1f1f23" strokeWidth={1.5} />
@@ -248,9 +224,9 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
           </div>
 
           {/* Luzes de Alerta Espia dos Anos 80/90 */}
-          <div className="flex items-center justify-center gap-2 pt-1 border-t border-stone-800/80 w-full">
+          <div className="flex items-center justify-center gap-1.5 flex-wrap pt-1 border-t border-stone-800/80 w-full">
             <span
-              className={`px-1.5 py-0.5 rounded text-[7.5px] font-bold uppercase border ${
+              className={`px-1.5 py-0.5 rounded text-[7px] font-bold uppercase border ${
                 warningLights.oil
                   ? 'bg-red-600 text-white border-red-500 animate-pulse'
                   : 'bg-stone-900 text-stone-600 border-stone-800'
@@ -259,7 +235,7 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
               ÓLEO
             </span>
             <span
-              className={`px-1.5 py-0.5 rounded text-[7.5px] font-bold uppercase border ${
+              className={`px-1.5 py-0.5 rounded text-[7px] font-bold uppercase border ${
                 warningLights.battery
                   ? 'bg-red-600 text-white border-red-500 animate-pulse'
                   : 'bg-stone-900 text-stone-600 border-stone-800'
@@ -268,7 +244,7 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
               BATERIA
             </span>
             <span
-              className={`px-1.5 py-0.5 rounded text-[7.5px] font-bold uppercase border ${
+              className={`px-1.5 py-0.5 rounded text-[7px] font-bold uppercase border ${
                 warningLights.brake
                   ? 'bg-red-600 text-white border-red-500 animate-pulse'
                   : 'bg-stone-900 text-stone-600 border-stone-800'
@@ -276,6 +252,35 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
             >
               FREIO
             </span>
+            <span
+              className={`px-1.5 py-0.5 rounded text-[7px] font-bold uppercase border ${
+                warningLights.temp
+                  ? 'bg-red-600 text-white border-red-500 animate-pulse'
+                  : 'bg-stone-900 text-stone-600 border-stone-800'
+              }`}
+            >
+              TEMP
+            </span>
+            <span
+              className={`px-1.5 py-0.5 rounded text-[7px] font-bold uppercase border ${
+                warningLights.checkEngine
+                  ? 'bg-amber-600 text-white border-amber-500 animate-pulse'
+                  : 'bg-stone-900 text-stone-600 border-stone-800'
+              }`}
+            >
+              MOTOR
+            </span>
+            {hasNosKit && (
+              <span
+                className={`px-1.5 py-0.5 rounded text-[7px] font-bold uppercase border ${
+                  nosActive
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400 animate-pulse'
+                    : 'bg-stone-900 text-cyan-500/80 border-stone-800'
+                }`}
+              >
+                NOS {Math.round(nosPressurePercent)}%
+              </span>
+            )}
             {isRevLimiting && (
               <span className="px-1.5 py-0.5 rounded text-[7.5px] font-black uppercase bg-amber-500 text-black animate-ping">
                 CORTE!
@@ -286,7 +291,7 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
 
         {/* ─── 3. VELOCÍMETRO CLÁSSICO ATÉ 220 KM/H (DIREITA) ─── */}
         <div className="relative flex flex-col items-center">
-          <svg width={gaugeSize} height={gaugeSize} className="drop-shadow-lg">
+          <svg viewBox={`0 0 ${gaugeSize} ${gaugeSize}`} className="w-[236px] drop-shadow-lg">
             {/* Fundo do Mostrador */}
             <circle cx={center} cy={center} r={radius + 15} fill="#0a0a0c" stroke="#262626" strokeWidth={3} />
             <circle cx={center} cy={center} r={radius} fill="#141417" stroke="#1f1f23" strokeWidth={1.5} />

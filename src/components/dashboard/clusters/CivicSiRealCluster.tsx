@@ -71,17 +71,11 @@ export const CivicSiRealCluster = memo(function CivicSiRealCluster({
   const fuelBlocks = Math.round(clamp(auxGauges.fuelPercent / 100, 0, 1) * 10)
 
   return (
-    <div className="relative flex flex-col items-center justify-center p-1.5 sm:p-2.5 rounded-2xl bg-[#090b0e] border-2 border-[#1f242d] shadow-[0_20px_60px_rgba(0,0,0,0.95)] font-mono select-none overflow-hidden max-w-4xl w-full">
+    <div className="relative flex flex-col items-center justify-center p-1.5 rounded-2xl bg-[#090b0e] border-2 border-[#1f242d] shadow-[0_20px_60px_rgba(0,0,0,0.95)] font-mono select-none overflow-hidden max-w-4xl w-full">
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* 1. ANDAR SUPERIOR (UPPER DECK): VELOCÍMETRO DIGITAL & VTEC LIGHTS   */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <div className="relative w-full max-w-2xl flex flex-col items-center p-2 rounded-xl bg-gradient-to-b from-[#10141b] to-[#08090d] border-2 border-red-950/70 shadow-[inset_0_2px_15px_rgba(0,0,0,0.9)] mb-1.5">
-        {/* Arco superior azul escuro / vermelho esportivo Si */}
-        <div className="w-full flex items-center justify-between px-3 sm:px-6 mb-1 text-[9px] font-bold text-zinc-500">
-          <span>MULTIPLEX UPPER DISPLAY</span>
-          <span className="text-red-500 font-black tracking-widest">CIVIC Si · K20Z3</span>
-        </div>
-
+      <div className="relative w-full max-w-2xl flex flex-col items-center px-2 py-1.5 rounded-xl bg-gradient-to-b from-[#10141b] to-[#08090d] border-2 border-red-950/70 shadow-[inset_0_2px_15px_rgba(0,0,0,0.9)] mb-1">
         <div className="w-full flex items-center justify-between px-2 sm:px-6 gap-2">
           {/* Marcador Digital de Temperatura em Blocos */}
           <div className="flex flex-col items-start gap-1 w-20">
@@ -177,10 +171,24 @@ export const CivicSiRealCluster = memo(function CivicSiRealCluster({
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* 2. ANDAR INFERIOR (LOWER DECK): TACÔMETRO ANALÓGICO CENTRAL HONDA SI */}
+      {/* 2. ANDAR INFERIOR (LOWER DECK): TACÔMETRO + LUZES-ESPIA DISTRIBUÍDAS */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <div className="relative flex flex-col items-center">
-        <svg width={tachSize} height={tachSize} className="drop-shadow-[0_12px_32px_rgba(0,0,0,0.95)]">
+      <div className="relative flex items-center justify-center gap-3 sm:gap-6 w-full">
+        {/* 3 Luzes-Espia à Esquerda */}
+        <div className="flex flex-col items-start gap-2.5 px-2 py-2 rounded-xl bg-black/50 border border-white/5">
+          <div className={`text-[10px] font-black ${warningLights.checkEngine ? 'text-amber-500 animate-pulse' : 'text-zinc-800'}`}>
+            ENGINE
+          </div>
+          <div className={`text-[10px] font-black ${warningLights.oil ? 'text-red-500 animate-pulse' : 'text-zinc-800'}`}>
+            OIL
+          </div>
+          <div className={`text-[10px] font-black ${warningLights.battery ? 'text-red-500 animate-pulse' : 'text-zinc-800'}`}>
+            BATTERY
+          </div>
+        </div>
+
+        <div className="relative flex flex-col items-center">
+          <svg width={tachSize} height={tachSize} className="drop-shadow-[0_12px_32px_rgba(0,0,0,0.95)]">
           {/* Aro Externo Alumínio Escovado */}
           <circle cx={tachCenter} cy={tachCenter} r={tachRadius + 22} fill="#141820" stroke="#2e3544" strokeWidth="4" />
           <circle cx={tachCenter} cy={tachCenter} r={tachRadius + 16} fill="#0b0e13" stroke="#1c202a" strokeWidth="2" />
@@ -279,37 +287,29 @@ export const CivicSiRealCluster = memo(function CivicSiRealCluster({
           </g>
         </svg>
 
-        {/* Display Central da Marcha Atual */}
-        <div className="flex items-center gap-2 mt-1">
-          <span className="text-[10px] text-zinc-500 font-bold">CÂMBIO 6M:</span>
-          <div className="px-3 py-0.5 rounded bg-red-950/60 border border-red-700/80 font-black text-red-400 text-sm shadow">
-            {gear.label}
+          {/* Display Central da Marcha Atual */}
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[10px] text-zinc-500 font-bold">CÂMBIO 6M:</span>
+            <div className="px-3 py-0.5 rounded bg-red-950/60 border border-red-700/80 font-black text-red-400 text-sm shadow">
+              {gear.label}
+            </div>
+            <span className="text-[10px] text-zinc-400 font-bold">
+              {Math.round(rpm)} <span className="text-[8px] text-zinc-500">RPM</span>
+            </span>
           </div>
-          <span className="text-[10px] text-zinc-400 font-bold">
-            {Math.round(rpm)} <span className="text-[8px] text-zinc-500">RPM</span>
-          </span>
         </div>
-      </div>
 
-      {/* Luzes-Espia do Civic Si na Base */}
-      <div className="relative z-10 w-full flex items-center justify-center gap-3 sm:gap-6 mt-1.5 pt-1 border-t border-zinc-800/80">
-        <div className={`text-[10px] font-black ${warningLights.checkEngine ? 'text-amber-500 animate-pulse' : 'text-zinc-800'}`}>
-          ENGINE
-        </div>
-        <div className={`text-[10px] font-black ${warningLights.oil ? 'text-red-500 animate-pulse' : 'text-zinc-800'}`}>
-          OIL
-        </div>
-        <div className={`text-[10px] font-black ${warningLights.battery ? 'text-red-500 animate-pulse' : 'text-zinc-800'}`}>
-          BATTERY
-        </div>
-        <div className={`text-[10px] font-black ${warningLights.brake ? 'text-red-500' : 'text-zinc-800'}`}>
-          BRAKE (!)
-        </div>
-        <div className={`text-[10px] font-black ${warningLights.tcs ? 'text-amber-400' : 'text-zinc-800'}`}>
-          VSA
-        </div>
-        <div className={`text-[10px] font-black ${warningLights.temp ? 'text-red-500 animate-pulse' : 'text-zinc-800'}`}>
-          TEMP (!)
+        {/* 3 Luzes-Espia à Direita */}
+        <div className="flex flex-col items-end gap-2.5 px-2 py-2 rounded-xl bg-black/50 border border-white/5">
+          <div className={`text-[10px] font-black ${warningLights.brake ? 'text-red-500' : 'text-zinc-800'}`}>
+            BRAKE (!)
+          </div>
+          <div className={`text-[10px] font-black ${warningLights.tcs ? 'text-amber-400' : 'text-zinc-800'}`}>
+            VSA
+          </div>
+          <div className={`text-[10px] font-black ${warningLights.temp ? 'text-red-500 animate-pulse' : 'text-zinc-800'}`}>
+            TEMP (!)
+          </div>
         </div>
       </div>
     </div>

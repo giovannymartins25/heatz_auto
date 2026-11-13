@@ -34,7 +34,7 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
   return (
     <section
       aria-label="Mapa de condução central"
-      className={`relative isolate w-full h-full max-w-xl sm:max-w-2xl mx-auto overflow-hidden rounded-2xl border border-sky-500/25 bg-[#06090f] shadow-[0_4px_25px_rgba(0,0,0,0.85),inset_0_0_20px_rgba(15,23,42,0.9)] transition-all duration-200 select-none ${className}`}
+      className={`relative isolate flex flex-col w-full h-full max-w-xl sm:max-w-2xl mx-auto overflow-hidden rounded-2xl border border-sky-500/25 bg-[#06090f] shadow-[0_4px_25px_rgba(0,0,0,0.85),inset_0_0_20px_rgba(15,23,42,0.9)] transition-all duration-200 select-none ${className}`}
     >
       {/* ── 1. Grid e Mapa Vetorial 2D (Ruas Cinzas, Quarteirões Escuros) ── */}
       <svg

@@ -41,18 +41,11 @@ export const HondaCB1000RRealCluster = memo(function HondaCB1000RRealCluster({
   const fuelSegments = Math.round((auxGauges.fuelPercent / 100) * 6)
 
   return (
-    <div className="relative flex flex-col items-center w-full max-w-2xl p-2 sm:p-3 rounded-2xl bg-zinc-950 border-2 border-zinc-800 shadow-[0_20px_50px_rgba(0,0,0,0.9)] select-none">
-      {/* ── Borda Superior: Faixa de Shift Lights de LED da CB1000R ── */}
-      <div className="flex items-center justify-between w-full px-2 mb-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-mono font-bold tracking-widest text-zinc-500 uppercase">
-            HONDA TFT 5"
-          </span>
-          <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
-        </div>
-
+    <div className="relative flex flex-col items-center w-full max-w-2xl p-1.5 sm:p-2 rounded-2xl bg-zinc-950 border-2 border-zinc-800 shadow-[0_20px_50px_rgba(0,0,0,0.9)] select-none">
+      {/* ── Borda Superior: Shift Lights de LED + Luzes-Espia da Moto ── */}
+      <div className="flex items-center justify-between gap-2 w-full px-1.5 mb-1">
         {/* Barra de LEDs de Shift Light */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-1">
           {[...Array(8)].map((_, i) => {
             const step = 8500 + i * 400
             const active = clampedRpm >= step
@@ -60,7 +53,7 @@ export const HondaCB1000RRealCluster = memo(function HondaCB1000RRealCluster({
             return (
               <div
                 key={i}
-                className={`w-3 h-2 rounded-xs transition-all ${
+                className={`flex-1 h-2 rounded-xs transition-all ${
                   shiftLight.isBlinking
                     ? 'bg-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.9)] animate-pulse'
                     : active
@@ -74,9 +67,8 @@ export const HondaCB1000RRealCluster = memo(function HondaCB1000RRealCluster({
           })}
         </div>
 
-        {/* Luzes de Alerta de Moto: Neutro [N], ABS, Check Engine */}
-        <div className="flex items-center gap-2">
-          {/* Neutro [N] */}
+        {/* Luzes de Alerta de Moto: Neutro [N], ABS, Injeção, Óleo, Bateria, Temp */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <span
             className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black transition-all ${
               gear.isNeutral
@@ -86,7 +78,6 @@ export const HondaCB1000RRealCluster = memo(function HondaCB1000RRealCluster({
           >
             N
           </span>
-          {/* ABS */}
           <span
             className={`text-[9px] font-mono font-bold px-1 rounded ${
               warningLights.brake ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'text-zinc-800 opacity-30'
@@ -94,13 +85,33 @@ export const HondaCB1000RRealCluster = memo(function HondaCB1000RRealCluster({
           >
             ABS
           </span>
-          {/* MIL / Injeção */}
           <span
-            className={`text-xs ${
-              warningLights.checkEngine ? 'text-amber-400 opacity-100' : 'text-zinc-800 opacity-30'
+            className={`text-[9px] font-mono font-black px-1 rounded ${
+              warningLights.checkEngine ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'text-zinc-800 opacity-30'
             }`}
           >
-            ⚠️
+            FI
+          </span>
+          <span
+            className={`text-[9px] font-mono font-black px-1 rounded ${
+              warningLights.oil ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'text-zinc-800 opacity-30'
+            }`}
+          >
+            OIL
+          </span>
+          <span
+            className={`text-[9px] font-mono font-black px-1 rounded ${
+              warningLights.battery ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'text-zinc-800 opacity-30'
+            }`}
+          >
+            BAT
+          </span>
+          <span
+            className={`text-[9px] font-mono font-black px-1 rounded ${
+              warningLights.temp ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'text-zinc-800 opacity-30'
+            }`}
+          >
+            HI°
           </span>
         </div>
       </div>

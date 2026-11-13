@@ -6,7 +6,7 @@ import { Transmission, AutomaticTransmission } from '@/systems/transmission'
 import { ClutchSystem } from '@/systems/clutch'
 import { VehiclePhysics } from '@/systems/physics'
 import { TractionControlSystem } from '@/systems/tcs'
-import { PedalInputSystem } from '@/systems/vehicle'
+import { PedalInputSystem, createInitialZeroToHundredState, stepZeroToHundredTimer, type ZeroToHundredState } from '@/systems/vehicle'
 import { PHYSICS_TIMESTEP, MAX_SUBSTEPS } from '@/systems/engine/constants'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 import { clamp } from '@/utils/math'
@@ -208,10 +208,11 @@ interface SimulationState {
 
   // Cronômetro 0-100 & Records
   best0to100: number | null
+  last0to100: number | null
   current0to100: number | null
   isTiming0to100: boolean
   topSpeedRecord: number
-  _timer0to100Start: number | null
+  _timer0to100State: ZeroToHundredState
 
   // Sistema de Combustível
   fuelLevelLiters: number
@@ -316,7 +317,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isLaunching: false,
   boostPressureBar: 0,
   peakBoostBar: 0,
-  exhaustValveOpen: true,
+  exhaustValveOpen: false,
   isBackfireFlashing: false,
   tuningStage: 0,
   headlightsMode: 'low',
@@ -324,10 +325,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isWiperActive: false,
   steeringAngle: 0,
   best0to100: null,
+  last0to100: null,
   current0to100: null,
   isTiming0to100: false,
   topSpeedRecord: 0,
-  _timer0to100Start: null,
+  _timer0to100State: createInitialZeroToHundredState(),
 
   // Sistema de Combustível
   fuelLevelLiters: 45,
@@ -471,7 +473,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isLaunching: false,
       boostPressureBar: 0,
       peakBoostBar: 0,
-      exhaustValveOpen: initialUpgrades?.exhaustValveOpen ?? true,
+      exhaustValveOpen: initialUpgrades?.exhaustValveOpen ?? false,
+      best0to100: null,
+      last0to100: null,
+      current0to100: null,
+      isTiming0to100: false,
+      topSpeedRecord: 0,
+      _timer0to100State: createInitialZeroToHundredState(),
       isBackfireFlashing: false,
       tuningStage: initialUpgrades?.tuningStage ?? 0,
       headlightsMode: 'low',
@@ -675,12 +683,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   toggleExhaustValve: () => {
     const next = !get().exhaustValveOpen
+    const instanceId = get().garageInstanceId
     set({ exhaustValveOpen: next })
+    if (instanceId) {
+      useGarageStore.getState().installUpgrade(instanceId, { exhaustValveOpen: next })
+    }
     HapticFeedback.light()
   },
 
   setExhaustValve: (open: boolean) => {
+    const instanceId = get().garageInstanceId
     set({ exhaustValveOpen: open })
+    if (instanceId) {
+      useGarageStore.getState().installUpgrade(instanceId, { exhaustValveOpen: open })
+    }
   },
 
   triggerBackfireFlame: () => {
@@ -1261,12 +1277,14 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   resetPerformanceStats: () => {
+    const stopped = get().speed <= 0.3
     set({
       best0to100: null,
+      last0to100: null,
       current0to100: null,
       isTiming0to100: false,
       topSpeedRecord: 0,
-      _timer0to100Start: null,
+      _timer0to100State: createInitialZeroToHundredState({ armed: stopped }),
     })
   },
 
@@ -1323,6 +1341,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     let latestClutchTorqueTransfer = state.clutchTorqueTransfer
     let latestClutchHeat = state.clutchHeat
     let latestIsClutchSlipping = state.isClutchSlipping
+    let timer0to100State = state._timer0to100State
     let substeps = 0
 
     // ─── Launch Control Lógica de Armação / Disparo ───
@@ -1502,9 +1521,26 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         deltaTime: dt,
       })
 
+      const prevSubstepSpeed = latestSpeed
       latestSpeed = gear === -2 ? 0 : physicsTick.speedKmh
       if (gear === -2) {
         _physics.reset()
+      }
+
+      const timerStep = stepZeroToHundredTimer(timer0to100State, {
+        prevSpeedKmh: prevSubstepSpeed,
+        speedKmh: latestSpeed,
+        gear,
+        throttle: state.throttle,
+        brake: state.brake,
+        handbrake: state.handbrake,
+        isRunning: latestIsRunning,
+        deltaTime: dt,
+      })
+      timer0to100State = timerStep.state
+      if (timerStep.isNewBest) {
+        // Premiação de R$ 2.500 por bater novo recorde pessoal de 0 a 100 km/h
+        useGarageStore.getState().addCredits(2500)
       }
 
       // 6. TractionControlSystem: atua após a física, prepara multiplicador para o próximo frame
@@ -1612,38 +1648,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       peakBoost = 0
     }
 
-    // ─── Tracking 0-100 km/h e Top Speed (Rollout Dragy Style) ───
-    let timerStart = state._timer0to100Start
-    let isTiming = state.isTiming0to100
-    let bestTime = state.best0to100
-    let currentTime = state.current0to100
+    // ─── Recorde Top Speed ───
     const topSpeed = Math.max(state.topSpeedRecord, Math.round(latestSpeed))
-
-    // Disparo estrito de 0-100:
-    // 1. Motor ligado
-    // 2. Marcha à frente engatada (gear > 0) — NUNCA no Neutro ou Ré
-    // 3. Freio solto (brake < 0.3) e freio de mão solto
-    // 4. Rollout / Largada real: velocidade cruzando 0.8 km/h com acelerador > 0.15
-    if (!isTiming && latestIsRunning && latestGear > 0 && !state.handbrake && state.brake < 0.3) {
-      if (latestSpeed >= 0.8 && latestSpeed < 5 && state.throttle > 0.15) {
-        timerStart = performance.now()
-        isTiming = true
-        currentTime = 0
-      }
-    } else if (isTiming && timerStart) {
-      const elapsed = (performance.now() - timerStart) / 1000
-      currentTime = Math.round(elapsed * 100) / 100
-      if (latestSpeed >= 100) {
-        isTiming = false
-        if (!bestTime || currentTime < bestTime) {
-          bestTime = currentTime
-          // Premiação de R$ 2.500 por bater novo recorde pessoal de 0 a 100 km/h
-          useGarageStore.getState().addCredits(2500)
-        }
-      } else if (latestGear === 0 || (latestSpeed < 1 && state.throttle < 0.05)) {
-        isTiming = false
-      }
-    }
 
     // ─── 1. Térmica dos Freios, Brilho Incandescente & Brake Fade ───
     let latestBrakeDiscTemp = state.brakeDiscTemp
@@ -1853,11 +1859,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       clutchTorqueTransfer: latestClutchTorqueTransfer,
       clutchHeat: latestClutchHeat,
       isClutchSlipping: latestIsClutchSlipping,
-      best0to100: bestTime,
-      current0to100: currentTime,
-      isTiming0to100: isTiming,
+      best0to100: timer0to100State.bestCompleted,
+      last0to100: timer0to100State.lastCompleted,
+      current0to100: timer0to100State.currentDisplay,
+      isTiming0to100: timer0to100State.isTiming,
       topSpeedRecord: topSpeed,
-      _timer0to100Start: timerStart,
+      _timer0to100State: timer0to100State,
       _accumulator: accumulator,
 
       // Novos Estados de Realismo
@@ -1901,6 +1908,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       hasBoostGaugeKit: false,
       garageInstanceId: null,
       exhaustType: 'stock',
+      exhaustValveOpen: false,
       intakeType: 'stock',
       tires: 'street',
       isAeroWingExtended: false,
@@ -1930,8 +1938,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       boostPressureBar: 0,
       peakBoostBar: 0,
       isTiming0to100: false,
+      last0to100: null,
       current0to100: null,
-      _timer0to100Start: null,
+      _timer0to100State: createInitialZeroToHundredState(),
       fuelLevelLiters: 45,
       isOutOfFuel: false,
       coolantTemp: 88,

@@ -80,7 +80,7 @@ export class SynthEngine implements IAudioEngine {
   private lastBurbleTime = 0
   private starterOsc: OscillatorNode | null = null
   private starterGain: GainNode | null = null
-  private exhaustValveOpen = true
+  private exhaustValveOpen = false
   private windowsOpen = false
   private cabinFilter: BiquadFilterNode | null = null
   private burnoutGain: GainNode | null = null
@@ -602,11 +602,13 @@ export class SynthEngine implements IAudioEngine {
     this.masterGain.gain.setValueAtTime(this.config.gainMax * (this.exhaustValveOpen ? 1.55 : 1.1), now + 0.042)
     this.masterGain.gain.setTargetAtTime(this.config.gainMax, now + 0.08, 0.03)
 
-    // 2. Estampido duplo característico de DSG (grave + estalo de corte)
-    this.createTransientPop(popIntensity, 380)
-    setTimeout(() => {
-      if (this._isPlaying) this.createTransientPop(popIntensity * 0.7, 620)
-    }, 25)
+    // 2. Estampido duplo característico de DSG apenas quando Pops & Bangs / Difusor está aberto
+    if (this.exhaustValveOpen) {
+      this.createTransientPop(popIntensity, 380)
+      setTimeout(() => {
+        if (this._isPlaying && this.exhaustValveOpen) this.createTransientPop(popIntensity * 0.7, 620)
+      }, 25)
+    }
   }
 
   /**
@@ -632,7 +634,7 @@ export class SynthEngine implements IAudioEngine {
    * Borbulhas e estalos na desaceleração (Overrun Crackles / Pops & Bangs).
    */
   triggerDecelBurble(): void {
-    if (!this.context || !this._isPlaying) return
+    if (!this.context || !this._isPlaying || !this.exhaustValveOpen) return
     const now = this.context.currentTime
     const minInterval = this.exhaustValveOpen ? 0.06 : 0.12
     if (now - this.lastBurbleTime < minInterval) return

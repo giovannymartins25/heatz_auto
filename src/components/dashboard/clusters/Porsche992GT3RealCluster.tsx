@@ -3,6 +3,7 @@ import type { DashboardTelemetry } from '@/systems/dashboard'
 import { mapRange, clamp } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
+import { ClusterIndicatorIcon } from '@/components/gauges'
 
 interface Porsche992GT3RealClusterProps {
   telemetry: DashboardTelemetry
@@ -107,27 +108,17 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
   const gForceY = Math.min(1.4, Math.max(-1.4, (speedometer.speed > 5 ? 0.6 : 0) * (tachometer.rpm > 5000 ? 1 : 0.4)))
 
   return (
-    <div className={`@container relative flex flex-col items-center w-full max-w-6xl p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-[#0a0b0e] via-zinc-950 to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
-      {/* ── Régua Superior de Shift Lights F1 / GT3 RS Duplos Convergentes ── */}
-      <div className="flex flex-col items-center w-full max-w-xl mb-1">
-        <div className="flex items-center justify-between w-full px-2 mb-1 text-[10px] font-mono">
-          <span className="font-black tracking-widest flex items-center gap-1.5 uppercase" style={{ color: ambientTheme.hex }}>
-            <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: ambientTheme.hex }} />
-            992 GT3 RS · CLUSTER DIGITAL
-          </span>
-          <div className="flex items-center gap-2">
-            {warningLights.brake && (
-              <span className="px-1.5 py-0.2 rounded bg-red-600 text-white text-[8px] font-bold">
-                (P)
-              </span>
-            )}
-            {warningLights.checkEngine && <span className="text-amber-400 text-xs">⚠️</span>}
-            <span className="text-zinc-500 font-bold">9.000 RPM REDLINE</span>
-          </div>
+    <div className={`@container relative flex flex-col items-center w-full max-w-6xl p-1.5 rounded-2xl bg-gradient-to-b from-[#0a0b0e] via-zinc-950 to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
+      {/* ── Régua Superior Compacta: 3 Luzes-Espia · 16 LEDs F1 · 3 Luzes-Espia ── */}
+      <div className="flex items-center justify-between gap-2 w-full max-w-2xl mb-1">
+        <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-zinc-900/90 border border-white/10">
+          <ClusterIndicatorIcon kind="checkEngine" active={warningLights.checkEngine} sizeClass="w-3.5 h-3.5" />
+          <ClusterIndicatorIcon kind="oil" active={warningLights.oil} sizeClass="w-3.5 h-3.5" />
+          <ClusterIndicatorIcon kind="battery" active={warningLights.battery} sizeClass="w-3.5 h-3.5" />
         </div>
 
         {/* Barra convergente de 16 LEDs de giro */}
-        <div className="flex items-center justify-center gap-1.5 w-full py-1 bg-zinc-900/90 rounded-full border border-white/10 px-3">
+        <div className="flex items-center justify-center gap-1.5 flex-1 py-1 bg-zinc-900/90 rounded-full border border-white/10 px-2.5">
           {[...Array(16)].map((_, idx) => {
             const distanceFromCenter = Math.abs(idx - 7.5)
             const triggerRatio = (7.5 - distanceFromCenter) / 7.5
@@ -154,6 +145,12 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
             )
           })}
         </div>
+
+        <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-zinc-900/90 border border-white/10">
+          <ClusterIndicatorIcon kind="brake" active={warningLights.brake} sizeClass="w-3.5 h-3.5" />
+          <ClusterIndicatorIcon kind="tcs" active={warningLights.tcs} flashing={warningLights.tcsFlash} sizeClass="w-3.5 h-3.5" />
+          <ClusterIndicatorIcon kind="temp" active={warningLights.temp} sizeClass="w-3.5 h-3.5" />
+        </div>
       </div>
 
       {/* ── Banner de Launch Control Ativo ── */}
@@ -178,7 +175,7 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
         {/* 1. MOSTRADOR ESQUERDO: VELOCÍMETRO ANALÓGICO PORSCHE (0-350 KM/H)  */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="relative flex flex-col items-center">
-          <svg viewBox={`0 0 ${size} ${size}`} className="w-[230px] sm:w-[250px]">
+          <svg viewBox={`0 0 ${size} ${size}`} className="w-[242px] sm:w-[254px]">
             <defs>
               <radialGradient id="porscheSpeedBg" cx="50%" cy="50%" r="50%">
                 <stop offset="65%" stopColor="#090a0d" />

@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { mapRange } from '@/utils/math'
+import { ClusterIndicatorIcon } from '@/components/gauges'
 
 interface GolG6RealClusterProps {
   telemetry: DashboardTelemetry
@@ -86,51 +87,24 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
       <div className="absolute inset-x-8 top-0 h-1.5 bg-gradient-to-r from-transparent via-zinc-700/60 to-transparent rounded-t-full" />
 
       {/* ── Fileira Superior: Luzes-Espia Originais VW ── */}
-      <div className="flex items-center justify-between w-full max-w-xl px-3 py-1 mb-1 rounded-xl bg-zinc-950/80 border border-white/5">
-        {/* Seta Esquerda */}
-        <div className="w-5 h-5 flex items-center justify-center text-emerald-500 font-bold text-sm">
+      <div className="flex items-center justify-between w-full max-w-xl px-3 py-0.5 mb-0.5 rounded-xl bg-zinc-950/80 border border-white/5">
+        <div className="w-5 h-4 flex items-center justify-center text-emerald-500 font-bold text-xs">
           ◀
         </div>
 
-        {/* Indicadores centrais de alerta */}
+        {/* 6 Indicadores reais VW */}
         <div className="flex items-center gap-3">
-          {/* Bateria */}
+          <ClusterIndicatorIcon kind="battery" active={warningLights.battery} sizeClass="w-3.5 h-3.5" />
+          <ClusterIndicatorIcon kind="oil" active={warningLights.oil} sizeClass="w-3.5 h-3.5" />
           <span
-            className={`text-xs transition-opacity duration-150 ${
-              warningLights.battery ? 'text-red-500 opacity-100' : 'text-zinc-800 opacity-30'
-            }`}
-            title="Bateria"
-          >
-            🔋
-          </span>
-          {/* Pressão de Óleo */}
-          <span
-            className={`text-xs transition-opacity duration-150 ${
-              warningLights.oil ? 'text-red-500 opacity-100' : 'text-zinc-800 opacity-30'
-            }`}
-            title="Pressão de Óleo"
-          >
-            🛢️
-          </span>
-          {/* Freio de Mão */}
-          <span
-            className={`px-1 rounded text-[10px] font-mono font-bold transition-opacity duration-150 ${
+            className={`px-1 rounded text-[9.5px] font-mono font-bold transition-opacity duration-150 ${
               warningLights.brake ? 'bg-red-600 text-white opacity-100 shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'text-zinc-800 opacity-30'
             }`}
             title="Freio de Mão"
           >
             (P)
           </span>
-          {/* Check Engine (Injeção Eletrônica) */}
-          <span
-            className={`text-xs transition-opacity duration-150 ${
-              warningLights.checkEngine ? 'text-amber-400 opacity-100' : 'text-zinc-800 opacity-30'
-            }`}
-            title="Injeção Eletrônica"
-          >
-            ⚠️
-          </span>
-          {/* EPC — Eletronic Power Control (Clássico VW) */}
+          <ClusterIndicatorIcon kind="checkEngine" active={warningLights.checkEngine} sizeClass="w-3.5 h-3.5" />
           <span
             className={`text-[9px] font-mono font-black tracking-tighter px-1 rounded transition-opacity duration-150 ${
               warningLights.checkEngine || engine.status === 'STARTING'
@@ -141,7 +115,7 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
           >
             EPC
           </span>
-          {/* Shift Light / Corte */}
+          <ClusterIndicatorIcon kind="temp" active={warningLights.temp} sizeClass="w-3.5 h-3.5" />
           {shiftLight.isActive && (
             <span className="px-1.5 py-0.2 rounded bg-red-600 text-white text-[9px] font-mono font-black animate-pulse">
               SHIFT
@@ -149,8 +123,7 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
           )}
         </div>
 
-        {/* Seta Direita */}
-        <div className="w-5 h-5 flex items-center justify-center text-emerald-500 font-bold text-sm">
+        <div className="w-5 h-4 flex items-center justify-center text-emerald-500 font-bold text-xs">
           ▶
         </div>
       </div>
@@ -163,7 +136,7 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
         <div className="relative flex flex-col items-center">
           <svg
             viewBox={`0 0 ${size} ${size}`}
-            className="w-[240px] sm:w-[260px] drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
+            className="w-[248px] sm:w-[264px] drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
           >
             <defs>
               {/* Fundo do mostrador com degradê sutil VW */}
@@ -381,10 +354,6 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
               </div>
             </div>
           </div>
-
-          <span className="text-[8px] font-mono tracking-widest text-zinc-600 uppercase mt-1">
-            VW I-SYSTEM
-          </span>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -393,7 +362,7 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
         <div className="relative flex flex-col items-center">
           <svg
             viewBox={`0 0 ${size} ${size}`}
-            className="w-[240px] sm:w-[260px] drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
+            className="w-[248px] sm:w-[264px] drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
           >
             {/* Aro externo cromado */}
             <circle
