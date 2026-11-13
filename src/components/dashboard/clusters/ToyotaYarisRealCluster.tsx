@@ -334,7 +334,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
               x={center}
               y={center - 36}
               textAnchor="middle"
-              className="fill-sky-300 font-sans text-[11px] tracking-wider uppercase font-bold"
+              className="fill-sky-200 font-sans text-xs tracking-wider uppercase font-black"
             >
               km/h
             </text>
@@ -361,7 +361,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
                     x2={x2}
                     y2={y2}
                     stroke="#e0f2fe"
-                    strokeWidth={m.isMajor ? 2.2 : 1}
+                    strokeWidth={m.isMajor ? 2.4 : 1}
                     opacity={m.isMajor ? 0.95 : 0.45}
                   />
                   {m.label && (
@@ -369,7 +369,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
                       x={tx}
                       y={ty}
                       textAnchor="middle"
-                      className="font-sans text-xs font-bold fill-white"
+                      className="font-sans text-[13px] font-black fill-white drop-shadow-[0_0_6px_rgba(255,255,255,0.4)]"
                     >
                       {m.label}
                     </text>

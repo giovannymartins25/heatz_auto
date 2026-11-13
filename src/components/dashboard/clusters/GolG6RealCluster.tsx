@@ -355,10 +355,10 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
 
             {/* Centro do LCD: Grande Velocímetro Digital */}
             <div className="flex flex-col items-center my-auto">
-              <span className="text-3xl sm:text-4xl font-black tracking-tight text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.7)] leading-none">
+              <span className="text-4xl sm:text-5xl font-black tracking-tight text-red-400 drop-shadow-[0_0_14px_rgba(239,68,68,0.85)] leading-none">
                 {Math.round(speedometer.speed)}
               </span>
-              <span className="text-[9px] uppercase tracking-widest text-red-400/80 font-bold mt-1">
+              <span className="text-[10px] uppercase tracking-widest text-red-300 font-black mt-1">
                 km/h
               </span>
             </div>

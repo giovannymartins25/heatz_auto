@@ -234,11 +234,29 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={true} />
           </div>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center w-full gap-2 min-h-0 self-stretch">
-            <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
+          <div className="flex flex-1 flex-col items-center justify-center w-full gap-1.5 min-h-0 self-stretch overflow-hidden">
+            {/* 1. MAPA DE CONDUÇÃO — PARTE SUPERIOR DA REGIÃO CENTRAL */}
+            <div
+              className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 ${
+                mapViewportSize === 'compact'
+                  ? 'h-[30%] flex-shrink-0'
+                  : mapViewportSize === 'expanded'
+                  ? 'h-[54%] flex-shrink-0'
+                  : 'h-[42%] flex-shrink-0'
+              }`}
+            >
+              <DrivingMapViewport
+                size={mapViewportSize}
+                onSizeChange={setMapViewportSize}
+                compact
+                telemetry={telemetry}
+              />
+            </div>
+
+            {/* 2. PAINEL ORIGINAL DO VEÍCULO — IMEDIATAMENTE ABAIXO DO MAPA */}
+            <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch overflow-hidden">
               <VehicleDashboardCluster telemetry={telemetry} />
             </div>
-            <DrivingMapViewport size={mapViewportSize} onSizeChange={setMapViewportSize} compact />
             {portraitMode === 'legacy' && <div>
             {/* LEDs de giro */}
             <div className="flex items-center w-full max-w-sm gap-1 px-2">

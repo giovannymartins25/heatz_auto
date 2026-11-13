@@ -323,10 +323,10 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
 
           {/* Velocidade Digital Central */}
           <div className="flex flex-col items-center my-auto">
-            <span className="text-4xl sm:text-5xl font-mono font-black text-white tracking-tight leading-none">
+            <span className="text-5xl sm:text-6xl font-mono font-black text-white tracking-tight leading-none drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]">
               {Math.round(speedometer.speed)}
             </span>
-            <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-widest">
+            <span className="text-[10px] font-mono text-zinc-300 uppercase tracking-widest font-bold mt-0.5">
               KM / H
             </span>
           </div>

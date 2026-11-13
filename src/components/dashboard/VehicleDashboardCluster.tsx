@@ -54,7 +54,7 @@ export const VehicleDashboardCluster = memo(function VehicleDashboardCluster({
   const effectiveHeight =
     bounds.height > 0 ? bounds.height : typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.4) : 260
 
-  const maxScale = expanded ? 1.35 : 1.0
+  const maxScale = expanded ? 1.4 : 1.15
   const scale = Math.min(maxScale, effectiveWidth / profile.width, effectiveHeight / profile.height)
 
   return (

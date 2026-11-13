@@ -348,8 +348,8 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
             </g>
           </svg>
 
-          <span className="text-[10px] text-stone-400 font-bold mt-1">
-            VELOCIDADE: <strong className="text-white">{Math.round(currentSpeed)} KM/H</strong>
+          <span className="text-[11px] font-mono text-stone-300 font-bold mt-1">
+            VELOCIDADE: <strong className="text-amber-300 font-black">{Math.round(currentSpeed)} KM/H</strong>
           </span>
         </div>
       </div>

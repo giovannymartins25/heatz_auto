@@ -255,18 +255,18 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
 
             {/* Display Digital Central de Velocidade */}
             <g transform={`translate(${center}, ${center + 26})`}>
-              <circle cx="0" cy="0" r="25" fill="#090a0d" stroke="#3f3f46" strokeWidth="1.2" />
+              <circle cx="0" cy="0" r="27" fill="#090a0d" stroke="#52525b" strokeWidth="1.5" />
               <text
                 x="0"
-                y="3"
+                y="4"
                 textAnchor="middle"
-                className="font-mono text-xl font-black fill-white"
+                className="font-mono text-2xl font-black fill-white drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]"
               >
                 {Math.round(speedometer.speed)}
               </text>
               <text
                 x="0"
-                y="14"
+                y="15"
                 textAnchor="middle"
                 className="font-mono text-[7px] font-bold fill-amber-400"
               >

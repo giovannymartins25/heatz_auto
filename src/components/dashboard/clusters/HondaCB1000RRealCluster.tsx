@@ -168,10 +168,10 @@ export const HondaCB1000RRealCluster = memo(function HondaCB1000RRealCluster({
 
           {/* Velocímetro Central Gigante da Moto */}
           <div className="flex flex-col items-center">
-            <span className="text-6xl sm:text-7xl font-mono font-black text-white tracking-tighter leading-none drop-shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+            <span className="text-7xl sm:text-8xl font-mono font-black text-white tracking-tighter leading-none drop-shadow-[0_0_24px_rgba(255,255,255,0.35)]">
               {Math.round(speedometer.speed)}
             </span>
-            <span className="text-xs font-mono font-black uppercase tracking-widest text-zinc-400 mt-1">
+            <span className="text-xs font-mono font-black uppercase tracking-widest text-zinc-300 mt-1">
               km/h
             </span>
           </div>

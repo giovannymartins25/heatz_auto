@@ -295,11 +295,28 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={false} />
             </div>
           ) : (
-            <div className="flex-1 flex min-h-0 w-full h-full flex-col gap-1 overflow-hidden self-stretch">
-              <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
+            <div className="flex-1 flex min-h-0 w-full h-full flex-col gap-1.5 overflow-hidden self-stretch items-center">
+              {/* 1. MAPA DE CONDUÇÃO — PARTE SUPERIOR DA REGIÃO CENTRAL */}
+              <div
+                className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 ${
+                  mapViewportSize === 'compact'
+                    ? 'h-[28%] flex-shrink-0'
+                    : mapViewportSize === 'expanded'
+                    ? 'h-[58%] flex-shrink-0'
+                    : 'h-[45%] flex-shrink-0'
+                }`}
+              >
+                <DrivingMapViewport
+                  size={mapViewportSize}
+                  onSizeChange={setMapViewportSize}
+                  telemetry={telemetry}
+                />
+              </div>
+
+              {/* 2. PAINEL ORIGINAL DO VEÍCULO — IMEDIATAMENTE ABAIXO DO MAPA */}
+              <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch overflow-hidden">
                 <VehicleDashboardCluster telemetry={telemetry} />
               </div>
-              <DrivingMapViewport size={mapViewportSize} onSizeChange={setMapViewportSize} />
             </div>
           )}
         </div>

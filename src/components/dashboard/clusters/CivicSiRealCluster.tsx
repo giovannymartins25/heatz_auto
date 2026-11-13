@@ -106,10 +106,10 @@ export const CivicSiRealCluster = memo(function CivicSiRealCluster({
           {/* Centro: Grande Velocímetro Digital */}
           <div className="flex flex-col items-center">
             <div className="flex items-baseline gap-1">
-              <span className="text-4xl sm:text-6xl font-black tracking-tighter text-sky-300 drop-shadow-[0_0_20px_rgba(56,189,248,0.8)] leading-none font-sans">
+              <span className="text-5xl sm:text-7xl font-black tracking-tighter text-sky-200 drop-shadow-[0_0_24px_rgba(56,189,248,0.95)] leading-none font-sans">
                 {speed}
               </span>
-              <span className="text-xs sm:text-sm font-bold text-sky-400">km/h</span>
+              <span className="text-xs sm:text-sm font-bold text-sky-300">km/h</span>
             </div>
           </div>
 
