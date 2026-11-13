@@ -234,15 +234,15 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={true} />
           </div>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center w-full gap-1.5 min-h-0 self-stretch overflow-hidden">
+          <div className="flex flex-1 flex-col items-center justify-center w-full gap-1 min-h-0 self-stretch overflow-hidden">
             {/* 1. MAPA DE CONDUÇÃO — PARTE SUPERIOR DA REGIÃO CENTRAL */}
             <div
               className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 ${
                 mapViewportSize === 'compact'
-                  ? 'h-[30%] flex-shrink-0'
+                  ? 'h-[26%] flex-shrink-0'
                   : mapViewportSize === 'expanded'
-                  ? 'h-[54%] flex-shrink-0'
-                  : 'h-[42%] flex-shrink-0'
+                  ? 'h-[48%] flex-shrink-0'
+                  : 'h-[36%] flex-shrink-0'
               }`}
             >
               <DrivingMapViewport
@@ -254,7 +254,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             </div>
 
             {/* 2. PAINEL ORIGINAL DO VEÍCULO — IMEDIATAMENTE ABAIXO DO MAPA */}
-            <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch overflow-hidden">
+            <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
               <VehicleDashboardCluster telemetry={telemetry} />
             </div>
             {portraitMode === 'legacy' && <div>

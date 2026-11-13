@@ -5,15 +5,15 @@ import { ClusterView } from './ClusterView'
 type ClusterProfile = { width: number; height: number }
 
 const CLUSTER_PROFILES: Record<DashboardTelemetry['theme'], ClusterProfile> = {
-  civic_si: { width: 780, height: 480 },
-  gti: { width: 880, height: 420 },
-  classic: { width: 860, height: 420 },
-  square_turbo: { width: 800, height: 480 },
-  supercar: { width: 920, height: 420 },
-  opala_classic: { width: 780, height: 460 },
-  modern: { width: 880, height: 420 },
-  motorcycle: { width: 600, height: 360 },
-  default: { width: 860, height: 440 },
+  civic_si: { width: 640, height: 385 },
+  gti: { width: 750, height: 280 },
+  classic: { width: 700, height: 275 },
+  square_turbo: { width: 700, height: 290 },
+  supercar: { width: 750, height: 285 },
+  opala_classic: { width: 730, height: 265 },
+  modern: { width: 740, height: 280 },
+  motorcycle: { width: 490, height: 240 },
+  default: { width: 740, height: 280 },
 }
 
 interface VehicleDashboardClusterProps {
@@ -54,7 +54,7 @@ export const VehicleDashboardCluster = memo(function VehicleDashboardCluster({
   const effectiveHeight =
     bounds.height > 0 ? bounds.height : typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.4) : 260
 
-  const maxScale = expanded ? 1.4 : 1.15
+  const maxScale = expanded ? 1.6 : 1.35
   const scale = Math.min(maxScale, effectiveWidth / profile.width, effectiveHeight / profile.height)
 
   return (

@@ -121,9 +121,9 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
       : (currentGear === 0 ? 'N' : currentGear === -1 ? 'R' : `M${currentGear}`)
 
   return (
-    <div className={`@container relative flex flex-col items-center w-full max-w-5xl p-3 sm:p-5 rounded-[2.5rem] bg-gradient-to-b from-[#131418] via-[#0d0e12] to-[#060709] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
+    <div className={`@container relative flex flex-col items-center w-full max-w-5xl p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-[#131418] via-[#0d0e12] to-[#060709] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
       {/* ── Faixa Superior Iluminada com Luz Ambiente da Cabine ── */}
-      <div className={`w-full flex items-center justify-between px-4 pb-2 border-b ${ambientTheme.headerBorderClass} text-[10px] font-mono`}>
+      <div className={`w-full flex items-center justify-between px-3 pb-1 border-b ${ambientTheme.headerBorderClass} text-[9.5px] font-mono`}>
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: ambientTheme.hex }} />
           <span className="font-black tracking-widest uppercase" style={{ color: ambientTheme.hex }}>GTI · PERFORMANCE</span>
@@ -146,14 +146,14 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
 
       {/* ── Banner de Launch Control Ativo ── */}
       {isLaunchControlArmed && (
-        <div className="w-full max-w-lg my-2 px-3 py-1.5 rounded-lg bg-red-600/20 border border-red-500 text-red-300 text-center text-xs font-mono font-black animate-pulse flex items-center justify-center gap-2">
+        <div className="w-full max-w-lg my-1 px-3 py-1 rounded-lg bg-red-600/20 border border-red-500 text-red-300 text-center text-xs font-mono font-black animate-pulse flex items-center justify-center gap-2">
           <span>🏁</span>
           <span>LAUNCH CONTROL AKTIV · SEGURE O FREIO E ACELERE · SOLTE PARA LARGAR!</span>
           <span>🏁</span>
         </div>
       )}
       {isLaunching && (
-        <div className="w-full max-w-lg my-2 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-center text-xs font-mono font-black flex items-center justify-center gap-2">
+        <div className="w-full max-w-lg my-1 px-3 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-center text-xs font-mono font-black flex items-center justify-center gap-2">
           <span>🚀</span>
           <span>GTI DSG LAUNCH!</span>
           <span>🚀</span>
@@ -161,7 +161,7 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
       )}
 
       {/* ── Conjunto de Instrumentos: Tacômetro + MFD Central + Velocímetro ── */}
-      <div className="flex items-center justify-center gap-3 sm:gap-5 w-full flex-wrap @[680px]:flex-nowrap mt-1">
+      <div className="flex items-center justify-center gap-2 sm:gap-4 w-full flex-wrap @[680px]:flex-nowrap mt-0.5">
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 1. MOSTRADOR ESQUERDO: TACÔMETRO GTI (0-80 x100/MIN) + ÁGUA         */}
         {/* ═══════════════════════════════════════════════════════════════════ */}

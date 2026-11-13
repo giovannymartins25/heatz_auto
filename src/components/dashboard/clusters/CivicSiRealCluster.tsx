@@ -71,11 +71,11 @@ export const CivicSiRealCluster = memo(function CivicSiRealCluster({
   const fuelBlocks = Math.round(clamp(auxGauges.fuelPercent / 100, 0, 1) * 10)
 
   return (
-    <div className="relative flex flex-col items-center justify-center p-3 sm:p-5 rounded-3xl bg-[#090b0e] border-4 border-[#1f242d] shadow-[0_20px_60px_rgba(0,0,0,0.95)] font-mono select-none overflow-hidden max-w-4xl w-full">
+    <div className="relative flex flex-col items-center justify-center p-1.5 sm:p-2.5 rounded-2xl bg-[#090b0e] border-2 border-[#1f242d] shadow-[0_20px_60px_rgba(0,0,0,0.95)] font-mono select-none overflow-hidden max-w-4xl w-full">
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* 1. ANDAR SUPERIOR (UPPER DECK): VELOCÍMETRO DIGITAL & VTEC LIGHTS   */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <div className="relative w-full max-w-2xl flex flex-col items-center p-3 rounded-2xl bg-gradient-to-b from-[#10141b] to-[#08090d] border-2 border-red-950/70 shadow-[inset_0_2px_15px_rgba(0,0,0,0.9)] mb-3">
+      <div className="relative w-full max-w-2xl flex flex-col items-center p-2 rounded-xl bg-gradient-to-b from-[#10141b] to-[#08090d] border-2 border-red-950/70 shadow-[inset_0_2px_15px_rgba(0,0,0,0.9)] mb-1.5">
         {/* Arco superior azul escuro / vermelho esportivo Si */}
         <div className="w-full flex items-center justify-between px-3 sm:px-6 mb-1 text-[9px] font-bold text-zinc-500">
           <span>MULTIPLEX UPPER DISPLAY</span>
@@ -292,7 +292,7 @@ export const CivicSiRealCluster = memo(function CivicSiRealCluster({
       </div>
 
       {/* Luzes-Espia do Civic Si na Base */}
-      <div className="relative z-10 w-full flex items-center justify-center gap-3 sm:gap-6 mt-3 pt-2 border-t border-zinc-800/80">
+      <div className="relative z-10 w-full flex items-center justify-center gap-3 sm:gap-6 mt-1.5 pt-1 border-t border-zinc-800/80">
         <div className={`text-[10px] font-black ${warningLights.checkEngine ? 'text-amber-500 animate-pulse' : 'text-zinc-800'}`}>
           ENGINE
         </div>

@@ -98,7 +98,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
   const fuelAngle = mapRange(clamp(auxGauges.fuelPercent, 0, 100), 0, 100, -45, 45)
 
   return (
-    <div className="@container relative flex flex-col items-center justify-center p-3 sm:p-5 rounded-3xl bg-[#0d0f12] border-4 border-[#24272e] shadow-[0_15px_50px_rgba(0,0,0,0.9),inset_0_2px_8px_rgba(255,255,255,0.06)] font-mono select-none overflow-hidden max-w-4xl w-full">
+    <div className="@container relative flex flex-col items-center justify-center p-1.5 sm:p-2.5 rounded-2xl bg-[#0d0f12] border-2 border-[#24272e] shadow-[0_15px_50px_rgba(0,0,0,0.9),inset_0_2px_8px_rgba(255,255,255,0.06)] font-mono select-none overflow-hidden max-w-4xl w-full">
       {/* Textura de Fundo do Painel Satélite Quadrado */}
       <div className="absolute inset-0 bg-[radial-gradient(#1a1d24_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none" />
 
@@ -109,7 +109,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
       <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-zinc-700 border border-zinc-900 shadow flex items-center justify-center text-[7px] text-zinc-950 font-black">+</div>
 
       {/* Topo do Painel: Banner Satélite e 3-Step */}
-      <div className="relative z-10 w-full flex items-center justify-between mb-2 px-3 border-b border-zinc-800/80 pb-2">
+      <div className="relative z-10 w-full flex items-center justify-between mb-1 px-2.5 border-b border-zinc-800/80 pb-1">
         <div className="flex items-center gap-2">
           <div className="px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-[10px] font-black text-amber-400 tracking-wider">
             VW AP 1.9 FORJADO
@@ -140,7 +140,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
       </div>
 
       {/* Conteúdo Principal do Painel */}
-      <div className="relative z-10 flex flex-wrap @[640px]:flex-nowrap items-center justify-center gap-3 sm:gap-6 w-full">
+      <div className="relative z-10 flex flex-wrap @[640px]:flex-nowrap items-center justify-center gap-2 sm:gap-4 w-full">
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 1. VELOCÍMETRO CLÁSSICO RETRÔ VW (0-240 KM/H)                      */}
         {/* ═══════════════════════════════════════════════════════════════════ */}

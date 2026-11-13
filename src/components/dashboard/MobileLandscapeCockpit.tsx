@@ -172,7 +172,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
       </aside>
 
       {/* ═══ 2. CENTRO: PAINEL ═══ */}
-      <main className={`flex-1 flex flex-col items-center py-0.5 min-w-0 h-full ${centerMode === 'cluster' ? 'px-1.5' : 'px-3'}`}>
+      <main className={`flex-1 flex flex-col items-center py-0.5 min-w-0 h-full ${centerMode === 'cluster' ? 'px-0.5' : 'px-1 sm:px-1.5'}`}>
         {/* Barra superior limpa */}
         <header className="flex items-center gap-1.5 w-full pb-1 border-b border-white/5">
           <button
@@ -295,15 +295,15 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} compact={false} />
             </div>
           ) : (
-            <div className="flex-1 flex min-h-0 w-full h-full flex-col gap-1.5 overflow-hidden self-stretch items-center">
+            <div className="flex-1 flex min-h-0 w-full h-full flex-col gap-1 overflow-hidden self-stretch items-center">
               {/* 1. MAPA DE CONDUÇÃO — PARTE SUPERIOR DA REGIÃO CENTRAL */}
               <div
                 className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 ${
                   mapViewportSize === 'compact'
-                    ? 'h-[28%] flex-shrink-0'
+                    ? 'h-[24%] flex-shrink-0'
                     : mapViewportSize === 'expanded'
-                    ? 'h-[58%] flex-shrink-0'
-                    : 'h-[45%] flex-shrink-0'
+                    ? 'h-[50%] flex-shrink-0'
+                    : 'h-[36%] flex-shrink-0'
                 }`}
               >
                 <DrivingMapViewport
@@ -314,16 +314,16 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               </div>
 
               {/* 2. PAINEL ORIGINAL DO VEÍCULO — IMEDIATAMENTE ABAIXO DO MAPA */}
-              <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch overflow-hidden">
+              <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch">
                 <VehicleDashboardCluster telemetry={telemetry} />
               </div>
             </div>
           )}
         </div>
 
-        {/* Alertas (oculta barra vazia no modo PAINEL para ampliar o cluster) */}
-        {(centerMode !== 'cluster' || hasActiveAlert) && (
-          <div className="flex items-center justify-center gap-2 h-6 w-full">
+        {/* Alertas (oculta barra vazia para ampliar o cluster) */}
+        {hasActiveAlert && (
+          <div className="flex items-center justify-center gap-2 h-6 w-full flex-shrink-0">
           {telemetry.engine.isBogWarning && (
             <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 border border-yellow-500 text-yellow-300 text-[9px] font-mono font-black animate-pulse">
               MOTOR AMARRANDO

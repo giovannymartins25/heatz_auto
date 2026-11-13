@@ -41,9 +41,9 @@ export const HondaCB1000RRealCluster = memo(function HondaCB1000RRealCluster({
   const fuelSegments = Math.round((auxGauges.fuelPercent / 100) * 6)
 
   return (
-    <div className="relative flex flex-col items-center w-full max-w-2xl p-4 sm:p-5 rounded-3xl bg-zinc-950 border-2 border-zinc-800 shadow-[0_20px_50px_rgba(0,0,0,0.9)] select-none">
+    <div className="relative flex flex-col items-center w-full max-w-2xl p-2 sm:p-3 rounded-2xl bg-zinc-950 border-2 border-zinc-800 shadow-[0_20px_50px_rgba(0,0,0,0.9)] select-none">
       {/* ── Borda Superior: Faixa de Shift Lights de LED da CB1000R ── */}
-      <div className="flex items-center justify-between w-full px-3 mb-2">
+      <div className="flex items-center justify-between w-full px-2 mb-1">
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] font-mono font-bold tracking-widest text-zinc-500 uppercase">
             HONDA TFT 5"
@@ -106,7 +106,7 @@ export const HondaCB1000RRealCluster = memo(function HondaCB1000RRealCluster({
       </div>
 
       {/* ── Tela TFT Principal da CB1000R ── */}
-      <div className="w-full rounded-2xl bg-gradient-to-b from-zinc-950 via-[#0a0f16] to-black border border-white/10 p-3 sm:p-4 shadow-[inset_0_0_30px_rgba(0,0,0,0.8)] flex flex-col justify-between gap-3">
+      <div className="w-full rounded-xl bg-gradient-to-b from-zinc-950 via-[#0a0f16] to-black border border-white/10 p-2 sm:p-3 shadow-[inset_0_0_30px_rgba(0,0,0,0.8)] flex flex-col justify-between gap-2">
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 1. TOPO: TACÔMETRO SWEEPING DIGITAL (0 a 12.000 RPM)                */}
         {/* ═══════════════════════════════════════════════════════════════════ */}

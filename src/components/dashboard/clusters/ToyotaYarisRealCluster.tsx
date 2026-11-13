@@ -91,7 +91,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.cyan
 
   return (
-    <div className={`@container relative flex flex-col items-center w-full max-w-4xl p-4 sm:p-6 rounded-[2.5rem] bg-gradient-to-b from-[#060d16] via-[#03070d] to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
+    <div className={`@container relative flex flex-col items-center w-full max-w-4xl p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-[#060d16] via-[#03070d] to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
       {/* Luz ambiente de fundo Optitron sincronizada */}
       <div
         className={`absolute inset-x-12 top-0 h-1 bg-gradient-to-r ${ambientTheme.haloGradient} rounded-t-full`}
@@ -99,7 +99,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
       />
 
       {/* ── Faixa Superior: Luzes de Advertência e Farol ── */}
-      <div className="flex items-center justify-between w-full max-w-xl px-4 py-1.5 mb-2 rounded-xl bg-sky-950/20 border border-sky-500/10">
+      <div className="flex items-center justify-between w-full max-w-xl px-3 py-1 mb-1 rounded-xl bg-sky-950/20 border border-sky-500/10">
         <div className="w-5 h-5 flex items-center justify-center text-emerald-400 font-bold text-sm">
           ◀
         </div>
@@ -150,7 +150,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
       </div>
 
       {/* ── Conjunto de 3 Cilíndros Optitron 3D da Toyota ── */}
-      <div className="flex items-center justify-center gap-3 sm:gap-6 w-full flex-wrap @[640px]:flex-nowrap">
+      <div className="flex items-center justify-center gap-2 sm:gap-4 w-full flex-wrap @[640px]:flex-nowrap">
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 1. CILINDRO ESQUERDO: TACÔMETRO OPTITRON                           */}
         {/* ═══════════════════════════════════════════════════════════════════ */}

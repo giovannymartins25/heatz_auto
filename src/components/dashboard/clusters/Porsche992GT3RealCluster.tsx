@@ -107,9 +107,9 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
   const gForceY = Math.min(1.4, Math.max(-1.4, (speedometer.speed > 5 ? 0.6 : 0) * (tachometer.rpm > 5000 ? 1 : 0.4)))
 
   return (
-    <div className={`@container relative flex flex-col items-center w-full max-w-6xl p-3 sm:p-5 rounded-[2.5rem] bg-gradient-to-b from-[#0a0b0e] via-zinc-950 to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
+    <div className={`@container relative flex flex-col items-center w-full max-w-6xl p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-[#0a0b0e] via-zinc-950 to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-all duration-300`}>
       {/* ── Régua Superior de Shift Lights F1 / GT3 RS Duplos Convergentes ── */}
-      <div className="flex flex-col items-center w-full max-w-xl mb-2">
+      <div className="flex flex-col items-center w-full max-w-xl mb-1">
         <div className="flex items-center justify-between w-full px-2 mb-1 text-[10px] font-mono">
           <span className="font-black tracking-widest flex items-center gap-1.5 uppercase" style={{ color: ambientTheme.hex }}>
             <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: ambientTheme.hex }} />
@@ -158,14 +158,14 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
 
       {/* ── Banner de Launch Control Ativo ── */}
       {isLaunchControlArmed && (
-        <div className="w-full max-w-lg mb-2 px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-400 text-amber-300 text-center text-xs font-mono font-black animate-pulse flex items-center justify-center gap-2">
+        <div className="w-full max-w-lg mb-1.5 px-3 py-1 rounded-lg bg-amber-500/20 border border-amber-400 text-amber-300 text-center text-xs font-mono font-black animate-pulse flex items-center justify-center gap-2">
           <span>🏁</span>
           <span>LAUNCH CONTROL ATIVO · ACELERADOR A FUNDO · SOLTE O FREIO PARA LARGAR!</span>
           <span>🏁</span>
         </div>
       )}
       {isLaunching && (
-        <div className="w-full max-w-lg mb-2 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-center text-xs font-mono font-black flex items-center justify-center gap-2">
+        <div className="w-full max-w-lg mb-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-center text-xs font-mono font-black flex items-center justify-center gap-2">
           <span>🚀</span>
           <span>PORSCHE LAUNCH INICIADO!</span>
           <span>🚀</span>
@@ -173,7 +173,7 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
       )}
 
       {/* ── Conjunto Triplo de Instrumentos GT3 RS ── */}
-      <div className="grid grid-cols-1 @[660px]:grid-cols-3 gap-3 sm:gap-4 w-full items-center justify-items-center">
+      <div className="grid grid-cols-1 @[660px]:grid-cols-3 gap-2 sm:gap-3 w-full items-center justify-items-center">
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 1. MOSTRADOR ESQUERDO: VELOCÍMETRO ANALÓGICO PORSCHE (0-350 KM/H)  */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
