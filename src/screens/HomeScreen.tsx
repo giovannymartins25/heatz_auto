@@ -175,19 +175,19 @@ export function HomeScreen() {
     <div className="flex flex-col min-h-dvh safe-top safe-bottom bg-[var(--color-bg-primary)] font-sans">
       
       {/* ─── Topo / Barra de Economia & Status ─── */}
-      <div className="w-full bg-zinc-950 border-b border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 sticky top-0 z-40 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2 sm:gap-3 text-[11px] sm:text-xs font-mono">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-3">
+      <div className="w-full bg-zinc-950 border-b border-white/10 px-3 sm:px-4 py-1 sm:py-1.5 sticky top-0 z-40 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-1.5 sm:gap-3 text-[10px] sm:text-xs font-mono">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             {/* Saldo de Créditos */}
-            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-xl bg-black/80 border border-emerald-500/40 text-emerald-400 font-black shadow-inner">
-              <span className="text-xs sm:text-sm">💰</span>
+            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 rounded-xl bg-black/80 border border-emerald-500/40 text-emerald-400 font-black shadow-inner">
+              <span className="text-xs">💰</span>
               <span>CARTEIRA: R$ {sandboxMode ? '∞ ILIMITADO' : credits.toLocaleString()}</span>
             </div>
 
             {/* Alternador de Modo Sandbox */}
             <button
               onClick={toggleSandboxMode}
-              className={`px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-xl font-bold uppercase tracking-wider text-[9px] sm:text-[10px] border transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-0.5 rounded-xl font-bold uppercase tracking-wider text-[8.5px] sm:text-[10px] border transition-all cursor-pointer ${
                 sandboxMode
                   ? 'bg-amber-500 text-black border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.6)]'
                   : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
@@ -200,14 +200,14 @@ export function HomeScreen() {
             {!sandboxMode && (
               <button
                 onClick={() => { addCredits(50000); showToast('💰 + R$ 50.000 adicionados!') }}
-                className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl text-[9px] sm:text-[10px] font-bold bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/40 cursor-pointer"
+                className="px-2 py-0.5 sm:px-2.5 rounded-xl text-[8.5px] sm:text-[10px] font-bold bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/40 cursor-pointer"
               >
                 + R$ 50k
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-zinc-400 text-[9.5px] sm:text-[11px]">
+          <div className="flex items-center gap-2 text-zinc-400 text-[9px] sm:text-[11px]">
             <span>GARAGEM: <b className="text-white">{ownedCars.length}</b> MÁQUINAS</span>
             <span className="text-zinc-600">|</span>
             <span className="text-emerald-400 font-bold">120Hz REAL-PHYSICS</span>
@@ -223,9 +223,9 @@ export function HomeScreen() {
       )}
 
       {/* ─── Header Principal ─── */}
-      <header className="flex flex-col items-center pt-3 sm:pt-8 pb-3 sm:pb-4 px-3 sm:px-6 w-full max-w-7xl mx-auto">
-        <div className="relative mb-1 sm:mb-2 text-center">
-          <h1 className="text-3xl sm:text-6xl md:text-7xl font-black tracking-tighter">
+      <header className="flex flex-col items-center pt-2 sm:pt-4 md:pt-6 pb-2 sm:pb-3 px-3 sm:px-6 w-full max-w-7xl mx-auto hero-header-landscape">
+        <div className="relative mb-0.5 sm:mb-1.5 text-center">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tighter hero-title-landscape">
             <span className="text-gradient">Heatz</span>
             <span className="text-white"> Auto</span>
           </h1>
@@ -235,15 +235,15 @@ export function HomeScreen() {
           />
         </div>
 
-        <p className="text-[var(--color-text-muted)] text-[10px] sm:text-xs font-mono tracking-wider sm:tracking-[0.25em] uppercase text-center mb-3 sm:mb-5">
+        <p className="text-[var(--color-text-muted)] text-[9.5px] sm:text-xs font-mono tracking-wider sm:tracking-[0.2em] uppercase text-center mb-2 sm:mb-4 hero-sub-landscape">
           Simulador Físico de Motores, Loja de Peças & Garagem Customizada
         </p>
 
         {/* ─── Seletor de Abas Principais: GARAGEM vs CONCESSIONÁRIA ─── */}
-        <div className="flex items-center p-1 rounded-xl sm:rounded-2xl bg-zinc-950 border border-white/10 shadow-2xl mb-3 sm:mb-5 gap-1 sm:gap-2">
+        <div className="flex items-center p-0.5 sm:p-1 rounded-xl sm:rounded-2xl bg-zinc-950 border border-white/10 shadow-2xl mb-2 sm:mb-4 gap-1 sm:gap-2 hero-tabs-landscape">
           <button
             onClick={() => setActiveTab('garage')}
-            className={`px-3 sm:px-6 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl font-mono text-[11px] sm:text-sm font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 sm:px-6 py-1 sm:py-2 rounded-lg sm:rounded-xl font-mono text-[10.5px] sm:text-sm font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'garage'
                 ? 'bg-[var(--color-accent)] text-white shadow-[0_0_20px_rgba(239,68,68,0.5)]'
                 : 'text-zinc-400 hover:text-white hover:bg-white/5'
@@ -255,7 +255,7 @@ export function HomeScreen() {
 
           <button
             onClick={() => setActiveTab('dealership')}
-            className={`px-3 sm:px-6 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl font-mono text-[11px] sm:text-sm font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 sm:px-6 py-1 sm:py-2 rounded-lg sm:rounded-xl font-mono text-[10.5px] sm:text-sm font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'dealership'
                 ? 'bg-emerald-600 text-white shadow-[0_0_20px_rgba(16,185,129,0.5)]'
                 : 'text-zinc-400 hover:text-white hover:bg-white/5'
@@ -307,15 +307,15 @@ export function HomeScreen() {
                 return (
                   <div
                     key={car.instanceId}
-                    className={`relative rounded-2xl sm:rounded-3xl border-2 p-3 sm:p-5 bg-gradient-to-b from-zinc-900/90 via-zinc-950 to-black flex flex-col justify-between gap-2.5 sm:gap-4 transition-all shadow-xl hover:shadow-2xl ${
+                    className={`relative rounded-xl sm:rounded-2xl border-2 p-2.5 sm:p-3.5 lg:p-4 bg-gradient-to-b from-zinc-900/90 via-zinc-950 to-black flex flex-col justify-between gap-1.5 sm:gap-2.5 transition-all shadow-xl hover:shadow-2xl car-card-landscape ${
                       isActive ? 'border-[var(--color-accent)] ring-1 ring-[var(--color-accent)]/50' : 'border-white/10 hover:border-white/20'
                     }`}
                   >
                     {/* Topo do Card */}
                     <div>
-                      <div className="flex items-start justify-between gap-1.5 mb-1 sm:mb-2">
+                      <div className="flex items-start justify-between gap-1.5 mb-1 sm:mb-1.5">
                         <div className="min-w-0">
-                          <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-zinc-400 block truncate">
+                          <span className="text-[8.5px] sm:text-[9.5px] font-mono uppercase tracking-widest text-zinc-400 block truncate">
                             {manifest?.brand || 'VEÍCULO'}
                           </span>
                           <h3 className="text-sm sm:text-base font-black text-white tracking-tight flex items-center gap-1 truncate">
@@ -331,14 +331,14 @@ export function HomeScreen() {
                         </div>
 
                         {isActive && (
-                          <span className="px-2 py-0.5 rounded-full text-[7.5px] sm:text-[8px] font-black uppercase tracking-wider bg-[var(--color-accent)] text-white shadow-md shrink-0">
+                          <span className="px-2 py-0.5 rounded-full text-[7px] sm:text-[7.5px] font-black uppercase tracking-wider bg-[var(--color-accent)] text-white shadow-md shrink-0">
                             SELECIONADO
                           </span>
                         )}
                       </div>
 
                       {/* Imagem / Preview do Veículo */}
-                      <div className="w-full h-24 sm:h-36 rounded-xl sm:rounded-2xl bg-zinc-950 border border-white/5 overflow-hidden relative flex items-center justify-center my-1.5 sm:my-2">
+                      <div className="w-full h-20 sm:h-24 md:h-28 lg:h-32 rounded-lg sm:rounded-xl bg-zinc-950 border border-white/5 overflow-hidden relative flex items-center justify-center my-1 sm:my-1.5 car-thumb-landscape">
                         {manifest?.thumbnailPath ? (
                           <img
                             src={manifest.thumbnailPath}
@@ -346,16 +346,16 @@ export function HomeScreen() {
                             className="w-full h-full object-cover opacity-85 hover:scale-105 transition-transform duration-300"
                           />
                         ) : (
-                          <span className="text-3xl sm:text-4xl">🏎️</span>
+                          <span className="text-2xl sm:text-3xl">🏎️</span>
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none" />
-                        <span className="absolute bottom-1.5 left-1.5 text-[8px] sm:text-[9px] font-mono text-zinc-400 bg-black/70 px-1.5 py-0.5 rounded border border-white/10">
+                        <span className="absolute bottom-1 left-1 text-[7.5px] sm:text-[8.5px] font-mono text-zinc-400 bg-black/70 px-1.5 py-0.5 rounded border border-white/10">
                           ODÔMETRO: {car.mileageKm.toLocaleString()} KM
                         </span>
                       </div>
 
                       {/* Tags de Peças Instaladas (Upgrades) */}
-                      <div className="flex flex-wrap gap-1 sm:gap-1.5 my-1.5 sm:my-2 font-mono text-[7.5px] sm:text-[8.5px]">
+                      <div className="flex flex-wrap gap-1 my-1 font-mono text-[7px] sm:text-[7.5px]">
                         {/* Turbo Kit */}
                         <span
                           className={`px-1.5 py-0.5 rounded font-bold uppercase border ${
@@ -446,12 +446,12 @@ export function HomeScreen() {
                     </div>
 
                     {/* Botões de Ação do Veículo */}
-                    <div className="flex flex-col gap-1.5 sm:gap-2 pt-2 border-t border-white/10 font-mono">
-                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                    <div className="flex flex-col gap-1 pt-1.5 border-t border-white/10 font-mono">
+                      <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
                         {/* Botão de Pilotar */}
                         <button
                           onClick={() => handleDriveCar(car)}
-                          className="w-full py-2 sm:py-2.5 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-black text-[11px] sm:text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                          className="h-8 sm:h-9 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-black text-[9.5px] sm:text-[11px] uppercase tracking-wide transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-1"
                         >
                           <span>🏎️</span>
                           <span>PILOTAR</span>
@@ -460,27 +460,27 @@ export function HomeScreen() {
                         {/* Botão da Loja de Peças */}
                         <button
                           onClick={() => handleOpenWorkshop(car)}
-                          className="w-full py-2 sm:py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-amber-400/30 font-black text-[11px] sm:text-xs uppercase tracking-wider transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                          className="h-8 sm:h-9 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-amber-400/30 font-black text-[9.5px] sm:text-[11px] uppercase tracking-wide transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-1"
                         >
                           <span>🔧</span>
                           <span>OFICINA</span>
                         </button>
-                      </div>
 
-                      {/* Botão de Dinamômetro */}
-                      <button
-                        onClick={() => handleOpenDyno(car)}
-                        className="w-full py-1.5 sm:py-2 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 text-sky-300 border border-sky-500/30 font-bold text-[10px] sm:text-xs uppercase tracking-wider transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-1"
-                      >
-                        <span>📈</span>
-                        <span>DINAMÔMETRO</span>
-                      </button>
+                        {/* Botão de Dinamômetro */}
+                        <button
+                          onClick={() => handleOpenDyno(car)}
+                          className="h-8 sm:h-9 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 text-sky-300 border border-sky-500/30 font-bold text-[9px] sm:text-[10px] uppercase tracking-wide transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-0.5"
+                        >
+                          <span>📈</span>
+                          <span>DYNO</span>
+                        </button>
+                      </div>
 
                       {/* Botão de Vender */}
                       {ownedCars.length > 1 && (
                         <button
                           onClick={() => handleSellCar(car)}
-                          className="w-full py-0.5 rounded text-[8px] sm:text-[9px] text-zinc-500 hover:text-red-400 hover:bg-red-950/20 transition-all cursor-pointer text-center"
+                          className="w-full py-0.5 rounded text-[7.5px] sm:text-[8.5px] text-zinc-500 hover:text-red-400 hover:bg-red-950/20 transition-all cursor-pointer text-center"
                         >
                           Vender por R$ {Math.round((VEHICLE_PRICES[car.vehicleId]?.price || 50000) * 0.7).toLocaleString()}
                         </button>
@@ -510,24 +510,24 @@ export function HomeScreen() {
                 return (
                   <div
                     key={vehicle.id}
-                    className="rounded-2xl sm:rounded-3xl border border-white/10 p-3 sm:p-5 bg-gradient-to-b from-zinc-900/80 via-zinc-950 to-black flex flex-col justify-between gap-2.5 sm:gap-3 shadow-xl hover:border-white/20 transition-all"
+                    className="rounded-xl sm:rounded-2xl border border-white/10 p-2.5 sm:p-3.5 lg:p-4 bg-gradient-to-b from-zinc-900/80 via-zinc-950 to-black flex flex-col justify-between gap-1.5 sm:gap-2.5 shadow-xl hover:border-white/20 transition-all car-card-landscape"
                   >
                     <div>
-                      <div className="flex items-start justify-between gap-1 mb-1 sm:mb-2">
-                        <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-zinc-400">
+                      <div className="flex items-start justify-between gap-1 mb-1 sm:mb-1.5">
+                        <span className="text-[8.5px] sm:text-[9.5px] font-mono uppercase tracking-widest text-zinc-400">
                           {vehicle.brand}
                         </span>
-                        <span className="px-1.5 py-0.5 rounded text-[7.5px] sm:text-[8px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                        <span className="px-1.5 py-0.5 rounded text-[7px] sm:text-[7.5px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                           {info.badge}
                         </span>
                       </div>
 
-                      <h3 className="text-sm sm:text-base font-black text-white tracking-tight mb-1 sm:mb-2">
+                      <h3 className="text-sm sm:text-base font-black text-white tracking-tight mb-1 sm:mb-1.5">
                         {vehicle.name}
                       </h3>
 
                       {/* Imagem do modelo */}
-                      <div className="w-full h-24 sm:h-36 rounded-xl sm:rounded-2xl bg-zinc-950 border border-white/5 overflow-hidden relative flex items-center justify-center mb-2 sm:mb-3">
+                      <div className="w-full h-20 sm:h-24 md:h-28 lg:h-32 rounded-lg sm:rounded-xl bg-zinc-950 border border-white/5 overflow-hidden relative flex items-center justify-center mb-1.5 sm:mb-2 car-thumb-landscape">
                         {vehicle.thumbnailPath ? (
                           <img
                             src={vehicle.thumbnailPath}
@@ -535,45 +535,45 @@ export function HomeScreen() {
                             className="w-full h-full object-cover opacity-85 hover:scale-105 transition-transform duration-300"
                           />
                         ) : (
-                          <span className="text-3xl sm:text-4xl">🏎️</span>
+                          <span className="text-2xl sm:text-3xl">🏎️</span>
                         )}
                         {ownedCount > 0 && (
-                          <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full text-[7.5px] sm:text-[8px] font-mono font-bold bg-amber-500 text-black">
+                          <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded-full text-[7px] sm:text-[7.5px] font-mono font-bold bg-amber-500 text-black">
                             {ownedCount} NA GARAGEM
                           </span>
                         )}
                       </div>
 
-                      <p className="text-[9px] sm:text-[10px] font-mono text-zinc-400 mb-2 sm:mb-3 line-clamp-2">
+                      <p className="text-[8.5px] sm:text-[9.5px] font-mono text-zinc-400 mb-1.5 sm:mb-2 line-clamp-2">
                         {info.description || `${vehicle.powerHp} CV · ${vehicle.transmissionType.toUpperCase()}`}
                       </p>
 
                       {/* Specs Rápidas */}
-                      <div className="grid grid-cols-2 gap-1 py-1 px-1.5 sm:py-1.5 sm:px-2 rounded-lg sm:rounded-xl bg-black/40 border border-white/5 text-center font-mono text-[8px] sm:text-[9px] mb-2 sm:mb-3">
+                      <div className="grid grid-cols-2 gap-1 py-1 px-1.5 rounded-lg bg-black/40 border border-white/5 text-center font-mono text-[7.5px] sm:text-[8.5px] mb-1.5 sm:mb-2">
                         <div>
-                          <span className="text-zinc-500 block text-[7px] sm:text-[7.5px] uppercase">Potência</span>
+                          <span className="text-zinc-500 block text-[6.5px] sm:text-[7px] uppercase">Potência</span>
                           <span className="font-bold text-white">{vehicle.powerHp} CV</span>
                         </div>
                         <div>
-                          <span className="text-zinc-500 block text-[7px] sm:text-[7.5px] uppercase">Torque</span>
+                          <span className="text-zinc-500 block text-[6.5px] sm:text-[7px] uppercase">Torque</span>
                           <span className="font-bold text-amber-400">{vehicle.torqueKgfm} kgfm</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Preço e Botão de Compra */}
-                    <div className="pt-2 border-t border-white/10 font-mono flex flex-col gap-1.5 sm:gap-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-zinc-400 text-[9px] sm:text-[10px]">PREÇO:</span>
-                        <span className="font-black text-emerald-400 text-[11px] sm:text-xs">
-                          {sandboxMode ? 'GRÁTIS (SANDBOX)' : `R$ ${info.price.toLocaleString()}`}
+                    {/* Preço e Botão de Compra em Linha Única */}
+                    <div className="pt-1.5 border-t border-white/10 font-mono flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="text-zinc-500 block text-[7px] sm:text-[7.5px] uppercase">Preço</span>
+                        <span className="font-black text-emerald-400 text-[11px] sm:text-xs truncate block">
+                          {sandboxMode ? 'GRÁTIS' : `R$ ${info.price.toLocaleString()}`}
                         </span>
                       </div>
 
                       <button
                         onClick={() => handleBuyCar(vehicle.id)}
                         disabled={!canAfford}
-                        className={`w-full py-2 sm:py-2.5 rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
+                        className={`px-3.5 h-8 sm:h-9 rounded-xl font-black text-[10px] sm:text-[11px] uppercase tracking-wider transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 shrink-0 ${
                           canAfford
                             ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]'
                             : 'bg-zinc-800 text-zinc-500 border border-white/5 cursor-not-allowed'

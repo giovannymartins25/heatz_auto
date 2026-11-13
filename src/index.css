@@ -157,3 +157,30 @@ html, body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* ─── Otimizações para telas curtas e Mobile Landscape (celular deitado) ─── */
+@media (max-height: 520px) {
+  .hero-header-landscape {
+    padding-top: 0.35rem !important;
+    padding-bottom: 0.35rem !important;
+  }
+  .hero-title-landscape {
+    font-size: 1.5rem !important;
+    line-height: 1.15 !important;
+    margin-bottom: 0.15rem !important;
+  }
+  .hero-sub-landscape {
+    display: none !important;
+  }
+  .hero-tabs-landscape {
+    margin-bottom: 0.35rem !important;
+  }
+  .car-thumb-landscape {
+    height: 4.75rem !important; /* ~76px */
+  }
+  .car-card-landscape {
+    padding: 0.5rem !important; /* 8px */
+    gap: 0.35rem !important;
+  }
+}
+
