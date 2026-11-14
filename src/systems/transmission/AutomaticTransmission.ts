@@ -355,4 +355,35 @@ export class AutomaticTransmission {
     this.shiftCount = 0
     this.coastingTimer = 0
   }
+
+  /** Captura snapshot imutável para isolamento transacional */
+  getStateSnapshot(): AutoTransmissionSnapshot {
+    return {
+      shiftTimer: this.shiftTimer,
+      lastShiftDirection: this.lastShiftDirection,
+      prevThrottle: this.prevThrottle,
+      shiftCount: this.shiftCount,
+      coastingTimer: this.coastingTimer,
+    }
+  }
+
+  /** Restaura estado da transmissão automática a partir do snapshot */
+  restoreSnapshot(snapshot: AutoTransmissionSnapshot): void {
+    this.shiftTimer = snapshot.shiftTimer
+    this.lastShiftDirection = snapshot.lastShiftDirection
+    this.prevThrottle = snapshot.prevThrottle
+    this.shiftCount = snapshot.shiftCount
+    this.coastingTimer = snapshot.coastingTimer
+  }
+}
+
+/**
+ * Snapshot isolado do estado do controlador de câmbio automático/DSG/CVT.
+ */
+export interface AutoTransmissionSnapshot {
+  shiftTimer: number
+  lastShiftDirection: 'up' | 'down' | 'none'
+  prevThrottle: number
+  shiftCount: number
+  coastingTimer: number
 }

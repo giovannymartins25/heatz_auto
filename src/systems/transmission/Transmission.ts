@@ -221,4 +221,26 @@ export class Transmission {
     this._currentGear = 0
     this._clutchPosition = 0
   }
+
+  /** Captura snapshot imutável para isolamento transacional */
+  getStateSnapshot(): TransmissionSnapshot {
+    return {
+      currentGear: this._currentGear,
+      clutchPosition: this._clutchPosition,
+    }
+  }
+
+  /** Restaura estado da transmissão a partir do snapshot */
+  restoreSnapshot(snapshot: TransmissionSnapshot): void {
+    this._currentGear = snapshot.currentGear
+    this._clutchPosition = snapshot.clutchPosition
+  }
+}
+
+/**
+ * Snapshot isolado do estado da transmissão manual/sequencial.
+ */
+export interface TransmissionSnapshot {
+  currentGear: number
+  clutchPosition: number
 }

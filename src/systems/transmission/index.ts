@@ -1,5 +1,5 @@
 export { Transmission } from './Transmission'
-export type { ShiftResult } from './Transmission'
+export type { ShiftResult, TransmissionSnapshot } from './Transmission'
 export { GearCalculator } from './GearCalculator'
 export { AutomaticTransmission } from './AutomaticTransmission'
-export type { AutomaticTransmissionConfig, AutoShiftInput, AutoShiftDecision } from './AutomaticTransmission'
+export type { AutomaticTransmissionConfig, AutoShiftInput, AutoShiftDecision, AutoTransmissionSnapshot } from './AutomaticTransmission'

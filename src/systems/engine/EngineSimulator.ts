@@ -320,4 +320,35 @@ export class EngineSimulator {
   setRpm(rpm: number): void {
     this.angularVelocity = clamp(rpm, 0, this.config.maxRpm) * RPM_TO_RAD_S
   }
+
+  /** Captura snapshot imutável de estado interno do motor para isolamento transacional */
+  getStateSnapshot(): EngineSimulatorSnapshot {
+    return {
+      angularVelocity: this.angularVelocity,
+      status: this.status,
+      startingElapsed: this.startingElapsed,
+      lastTorqueOutput: this.lastTorqueOutput,
+      lastDrivetrainTorque: this.lastDrivetrainTorque,
+    }
+  }
+
+  /** Restaura estado a partir de um snapshot válido (rollback de FAIL_SAFE_HOLD) */
+  restoreSnapshot(snapshot: EngineSimulatorSnapshot): void {
+    this.angularVelocity = snapshot.angularVelocity
+    this.status = snapshot.status
+    this.startingElapsed = snapshot.startingElapsed
+    this.lastTorqueOutput = snapshot.lastTorqueOutput
+    this.lastDrivetrainTorque = snapshot.lastDrivetrainTorque
+  }
+}
+
+/**
+ * Snapshot isolado do estado do motor para transações do integrador determinístico.
+ */
+export interface EngineSimulatorSnapshot {
+  angularVelocity: number
+  status: EngineStatus
+  startingElapsed: number
+  lastTorqueOutput: number
+  lastDrivetrainTorque: number
 }

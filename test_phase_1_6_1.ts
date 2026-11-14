@@ -462,6 +462,99 @@ console.log('\n--- REQUISITO 10: Regressão completa dos sistemas anteriores int
   }
 }
 
+// ─── TESTE 11: Integração Real do DeterministicIntegrator no Runtime da Store ───
+console.log('\n--- REQUISITO 11: Integração Real do DeterministicIntegrator no Runtime da Store ---')
+{
+  const sim = useSimulationStore.getState()
+  sim.reset()
+  sim.init(golfConfig)
+
+  // 1. Instanciação de DeterministicIntegrator via init()
+  const integrator = useSimulationStore.getState()._integrator
+  assert(integrator !== null && integrator !== undefined, 'DeterministicIntegrator é instanciado em useSimulationStore.init()')
+  assert(integrator instanceof DeterministicIntegrator, 'Instância em store._integrator é do tipo DeterministicIntegrator')
+  assert(integrator?.frequency === 120, 'Integrador opera com frequência fixa de 120 Hz')
+  assert(useSimulationStore.getState().physicsIntegrityStatus === 'NORMAL', 'Status de integridade inicial da store é NORMAL')
+  assert(useSimulationStore.getState().isPaused === false, 'Estado inicial isPaused é false')
+
+  // 2. Chamada de update() executando via integrador a 120 Hz
+  sim.startEngine()
+  const t0 = integrator!.getPhysicalTime()
+  // 1 frame a 60 FPS (1/60s = 2 * 1/120s) deve executar exatamente 2 subpassos a 120 Hz
+  sim.update(1 / 60)
+  const t1 = integrator!.getPhysicalTime()
+  assert(Math.abs((t1 - t0) - (2 / 120)) < 1e-12, `update(1/60s) avança exatamente 2 subpassos de 1/120s (delta = ${((t1 - t0) * 1000).toFixed(4)} ms == 16.6667 ms)`)
+
+  // 3. Ausência de dois acumuladores (store reflete a única fonte da verdade do integrador)
+  sim.update(0.004) // 4 ms < 8.33 ms: zero subpassos executados
+  const storeAcc = useSimulationStore.getState()._accumulator
+  const integAcc = integrator!.getAccumulator()
+  assert(Math.abs(storeAcc - integAcc) < 1e-15, `Store e integrador compartilham único acumulador idêntico (store=${storeAcc.toFixed(6)}s, integrator=${integAcc.toFixed(6)}s)`)
+
+  // 4. Interpolação visual no runtime real (visualSpeed e visualRpm)
+  const alpha = useSimulationStore.getState().interpolationAlpha
+  const visualSpeed = useSimulationStore.getState().visualSpeed
+  const visualRpm = useSimulationStore.getState().visualRpm
+  assert(alpha >= 0 && alpha < 1.0, `Fator interpolationAlpha está estritamente no intervalo [0, 1) (alpha = ${alpha.toFixed(4)})`)
+  assert(typeof visualSpeed === 'number' && Number.isFinite(visualSpeed), `visualSpeed é número finito interpolado (${visualSpeed.toFixed(2)} km/h)`)
+  assert(typeof visualRpm === 'number' && Number.isFinite(visualRpm), `visualRpm é número finito interpolado (${visualRpm.toFixed(1)} RPM)`)
+
+  // 5. Pausa e Retomada no runtime real
+  sim.pauseSimulation()
+  assert(useSimulationStore.getState().isPaused === true, 'pauseSimulation() atualizou isPaused para true')
+  assert(integrator!.isPaused() === true, 'DeterministicIntegrator reconhece estado de pausa')
+  const timeAtPause = integrator!.getPhysicalTime()
+
+  // Loop durante a pausa não pode avançar o relógio físico nem acumular tempo
+  for (let i = 0; i < 30; i++) {
+    sim.update(1 / 60)
+  }
+  assert(integrator!.getPhysicalTime() === timeAtPause, 'Durante a pausa, nenhum tempo físico é acumulado')
+  assert(integrator!.getAccumulator() === 0, 'Acumulador permanece zerado durante a pausa')
+
+  sim.resumeSimulation()
+  assert(useSimulationStore.getState().isPaused === false, 'resumeSimulation() restaurou isPaused para false')
+  assert(integrator!.isPaused() === false, 'DeterministicIntegrator reconhece retomada')
+
+  // 6. Injeção de erro / NaN em subsistema e ativação de FAIL_SAFE_HOLD com rollback transacional
+  // Acelera o veículo para registrar velocidade positiva válida
+  sim.selectShifterMode('D')
+  sim.setThrottle(0.8)
+  for (let i = 0; i < 180; i++) {
+    sim.update(1 / 120)
+  }
+  const preCorruptSpeed = useSimulationStore.getState().speed
+  const preCorruptRpm = useSimulationStore.getState().rpm
+  assert(preCorruptSpeed > 5, `Veículo em velocidade válida antes do teste de falha (${preCorruptSpeed.toFixed(1)} km/h)`)
+
+  // Injeta corrupção não-física (NaN) em subsistema mutável
+  useSimulationStore.getState()._physics!.setSpeedKmh(NaN)
+
+  // Dispara o frame: o integrador deve capturar o NaN no candidato, abortar e acionar FAIL_SAFE_HOLD
+  sim.update(1 / 120)
+
+  assert(useSimulationStore.getState().physicsIntegrityStatus === 'FAIL_SAFE_HOLD', 'useSimulationStore entrou em FAIL_SAFE_HOLD após detecção de NaN')
+  const heldSpeed = useSimulationStore.getState().speed
+  const heldRpm = useSimulationStore.getState().rpm
+  assert(!Number.isNaN(heldSpeed) && Number.isFinite(heldSpeed), `Velocidade na store NÃO foi corrompida por NaN (${heldSpeed.toFixed(1)} km/h)`)
+  assert(Math.abs(heldSpeed - preCorruptSpeed) < 1e-9, 'Rollback transacional restaurou exatamente a última velocidade mestre válida')
+  assert(!Number.isNaN(heldRpm) && Number.isFinite(heldRpm), `RPM na store NÃO foi corrompido por NaN (${heldRpm.toFixed(1)} RPM)`)
+
+  // Verifica que os 5 subsistemas mutáveis foram restaurados a partir do snapshot e não retêm NaN
+  const recoveredPhysSpeed = useSimulationStore.getState()._physics!.getSpeedKmh()
+  const recoveredEngineRpm = useSimulationStore.getState()._engine!.getRpm()
+  assert(!Number.isNaN(recoveredPhysSpeed) && Number.isFinite(recoveredPhysSpeed), `VehiclePhysics foi restaurado do snapshot limpo sem reter NaN (${recoveredPhysSpeed.toFixed(1)} km/h)`)
+  assert(!Number.isNaN(recoveredEngineRpm) && Number.isFinite(recoveredEngineRpm), `EngineSimulator foi restaurado do snapshot limpo sem reter NaN (${recoveredEngineRpm.toFixed(1)} RPM)`)
+
+  // Verifica que novos frames não avançam o relógio físico enquanto em FAIL_SAFE_HOLD
+  const clockBefore = integrator!.getPhysicalTime()
+  sim.update(1 / 60)
+  assert(integrator!.getPhysicalTime() === clockBefore, 'Relógio físico permanece congelado enquanto em FAIL_SAFE_HOLD')
+
+  sim.reset()
+  assert(useSimulationStore.getState().physicsIntegrityStatus === 'NORMAL', 'Reset limpa FAIL_SAFE_HOLD e restaura integridade NORMAL')
+}
+
 console.log('\n===============================================================')
 console.log(`RESULTADO DA FASE 1.6.1: ${passedCount} PASSOU | ${failedCount} FALHOU`)
 console.log('===============================================================\n')

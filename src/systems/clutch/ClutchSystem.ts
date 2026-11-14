@@ -182,4 +182,26 @@ export class ClutchSystem {
     this.position = 0
     this.heat = 0
   }
+
+  /** Captura snapshot imutável para isolamento transacional */
+  getStateSnapshot(): ClutchSnapshot {
+    return {
+      position: this.position,
+      heat: this.heat,
+    }
+  }
+
+  /** Restaura estado da embreagem a partir do snapshot */
+  restoreSnapshot(snapshot: ClutchSnapshot): void {
+    this.position = snapshot.position
+    this.heat = snapshot.heat
+  }
+}
+
+/**
+ * Snapshot isolado do estado da embreagem.
+ */
+export interface ClutchSnapshot {
+  position: number
+  heat: number
 }

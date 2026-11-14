@@ -281,4 +281,32 @@ export class VehiclePhysics {
     this.accelerationMs2 = 0
     this.wheelSpeedMs = 0
   }
+
+  /** Captura snapshot imutável para isolamento transacional */
+  getStateSnapshot(): VehiclePhysicsSnapshot {
+    return {
+      speedMs: this.speedMs,
+      accelerationMs2: this.accelerationMs2,
+      surfaceFriction: this.surfaceFriction,
+      wheelSpeedMs: this.wheelSpeedMs,
+    }
+  }
+
+  /** Restaura estado da dinâmica a partir do snapshot */
+  restoreSnapshot(snapshot: VehiclePhysicsSnapshot): void {
+    this.speedMs = snapshot.speedMs
+    this.accelerationMs2 = snapshot.accelerationMs2
+    this.surfaceFriction = snapshot.surfaceFriction
+    this.wheelSpeedMs = snapshot.wheelSpeedMs
+  }
+}
+
+/**
+ * Snapshot isolado do estado do veículo.
+ */
+export interface VehiclePhysicsSnapshot {
+  speedMs: number
+  accelerationMs2: number
+  surfaceFriction: number
+  wheelSpeedMs: number
 }

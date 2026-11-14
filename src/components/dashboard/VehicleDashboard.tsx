@@ -42,6 +42,8 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   // Estados em tempo real da store
   const rpm = useSimulationStore((s) => s.rpm)
   const speed = useSimulationStore((s) => s.speed)
+  const visualRpm = useSimulationStore((s) => s.visualRpm)
+  const visualSpeed = useSimulationStore((s) => s.visualSpeed)
   const currentGear = useSimulationStore((s) => s.currentGear)
   const status = useSimulationStore((s) => s.status)
   const isRevLimiting = useSimulationStore((s) => s.isRevLimiting)
@@ -130,14 +132,14 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   // Conectar controles de teclado do PC (desativa enquanto modais estiverem abertos)
   useKeyboardControls(vehicle, !isTuningOpen && !isDragStripOpen)
 
-  // Computar telemetria do DashboardSystem (desacoplado e puro)
+  // Computar telemetria do DashboardSystem (desacoplado e puro com interpolação visual)
   const telemetry = useMemo(() => {
     const input = DashboardSystem.createInputFromState(vehicle, {
-      rpm,
+      rpm: visualRpm > 0 || rpm === 0 ? visualRpm : rpm,
       status,
       isRevLimiting,
       isBogWarning,
-      speed,
+      speed: visualSpeed !== undefined ? visualSpeed : speed,
       currentGear,
       transmissionMode,
       drivingMode,
@@ -164,10 +166,12 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   }, [
     vehicle,
     rpm,
+    visualRpm,
     status,
     isRevLimiting,
     isBogWarning,
     speed,
+    visualSpeed,
     currentGear,
     transmissionMode,
     drivingMode,

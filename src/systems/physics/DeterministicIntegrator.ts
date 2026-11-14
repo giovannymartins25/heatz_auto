@@ -59,6 +59,8 @@ export type SubstepHandler<TState, TInput> = (
 export interface IntegratorStepResult<TState> {
   /** Estado físico mestre resultante (último estado válido garantido) */
   state: TState
+  /** Estado físico anterior ao último subpasso executado (para interpolação visual) */
+  previousState: TState
   /** Quantidade de subpassos físicos efetivamente executados neste frame */
   substepsExecuted: number
   /** Fator de interpolação visual entre o penúltimo e o último estado: alpha = accumulator / h in [0, 1) */
@@ -83,6 +85,7 @@ export class DeterministicIntegrator<TState, TInput = void> {
   public readonly maxFrameDelta: number
 
   private masterState: TState
+  private previousState: TState
   private accumulator: number = 0
   private physicalTime: number = 0
   private paused: boolean = false
@@ -111,6 +114,7 @@ export class DeterministicIntegrator<TState, TInput = void> {
     })
 
     this.masterState = this.cloneStateFn(initialState)
+    this.previousState = this.cloneStateFn(initialState)
   }
 
   /**
@@ -121,17 +125,35 @@ export class DeterministicIntegrator<TState, TInput = void> {
   }
 
   /**
-   * Força uma atualização segura do estado mestre (ex: teleport, reset de corrida).
+   * Retorna o estado físico imediatamente anterior ao último subpasso (para interpolação).
    */
-  setState(newState: TState): void {
+  getPreviousState(): TState {
+    return this.cloneStateFn(this.previousState)
+  }
+
+  /**
+   * Força uma atualização segura do estado mestre (ex: teleport, reset de corrida).
+   * Se o estado for inválido (NaN/Infinito), aciona FAIL_SAFE_HOLD sem contaminar o masterState anterior.
+   */
+  setState(newState: TState): boolean {
     const validation = this.checkStateIntegrity(newState)
     if (!validation.valid) {
-      throw new Error(`[DeterministicIntegrator] Não é possível definir estado inválido: ${validation.reason}`)
+      this.integrityStatus = 'FAIL_SAFE_HOLD'
+      this.lastFault = {
+        timestamp: Date.now(),
+        substepIndex: -1,
+        errorCode: validation.code,
+        errorMessage: validation.reason || 'Tentativa de definir estado inválido',
+        lastValidStateSnapshot: this.cloneStateFn(this.masterState),
+      }
+      return false
     }
+    this.previousState = this.cloneStateFn(this.masterState)
     this.masterState = this.cloneStateFn(newState)
     if (this.integrityStatus === 'FAIL_SAFE_HOLD') {
       this.integrityStatus = 'RECOVERED'
     }
+    return true
   }
 
   /**
@@ -222,6 +244,7 @@ export class DeterministicIntegrator<TState, TInput = void> {
     if (this.paused) {
       return {
         state: this.cloneStateFn(this.masterState),
+        previousState: this.cloneStateFn(this.previousState),
         substepsExecuted: 0,
         interpolationAlpha: 0,
         physicalTime: this.physicalTime,
@@ -235,6 +258,7 @@ export class DeterministicIntegrator<TState, TInput = void> {
     if (this.integrityStatus === 'FAIL_SAFE_HOLD') {
       return {
         state: this.cloneStateFn(this.masterState),
+        previousState: this.cloneStateFn(this.previousState),
         substepsExecuted: 0,
         interpolationAlpha: 0,
         physicalTime: this.physicalTime,
@@ -286,6 +310,7 @@ export class DeterministicIntegrator<TState, TInput = void> {
       }
 
       // Subpasso aprovado: comita para o estado mestre e avança o relógio físico
+      this.previousState = this.masterState
       this.masterState = candidateStateAfter
       this.physicalTime += this.timestep
       this.accumulator -= this.timestep
@@ -300,6 +325,7 @@ export class DeterministicIntegrator<TState, TInput = void> {
 
     return {
       state: this.cloneStateFn(this.masterState),
+      previousState: this.cloneStateFn(this.previousState),
       substepsExecuted,
       interpolationAlpha: this.getInterpolationAlpha(),
       physicalTime: this.physicalTime,

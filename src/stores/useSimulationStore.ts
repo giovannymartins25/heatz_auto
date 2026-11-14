@@ -1,14 +1,14 @@
 import { create } from 'zustand'
-import type { VehicleConfig, DrivingMode } from '@/types'
+import type { VehicleConfig, DrivingMode, GearSelectorPosition } from '@/types'
 import { getVehicleCapabilities } from '@/types'
 import type { EngineStatus, FuelType, DragTreeStage, DragTimeSlip } from '@/types/simulation'
-import { EngineSimulator } from '@/systems/engine'
-import { Transmission, AutomaticTransmission } from '@/systems/transmission'
-import { ClutchSystem } from '@/systems/clutch'
-import { VehiclePhysics } from '@/systems/physics'
+import { EngineSimulator, type EngineSimulatorSnapshot } from '@/systems/engine'
+import { Transmission, AutomaticTransmission, type TransmissionSnapshot, type AutoTransmissionSnapshot } from '@/systems/transmission'
+import { ClutchSystem, type ClutchSnapshot } from '@/systems/clutch'
+import { VehiclePhysics, DeterministicIntegrator, type PhysicsIntegrityStatus, type VehiclePhysicsSnapshot } from '@/systems/physics'
 import { TractionControlSystem } from '@/systems/tcs'
 import { PedalInputSystem, createInitialZeroToHundredState, stepZeroToHundredTimer, type ZeroToHundredState } from '@/systems/vehicle'
-import { PHYSICS_TIMESTEP, MAX_SUBSTEPS } from '@/systems/engine/constants'
+import { MAX_SUBSTEPS } from '@/systems/engine/constants'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 import { clamp } from '@/utils/math'
 import type { AmbientLightColor } from '@/utils/ambientLighting'
@@ -92,6 +92,60 @@ export interface PhysicsInternalState {
   lastPubDragTimerStart: number | null
   lastPubSpeedKmh: number
   lastPubTopSpeedRecord: number
+}
+
+/**
+ * Estado candidato completo para execução transacional isolada no DeterministicIntegrator.
+ * Abrange 100% dos subsistemas mutáveis: física, motor, embreagem, transmissão e timers.
+ */
+export interface SimulationRuntimeCandidate {
+  phys: PhysicsInternalState
+  timer0to100State: ZeroToHundredState
+  engine: EngineSimulatorSnapshot
+  clutch: ClutchSnapshot
+  transmission: TransmissionSnapshot
+  autoTransmission: AutoTransmissionSnapshot | null
+  physics: VehiclePhysicsSnapshot
+}
+
+/**
+ * Contexto de entrada imutável passado aos subpassos pelo integrador.
+ */
+export interface SimulationSubstepContext {
+  throttle: number
+  brake: number
+  handbrake: boolean
+  drivingMode: DrivingMode
+  transmissionMode: TransmissionMode
+  gearSelectorPosition: GearSelectorPosition
+  tuningStage: 0 | 1 | 2 | 3
+  intakeType: 'stock' | 'cold_air'
+  exhaustType: 'stock' | 'sport' | 'straight_pipe'
+  hasTurbo: boolean
+  hasNosKit: boolean
+  tires: 'street' | 'semi_slick'
+  isRaining: boolean
+  isAeroWingExtended: boolean
+  hasLaunchControl: boolean
+  hasBoostGaugeKit: boolean
+  fuelType: FuelType
+  now: number
+  injectedSpeedFloor: number
+}
+
+function cloneRuntimeCandidate(candidate: SimulationRuntimeCandidate): SimulationRuntimeCandidate {
+  return {
+    phys: {
+      ...candidate.phys,
+      dragTimeSlip: candidate.phys.dragTimeSlip ? { ...candidate.phys.dragTimeSlip } : null,
+    },
+    timer0to100State: { ...candidate.timer0to100State },
+    engine: { ...candidate.engine },
+    clutch: { ...candidate.clutch },
+    transmission: { ...candidate.transmission },
+    autoTransmission: candidate.autoTransmission ? { ...candidate.autoTransmission } : null,
+    physics: { ...candidate.physics },
+  }
 }
 
 function createInitialPhysicsInternalState(
@@ -298,6 +352,12 @@ interface SimulationActions {
   update: (frameTime: number) => void
   /** Reseta a simulação */
   reset: () => void
+  /** Pausa a simulação física determinística (congela relógio sem saltos) */
+  pauseSimulation: () => void
+  /** Retoma a simulação física */
+  resumeSimulation: () => void
+  /** Alterna pausa/retomada */
+  togglePauseSimulation: () => void
 }
 
 interface SimulationState {
@@ -443,6 +503,12 @@ interface SimulationState {
   _accumulator: number
   _isInitialized: boolean
   _phys: PhysicsInternalState
+  _integrator: DeterministicIntegrator<SimulationRuntimeCandidate, SimulationSubstepContext> | null
+  isPaused: boolean
+  physicsIntegrityStatus: PhysicsIntegrityStatus
+  interpolationAlpha: number
+  visualSpeed: number
+  visualRpm: number
 }
 
 type SimulationStore = SimulationState & SimulationActions
@@ -458,6 +524,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isAutomaticVehicle: true,
   ambientLightColor: 'red',
   currentGear: 0,
+  visualSpeed: 0,
+  visualRpm: 0,
+  interpolationAlpha: 0,
+  isPaused: false,
+  physicsIntegrityStatus: 'NORMAL',
+  _integrator: null,
   // Peças & Customizações Equipadas da Loja
   hasRetrofitInfotainment: false,
   hasBoostGaugeKit: false,
@@ -615,6 +687,26 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     transmission.shiftTo(isAutoOrCvt ? -2 : 0, 0, undefined, true)
 
+    const initialPhys = createInitialPhysicsInternalState({ gear: isAutoOrCvt ? -2 : 0 })
+    const initialCandidate: SimulationRuntimeCandidate = {
+      phys: initialPhys,
+      timer0to100State: createInitialZeroToHundredState(),
+      engine: engine.getStateSnapshot(),
+      clutch: clutch.getStateSnapshot(),
+      transmission: transmission.getStateSnapshot(),
+      autoTransmission: autoTransmission ? autoTransmission.getStateSnapshot() : null,
+      physics: physics.getStateSnapshot(),
+    }
+
+    const integrator = new DeterministicIntegrator<SimulationRuntimeCandidate, SimulationSubstepContext>(
+      initialCandidate,
+      {
+        physicsFrequency: 120,
+        maxSubsteps: MAX_SUBSTEPS,
+        cloneState: cloneRuntimeCandidate,
+      },
+    )
+
     const defaultAmbientColor: AmbientLightColor =
       config.id === 'golf-gti'
         ? 'red'
@@ -634,6 +726,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _pedalInput: pedalInput,
       _config: config,
       _isInitialized: true,
+      _integrator: integrator,
+      isPaused: false,
+      physicsIntegrityStatus: 'NORMAL',
+      visualSpeed: 0,
+      visualRpm: 0,
+      interpolationAlpha: 0,
       isAutomaticVehicle: isAutoOrCvt,
       ambientLightColor: defaultAmbientColor,
       hasTurbo,
@@ -717,7 +815,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _dragTimerStart: null,
       _dragGreenTime: null,
       _accumulator: 0,
-      _phys: createInitialPhysicsInternalState({ gear: isAutoOrCvt ? -2 : 0 }),
+      _phys: initialPhys,
     })
   },
 
@@ -1684,12 +1782,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   update: (frameTime: number) => {
     const state = get()
-    const { _engine, _transmission, _autoTransmission, _clutch, _physics, _tcs, _config } = state
+    const { _engine, _transmission, _autoTransmission, _clutch, _physics, _tcs, _config, _integrator } = state
 
-    if (!_engine || !_transmission || !_clutch || !_physics || !_config) return
+    if (!_engine || !_transmission || !_clutch || !_physics || !_config || !_integrator) return
+
+    if (state.isPaused || _integrator.isPaused()) {
+      return
+    }
+
+    if (_integrator.getIntegrityStatus() === 'FAIL_SAFE_HOLD') {
+      return
+    }
 
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
-    const phys: PhysicsInternalState = { ...state._phys }
+    let phys: PhysicsInternalState = { ...state._phys }
 
     // Sincroniza eventuais injeções externas via useSimulationStore.setState()
     if (state.boostPressureBar !== phys.lastPubBoost) {
@@ -1759,6 +1865,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (state.speed !== phys.lastPubSpeedKmh) {
       phys.speedKmh = state.speed
       phys.lastPubSpeedKmh = state.speed
+      if (injectedSpeedFloor > 0) {
+        _physics.setSpeedKmh(injectedSpeedFloor)
+      }
     }
     if (state.topSpeedRecord !== phys.lastPubTopSpeedRecord) {
       phys.topSpeedRecord = state.topSpeedRecord
@@ -1766,516 +1875,611 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     }
 
     const prevRevLimiting = phys.isRevLimiting
-    let accumulator = state._accumulator + frameTime
-    let timer0to100State = state._timer0to100State
-    let substeps = 0
 
-    phys.rpm = _engine.getRpm()
-    phys.gear = _transmission.currentGear
-    phys.isRunning = _engine.getIsRunning()
-
-    // ─── Launch Control Lógica de Armação / Disparo ───
-    const canLaunch = state.hasLaunchControl && phys.isRunning && !state.handbrake
-    const isStationary = phys.speedKmh < 3.5
-    const isLaunchGear = phys.gear === 1 || (state.transmissionMode === 'automatic' && phys.gear === 1)
-
-    // Armar: parado em 1ª ou D, freio firme (>= 0.60) e acelerador a fundo (>= 0.65)
-    if (canLaunch && isStationary && isLaunchGear && state.brake >= 0.60 && state.throttle >= 0.65) {
-      phys.isLaunchControlArmed = true
-      phys.isLaunching = false
-    } else if (phys.isLaunchControlArmed && state.brake < 0.25 && state.throttle >= 0.50) {
-      // Piloto soltou o freio com o pé no fundo -> DISPARO / LARGADA!
-      phys.isLaunchControlArmed = false
-      phys.isLaunching = true
-    } else if (phys.isLaunchControlArmed && (state.throttle < 0.40 || phys.gear === 0 || state.handbrake)) {
-      // Cancelou se tirou o pé do acelerador, botou no neutro ou puxou freio de mão
-      phys.isLaunchControlArmed = false
-      phys.isLaunching = false
+    // Contexto de entrada imutável para os subpassos determinísticos
+    const substepContext: SimulationSubstepContext = {
+      throttle: state.throttle,
+      brake: state.brake,
+      handbrake: state.handbrake,
+      drivingMode: state.drivingMode,
+      transmissionMode: state.transmissionMode,
+      gearSelectorPosition: state.gearSelectorPosition,
+      tuningStage: state.tuningStage,
+      intakeType: state.intakeType,
+      exhaustType: state.exhaustType,
+      hasTurbo: state.hasTurbo,
+      hasNosKit: state.hasNosKit,
+      tires: state.tires,
+      isRaining: state.isRaining,
+      isAeroWingExtended: state.isAeroWingExtended,
+      hasLaunchControl: state.hasLaunchControl,
+      hasBoostGaugeKit: state.hasBoostGaugeKit,
+      fuelType: state.fuelType,
+      now,
+      injectedSpeedFloor,
     }
 
-    if (phys.isLaunching && (phys.speedKmh > 45 || state.throttle < 0.3 || phys.gear > 1)) {
-      phys.isLaunching = false
+    // Sincroniza o estado mestre do integrador com eventuais injeções externas
+    const currentCandidate = _integrator.getState()
+    currentCandidate.phys = phys
+    currentCandidate.timer0to100State = { ...state._timer0to100State }
+    currentCandidate.engine = _engine.getStateSnapshot()
+    currentCandidate.clutch = _clutch.getStateSnapshot()
+    currentCandidate.transmission = _transmission.getStateSnapshot()
+    currentCandidate.autoTransmission = _autoTransmission ? _autoTransmission.getStateSnapshot() : null
+    currentCandidate.physics = _physics.getStateSnapshot()
+    const syncSuccess = _integrator.setState(currentCandidate)
+    if (!syncSuccess) {
+      // Estado externo continha NaN/Infinito: ativa FAIL_SAFE_HOLD e restaura subsistemas
+      const validMaster = _integrator.getState()
+      _engine.restoreSnapshot(validMaster.engine)
+      _clutch.restoreSnapshot(validMaster.clutch)
+      _transmission.restoreSnapshot(validMaster.transmission)
+      if (_autoTransmission && validMaster.autoTransmission) {
+        _autoTransmission.restoreSnapshot(validMaster.autoTransmission)
+      }
+      _physics.restoreSnapshot(validMaster.physics)
+
+      set({
+        physicsIntegrityStatus: 'FAIL_SAFE_HOLD',
+        _phys: validMaster.phys,
+        _timer0to100State: validMaster.timer0to100State,
+        _accumulator: _integrator.getAccumulator(),
+      })
+      console.warn('[HEATZ FAIL_SAFE_HOLD] Falha detectada na sincronização de subsistema. Simulação congelada.', _integrator.getLastFault())
+      return
     }
 
-    const maxSubsteps = Math.max(MAX_SUBSTEPS, 12)
-    while (accumulator >= PHYSICS_TIMESTEP && substeps < maxSubsteps) {
-      const dt = PHYSICS_TIMESTEP
-      performanceMonitor.recordPhysicsTick()
-
-      // ─── 1. Tomada de Decisão da Transmissão ───
-      if (state.transmissionMode === 'automatic' && _autoTransmission) {
-        if (phys.isLaunchControlArmed) {
-          // Com Launch Control armado no automático, segura a embreagem desacoplada
-          _clutch.setPosition(0.95)
-          phys.isKickdown = false
-        } else if (phys.isLaunching) {
-          // No disparo da largada, joga torque total imediato
-          _clutch.setPosition(0.0)
-          phys.isKickdown = true
-        } else {
-          // AUTO convencional
-          const autoDecision = _autoTransmission.decide({
-            currentRpm: _engine.getRpm(),
-            vehicleSpeedKmh: _physics.getSpeedKmh(),
-            throttle: state.throttle,
-            brake: state.brake,
-            currentGear: _transmission.currentGear,
-            drivingMode: state.drivingMode,
-            selectorPosition: state.gearSelectorPosition,
-            maxPowerRpm: _config.engine.maxPowerRpm,
-            maxTorqueRpm: _config.engine.maxTorqueRpm,
-            deltaTime: dt,
-          })
-
-          phys.isKickdown = autoDecision.isKickdown
-
-          if (autoDecision.targetGear !== _transmission.currentGear) {
-            _transmission.shiftTo(autoDecision.targetGear, _physics.getSpeedKmh())
-            phys.gear = autoDecision.targetGear
-          }
-
-          const autoClutchPosition = 1.0 - autoDecision.targetClutchEngagement
-          _clutch.setPosition(autoClutchPosition)
+    // Executa a evolução temporal determinística a 120 Hz com isolamento transacional
+    const stepResult = _integrator.step(
+      frameTime,
+      substepContext,
+      (cand, dt, ctx, substepIdx) => {
+        // 0. Restaura snapshots no início do subpasso
+        _engine.restoreSnapshot(cand.engine)
+        _clutch.restoreSnapshot(cand.clutch)
+        _transmission.restoreSnapshot(cand.transmission)
+        if (_autoTransmission && cand.autoTransmission) {
+          _autoTransmission.restoreSnapshot(cand.autoTransmission)
         }
-      } else if (state.transmissionMode === 'manual_simulated') {
-        // MANUAL_SIMULATED: jogador escolheu a relação.
-        // CVT continua gerenciando a embreagem para evitar estol.
-        const speedKmh = _physics.getSpeedKmh()
-        const currentRpm = _engine.getRpm()
+        _physics.restoreSnapshot(cand.physics)
 
-        let targetClutchEngagement = 1.0
-        if (speedKmh < 3 && state.throttle < 0.05 && state.brake > 0.1) {
-          targetClutchEngagement = 0.0
-        } else if (speedKmh < 8 || currentRpm < _config.engine.idleRpm * 1.18) {
-          const idleRpm = _config.engine.idleRpm
-          const targetLaunchRpm = Math.max(idleRpm + 800, 1900)
-          const rpmRatio = clamp((currentRpm - idleRpm) / (targetLaunchRpm - idleRpm), 0, 1)
-          const speedRatio = clamp(speedKmh / 14, 0, 1)
-          targetClutchEngagement = clamp(
-            Math.pow(rpmRatio, 2.2) * 0.60 + speedRatio * 0.40,
-            0.05,
-            0.98,
-          )
+        const substepPhys = cand.phys
+        let substepTimer0to100 = cand.timer0to100State
+
+        substepPhys.rpm = _engine.getRpm()
+        substepPhys.gear = _transmission.currentGear
+        substepPhys.isRunning = _engine.getIsRunning()
+
+        // ─── Launch Control Lógica de Armação / Disparo ───
+        const canLaunch = ctx.hasLaunchControl && substepPhys.isRunning && !ctx.handbrake
+        const isStationary = substepPhys.speedKmh < 3.5
+        const isLaunchGear = substepPhys.gear === 1 || (ctx.transmissionMode === 'automatic' && substepPhys.gear === 1)
+
+        if (canLaunch && isStationary && isLaunchGear && ctx.brake >= 0.60 && ctx.throttle >= 0.65) {
+          substepPhys.isLaunchControlArmed = true
+          substepPhys.isLaunching = false
+        } else if (substepPhys.isLaunchControlArmed && ctx.brake < 0.25 && ctx.throttle >= 0.50) {
+          substepPhys.isLaunchControlArmed = false
+          substepPhys.isLaunching = true
+        } else if (substepPhys.isLaunchControlArmed && (ctx.throttle < 0.40 || substepPhys.gear === 0 || ctx.handbrake)) {
+          substepPhys.isLaunchControlArmed = false
+          substepPhys.isLaunching = false
         }
 
-        _clutch.setPosition(1.0 - targetClutchEngagement)
-        phys.isKickdown = false
-      } else {
-        // MANUAL convencional: embreagem controlada pelo jogador
-        phys.isKickdown = false
-      }
-
-      const gear = _transmission.currentGear
-      phys.gear = gear
-      const gearRatio = _transmission.calculator.getGearRatio(gear)
-      const finalDrive = _config.transmission.finalDrive
-      const isInNeutral = gear === 0 || gear === -2
-
-      // 2. Velocidade angular das rodas e da entrada da transmissão
-      const speedMs = _physics.getSpeedMs()
-      const wheelRadius = _config.info.wheelDiameter / 2
-      const wheelAngVel = speedMs / wheelRadius
-      const transInputAngVel = isInNeutral
-        ? _engine.getAngularVelocity()
-        : wheelAngVel * (gearRatio * finalDrive)
-
-      const effectiveSubstepThrottle = phys.isLaunchControlArmed
-        ? Math.min(state.throttle, 0.45)
-        : state.throttle
-
-      // 3. ClutchSystem: torque de atrito transferido e carga sobre o motor
-      const clutchState = _clutch.calculateTorqueTransfer(
-        _engine.getAngularVelocity(),
-        transInputAngVel,
-        isInNeutral,
-        _engine.getDrivetrainTorque(effectiveSubstepThrottle),
-        dt,
-      )
-
-      // 4. EngineSimulator: processa o tick com o torque de CARGA da embreagem sobre o volante
-      const engineTick = _engine.tick({
-        throttle: effectiveSubstepThrottle,
-        loadTorque: clutchState.loadTorqueOnEngine,
-        deltaTime: dt,
-      })
-
-      phys.rpm = engineTick.rpm
-      phys.isRevLimiting = engineTick.isRevLimiting
-      phys.isRunning = _engine.getIsRunning()
-      phys.isStalled = engineTick.isStalled
-      phys.isBogWarning = engineTick.isBogWarning
-      phys.status = engineTick.status
-
-      // Se o Launch Control estiver armado, fixa o RPM de corte de largada
-      if (phys.isLaunchControlArmed) {
-        const launchRpm = _config.transmission.launchControl?.launchRpm || (_config.id === 'porsche-gt3' ? 4500 : 3800)
-        if (_engine.getRpm() > launchRpm) {
-          _engine.setRpm(launchRpm)
-          phys.rpm = launchRpm
+        if (substepPhys.isLaunching && (substepPhys.speedKmh > 45 || ctx.throttle < 0.3 || substepPhys.gear > 1)) {
+          substepPhys.isLaunching = false
         }
-      }
 
-      // Telemetria da embreagem
-      phys.clutchSlipRpm = clutchState.slipRpm
-      phys.clutchSlipRatio = clutchState.slipRatio
-      phys.clutchTorqueTransfer = clutchState.transmittedTorque
-      phys.clutchHeat = clutchState.heat
-      phys.isClutchSlipping = clutchState.isSlipping
+        performanceMonitor.recordPhysicsTick()
 
-      // 5. VehiclePhysics: calcula forças longitudinais com modificadores de Preparação, Peças e Modos
-      const stage = state.tuningStage || 0
-      const stageMult = stage === 1 ? 1.25 : stage === 2 ? 1.50 : stage === 3 ? 1.85 : 1.0
-      const intakeMult = state.intakeType === 'cold_air' ? 1.06 : 1.0
-      const exhaustMult = state.exhaustType === 'straight_pipe' ? 1.08 : state.exhaustType === 'sport' ? 1.04 : 1.0
-      const turboKitMult = (!_config.engine.turbo?.enabled && state.hasTurbo) ? 1.45 : 1.0
-      const driveModeMult = state.drivingMode === 'track' ? 1.10 : state.drivingMode === 'sport' ? 1.05 : 1.0
-      const isNosInjecting = phys.nosActive && state.hasNosKit && phys.nosPressurePercent > 0 && state.throttle > 0.65 && phys.isRunning
-      const nosMult = isNosInjecting ? 1.55 : 1.0
-      const totalTorqueMult = stageMult * intakeMult * exhaustMult * turboKitMult * driveModeMult * nosMult
-
-      // Atualiza atrito em tempo de execução com aderência dos pneus e asa ativa
-      let targetFriction = state.tires === 'semi_slick' ? 1.22 : 0.95
-      if (state.isRaining) {
-        targetFriction = state.tires === 'semi_slick' ? 0.52 : 0.62
-      }
-      if (state.isAeroWingExtended) {
-        targetFriction += 0.14
-      }
-      _physics.setSurfaceFriction(targetFriction)
-
-      const rawBrake = Math.max(state.brake, state.handbrake || gear === -2 ? 1 : 0)
-      const effectiveBrake = rawBrake * phys.brakeFadeFactor
-      const driveTorqueAtTransmission =
-        clutchState.transmittedTorque >= 0
-          ? clutchState.transmittedTorque * totalTorqueMult
-          : clutchState.transmittedTorque
-      const physicsTick = _physics.tick({
-        driveTorqueAtTransmission,
-        gearRatio,
-        finalDrive,
-        brake: effectiveBrake,
-        deltaTime: dt,
-      })
-
-      const prevSubstepSpeed = phys.speedKmh
-      phys.speedKmh = gear === -2 ? 0 : physicsTick.speedKmh
-      if (gear === -2) {
-        _physics.reset()
-      }
-
-      const timerStep = stepZeroToHundredTimer(timer0to100State, {
-        prevSpeedKmh: prevSubstepSpeed,
-        speedKmh: phys.speedKmh,
-        gear,
-        throttle: state.throttle,
-        brake: state.brake,
-        handbrake: state.handbrake,
-        isRunning: phys.isRunning,
-        deltaTime: dt,
-      })
-      timer0to100State = timerStep.state
-      if (timerStep.isNewBest) {
-        useGarageStore.getState().addCredits(2500)
-      }
-
-      // 6. TractionControlSystem
-      if (_tcs) {
-        const tcsDecision = _tcs.decide({
-          wheelTorque: physicsTick.wheelTorque,
-          maxGripTorque: physicsTick.maxGripTorque,
-          slipRatio: physicsTick.slipRatio,
-          drivingMode: state.drivingMode,
-          enabled: state.tcsEnabled,
-        }, dt)
-
-        phys.tcsIntervening = tcsDecision.isIntervening
-        phys.tcsInterventionLevel = tcsDecision.interventionLevel
-
-        if (tcsDecision.isIntervening && physicsTick.isWheelSlipping) {
-          const reducedThrottle = state.throttle * tcsDecision.throttleMultiplier
-          _engine.tick({
-            throttle: reducedThrottle,
-            loadTorque: 0,
-            deltaTime: 0,
-          })
-        }
-      }
-
-      // 7. Quando 100% acoplado em movimento com rotação suficiente, sincroniza RPM
-      if (gear !== 0 && _clutch.getEngagement() > 0.95 && phys.isRunning) {
-        const expectedRpm = _transmission.calculator.speedToRpm(phys.speedKmh, gear)
-        if (expectedRpm >= _config.engine.idleRpm) {
-          _engine.setRpm(expectedRpm)
-          phys.rpm = expectedRpm
-        }
-      }
-
-      // ─── 8. Subsistemas Físicos Secundários em 120 Hz Contínuo (sem quantização) ───
-
-      // Turbo Boost Pressure Calculation
-      if (state.hasTurbo) {
-        const turboCfg = _config.engine.turbo || {
-          maxBoostBar: 1.25,
-          spoolRpmStart: 1800,
-          fullBoostRpm: 2800,
-        }
-        const extraBoost = stage === 1 ? 0.35 : stage === 2 ? 0.65 : stage === 3 ? 1.15 : 0.0
-        const maxBoost = (turboCfg.maxBoostBar || 1.25) + extraBoost
-        const spoolRpm = turboCfg.spoolRpmStart || 1600
-        const fullRpm = turboCfg.fullBoostRpm || 2600
-
-        let targetBoost = -0.7
-        if (phys.isRunning) {
-          if (phys.isLaunchControlArmed) {
-            targetBoost = maxBoost * 0.65
-          } else if (state.throttle < 0.08) {
-            targetBoost = -0.75 + clamp((phys.rpm - 1000) / 6000, 0, 0.25)
-          } else if (phys.rpm < spoolRpm) {
-            targetBoost = -0.7 + state.throttle * 0.7
+        // ─── 1. Tomada de Decisão da Transmissão ───
+        if (ctx.transmissionMode === 'automatic' && _autoTransmission) {
+          if (substepPhys.isLaunchControlArmed) {
+            _clutch.setPosition(0.95)
+            substepPhys.isKickdown = false
+          } else if (substepPhys.isLaunching) {
+            _clutch.setPosition(0.0)
+            substepPhys.isKickdown = true
           } else {
-            const rpmFactor = clamp((phys.rpm - spoolRpm) / (fullRpm - spoolRpm), 0, 1)
-            targetBoost = state.throttle * (rpmFactor * maxBoost)
+            const autoDecision = _autoTransmission.decide({
+              currentRpm: _engine.getRpm(),
+              vehicleSpeedKmh: _physics.getSpeedKmh(),
+              throttle: ctx.throttle,
+              brake: ctx.brake,
+              currentGear: _transmission.currentGear,
+              drivingMode: ctx.drivingMode,
+              selectorPosition: ctx.gearSelectorPosition,
+              maxPowerRpm: _config.engine.maxPowerRpm,
+              maxTorqueRpm: _config.engine.maxTorqueRpm,
+              deltaTime: dt,
+            })
+
+            substepPhys.isKickdown = autoDecision.isKickdown
+
+            if (autoDecision.targetGear !== _transmission.currentGear) {
+              _transmission.shiftTo(autoDecision.targetGear, _physics.getSpeedKmh())
+              substepPhys.gear = autoDecision.targetGear
+            }
+
+            const autoClutchPosition = 1.0 - autoDecision.targetClutchEngagement
+            _clutch.setPosition(autoClutchPosition)
           }
+        } else if (ctx.transmissionMode === 'manual_simulated') {
+          const speedKmh = _physics.getSpeedKmh()
+          const currentRpm = _engine.getRpm()
+
+          let targetClutchEngagement = 1.0
+          if (speedKmh < 3 && ctx.throttle < 0.05 && ctx.brake > 0.1) {
+            targetClutchEngagement = 0.0
+          } else if (speedKmh < 8 || currentRpm < _config.engine.idleRpm * 1.18) {
+            const idleRpm = _config.engine.idleRpm
+            const targetLaunchRpm = Math.max(idleRpm + 800, 1900)
+            const rpmRatio = clamp((currentRpm - idleRpm) / (targetLaunchRpm - idleRpm), 0, 1)
+            const speedRatio = clamp(speedKmh / 14, 0, 1)
+            targetClutchEngagement = clamp(
+              Math.pow(rpmRatio, 2.2) * 0.60 + speedRatio * 0.40,
+              0.05,
+              0.98,
+            )
+          }
+
+          _clutch.setPosition(1.0 - targetClutchEngagement)
+          substepPhys.isKickdown = false
         } else {
-          targetBoost = 0
+          substepPhys.isKickdown = false
         }
 
-        const boostSpeed = targetBoost > phys.boostPressureBar ? 4.8 : 8.5
-        phys.boostPressureBar += (targetBoost - phys.boostPressureBar) * clamp(dt * boostSpeed, 0, 1)
-        phys.peakBoostBar = Math.max(phys.peakBoostBar, phys.boostPressureBar)
-      } else if (state.hasBoostGaugeKit) {
-        let targetVacuum = 0
-        if (phys.isRunning) {
-          targetVacuum = state.throttle < 0.08
-            ? -0.75 + clamp((phys.rpm - 1000) / 8000, 0, 0.1)
-            : -0.7 + state.throttle * 0.65
+        const gear = _transmission.currentGear
+        substepPhys.gear = gear
+        const gearRatio = _transmission.calculator.getGearRatio(gear)
+        const finalDrive = _config.transmission.finalDrive
+        const isInNeutral = gear === 0 || gear === -2
+
+        // 2. Velocidade angular das rodas e da entrada da transmissão
+        const speedMs = _physics.getSpeedMs()
+        const wheelRadius = _config.info.wheelDiameter / 2
+        const wheelAngVel = speedMs / wheelRadius
+        const transInputAngVel = isInNeutral
+          ? _engine.getAngularVelocity()
+          : wheelAngVel * (gearRatio * finalDrive)
+
+        const effectiveSubstepThrottle = substepPhys.isLaunchControlArmed
+          ? Math.min(ctx.throttle, 0.45)
+          : ctx.throttle
+
+        // 3. ClutchSystem: torque de atrito transferido e carga sobre o motor
+        const clutchState = _clutch.calculateTorqueTransfer(
+          _engine.getAngularVelocity(),
+          transInputAngVel,
+          isInNeutral,
+          _engine.getDrivetrainTorque(effectiveSubstepThrottle),
+          dt,
+        )
+
+        // 4. EngineSimulator: processa o tick com o torque de CARGA da embreagem sobre o volante
+        const engineTick = _engine.tick({
+          throttle: effectiveSubstepThrottle,
+          loadTorque: clutchState.loadTorqueOnEngine,
+          deltaTime: dt,
+        })
+
+        substepPhys.rpm = engineTick.rpm
+        substepPhys.isRevLimiting = engineTick.isRevLimiting
+        substepPhys.isRunning = _engine.getIsRunning()
+        substepPhys.isStalled = engineTick.isStalled
+        substepPhys.isBogWarning = engineTick.isBogWarning
+        substepPhys.status = engineTick.status
+
+        if (substepPhys.isLaunchControlArmed) {
+          const launchRpm = _config.transmission.launchControl?.launchRpm || (_config.id === 'porsche-gt3' ? 4500 : 3800)
+          if (_engine.getRpm() > launchRpm) {
+            _engine.setRpm(launchRpm)
+            substepPhys.rpm = launchRpm
+          }
         }
-        phys.boostPressureBar += (targetVacuum - phys.boostPressureBar) * clamp(dt * 7, 0, 1)
-        phys.peakBoostBar = 0
-      } else {
-        phys.boostPressureBar = 0
-        phys.peakBoostBar = 0
-      }
 
-      // Top Speed Record
-      phys.topSpeedRecord = Math.max(phys.topSpeedRecord, Math.round(phys.speedKmh))
+        substepPhys.clutchSlipRpm = clutchState.slipRpm
+        substepPhys.clutchSlipRatio = clutchState.slipRatio
+        substepPhys.clutchTorqueTransfer = clutchState.transmittedTorque
+        substepPhys.clutchHeat = clutchState.heat
+        substepPhys.isClutchSlipping = clutchState.isSlipping
 
-      // Térmica dos Freios, Brilho & Brake Fade
-      const effectiveBrakeSpeed = injectedSpeedFloor > 0
-        ? Math.max(phys.speedKmh, injectedSpeedFloor)
-        : phys.speedKmh
-      if (rawBrake > 0.05 && effectiveBrakeSpeed > 1) {
-        phys.brakeDiscTemp += rawBrake * (effectiveBrakeSpeed / 75) * 80 * dt
-      }
-      const discCooling = ((phys.speedKmh / 100) * 0.75 + 0.18) * Math.max(0, (phys.brakeDiscTemp - 60) / 100) * 9.0 * dt
-      phys.brakeDiscTemp = clamp(phys.brakeDiscTemp - discCooling, 60, 950)
-      phys.isBrakeGlowing = phys.brakeDiscTemp >= 500
-      phys.brakeFadeFactor = phys.brakeDiscTemp > 650
-        ? clamp(1.0 - ((phys.brakeDiscTemp - 650) / 300) * 0.55, 0.45, 1.0)
-        : 1.0
+        // 5. VehiclePhysics: calcula forças longitudinais com modificadores de Preparação, Peças e Modos
+        const stage = ctx.tuningStage || 0
+        const stageMult = stage === 1 ? 1.25 : stage === 2 ? 1.50 : stage === 3 ? 1.85 : 1.0
+        const intakeMult = ctx.intakeType === 'cold_air' ? 1.06 : 1.0
+        const exhaustMult = ctx.exhaustType === 'straight_pipe' ? 1.08 : ctx.exhaustType === 'sport' ? 1.04 : 1.0
+        const turboKitMult = (!_config.engine.turbo?.enabled && ctx.hasTurbo) ? 1.45 : 1.0
+        const driveModeMult = ctx.drivingMode === 'track' ? 1.10 : ctx.drivingMode === 'sport' ? 1.05 : 1.0
+        const isNosInjecting = substepPhys.nosActive && ctx.hasNosKit && substepPhys.nosPressurePercent > 0 && ctx.throttle > 0.65 && substepPhys.isRunning
+        const nosMult = isNosInjecting ? 1.55 : 1.0
+        const totalTorqueMult = stageMult * intakeMult * exhaustMult * turboKitMult * driveModeMult * nosMult
 
-      // Sistema Real de Combustível & Consumo Dinâmico
-      if (phys.isRunning) {
-        const hours = dt / 3600
-        const fuelMult = state.fuelType === 'ethanol_e100' ? 1.34 : 1.0
-        const stageFuelFactor = stage === 1 ? 1.2 : stage === 2 ? 1.4 : stage === 3 ? 1.8 : 1.0
-        const burnPerHour = (0.85 + state.throttle * 22.0 + (phys.rpm / _config.engine.maxRpm) * 8.5) * stageFuelFactor * fuelMult
-        phys.fuelLevelLiters = Math.max(0, phys.fuelLevelLiters - burnPerHour * hours)
+        let targetFriction = ctx.tires === 'semi_slick' ? 1.22 : 0.95
+        if (ctx.isRaining) {
+          targetFriction = ctx.tires === 'semi_slick' ? 0.52 : 0.62
+        }
+        if (ctx.isAeroWingExtended) {
+          targetFriction += 0.14
+        }
+        _physics.setSurfaceFriction(targetFriction)
 
-        if (phys.fuelLevelLiters <= 0.005) {
-          phys.fuelLevelLiters = 0
-          phys.isOutOfFuel = true
-          phys.isRunning = false
-          phys.isStalled = true
-          phys.status = 'stalled'
+        const rawBrake = Math.max(ctx.brake, ctx.handbrake || gear === -2 ? 1 : 0)
+        const effectiveBrake = rawBrake * substepPhys.brakeFadeFactor
+        const driveTorqueAtTransmission =
+          clutchState.transmittedTorque >= 0
+            ? clutchState.transmittedTorque * totalTorqueMult
+            : clutchState.transmittedTorque
+        const physicsTick = _physics.tick({
+          driveTorqueAtTransmission,
+          gearRatio,
+          finalDrive,
+          brake: effectiveBrake,
+          deltaTime: dt,
+        })
+
+        const prevSubstepSpeed = substepPhys.speedKmh
+        substepPhys.speedKmh = gear === -2 ? 0 : physicsTick.speedKmh
+        if (gear === -2) {
+          _physics.reset()
+        }
+
+        const timerStep = stepZeroToHundredTimer(substepTimer0to100, {
+          prevSpeedKmh: prevSubstepSpeed,
+          speedKmh: substepPhys.speedKmh,
+          gear,
+          throttle: ctx.throttle,
+          brake: ctx.brake,
+          handbrake: ctx.handbrake,
+          isRunning: substepPhys.isRunning,
+          deltaTime: dt,
+        })
+        substepTimer0to100 = timerStep.state
+        if (timerStep.isNewBest) {
+          useGarageStore.getState().addCredits(2500)
+        }
+
+        // 6. TractionControlSystem
+        if (_tcs) {
+          const tcsDecision = _tcs.decide({
+            wheelTorque: physicsTick.wheelTorque,
+            maxGripTorque: physicsTick.maxGripTorque,
+            slipRatio: physicsTick.slipRatio,
+            drivingMode: ctx.drivingMode,
+            enabled: state.tcsEnabled,
+          }, dt)
+
+          substepPhys.tcsIntervening = tcsDecision.isIntervening
+          substepPhys.tcsInterventionLevel = tcsDecision.interventionLevel
+
+          if (tcsDecision.isIntervening && physicsTick.isWheelSlipping) {
+            const reducedThrottle = ctx.throttle * tcsDecision.throttleMultiplier
+            _engine.tick({
+              throttle: reducedThrottle,
+              loadTorque: 0,
+              deltaTime: 0,
+            })
+          }
+        }
+
+        // 7. Quando 100% acoplado em movimento com rotação suficiente, sincroniza RPM
+        if (gear !== 0 && _clutch.getEngagement() > 0.95 && substepPhys.isRunning) {
+          const expectedRpm = _transmission.calculator.speedToRpm(substepPhys.speedKmh, gear)
+          if (expectedRpm >= _config.engine.idleRpm) {
+            _engine.setRpm(expectedRpm)
+            substepPhys.rpm = expectedRpm
+          }
+        }
+
+        // ─── 8. Subsistemas Físicos Secundários em 120 Hz Contínuo ───
+
+        // Turbo Boost Pressure Calculation
+        if (ctx.hasTurbo) {
+          const turboCfg = _config.engine.turbo || {
+            maxBoostBar: 1.25,
+            spoolRpmStart: 1800,
+            fullBoostRpm: 2800,
+          }
+          const extraBoost = stage === 1 ? 0.35 : stage === 2 ? 0.65 : stage === 3 ? 1.15 : 0.0
+          const maxBoost = (turboCfg.maxBoostBar || 1.25) + extraBoost
+          const spoolRpm = turboCfg.spoolRpmStart || 1600
+          const fullRpm = turboCfg.fullBoostRpm || 2600
+
+          let targetBoost = -0.7
+          if (substepPhys.isRunning) {
+            if (substepPhys.isLaunchControlArmed) {
+              targetBoost = maxBoost * 0.65
+            } else if (ctx.throttle < 0.08) {
+              targetBoost = -0.75 + clamp((substepPhys.rpm - 1000) / 6000, 0, 0.25)
+            } else if (substepPhys.rpm < spoolRpm) {
+              targetBoost = -0.7 + ctx.throttle * 0.7
+            } else {
+              const rpmFactor = clamp((substepPhys.rpm - spoolRpm) / (fullRpm - spoolRpm), 0, 1)
+              targetBoost = ctx.throttle * (rpmFactor * maxBoost)
+            }
+          } else {
+            targetBoost = 0
+          }
+
+          const boostSpeed = targetBoost > substepPhys.boostPressureBar ? 4.8 : 8.5
+          substepPhys.boostPressureBar += (targetBoost - substepPhys.boostPressureBar) * clamp(dt * boostSpeed, 0, 1)
+          substepPhys.peakBoostBar = Math.max(substepPhys.peakBoostBar, substepPhys.boostPressureBar)
+        } else if (ctx.hasBoostGaugeKit) {
+          let targetVacuum = 0
+          if (substepPhys.isRunning) {
+            targetVacuum = ctx.throttle < 0.08
+              ? -0.75 + clamp((substepPhys.rpm - 1000) / 8000, 0, 0.1)
+              : -0.7 + ctx.throttle * 0.65
+          }
+          substepPhys.boostPressureBar += (targetVacuum - substepPhys.boostPressureBar) * clamp(dt * 7, 0, 1)
+          substepPhys.peakBoostBar = 0
+        } else {
+          substepPhys.boostPressureBar = 0
+          substepPhys.peakBoostBar = 0
+        }
+
+        // Top Speed Record
+        substepPhys.topSpeedRecord = Math.max(substepPhys.topSpeedRecord, Math.round(substepPhys.speedKmh))
+
+        // Térmica dos Freios, Brilho & Brake Fade
+        const effectiveBrakeSpeed = ctx.injectedSpeedFloor > 0
+          ? Math.max(substepPhys.speedKmh, ctx.injectedSpeedFloor)
+          : substepPhys.speedKmh
+        if (rawBrake > 0.05 && effectiveBrakeSpeed > 1) {
+          substepPhys.brakeDiscTemp += rawBrake * (effectiveBrakeSpeed / 75) * 80 * dt
+        }
+        const discCooling = ((substepPhys.speedKmh / 100) * 0.75 + 0.18) * Math.max(0, (substepPhys.brakeDiscTemp - 60) / 100) * 9.0 * dt
+        substepPhys.brakeDiscTemp = clamp(substepPhys.brakeDiscTemp - discCooling, 60, 950)
+        substepPhys.isBrakeGlowing = substepPhys.brakeDiscTemp >= 500
+        substepPhys.brakeFadeFactor = substepPhys.brakeDiscTemp > 650
+          ? clamp(1.0 - ((substepPhys.brakeDiscTemp - 650) / 300) * 0.55, 0.45, 1.0)
+          : 1.0
+
+        // Sistema Real de Combustível & Consumo Dinâmico
+        if (substepPhys.isRunning) {
+          const hours = dt / 3600
+          const fuelMult = ctx.fuelType === 'ethanol_e100' ? 1.34 : 1.0
+          const stageFuelFactor = stage === 1 ? 1.2 : stage === 2 ? 1.4 : stage === 3 ? 1.8 : 1.0
+          const burnPerHour = (0.85 + ctx.throttle * 22.0 + (substepPhys.rpm / _config.engine.maxRpm) * 8.5) * stageFuelFactor * fuelMult
+          substepPhys.fuelLevelLiters = Math.max(0, substepPhys.fuelLevelLiters - burnPerHour * hours)
+
+          if (substepPhys.fuelLevelLiters <= 0.005) {
+            substepPhys.fuelLevelLiters = 0
+            substepPhys.isOutOfFuel = true
+            substepPhys.isRunning = false
+            substepPhys.isStalled = true
+            substepPhys.status = 'stalled'
+            _engine.stop()
+          }
+        }
+
+        // Dinâmica Térmica do Motor, Termostática, Ventoinha (com Histerese) e Óleo
+        const targetCoolant = _config.dashboard.coolantTempTarget ?? 88
+        if (!substepPhys.isRunning) {
+          substepPhys.isRadiatorFanOn = false
+        } else if (!substepPhys.isRadiatorFanOn && substepPhys.coolantTemp >= 96.0) {
+          substepPhys.isRadiatorFanOn = true
+        } else if (substepPhys.isRadiatorFanOn && substepPhys.coolantTemp <= 91.0) {
+          substepPhys.isRadiatorFanOn = false
+        }
+
+        if (substepPhys.isRunning) {
+          const stageHeatMult = stage === 1 ? 1.25 : stage === 2 ? 1.50 : stage === 3 ? 1.85 : 1.0
+          const fuelHeatFactor = ctx.fuelType === 'ethanol_e100' ? 0.90 : 1.0
+          const rpmRatio = clamp(substepPhys.rpm / Math.max(1000, _config.engine.maxRpm), 0, 1.2)
+          const engineLoad = clamp(ctx.throttle * 0.72 + Math.pow(rpmRatio, 1.35) * 0.38, 0.05, 1.25)
+
+          const thermostatOpen = clamp((substepPhys.coolantTemp - (targetCoolant - 2)) / 8, 0.05, 1.0)
+          const coolantHeatIn = (0.10 + engineLoad * 1.15) * stageHeatMult * fuelHeatFactor
+          const radFanFactor = substepPhys.isRadiatorFanOn ? 0.52 : 0.0
+          const airflowFactor = 0.20 + clamp(substepPhys.speedKmh / 100, 0, 1.40) * 0.85 + radFanFactor
+          const tempDeltaAboveAmbient = Math.max(0, substepPhys.coolantTemp - 25) / 65
+          const coolantCoolingOut = airflowFactor * tempDeltaAboveAmbient * thermostatOpen * 0.85
+
+          const idleEquilibriumPull =
+            ctx.throttle < 0.08 && substepPhys.coolantTemp > targetCoolant && substepPhys.coolantTemp < 95.5
+              ? (substepPhys.coolantTemp - targetCoolant) * 0.025
+              : 0
+
+          substepPhys.coolantTemp = clamp(
+            substepPhys.coolantTemp + (coolantHeatIn - coolantCoolingOut - idleEquilibriumPull) * dt,
+            20,
+            135,
+          )
+
+          const targetOilEquilibrium =
+            substepPhys.coolantTemp + 3.5 + (Math.pow(rpmRatio, 1.6) * 11.0 + ctx.throttle * 6.5) * stageHeatMult
+          const oilTau = substepPhys.oilTemp < targetOilEquilibrium ? 0.065 : 0.045
+          substepPhys.oilTemp = clamp(
+            substepPhys.oilTemp + (targetOilEquilibrium - substepPhys.oilTemp) * clamp(dt * oilTau, 0, 1),
+            20,
+            150,
+          )
+        } else if (substepPhys.status === 'starting') {
+          substepPhys.coolantTemp = Math.max(25, substepPhys.coolantTemp - 0.02 * dt)
+          substepPhys.oilTemp = Math.max(25, substepPhys.oilTemp - 0.02 * dt)
+        } else {
+          substepPhys.coolantTemp = Math.max(25, substepPhys.coolantTemp - Math.max(0.03, (substepPhys.coolantTemp - 25) * 0.008) * dt)
+          substepPhys.oilTemp = Math.max(25, substepPhys.oilTemp - Math.max(0.025, (substepPhys.oilTemp - 25) * 0.006) * dt)
+        }
+
+        // Superaquecimento crítico (>=125°C)
+        if (substepPhys.coolantTemp >= 125 && !substepPhys.isEngineBlown) {
+          substepPhys.isEngineBlown = true
+          substepPhys.damageReason = 'Superaquecimento (>125°C): Junta Queimada!'
+          substepPhys.isRunning = false
+          substepPhys.isStalled = true
+          substepPhys.status = 'stalled'
+          substepPhys.engineBlownTrigger = Date.now()
           _engine.stop()
+          HapticFeedback.heavy()
         }
-      }
 
-      // Dinâmica Térmica do Motor, Termostática, Ventoinha (com Histerese) e Óleo
-      const targetCoolant = _config.dashboard.coolantTempTarget ?? 88
-      if (!phys.isRunning) {
-        phys.isRadiatorFanOn = false
-      } else if (!phys.isRadiatorFanOn && phys.coolantTemp >= 96.0) {
-        phys.isRadiatorFanOn = true
-      } else if (phys.isRadiatorFanOn && phys.coolantTemp <= 91.0) {
-        phys.isRadiatorFanOn = false
-      }
+        // Burnout & Fumaça Densa de Pneus
+        const isHoldBrake = ctx.brake > 0.35 || ctx.handbrake
+        const isBurnoutThrottle = ctx.throttle > 0.60 && substepPhys.rpm > 2600
+        const isForwardOrReverse = gear === 1 || gear === -1 || (ctx.transmissionMode === 'automatic' && gear === 1)
 
-      if (phys.isRunning) {
-        const stageHeatMult = stage === 1 ? 1.25 : stage === 2 ? 1.50 : stage === 3 ? 1.85 : 1.0
-        const fuelHeatFactor = state.fuelType === 'ethanol_e100' ? 0.90 : 1.0
-        const rpmRatio = clamp(phys.rpm / Math.max(1000, _config.engine.maxRpm), 0, 1.2)
-        const engineLoad = clamp(state.throttle * 0.72 + Math.pow(rpmRatio, 1.35) * 0.38, 0.05, 1.25)
-
-        // Válvula termostática mantém estabilidade perto da temperatura ideal e evita quedas bruscas
-        const thermostatOpen = clamp((phys.coolantTemp - (targetCoolant - 2)) / 8, 0.05, 1.0)
-        const coolantHeatIn = (0.10 + engineLoad * 1.15) * stageHeatMult * fuelHeatFactor
-        const radFanFactor = phys.isRadiatorFanOn ? 0.52 : 0.0
-        const airflowFactor = 0.20 + clamp(phys.speedKmh / 100, 0, 1.40) * 0.85 + radFanFactor
-        const tempDeltaAboveAmbient = Math.max(0, phys.coolantTemp - 25) / 65
-        const coolantCoolingOut = airflowFactor * tempDeltaAboveAmbient * thermostatOpen * 0.85
-
-        // Regulação suave em marcha lenta/baixa carga para manter patamar operacional
-        const idleEquilibriumPull =
-          state.throttle < 0.08 && phys.coolantTemp > targetCoolant && phys.coolantTemp < 95.5
-            ? (phys.coolantTemp - targetCoolant) * 0.025
-            : 0
-
-        phys.coolantTemp = clamp(
-          phys.coolantTemp + (coolantHeatIn - coolantCoolingOut - idleEquilibriumPull) * dt,
-          20,
-          135,
-        )
-
-        // Temperatura do óleo com inércia térmica própria ligada a RPM, carga e troca com arrefecimento
-        const targetOilEquilibrium =
-          phys.coolantTemp + 3.5 + (Math.pow(rpmRatio, 1.6) * 11.0 + state.throttle * 6.5) * stageHeatMult
-        const oilTau = phys.oilTemp < targetOilEquilibrium ? 0.065 : 0.045
-        phys.oilTemp = clamp(
-          phys.oilTemp + (targetOilEquilibrium - phys.oilTemp) * clamp(dt * oilTau, 0, 1),
-          20,
-          150,
-        )
-      } else if (phys.status === 'starting') {
-        phys.coolantTemp = Math.max(25, phys.coolantTemp - 0.02 * dt)
-        phys.oilTemp = Math.max(25, phys.oilTemp - 0.02 * dt)
-      } else {
-        phys.coolantTemp = Math.max(25, phys.coolantTemp - Math.max(0.03, (phys.coolantTemp - 25) * 0.008) * dt)
-        phys.oilTemp = Math.max(25, phys.oilTemp - Math.max(0.025, (phys.oilTemp - 25) * 0.006) * dt)
-      }
-
-      // Superaquecimento crítico (>=125°C)
-      if (phys.coolantTemp >= 125 && !phys.isEngineBlown) {
-        phys.isEngineBlown = true
-        phys.damageReason = 'Superaquecimento (>125°C): Junta Queimada!'
-        phys.isRunning = false
-        phys.isStalled = true
-        phys.status = 'stalled'
-        phys.engineBlownTrigger = Date.now()
-        _engine.stop()
-        HapticFeedback.heavy()
-      }
-
-      // Burnout & Fumaça Densa de Pneus
-      const isHoldBrake = state.brake > 0.35 || state.handbrake
-      const isBurnoutThrottle = state.throttle > 0.60 && phys.rpm > 2600
-      const isForwardOrReverse = gear === 1 || gear === -1 || (state.transmissionMode === 'automatic' && gear === 1)
-
-      if (phys.isRunning && isHoldBrake && isBurnoutThrottle && isForwardOrReverse && phys.speedKmh < 18) {
-        phys.isBurningOut = true
-        phys.tireSmokeDensity = clamp(phys.tireSmokeDensity + dt * 1.8, 0, 1.0)
-      } else {
-        phys.isBurningOut = false
-        phys.tireSmokeDensity = clamp(phys.tireSmokeDensity - dt * 0.85, 0, 1.0)
-      }
-
-      // Pista de Arrancada 402m (Drag Strip)
-      const currentMoveSpeed = injectedSpeedFloor > 0
-        ? Math.max(phys.speedKmh, injectedSpeedFloor)
-        : phys.speedKmh
-
-      if (
-        (phys.dragStage === 'pre_stage' ||
-          phys.dragStage === 'staged' ||
-          phys.dragStage === 'yellow_1' ||
-          phys.dragStage === 'yellow_2' ||
-          phys.dragStage === 'yellow_3') &&
-        (currentMoveSpeed > 1.8 || phys.dragDistanceTraveled > 0.25)
-      ) {
-        phys.dragStage = 'false_start'
-        phys.dragTimeSlip = {
-          reactionTime: 0,
-          time60ft: 0,
-          time0to100: 0,
-          time201m: 0,
-          time402m: 0,
-          trapSpeedKmh: Math.round(currentMoveSpeed),
-          isDisqualified: true,
-          createdAt: Date.now(),
+        if (substepPhys.isRunning && isHoldBrake && isBurnoutThrottle && isForwardOrReverse && substepPhys.speedKmh < 18) {
+          substepPhys.isBurningOut = true
+          substepPhys.tireSmokeDensity = clamp(substepPhys.tireSmokeDensity + dt * 1.8, 0, 1.0)
+        } else {
+          substepPhys.isBurningOut = false
+          substepPhys.tireSmokeDensity = clamp(substepPhys.tireSmokeDensity - dt * 0.85, 0, 1.0)
         }
-      } else if (phys.dragStage === 'green') {
-        if (currentMoveSpeed > 0.6 || phys.dragDistanceTraveled > 0.1) {
-          const simReactionSec = phys.dragGreenSimMs !== null
-            ? ((phys.elapsedSimMs + substeps * dt * 1000) - phys.dragGreenSimMs) / 1000
-            : 0
-          const wallReactionSec = state._dragGreenTime ? (now - state._dragGreenTime) / 1000 : 0.25
-          const rawReaction = simReactionSec > 0 ? simReactionSec : wallReactionSec
-          const reaction = Math.max(0.001, Math.round(rawReaction * 1000) / 1000)
-          phys.dragStage = 'racing'
-          phys.dragTimerStart = now
-          phys.dragElapsedSeconds = dt
-          phys.dragDistanceTraveled = Math.max(0, phys.dragDistanceTraveled + (currentMoveSpeed / 3.6) * dt)
-          phys.dragTimeSlip = {
-            reactionTime: reaction,
+
+        // Pista de Arrancada 402m (Drag Strip)
+        const currentMoveSpeed = ctx.injectedSpeedFloor > 0
+          ? Math.max(substepPhys.speedKmh, ctx.injectedSpeedFloor)
+          : substepPhys.speedKmh
+
+        if (
+          (substepPhys.dragStage === 'pre_stage' ||
+            substepPhys.dragStage === 'staged' ||
+            substepPhys.dragStage === 'yellow_1' ||
+            substepPhys.dragStage === 'yellow_2' ||
+            substepPhys.dragStage === 'yellow_3') &&
+          (currentMoveSpeed > 1.8 || substepPhys.dragDistanceTraveled > 0.25)
+        ) {
+          substepPhys.dragStage = 'false_start'
+          substepPhys.dragTimeSlip = {
+            reactionTime: 0,
             time60ft: 0,
             time0to100: 0,
             time201m: 0,
             time402m: 0,
-            trapSpeedKmh: 0,
-            isDisqualified: false,
+            trapSpeedKmh: Math.round(currentMoveSpeed),
+            isDisqualified: true,
             createdAt: Date.now(),
           }
-        }
-      } else if (phys.dragStage === 'racing' && phys.dragTimeSlip) {
-        phys.dragElapsedSeconds += dt
-        phys.dragDistanceTraveled += (currentMoveSpeed / 3.6) * dt
-        const elapsed = Math.round(phys.dragElapsedSeconds * 1000) / 1000
-
-        if (phys.dragDistanceTraveled >= 18.288 && phys.dragTimeSlip.time60ft === 0) {
-          phys.dragTimeSlip.time60ft = elapsed
-        }
-        if (currentMoveSpeed >= 100 && phys.dragTimeSlip.time0to100 === 0) {
-          phys.dragTimeSlip.time0to100 = elapsed
-        }
-        if (phys.dragDistanceTraveled >= 201.168 && phys.dragTimeSlip.time201m === 0) {
-          phys.dragTimeSlip.time201m = elapsed
-        }
-        if (phys.dragDistanceTraveled >= 402.336) {
-          phys.dragTimeSlip.time402m = elapsed
-          phys.dragTimeSlip.trapSpeedKmh = Math.round(currentMoveSpeed)
-          phys.dragStage = 'finished'
-          HapticFeedback.heavy()
-
-          if (!phys.dragTimeSlip.isDisqualified) {
-            let prize = 3000
-            const breakdown: string[] = ['Premiação base 402m: +R$ 3.000']
-            if (phys.dragTimeSlip.reactionTime < 0.100) {
-              prize += 5000
-              breakdown.push('Reação perfeita (<0.100s): +R$ 5.000')
-            } else if (phys.dragTimeSlip.reactionTime < 0.250) {
-              prize += 2000
-              breakdown.push('Reação rápida (<0.250s): +R$ 2.000')
+        } else if (substepPhys.dragStage === 'green') {
+          if (currentMoveSpeed > 0.6 || substepPhys.dragDistanceTraveled > 0.1) {
+            const simReactionSec = substepPhys.dragGreenSimMs !== null
+              ? ((substepPhys.elapsedSimMs + substepIdx * dt * 1000) - substepPhys.dragGreenSimMs) / 1000
+              : 0
+            const wallReactionSec = state._dragGreenTime ? (ctx.now - state._dragGreenTime) / 1000 : 0.25
+            const rawReaction = simReactionSec > 0 ? simReactionSec : wallReactionSec
+            const reaction = Math.max(0.001, Math.round(rawReaction * 1000) / 1000)
+            substepPhys.dragStage = 'racing'
+            substepPhys.dragTimerStart = ctx.now
+            substepPhys.dragElapsedSeconds = dt
+            substepPhys.dragDistanceTraveled = Math.max(0, substepPhys.dragDistanceTraveled + (currentMoveSpeed / 3.6) * dt)
+            substepPhys.dragTimeSlip = {
+              reactionTime: reaction,
+              time60ft: 0,
+              time0to100: 0,
+              time201m: 0,
+              time402m: 0,
+              trapSpeedKmh: 0,
+              isDisqualified: false,
+              createdAt: Date.now(),
             }
-            if (phys.dragTimeSlip.trapSpeedKmh >= 200) {
-              prize += 3000
-              breakdown.push('Trap Speed > 200 km/h: +R$ 3.000')
-            } else if (phys.dragTimeSlip.trapSpeedKmh >= 160) {
-              prize += 1500
-              breakdown.push('Trap Speed > 160 km/h: +R$ 1.500')
+          }
+        } else if (substepPhys.dragStage === 'racing' && substepPhys.dragTimeSlip) {
+          substepPhys.dragElapsedSeconds += dt
+          substepPhys.dragDistanceTraveled += (currentMoveSpeed / 3.6) * dt
+          const elapsed = Math.round(substepPhys.dragElapsedSeconds * 1000) / 1000
+
+          if (substepPhys.dragDistanceTraveled >= 18.288 && substepPhys.dragTimeSlip.time60ft === 0) {
+            substepPhys.dragTimeSlip.time60ft = elapsed
+          }
+          if (currentMoveSpeed >= 100 && substepPhys.dragTimeSlip.time0to100 === 0) {
+            substepPhys.dragTimeSlip.time0to100 = elapsed
+          }
+          if (substepPhys.dragDistanceTraveled >= 201.168 && substepPhys.dragTimeSlip.time201m === 0) {
+            substepPhys.dragTimeSlip.time201m = elapsed
+          }
+          if (substepPhys.dragDistanceTraveled >= 402.336) {
+            substepPhys.dragTimeSlip.time402m = elapsed
+            substepPhys.dragTimeSlip.trapSpeedKmh = Math.round(currentMoveSpeed)
+            substepPhys.dragStage = 'finished'
+            HapticFeedback.heavy()
+
+            if (!substepPhys.dragTimeSlip.isDisqualified) {
+              let prize = 3000
+              const breakdown: string[] = ['Premiação base 402m: +R$ 3.000']
+              if (substepPhys.dragTimeSlip.reactionTime < 0.100) {
+                prize += 5000
+                breakdown.push('Reação perfeita (<0.100s): +R$ 5.000')
+              } else if (substepPhys.dragTimeSlip.reactionTime < 0.250) {
+                prize += 2000
+                breakdown.push('Reação rápida (<0.250s): +R$ 2.000')
+              }
+              if (substepPhys.dragTimeSlip.trapSpeedKmh >= 200) {
+                prize += 3000
+                breakdown.push('Trap Speed > 200 km/h: +R$ 3.000')
+              } else if (substepPhys.dragTimeSlip.trapSpeedKmh >= 160) {
+                prize += 1500
+                breakdown.push('Trap Speed > 160 km/h: +R$ 1.500')
+              }
+              substepPhys.dragTimeSlip.reward = prize
+              substepPhys.dragTimeSlip.rewardBreakdown = breakdown
+              useGarageStore.getState().addCredits(prize)
             }
-            phys.dragTimeSlip.reward = prize
-            phys.dragTimeSlip.rewardBreakdown = breakdown
-            useGarageStore.getState().addCredits(prize)
           }
         }
-      }
 
-      // Kit de Óxido Nitroso (NOS) & Consumo de Pressão
-      if (state.hasNosKit && phys.nosActive && state.throttle > 0.60 && phys.isRunning && phys.nosPressurePercent > 0) {
-        phys.nosPressurePercent = Math.max(0, phys.nosPressurePercent - dt * 12.5)
-        if (phys.nosPressurePercent <= 0) {
-          phys.nosActive = false
+        // Kit de Óxido Nitroso (NOS) & Consumo de Pressão
+        if (ctx.hasNosKit && substepPhys.nosActive && ctx.throttle > 0.60 && substepPhys.isRunning && substepPhys.nosPressurePercent > 0) {
+          substepPhys.nosPressurePercent = Math.max(0, substepPhys.nosPressurePercent - dt * 12.5)
+          if (substepPhys.nosPressurePercent <= 0) {
+            substepPhys.nosActive = false
+          }
         }
+
+        // Captura snapshots atualizados no candidato
+        cand.engine = _engine.getStateSnapshot()
+        cand.clutch = _clutch.getStateSnapshot()
+        cand.transmission = _transmission.getStateSnapshot()
+        cand.autoTransmission = _autoTransmission ? _autoTransmission.getStateSnapshot() : null
+        cand.physics = _physics.getStateSnapshot()
+        cand.phys = substepPhys
+        cand.timer0to100State = substepTimer0to100
+
+        return cand
+      },
+    )
+
+    if (stepResult.integrityStatus === 'FAIL_SAFE_HOLD') {
+      // Rollback transacional de todos os 5 subsistemas mutáveis para o último estado mestre válido
+      _engine.restoreSnapshot(stepResult.state.engine)
+      _clutch.restoreSnapshot(stepResult.state.clutch)
+      _transmission.restoreSnapshot(stepResult.state.transmission)
+      if (_autoTransmission && stepResult.state.autoTransmission) {
+        _autoTransmission.restoreSnapshot(stepResult.state.autoTransmission)
       }
+      _physics.restoreSnapshot(stepResult.state.physics)
 
-      accumulator -= dt
-      substeps++
+      set({
+        physicsIntegrityStatus: 'FAIL_SAFE_HOLD',
+        _phys: stepResult.state.phys,
+        _timer0to100State: stepResult.state.timer0to100State,
+        _accumulator: _integrator.getAccumulator(),
+      })
+      console.warn('[HEATZ FAIL_SAFE_HOLD] Falha física capturada no runtime. Simulação congelada com integridade preservada.', stepResult.lastFault)
+      return
     }
 
-    if (substeps === maxSubsteps && accumulator > PHYSICS_TIMESTEP) {
-      accumulator = 0
+    // Sincroniza instâncias para o estado comitado pelo integrador
+    _engine.restoreSnapshot(stepResult.state.engine)
+    _clutch.restoreSnapshot(stepResult.state.clutch)
+    _transmission.restoreSnapshot(stepResult.state.transmission)
+    if (_autoTransmission && stepResult.state.autoTransmission) {
+      _autoTransmission.restoreSnapshot(stepResult.state.autoTransmission)
     }
+    _physics.restoreSnapshot(stepResult.state.physics)
+
+    const prevPhys = stepResult.previousState.phys
+    const currPhys = stepResult.state.phys
+    const alpha = stepResult.interpolationAlpha
+
+    // Interpolação visual precisa (lerp entre o penúltimo e o último estado discretos)
+    const visualSpeed = prevPhys.speedKmh + (currPhys.speedKmh - prevPhys.speedKmh) * alpha
+    const visualRpm = prevPhys.rpm + (currPhys.rpm - prevPhys.rpm) * alpha
+
+    phys = currPhys
+    const timer0to100State = stepResult.state.timer0to100State
 
     // Haptics no corte de giro
     if (phys.isRevLimiting && !prevRevLimiting) {
@@ -2329,9 +2533,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (!shouldUpdateVisual) {
       phys.skippedVisualUpdatesCount += 1
       phys.skippedSlowUpdatesCount += 1
-      state._accumulator = accumulator
+      state._accumulator = _integrator.getAccumulator()
       state._timer0to100State = timer0to100State
       state._phys = phys
+      state.visualSpeed = visualSpeed
+      state.visualRpm = visualRpm
+      state.interpolationAlpha = alpha
       return
     }
 
@@ -2391,6 +2598,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     set({
       rpm: phys.rpm,
       speed: phys.speedKmh,
+      visualSpeed,
+      visualRpm,
+      interpolationAlpha: alpha,
+      physicsIntegrityStatus: 'NORMAL',
       currentGear: phys.gear,
       isRunning: phys.isRunning,
       isStalled: phys.isStalled,
@@ -2415,7 +2626,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isTiming0to100: timer0to100State.isTiming,
       topSpeedRecord: phys.topSpeedRecord,
       _timer0to100State: timer0to100State,
-      _accumulator: accumulator,
+      _accumulator: _integrator.getAccumulator(),
       _phys: phys,
 
       // Telemetria secundária desacoplada para evitar re-renderizações desnecessárias a 120Hz
@@ -2526,12 +2737,39 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _config: null,
       _accumulator: 0,
       _isInitialized: false,
+      _integrator: null,
+      isPaused: false,
+      physicsIntegrityStatus: 'NORMAL',
+      visualSpeed: 0,
+      visualRpm: 0,
+      interpolationAlpha: 0,
       _phys: createInitialPhysicsInternalState({
         gear: initialGear,
         nosPressurePercent: get().nosPressurePercent,
         topSpeedRecord: get().topSpeedRecord,
       }),
     })
+  },
+
+  pauseSimulation: () => {
+    const { _integrator } = get()
+    _integrator?.pause()
+    set({ isPaused: true })
+  },
+
+  resumeSimulation: () => {
+    const { _integrator } = get()
+    _integrator?.resume()
+    set({ isPaused: false })
+  },
+
+  togglePauseSimulation: () => {
+    const { isPaused, pauseSimulation, resumeSimulation } = get()
+    if (isPaused) {
+      resumeSimulation()
+    } else {
+      pauseSimulation()
+    }
   },
 }))
 
