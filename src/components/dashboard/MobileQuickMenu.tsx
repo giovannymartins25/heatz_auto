@@ -20,13 +20,15 @@ interface TileProps {
   sub?: string
   active?: boolean
   activeClass?: string
+  dataFullscreenToggle?: boolean
   onClick: () => void
 }
 
-function Tile({ icon, label, sub, active, activeClass, onClick }: TileProps) {
+function Tile({ icon, label, sub, active, activeClass, dataFullscreenToggle, onClick }: TileProps) {
   return (
     <button
       type="button"
+      data-fullscreen-toggle={dataFullscreenToggle ? 'true' : undefined}
       onClick={onClick}
       className={`flex flex-col items-center justify-center gap-1 h-[72px] rounded-2xl border transition-all active:scale-95 cursor-pointer ${
         active
@@ -214,6 +216,7 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
             sub={isFullscreen ? 'IMERSIVO' : 'NORMAL'}
             active={isFullscreen}
             activeClass="bg-cyan-500/20 border-cyan-400 text-cyan-200"
+            dataFullscreenToggle={true}
             onClick={handleToggleFullscreen}
           />
           <Tile

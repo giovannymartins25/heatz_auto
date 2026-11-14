@@ -88,7 +88,7 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
       <div className="flex flex-col @[580px]:flex-row items-center justify-around w-full gap-2 p-1 rounded-xl bg-neutral-950/90 border border-neutral-800">
         {/* ─── 1. CONTA-GIROS CLÁSSICO 4.1L (ESQUERDA) ─── */}
         <div className="relative flex flex-col items-center">
-          <svg viewBox={`0 0 ${gaugeSize} ${gaugeSize}`} className="w-[236px] drop-shadow-lg">
+          <svg viewBox={`0 0 ${gaugeSize} ${gaugeSize}`} className="w-[236px]">
             {/* Fundo do Mostrador */}
             <circle cx={center} cy={center} r={radius + 15} fill="#0a0a0c" stroke="#262626" strokeWidth={3} />
             <circle cx={center} cy={center} r={radius} fill="#141417" stroke="#1f1f23" strokeWidth={1.5} />
@@ -168,9 +168,18 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
                 x2={center + radius - 10}
                 y2={center}
                 stroke="#ff4d00"
+                strokeWidth={5.5}
+                strokeLinecap="round"
+                opacity={0.3}
+              />
+              <line
+                x1={center - 12}
+                y1={center}
+                x2={center + radius - 10}
+                y2={center}
+                stroke="#ff4d00"
                 strokeWidth={3}
                 strokeLinecap="round"
-                className="drop-shadow-[0_0_6px_rgba(255,77,0,0.8)]"
               />
               <circle cx={center} cy={center} r={10} fill="#1c1917" stroke="#44403c" strokeWidth={2} />
               <circle cx={center} cy={center} r={4} fill="#ff4d00" />
@@ -291,7 +300,7 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
 
         {/* ─── 3. VELOCÍMETRO CLÁSSICO ATÉ 220 KM/H (DIREITA) ─── */}
         <div className="relative flex flex-col items-center">
-          <svg viewBox={`0 0 ${gaugeSize} ${gaugeSize}`} className="w-[236px] drop-shadow-lg">
+          <svg viewBox={`0 0 ${gaugeSize} ${gaugeSize}`} className="w-[236px]">
             {/* Fundo do Mostrador */}
             <circle cx={center} cy={center} r={radius + 15} fill="#0a0a0c" stroke="#262626" strokeWidth={3} />
             <circle cx={center} cy={center} r={radius} fill="#141417" stroke="#1f1f23" strokeWidth={1.5} />
@@ -344,9 +353,18 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
                 x2={center + radius - 10}
                 y2={center}
                 stroke="#ff4d00"
+                strokeWidth={5.5}
+                strokeLinecap="round"
+                opacity={0.3}
+              />
+              <line
+                x1={center - 12}
+                y1={center}
+                x2={center + radius - 10}
+                y2={center}
+                stroke="#ff4d00"
                 strokeWidth={3}
                 strokeLinecap="round"
-                className="drop-shadow-[0_0_6px_rgba(255,77,0,0.8)]"
               />
               <circle cx={center} cy={center} r={10} fill="#1c1917" stroke="#44403c" strokeWidth={2} />
               <circle cx={center} cy={center} r={4} fill="#ff4d00" />

@@ -257,7 +257,7 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
                 x="0"
                 y="4"
                 textAnchor="middle"
-                className="font-mono text-2xl font-black fill-white drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]"
+                className="font-mono text-2xl font-black fill-white"
               >
                 {Math.round(speedometer.speed)}
               </text>

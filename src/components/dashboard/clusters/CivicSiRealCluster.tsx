@@ -188,7 +188,7 @@ export const CivicSiRealCluster = memo(function CivicSiRealCluster({
         </div>
 
         <div className="relative flex flex-col items-center">
-          <svg width={tachSize} height={tachSize} className="drop-shadow-[0_12px_32px_rgba(0,0,0,0.95)]">
+          <svg width={tachSize} height={tachSize}>
           {/* Aro Externo Alumínio Escovado */}
           <circle cx={tachCenter} cy={tachCenter} r={tachRadius + 22} fill="#141820" stroke="#2e3544" strokeWidth="4" />
           <circle cx={tachCenter} cy={tachCenter} r={tachRadius + 16} fill="#0b0e13" stroke="#1c202a" strokeWidth="2" />

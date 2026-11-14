@@ -129,7 +129,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
         {/* 1. VELOCÍMETRO CLÁSSICO RETRÔ VW (0-240 KM/H)                      */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="relative flex flex-col items-center">
-          <svg viewBox={`0 0 ${speedSize} ${speedSize}`} className="w-[234px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.8)]">
+          <svg viewBox={`0 0 ${speedSize} ${speedSize}`} className="w-[234px]">
             {/* Aro externo preto acetinado */}
             <circle cx={speedCenter} cy={speedCenter} r={speedRadius + 18} fill="#14171d" stroke="#2a2e37" strokeWidth="4" />
             <circle cx={speedCenter} cy={speedCenter} r={speedRadius + 12} fill="#0d0e12" stroke="#1c1f26" strokeWidth="2" />
@@ -240,7 +240,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
             </div>
           </div>
 
-          <svg width={tachSize} height={tachSize} className="drop-shadow-[0_10px_30px_rgba(0,0,0,0.95)]">
+          <svg width={tachSize} height={tachSize}>
             {/* Moldura de Aço Escovado AutoMeter Monster */}
             <circle cx={tachCenter} cy={tachCenter} r={tachRadius + 24} fill="#272a33" stroke="#4a4f5c" strokeWidth="4" />
             <circle cx={tachCenter} cy={tachCenter} r={tachRadius + 18} fill="#12141a" stroke="#1f222a" strokeWidth="2" />
@@ -357,7 +357,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
         <div className="flex flex-col items-center gap-3">
           {/* Manômetro de Turbo 52mm Cronomac (-1.0 a +3.0 bar) */}
           <div className="relative flex flex-col items-center">
-            <svg width={boostSize} height={boostSize} className="drop-shadow-[0_6px_16px_rgba(0,0,0,0.85)]">
+            <svg width={boostSize} height={boostSize}>
               <circle cx={boostCenter} cy={boostCenter} r={boostRadius + 14} fill="#1c1f26" stroke="#373c49" strokeWidth="3" />
               <circle cx={boostCenter} cy={boostCenter} r={boostRadius + 9} fill="#0d0f14" stroke="#171920" strokeWidth="1.5" />
 

@@ -25,6 +25,7 @@ import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
 import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
 import { DragStripTree } from './DragStripTree'
 import { TuningGarageModal } from '@/components/tuning'
+import { toggleAppFullscreen } from '@/utils/fullscreen'
 import type { VehicleConfig, DrivingMode } from '@/types'
 import type { SessionEntryMode } from '@/stores/useSessionStore'
 
@@ -232,11 +233,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   }
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {})
-    } else {
-      document.exitFullscreen().catch(() => {})
-    }
+    void toggleAppFullscreen()
   }
 
   return (
@@ -264,6 +261,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
 
           {/* Botão Tela Cheia */}
           <button
+            data-fullscreen-toggle
             onClick={toggleFullscreen}
             className="hidden sm:inline-flex px-2.5 py-1 text-xs rounded-lg border border-white/10 bg-zinc-900 text-zinc-400 hover:text-white font-mono transition-all cursor-pointer"
             title="Alternar Tela Cheia"
