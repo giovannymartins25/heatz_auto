@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { clamp, mapRange } from '@/utils/math'
+import { clamp } from '@/utils/math'
 import { ClusterIndicatorIcon } from '@/components/gauges'
 
 export interface FiatToroEnduranceClusterProps {
@@ -15,9 +15,11 @@ export interface FiatToroEnduranceClusterProps {
  * Características reais Fiat:
  * - Tela colorida TFT de 7" de alta definição com identidade visual Fiat e detalhes em vermelho esportivo
  * - Tacômetro digital curvado de 0 a 7.000 RPM (faixa vermelha aos 6.200 RPM)
+ * - Iluminação angular estritamente delimitada com strokeDasharray e clipPath anti-vazamento
+ * - Ponteiro radial proporcional que não invade a área central
  * - Velocímetro digital central proeminente de altíssima legibilidade
  * - Mostrador de transmissão Aisin AT6: P / R / N / D / S / M1..M6
- * - Manômetro de pressão do turbo GSE T270 (até 1.4 bar)
+ * - Manômetro de pressão do turbo GSE T270 (até 1.5 bar)
  * - Nível de combustível (tanque de 55 L) e temperatura do arrefecimento (90 °C)
  * - Computador de bordo completo: odômetro, autonomia estimada e consumo
  * - Conjunto completo de luzes-espia regulamentares (Injeção, Óleo, Bateria, Freio, Temp, TCS)
@@ -38,41 +40,46 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const mileageKm = 12450
 
-  const maxRpm = 7000
-  const redlineRpm = 6200
-  const rpm = clamp(tachometer.rpm, 0, maxRpm)
-  const speed = Math.round(speedometer.speed)
+  const maxRpm = telemetry.tachometer.maxRpm || 7000
+  const redlineRpm = telemetry.tachometer.redlineStart || 6200
+  const rpm = clamp(Number.isFinite(tachometer.rpm) ? tachometer.rpm : 0, 0, maxRpm)
+  const speed = Math.round(Number.isFinite(speedometer.speed) ? speedometer.speed : 0)
   const isRedline = rpm >= redlineRpm
 
-  // Arcos SVG para o Tacômetro Esquerdo (raio 100, centro 120, 130)
-  // Ângulo de -210° a 30° (arco total de 240°)
-  const startAngle = -210
-  const endAngle = 30
-  const currentAngle = mapRange(rpm, 0, maxRpm, startAngle, endAngle)
-
+  // Geometria precisa do Tacômetro Fiat TFT 7"
+  // Centro: (135, 125), Raio: 85px
+  // Ângulos: Inicia a 140° (inferior esquerdo) e varre 260° até 400° (inferior direito)
   const cx = 135
-  const cy = 134
-  const radius = 95
+  const cy = 125
+  const radius = 85
+  const startDeg = 140
+  const totalSweepDeg = 260
+  const totalArcLen = (totalSweepDeg / 360) * 2 * Math.PI * radius // ~385.72 px
 
-  const polarToCartesian = (centerX: number, centerY: number, r: number, angleInDegrees: number) => {
-    const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0
-    return {
-      x: centerX + r * Math.cos(angleInRadians),
-      y: centerY + r * Math.sin(angleInRadians),
-    }
-  }
+  const currentRatio = clamp(rpm / maxRpm, 0, 1)
+  const activeArcLen = currentRatio * totalArcLen
+  const currentAngleDeg = startDeg + currentRatio * totalSweepDeg
 
-  const describeArc = (x: number, y: number, r: number, startA: number, endA: number) => {
-    const start = polarToCartesian(x, y, r, endA)
-    const end = polarToCartesian(x, y, r, startA)
-    const largeArcFlag = endA - startA <= 180 ? '0' : '1'
-    return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`
-  }
+  const degToRad = (d: number) => (d * Math.PI) / 180
+  const polar = (r: number, angleDeg: number) => ({
+    x: cx + r * Math.cos(degToRad(angleDeg)),
+    y: cy + r * Math.sin(degToRad(angleDeg)),
+  })
 
-  const needle = polarToCartesian(cx, cy, radius - 6, currentAngle)
-  const baseTrack = describeArc(cx, cy, radius, startAngle, endAngle)
-  const activeTrack = rpm > 50 ? describeArc(cx, cy, radius, startAngle, currentAngle) : ''
-  const redlineArc = describeArc(cx, cy, radius, mapRange(redlineRpm, 0, maxRpm, startAngle, endAngle), endAngle)
+  // Coordenadas estáticas do arco de 140° a 400°
+  const arcStart = polar(radius, startDeg) // { x: 69.9, y: 179.6 }
+  const arcEnd = polar(radius, startDeg + totalSweepDeg) // { x: 200.1, y: 179.6 }
+  const baseArcPath = `M ${arcStart.x.toFixed(1)} ${arcStart.y.toFixed(1)} A ${radius} ${radius} 0 1 1 ${arcEnd.x.toFixed(1)} ${arcEnd.y.toFixed(1)}`
+
+  // Arco da faixa vermelha (6.200 a 7.000 RPM)
+  const redlineRatio = redlineRpm / maxRpm
+  const redlineAngleDeg = startDeg + redlineRatio * totalSweepDeg
+  const redlineStartPt = polar(radius, redlineAngleDeg)
+  const redlineArcPath = `M ${redlineStartPt.x.toFixed(1)} ${redlineStartPt.y.toFixed(1)} A ${radius} ${radius} 0 0 1 ${arcEnd.x.toFixed(1)} ${arcEnd.y.toFixed(1)}`
+
+  // Ponteiro radial delimitado à pista do tacômetro (não invade a área central)
+  const needleInner = polar(radius - 12, currentAngleDeg)
+  const needleOuter = polar(radius + 7, currentAngleDeg)
 
   // Barra de Turbo Boost
   const boostRatio = clamp((boostPressureBar || 0) / 1.5, 0, 1)
@@ -98,80 +105,114 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
 
       {/* ─── 1. Mostrador Esquerdo: Tacômetro Analógico-Digital Fiat (0-7000 RPM) ─── */}
       <div className="relative w-[270px] h-[244px] flex items-center justify-center flex-shrink-0">
-        <svg viewBox="0 0 270 268" className="w-full h-full drop-shadow-[0_0_12px_rgba(0,0,0,0.8)]">
-          {/* Fundo do aro do tacômetro */}
-          <circle cx={cx} cy={cy} r={radius + 12} fill="#050508" stroke="#1f2937" strokeWidth="2" />
-          <circle cx={cx} cy={cy} r={radius + 6} fill="none" stroke="#374151" strokeWidth="1" strokeDasharray="2 3" />
+        <svg viewBox="0 0 270 250" className="w-full h-full overflow-hidden">
+          <defs>
+            {/* ClipPath para conter estritamente a iluminação e evitar qualquer vazamento */}
+            <clipPath id="toro-endurance-tach-clip">
+              <rect x="0" y="0" width="270" height="250" rx="20" />
+            </clipPath>
+          </defs>
 
-          {/* Trilho de fundo (apagado) */}
-          <path d={baseTrack} fill="none" stroke="#18181b" strokeWidth="10" strokeLinecap="round" />
+          <g clipPath="url(#toro-endurance-tach-clip)">
+            {/* Fundo do aro do tacômetro */}
+            <circle cx={cx} cy={cy} r={radius + 15} fill="#050508" stroke="#1f2937" strokeWidth="2" />
+            <circle cx={cx} cy={cy} r={radius + 7} fill="none" stroke="#27272a" strokeWidth="1" strokeDasharray="3 3" />
+            <circle cx={cx} cy={cy} r={radius - 28} fill="#09090d" stroke="#18181b" strokeWidth="1.5" />
 
-          {/* Faixa Vermelha de Alerta (6200 a 7000 RPM) */}
-          <path d={redlineArc} fill="none" stroke="#ef4444" strokeWidth="10" strokeLinecap="round" opacity="0.3" />
-
-          {/* Trilha Ativa Iluminada (Vermelho Fiat T270) */}
-          {activeTrack && (
+            {/* Trilho de fundo (apagado) */}
             <path
-              d={activeTrack}
+              d={baseArcPath}
               fill="none"
-              stroke={isRedline ? '#ef4444' : '#dc2626'}
-              strokeWidth="10"
+              stroke="#18181b"
+              strokeWidth="9"
               strokeLinecap="round"
-              className="transition-all duration-75"
+            />
+
+            {/* Faixa Vermelha de Alerta de Fundo (6200 a 7000 RPM) */}
+            <path
+              d={redlineArcPath}
+              fill="none"
+              stroke="#ef4444"
+              strokeWidth="9"
+              strokeLinecap="round"
+              opacity="0.35"
+            />
+
+            {/* Trilha Ativa Iluminada (Vermelho Fiat T270)
+                Usa strokeDasharray estrito para acompanhar a posição angular exata do ponteiro */}
+            {activeArcLen > 0.5 && (
+              <path
+                d={baseArcPath}
+                fill="none"
+                stroke={isRedline ? '#ef4444' : '#dc2626'}
+                strokeWidth="9"
+                strokeLinecap="round"
+                strokeDasharray={`${activeArcLen.toFixed(1)} ${totalArcLen.toFixed(1)}`}
+                strokeDashoffset="0"
+                style={{
+                  filter: isRedline
+                    ? 'drop-shadow(0 0 6px rgba(239,68,68,0.85))'
+                    : 'drop-shadow(0 0 5px rgba(220,38,38,0.75))',
+                }}
+              />
+            )}
+
+            {/* Ponteiro Indicador Radial (Localizado na borda externa, sem invadir o centro) */}
+            <line
+              x1={needleInner.x.toFixed(1)}
+              y1={needleInner.y.toFixed(1)}
+              x2={needleOuter.x.toFixed(1)}
+              y2={needleOuter.y.toFixed(1)}
+              stroke={isRedline ? '#fca5a5' : '#ffffff'}
+              strokeWidth="3.5"
+              strokeLinecap="round"
               style={{
-                filter: isRedline ? 'drop-shadow(0 0 8px #ef4444)' : 'drop-shadow(0 0 6px #dc2626)',
+                filter: isRedline
+                  ? 'drop-shadow(0 0 5px #ef4444)'
+                  : 'drop-shadow(0 0 4px #dc2626)',
               }}
             />
-          )}
+            {/* Marcador em ponta de diamante na extremidade do ponteiro */}
+            <circle
+              cx={needleOuter.x.toFixed(1)}
+              cy={needleOuter.y.toFixed(1)}
+              r="2.5"
+              fill={isRedline ? '#ef4444' : '#f87171'}
+            />
 
-          {/* Ponteiro / Marcador Iluminado */}
-          <line
-            x1={cx}
-            y1={cy}
-            x2={needle.x}
-            y2={needle.y}
-            stroke={isRedline ? '#ef4444' : '#f87171'}
-            strokeWidth="3.5"
-            strokeLinecap="round"
-            style={{
-              filter: 'drop-shadow(0 0 6px #ef4444)',
-            }}
-          />
-          <circle cx={cx} cy={cy} r="16" fill="#09090b" stroke="#dc2626" strokeWidth="2.5" />
-          <circle cx={cx} cy={cy} r="6" fill="#ef4444" />
-
-          {/* Números da Escala (0 a 7) */}
-          {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => {
-            const val = n * 1000
-            const ang = mapRange(val, 0, maxRpm, startAngle, endAngle)
-            const p = polarToCartesian(cx, cy, radius - 20, ang)
-            const isRedZone = val >= redlineRpm
-            return (
-              <text
-                key={n}
-                x={p.x}
-                y={p.y + 4}
-                textAnchor="middle"
-                fill={isRedZone ? '#ef4444' : '#9ca3af'}
-                fontSize="12"
-                fontWeight="900"
-                fontFamily="ui-monospace, monospace"
-              >
-                {n}
-              </text>
-            )
-          })}
+            {/* Números da Escala (0 a 7) posicionados radialmente ao longo do arco */}
+            {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => {
+              const val = n * 1000
+              const ang = startDeg + (val / maxRpm) * totalSweepDeg
+              const p = polar(radius - 19, ang)
+              const isRedZone = val >= redlineRpm
+              return (
+                <text
+                  key={n}
+                  x={p.x.toFixed(1)}
+                  y={(p.y + 4).toFixed(1)}
+                  textAnchor="middle"
+                  fill={isRedZone ? '#ef4444' : '#a1a1aa'}
+                  fontSize="11"
+                  fontWeight="900"
+                  fontFamily="ui-monospace, monospace"
+                >
+                  {n}
+                </text>
+              )
+            })}
+          </g>
         </svg>
 
-        {/* Textos internos do Tacômetro */}
-        <div className="absolute inset-0 flex flex-col items-center justify-end pb-7 pointer-events-none">
-          <span className="text-[10px] font-mono font-bold text-zinc-400 tracking-wider">
-            RPM × 1000
+        {/* Display Central do Tacômetro (limpo, sem corte de ponteiro ou textos confusos) */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pt-2 pointer-events-none">
+          <span className="text-[9px] font-mono font-bold text-zinc-400 tracking-wider">
+            RPM
           </span>
-          <span className="text-[18px] font-mono font-black text-white tracking-tight">
-            {rpm}
+          <span className="text-2xl font-mono font-black text-white tracking-tight drop-shadow-sm">
+            {Math.round(rpm)}
           </span>
-          <span className="text-[8px] font-mono font-bold text-red-400 uppercase tracking-widest mt-0.5">
+          <span className="text-[7.5px] font-mono font-bold text-red-400 uppercase tracking-widest mt-0.5">
             TURBO FLEX T270
           </span>
         </div>

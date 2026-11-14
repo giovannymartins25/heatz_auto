@@ -1,4 +1,5 @@
 import type { DrivingMode, SelectorPosition } from '@/types'
+import type { FourWheelDriveMode } from '@/systems/physics'
 import { clamp } from '@/utils/math'
 
 export interface AutomaticTransmissionConfig {
@@ -18,6 +19,7 @@ export interface AutoShiftInput {
   currentGear: number
   drivingMode: DrivingMode
   selectorPosition?: SelectorPosition
+  fourWheelDriveMode?: FourWheelDriveMode
   maxPowerRpm?: number
   maxTorqueRpm?: number
   deltaTime: number
@@ -164,10 +166,25 @@ export class AutomaticTransmission {
       currentGear,
       drivingMode,
       selectorPosition = 'D',
+      fourWheelDriveMode = 'auto',
       maxPowerRpm,
       deltaTime,
     } = input
     const maxGear = this.config.gearRatios.length
+    const hasCrawlerFirstGear = this.config.gearRatios.length === 9 && (this.config.gearRatios[0]?.ratio ?? 0) >= 4.5
+    const is4wdLow = fourWheelDriveMode === '4wd_low'
+
+    // Em transmissões ZF 9HP com 1ª marcha ultracurta (crawler ratio 4.700:1):
+    // No modo D convencional (AUTO ou 4WD LOCK), a arrancada padrão é em 2ª marcha (2.840:1).
+    // No modo 4WD LOW, a arrancada ocorre exclusivamente em 1ª marcha para rastejo off-road.
+    if (selectorPosition === 'D' && hasCrawlerFirstGear && !is4wdLow && currentGear === 1 && vehicleSpeedKmh < 8) {
+      return {
+        targetGear: 2,
+        targetClutchEngagement: 1.0,
+        isKickdown: false,
+        targetRpm: this.speedToRpm(vehicleSpeedKmh, 2) || currentRpm,
+      }
+    }
 
     this.shiftTimer += deltaTime
     const throttleDelta = throttle - this.prevThrottle
@@ -252,8 +269,11 @@ export class AutomaticTransmission {
       const projectedRpm =
         speedProjectedRpm > 0 ? speedProjectedRpm : currentRpm / Math.max(0.1, gearStepRatio)
 
-      // Nunca reduz para 1ª marcha em movimento (>= 12 km/h)
-      const allowDownshiftToFirst = lowerGear > 1 || vehicleSpeedKmh < 12
+      // Nunca reduz para 1ª marcha em movimento (>= 12 km/h);
+      // Em transmissões com 1ª crawler (ZF 9HP), só reduz para 1ª se 4WD LOW estiver ativo ou em modo manual M
+      const allowDownshiftToFirst =
+        lowerGear > 1 ||
+        (vehicleSpeedKmh < 12 && (!hasCrawlerFirstGear || is4wdLow || selectorPosition === 'M'))
 
       // Kickdown intencional quando o motorista pisa fundo em marcha alta (3ª+) e há margem útil antes do upshift
       const wantsKickdown =

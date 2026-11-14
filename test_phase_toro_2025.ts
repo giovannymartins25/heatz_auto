@@ -244,7 +244,7 @@ console.log('\n--- PARTE 5: Dinâmica Física, Aderência e Tração ---')
   })
   assert(ranchTick4wd.isWheelSlipping === false, 'Ranch em 4WD canaliza 450 Nm de torque diesel sem destracionamento graças à tração integral 50/50')
 
-  // 4. Modo 4WD LOW com crawl multiplier na 1ª marcha ultracurta
+  // 4. Modo 4WD LOW com crawl ratio da 1ª marcha ultracurta (sem multiplicador artificial de torque)
   ranchPhysics.setFourWheelDriveMode('4wd_low')
   const crawlTick = ranchPhysics.tick({
     driveTorqueAtTransmission: 400,
@@ -253,7 +253,10 @@ console.log('\n--- PARTE 5: Dinâmica Física, Aderência e Tração ---')
     brake: 0,
     deltaTime: 1 / 120,
   })
-  assert(crawlTick.wheelTorque > 7000, `Modo 4WD LOW multiplica torque para rastejo off-road (torque bruto gerado = ${crawlTick.wheelTorque.toFixed(1)} Nm)`)
+  assert(
+    crawlTick.wheelTorque > 5000 && crawlTick.wheelTorque > ranchTick4wd.wheelTorque * 1.45,
+    `Modo 4WD LOW multiplica torque para rastejo off-road (torque bruto gerado = ${crawlTick.wheelTorque.toFixed(1)} Nm vs 2ª marcha = ${ranchTick4wd.wheelTorque.toFixed(1)} Nm)`,
+  )
 }
 
 // ─── CRITÉRIO 10: MANIFEST E NÃO-REGRESSÃO DOS 8 VEÍCULOS ORIGINAIS ───

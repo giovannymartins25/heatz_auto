@@ -1194,6 +1194,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       }, 3500)
       return
     }
+
+    const { _transmission, _config, gearSelectorPosition, fourWheelDriveMode: prevMode } = get()
+    if (_config?.id === 'fiat-toro-ranch-2025' && _transmission && gearSelectorPosition === 'D') {
+      if (mode === '4wd_low' && currentSpeedKmh <= 3.0) {
+        // Em 4WD LOW engata a 1ª marcha ultracurta de crawl ratio (4.700:1)
+        _transmission.shiftTo(1, currentSpeedKmh)
+        set({ currentGear: 1 })
+      } else if (mode !== '4wd_low' && prevMode === '4wd_low' && currentSpeedKmh <= 3.0) {
+        // Ao desengatar 4WD LOW para AUTO ou 4WD LOCK com veículo parado, retorna para a 2ª marcha padrão (2.840:1)
+        _transmission.shiftTo(2, currentSpeedKmh)
+        set({ currentGear: 2 })
+      }
+    }
+
     set({ fourWheelDriveMode: mode, fourWheelDriveWarning: null })
   },
 
@@ -1417,7 +1431,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         break
       }
       case 'D': {
-        const targetGear = get().currentGear > 0 ? get().currentGear : 1
+        const isToroRanch = _config?.id === 'fiat-toro-ranch-2025'
+        const isLowMode = get().fourWheelDriveMode === '4wd_low'
+        const defaultForwardGear = isToroRanch && !isLowMode ? 2 : 1
+        const targetGear = get().currentGear > 0 ? get().currentGear : defaultForwardGear
         _autoTransmission?.reset()
         _transmission.shiftTo(targetGear, speed, undefined, true)
         HapticFeedback.gearShift()
@@ -2079,6 +2096,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
               currentGear: _transmission.currentGear,
               drivingMode: ctx.drivingMode,
               selectorPosition: ctx.gearSelectorPosition,
+              fourWheelDriveMode: ctx.fourWheelDriveMode,
               maxPowerRpm: _config.engine.maxPowerRpm,
               maxTorqueRpm: _config.engine.maxTorqueRpm,
               deltaTime: dt,

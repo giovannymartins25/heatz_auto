@@ -10,6 +10,7 @@ export interface VehiclePhysicsConfig {
   vehicleId?: string
   chassis?: VehicleChassis | ChassisConfig
   fourWheelDriveMode?: FourWheelDriveMode
+  roadGradePercent?: number
 }
 
 export interface PhysicsTickInput {
@@ -38,20 +39,21 @@ export interface PhysicsTickResult {
 /**
  * VehiclePhysics — Simulação de dinâmica longitudinal do veículo baseada em forças.
  * 
- * Fase 1.6.1: Integrado com VehicleChassis para representação tipada do centro de massa,
- * geometria entre-eixos e distribuição estática/dinâmica de cargas normais (SI).
+ * Fase 1.6.1 + Refinamento 4x4: Integrado com VehicleChassis para representação tipada do centro de massa,
+ * geometria entre-eixos, distribuição estática/dinâmica de cargas normais e física autêntica de tração 4x4.
  *
  * Equações físicas fundamentadas:
- * - Força peso: W = m * g
- * - Distribuição estática: F_zf0 = m * g * (b / L), F_zr0 = m * g * (a / L)
- * - Transferência dinâmica: Delta_Fz = (m * h_cg / L) * a_x
- * - Força de tração nas rodas: F_trac = (Torque * Relação * Diferencial * Eficiência) / Raio
- * - Limite de aderência do pneu (Atrito de Coulomb): F_grip = mu * N_motriz
- * - Escorregamento de roda (Wheel Slip) sob excesso de torque
- * - Resistência ao rolamento: F_rr = Crr * m * g
+ * - Força peso e inclinação: W = m * g, W_N = m * g * cos(theta), F_slope = m * g * sin(theta)
+ * - Distribuição estática sob inclinação: F_zf0 = m * g * (cos(theta)*b/L - sin(theta)*h_cg/L)
+ * - Transferência dinâmica por aceleração: Delta_Fz = (m * h_cg / L) * a_x
+ * - Força normal sobre eixos tracionados (FWD, RWD, 4WD LOCK 50/50, 4WD AUTO sob demanda)
+ * - Limite de aderência do pneu (Atrito de Coulomb dinâmico): F_grip = mu * N_motriz
+ * - Relação natural de transmissão: 4WD LOW utiliza a 1ª marcha ultracurta (crawl ratio 4.700:1)
+ *   sem multiplicadores arbitrários de torque adicionais.
+ * - Resistência ao rolamento: F_rr = Crr * W_N
  * - Arrasto aerodinâmico: F_aero = 0.5 * rho * Cd * A * v²
- * - Força de frenagem proporcional ao pedal (0-100%)
- * - Aceleração: a = F_líquida / m
+ * - Força de frenagem proporcional ao pedal
+ * - Segunda Lei de Newton: a = F_líquida / m
  */
 export class VehiclePhysics {
   private readonly mass: number
@@ -67,13 +69,15 @@ export class VehiclePhysics {
 
   private speedMs: number = 0 // velocidade linear em m/s
   private accelerationMs2: number = 0
-  private surfaceFriction: number = 0.95 // Coeficiente de atrito mu (0.95 asfalto seco, ~0.35 piso molhado/escorregadio)
+  private surfaceFriction: number = 0.95 // Coeficiente de atrito mu (0.95 asfalto seco, 0.55 molhado, 0.45 terra, 0.25 lama/gelo)
+  private roadGradePercent: number = 0 // Inclinação em % (+ = subida, - = descida)
   private wheelSpeedMs: number = 0
 
   constructor(config: VehiclePhysicsConfig) {
     this.isMotorcycle = config.isMotorcycle ?? false
     this.vehicleId = config.vehicleId
     this.fourWheelDriveMode = config.fourWheelDriveMode ?? 'auto'
+    this.roadGradePercent = config.roadGradePercent ?? 0
 
     // Inicialização da representação física de chassi e centro de massa
     if (config.chassis instanceof VehicleChassis) {
@@ -98,7 +102,7 @@ export class VehiclePhysics {
     this.wheelRadius = this.chassis.wheelRadius
     this.efficiency = this.isMotorcycle ? 0.93 : 0.90
 
-    // Relação de peso no eixo tracionado de acordo com arquitetura e modo de tração
+    // Relação nominal de peso no eixo tracionado de acordo com arquitetura e modo de tração
     this.driveAxleWeightRatio = this.calculateDriveAxleWeightRatio()
 
     // Constante aerodinâmica 0.5 * rho * Cd * A
@@ -118,17 +122,21 @@ export class VehiclePhysics {
     return this.fourWheelDriveMode
   }
 
+  getDriveAxleWeightRatio(): number {
+    return this.driveAxleWeightRatio
+  }
+
   private calculateDriveAxleWeightRatio(): number {
     if (this.vehicleId === 'fiat-toro-ranch-2025') {
       if (this.fourWheelDriveMode === '4wd' || this.fourWheelDriveMode === '4wd_low') {
         // Bloqueio integral 50/50: ambos os eixos geram tração simultânea (100% da carga normal total do veículo)
         return 1.0
       }
-      // AUTO sob demanda: controle eletrônico de acoplamento inteligente (~85% de aderência distribuída)
+      // AUTO sob demanda: controle eletrônico de acoplamento inteligente
       return 0.85
     }
     if (this.vehicleId === 'fiat-toro-endurance-2025') {
-      // Picape FWD de entrada: tração apenas dianteira (60% do peso estático)
+      // Picape FWD de entrada: tração apenas dianteira
       return this.chassis.frontWeightRatio
     }
     if (this.vehicleId === 'porsche-gt3' || this.vehicleId === 'opala-4100' || this.isMotorcycle) {
@@ -147,10 +155,53 @@ export class VehiclePhysics {
   }
 
   /**
-   * Retorna as cargas dinâmicas atuais nos eixos sob a aceleração corrente.
+   * Define e obtém a inclinação longitudinal da pista (Road Grade em %).
+   * Exemplo: 0% = plano, 15% = subida íngreme, -10% = descida acentuada.
+   */
+  setRoadGrade(gradePercent: number): void {
+    this.roadGradePercent = clamp(gradePercent, -50, 50)
+  }
+
+  getRoadGrade(): number {
+    return this.roadGradePercent
+  }
+
+  /**
+   * Retorna as cargas dinâmicas atuais nos eixos sob a aceleração corrente e inclinação.
    */
   getAxleLoads(): DynamicLoadResult {
-    return this.chassis.getDynamicAxleLoads(this.accelerationMs2)
+    const thetaRad = Math.atan(this.roadGradePercent / 100)
+    const cosTheta = Math.cos(thetaRad)
+    const sinTheta = Math.sin(thetaRad)
+
+    const totalWeight = this.mass * this.chassis.gravity
+    const normalWeight = totalWeight * cosTheta
+
+    // Distribuição estática sobre plano inclinado
+    const b = this.chassis.distanceCgToRearAxle
+    const a = this.chassis.distanceCgToFrontAxle
+    const L = this.chassis.wheelbase
+    const h = this.chassis.centerOfMassHeight
+
+    const staticFront = totalWeight * (cosTheta * (b / L) - sinTheta * (h / L))
+    const staticRear = totalWeight * (cosTheta * (a / L) + sinTheta * (h / L))
+
+    // Transferência longitudinal dinâmica D'Alembert
+    const dynamicTransfer = (this.mass * h / L) * this.accelerationMs2
+
+    const minLoad = this.chassis.minAxleLoad
+    const frontLoad = clamp(staticFront - dynamicTransfer, minLoad, normalWeight - minLoad)
+    const rearLoad = clamp(staticRear + dynamicTransfer, minLoad, normalWeight - minLoad)
+
+    return {
+      frontAxleLoad: frontLoad,
+      rearAxleLoad: rearLoad,
+      frontWheelLoad: frontLoad / this.chassis.wheelsPerAxle,
+      rearWheelLoad: rearLoad / this.chassis.wheelsPerAxle,
+      totalWeight: normalWeight,
+      loadTransferN: dynamicTransfer,
+      accelerationX: this.accelerationMs2,
+    }
   }
 
   /**
@@ -172,6 +223,10 @@ export class VehiclePhysics {
     return this.wheelSpeedMs * 3.6
   }
 
+  getWheelSpeedMs(): number {
+    return this.wheelSpeedMs
+  }
+
   getAcceleration(): number {
     return this.accelerationMs2
   }
@@ -191,20 +246,50 @@ export class VehiclePhysics {
 
   /**
    * Retorna o torque máximo que o atrito dos pneus suporta antes de patinar.
-   * Utiliza a carga normal sobre o eixo de tração com base no centro de massa e gravidade física.
+   * Utiliza a carga normal dinamicamente atuando sobre os eixos motrizes,
+   * considerando inclinação e transferência dinâmica de carga longitudinal.
    */
   getMaxGripTorque(): number {
-    const normalForce = this.mass * this.chassis.gravity * this.driveAxleWeightRatio
-    const maxGripForce = this.surfaceFriction * normalForce
+    const axleLoads = this.getAxleLoads()
+    let normalForceOnDrivenWheels = 0
+
+    if (this.vehicleId === 'fiat-toro-ranch-2025') {
+      if (this.fourWheelDriveMode === '4wd' || this.fourWheelDriveMode === '4wd_low') {
+        // Tração 4x4 bloqueada 50/50: 100% da carga normal de ambos os eixos
+        normalForceOnDrivenWheels = axleLoads.frontAxleLoad + axleLoads.rearAxleLoad
+      } else {
+        // AUTO sob demanda: sob repouso/cruzeiro mobiliza dianteira + parcela traseira;
+        // com escorregamento fecha acoplamento até 100%
+        const isSlipDetected = Math.abs(this.wheelSpeedMs - this.speedMs) > 0.1
+        const rearShare = isSlipDetected ? 1.0 : 0.65
+        normalForceOnDrivenWheels = axleLoads.frontAxleLoad + axleLoads.rearAxleLoad * rearShare
+      }
+    } else if (this.vehicleId === 'fiat-toro-endurance-2025') {
+      // Picape FWD: exclusivamente carga normal do eixo dianteiro (diminui em aceleração e em subidas!)
+      normalForceOnDrivenWheels = axleLoads.frontAxleLoad
+    } else if (this.vehicleId === 'porsche-gt3' || this.vehicleId === 'opala-4100' || this.isMotorcycle) {
+      // RWD / Moto: carga normal do eixo traseiro (aumenta em aceleração e em subidas)
+      normalForceOnDrivenWheels = axleLoads.rearAxleLoad
+    } else {
+      // Demais automóveis FWD padrão
+      normalForceOnDrivenWheels = axleLoads.frontAxleLoad
+    }
+
+    const maxGripForce = this.surfaceFriction * normalForceOnDrivenWheels
     return maxGripForce * this.wheelRadius
   }
 
   /**
-   * Executa um tick da física longitudinal.
+   * Executa um tick da física longitudinal a 120 Hz.
    */
   tick(input: PhysicsTickInput): PhysicsTickResult {
     const { driveTorqueAtTransmission, gearRatio, finalDrive, brake, deltaTime } = input
     const effectiveTotalRatio = gearRatio * finalDrive
+
+    const thetaRad = Math.atan(this.roadGradePercent / 100)
+    const cosTheta = Math.cos(thetaRad)
+    const sinTheta = Math.sin(thetaRad)
+    const normalWeight = this.mass * this.chassis.gravity * cosTheta
 
     // 1. Torque e Força de Tração teórica nas Rodas (Newtons)
     let wheelTorque = 0
@@ -215,39 +300,31 @@ export class VehiclePhysics {
     const maxGripTorque = this.getMaxGripTorque()
     const maxGripForce = maxGripTorque / this.wheelRadius
 
-    // Em 4WD LOW com marcha ultracurta (1ª marcha ou ré), atua a multiplicação de crawl/reduzida
-    let crawlMultiplier = 1.0
-    if (
-      this.vehicleId === 'fiat-toro-ranch-2025' &&
-      this.fourWheelDriveMode === '4wd_low' &&
-      Math.abs(gearRatio) >= 3.8
-    ) {
-      crawlMultiplier = 1.45
-    }
-
     if (gearRatio !== 0 && driveTorqueAtTransmission > 0) {
-      wheelTorque = driveTorqueAtTransmission * effectiveTotalRatio * crawlMultiplier * this.efficiency
+      // Transmissão mecânica direta: sem multiplicador arbitrário
+      wheelTorque = driveTorqueAtTransmission * effectiveTotalRatio * this.efficiency
       
-      // Verificação de perda de aderência (Wheel Spin)
+      // Verificação física de perda de aderência (Wheel Spin)
       if (wheelTorque > maxGripTorque && brake < 0.1) {
         isWheelSlipping = true
-        // Sob patinamento, o atrito passa para cinético (~80% da aderência máxima estática)
-        const kineticFrictionFactor = 0.80
+        // Sob patinamento, o atrito passa para o regime cinético (~82% da aderência máxima estática)
+        const kineticFrictionFactor = 0.82
         tractionForce = maxGripForce * kineticFrictionFactor
         
-        // A velocidade da roda sobe acima da velocidade do carro devido ao torque excedente
+        // A velocidade da roda se eleva proporcionalmente ao torque excedente
         const excessTorqueRatio = (wheelTorque - maxGripTorque) / Math.max(100, maxGripTorque)
-        const slipSpeedMs = excessTorqueRatio * 4.5 // m/s de patinamento
+        const slipSpeedMs = excessTorqueRatio * 3.8
         this.wheelSpeedMs = this.speedMs + slipSpeedMs
         slipRatio = slipSpeedMs / Math.max(2.5, this.wheelSpeedMs)
       } else {
-        // Aderência normal: tração total transmitida
+        // Aderência normal integral
         tractionForce = wheelTorque / this.wheelRadius
         this.wheelSpeedMs = this.speedMs
         slipRatio = 0
       }
     } else if (gearRatio !== 0 && driveTorqueAtTransmission < 0 && this.speedMs > 0.05) {
-      // Freio motor em desaceleração: torque negativo na transmissão desacelera o veículo
+      // Freio motor em desaceleração:
+      // O freio-motor é naturalmente proporcional à relação da marcha engatada
       const rawBrakingWheelTorque =
         (driveTorqueAtTransmission * effectiveTotalRatio) / Math.max(0.75, this.efficiency)
       wheelTorque = Math.max(rawBrakingWheelTorque, -maxGripTorque)
@@ -258,24 +335,33 @@ export class VehiclePhysics {
       this.wheelSpeedMs = this.speedMs
     }
 
-    // 2. Força de Resistência ao Rolamento (Newtons)
-    const rollingResistance = this.rollingCoeff * this.mass * this.chassis.gravity
+    // 2. Força de Resistência ao Rolamento (Newtons, proporcional à carga normal)
+    const rollingResistance = this.rollingCoeff * normalWeight
 
     // 3. Força de Resistência Aerodinâmica (Newtons: proporcional a v²)
     const aeroResistance = this.aeroConstant * this.speedMs * this.speedMs
 
-    // 4. Força de Frenagem (Newtons: desaceleração máxima de ~1.1G)
-    const maxBrakeForce = this.mass * this.chassis.gravity * 1.1
+    // 4. Força Gravitacional de Rampa / Subida (Newtons)
+    // Positiva na subida (resiste ao avanço); negativa na descida (auxilia o avanço)
+    const slopeForce = this.mass * this.chassis.gravity * sinTheta
+
+    // 5. Força de Frenagem (Newtons: desaceleração máxima de ~1.1G)
+    const maxBrakeForce = normalWeight * 1.1
     const brakeForce = clamp(brake, 0, 1) * maxBrakeForce
 
-    // 5. Força Líquida atuando no chassi
+    // 6. Força Líquida atuando no chassi
     let netForce = 0
+    const totalOpposingForce = rollingResistance + aeroResistance + brakeForce + slopeForce
+
     if (this.speedMs > 0.05) {
-      netForce = tractionForce - rollingResistance - aeroResistance - brakeForce
+      netForce = tractionForce - totalOpposingForce
     } else {
-      const staticThreshold = rollingResistance * 1.2 + brakeForce
-      if (tractionForce > staticThreshold) {
-        netForce = tractionForce - staticThreshold
+      const staticResistance = rollingResistance * 1.2 + brakeForce + slopeForce
+      if (tractionForce > staticResistance) {
+        netForce = tractionForce - staticResistance
+      } else if (slopeForce < 0 && Math.abs(slopeForce) > rollingResistance * 1.2 + brakeForce) {
+        // Descida livre (gravidade puxa para frente na ausência de freio)
+        netForce = Math.abs(slopeForce) - (rollingResistance * 1.2 + brakeForce)
       } else {
         netForce = 0
         this.speedMs = 0
@@ -283,10 +369,10 @@ export class VehiclePhysics {
       }
     }
 
-    // 6. Aceleração (Segunda Lei de Newton: a = F / m)
+    // 7. Aceleração (Segunda Lei de Newton: a = F / m)
     this.accelerationMs2 = netForce / this.mass
 
-    // 7. Atualizar Velocidade
+    // 8. Atualizar Velocidade
     this.speedMs += this.accelerationMs2 * deltaTime
     if (this.speedMs < 0) {
       this.speedMs = 0
@@ -294,7 +380,7 @@ export class VehiclePhysics {
       this.wheelSpeedMs = 0
     }
 
-    // 8. Calcular rotação do eixo primário da transmissão baseado na velocidade da roda
+    // 9. Calcular rotação do eixo primário da transmissão baseado na velocidade da roda
     const wheelAngularVelocity = this.wheelSpeedMs / this.wheelRadius
     const wheelRpm = (wheelAngularVelocity * 60) / (2 * Math.PI)
     
@@ -310,7 +396,7 @@ export class VehiclePhysics {
       wheelRpm,
       wheelSpeedKmh: this.getWheelSpeedKmh(),
       tractionForce,
-      resistiveForce: rollingResistance + aeroResistance + brakeForce,
+      resistiveForce: rollingResistance + aeroResistance + brakeForce + Math.max(0, slopeForce),
       wheelTorque,
       maxGripTorque,
       isWheelSlipping,
@@ -330,6 +416,7 @@ export class VehiclePhysics {
       speedMs: this.speedMs,
       accelerationMs2: this.accelerationMs2,
       surfaceFriction: this.surfaceFriction,
+      roadGradePercent: this.roadGradePercent,
       wheelSpeedMs: this.wheelSpeedMs,
       fourWheelDriveMode: this.fourWheelDriveMode,
     }
@@ -341,6 +428,9 @@ export class VehiclePhysics {
     this.accelerationMs2 = snapshot.accelerationMs2
     this.surfaceFriction = snapshot.surfaceFriction
     this.wheelSpeedMs = snapshot.wheelSpeedMs
+    if (snapshot.roadGradePercent !== undefined) {
+      this.roadGradePercent = snapshot.roadGradePercent
+    }
     if (snapshot.fourWheelDriveMode) {
       this.setFourWheelDriveMode(snapshot.fourWheelDriveMode)
     }
@@ -354,6 +444,7 @@ export interface VehiclePhysicsSnapshot {
   speedMs: number
   accelerationMs2: number
   surfaceFriction: number
+  roadGradePercent?: number
   wheelSpeedMs: number
   fourWheelDriveMode?: FourWheelDriveMode
 }
