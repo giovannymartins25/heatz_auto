@@ -1,5 +1,6 @@
 import { memo, useState, useEffect } from 'react'
 import type { VehicleConfig, DrivingMode } from '@/types'
+import { getVehicleCapabilities } from '@/types'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useUIStore, type GraphicProfile } from '@/stores/useUIStore'
 import { useDeviceTilt } from '@/hooks/useDeviceTilt'
@@ -114,7 +115,8 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
 
   if (!isOpen) return null
 
-  const supportedModes = vehicle.transmission.supportedModes || []
+  const caps = getVehicleCapabilities(vehicle)
+  const supportedModes = caps.supportedDrivingModes
   const headlightLabel =
     headlightsMode === 'off' ? 'DESLIG.' : headlightsMode === 'parking' ? 'LANTERNA' : headlightsMode === 'low' ? 'BAIXO' : 'ALTO'
 
@@ -149,7 +151,7 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
         </div>
 
         {/* Modos de condução */}
-        {supportedModes.length > 0 && (
+        {supportedModes.length > 1 && (
           <div className="mb-4">
             <span className="block mb-1.5 text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Modo de condução</span>
             <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${supportedModes.length}, minmax(0, 1fr))` }}>

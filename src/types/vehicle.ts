@@ -80,6 +80,14 @@ export interface VehicleCapabilities {
   manualShiftControls: ManualShiftControl[]
   supportsPaddleShifters: boolean
   supportsNos: boolean
+  hasDriveModes: boolean
+  hasTransmissionModes: boolean
+  hasPaddleShifters: boolean
+  hasManualShift: boolean
+  hasClutchPedal: boolean
+  has4x4Selector: boolean
+  hasInfotainment: boolean
+  isMotorcycle: boolean
 }
 
 /** Configuração da transmissão */
@@ -148,6 +156,8 @@ export type DashboardTheme =
   | 'square_turbo'
   | 'civic_si'
   | 'opala_classic'
+  | 'toro_endurance'
+  | 'toro_ranch'
   | 'default'
 
 /** Configuração do painel visual */
@@ -232,9 +242,15 @@ export function getVehicleCapabilities(vehicle: VehicleConfig): VehicleCapabilit
     transmission.type === 'cvt' ||
     transmission.type === 'dct'
 
-  // Modos de condução suportados
+  // Modos de condução suportados (ECO / NORMAL / SPORT / TRACK de chassi/acelerador)
   let supportedDrivingModes: DrivingMode[] = transmission.supportedModes ?? []
-  if (vehicle.id === 'yaris-2019' || vehicle.id.includes('yaris')) {
+  if (isMoto) {
+    // Motocicletas: sem modos fictícios de condução de carros
+    supportedDrivingModes = []
+  } else if (vehicle.id.includes('toro')) {
+    // Toro não possui modos de condução de chassi (apenas modo Sport de câmbio na Endurance)
+    supportedDrivingModes = []
+  } else if (vehicle.id === 'yaris-2019' || vehicle.id.includes('yaris')) {
     // Yaris possui somente modo NORMAL de condução
     supportedDrivingModes = ['normal']
   } else if (!isAutoOrCvt && !isMoto) {
@@ -261,13 +277,21 @@ export function getVehicleCapabilities(vehicle: VehicleConfig): VehicleCapabilit
   // Borboletas (Paddle Shifters)
   const supportsPaddleShifters =
     transmission.supportsPaddleShifters ??
-    (supportsManualMode && (vehicle.id.includes('golf-gti') || vehicle.id.includes('porsche-gt3')))
+    (supportsManualMode &&
+      (vehicle.id.includes('golf-gti') ||
+        vehicle.id.includes('porsche-gt3') ||
+        vehicle.id.includes('toro-ranch')) &&
+      !vehicle.id.includes('toro-endurance'))
 
   // Controles de troca manual
   let manualShiftControls: ManualShiftControl[] = transmission.manualShiftControls ?? []
   if (manualShiftControls.length === 0) {
     if (isMoto) {
       manualShiftControls = ['sequential_lever']
+    } else if (vehicle.id.includes('toro-endurance')) {
+      manualShiftControls = ['gear_selector_gesture']
+    } else if (vehicle.id.includes('toro-ranch')) {
+      manualShiftControls = ['paddle_shifters', 'gear_selector_gesture']
     } else if (vehicle.id.includes('yaris')) {
       manualShiftControls = ['gear_selector_gesture']
     } else if (vehicle.id.includes('porsche-gt3')) {
@@ -280,6 +304,10 @@ export function getVehicleCapabilities(vehicle: VehicleConfig): VehicleCapabilit
   // Suporte a nitro (NOS): motos não possuem por padrão, carros suportam via oficina
   const supportsNos = transmission.supportsNos ?? !isMoto
 
+  // Recursos de tração 4x4 e multimídia
+  const has4x4Selector = vehicle.id.includes('toro-ranch') || Boolean(vehicle.id.includes('4x4'))
+  const hasInfotainment = vehicle.dashboard.hasInfotainment ?? false
+
   return {
     supportedDrivingModes,
     defaultDrivingMode,
@@ -289,5 +317,13 @@ export function getVehicleCapabilities(vehicle: VehicleConfig): VehicleCapabilit
     manualShiftControls,
     supportsPaddleShifters,
     supportsNos,
+    hasDriveModes: supportedDrivingModes.length > 1,
+    hasTransmissionModes: supportedSelectorPositions.length > 1,
+    hasPaddleShifters: supportsPaddleShifters,
+    hasManualShift: supportsManualMode || transmission.type === 'manual' || transmission.type === 'sequential',
+    hasClutchPedal: transmission.hasClutch,
+    has4x4Selector,
+    hasInfotainment,
+    isMotorcycle: isMoto,
   }
 }

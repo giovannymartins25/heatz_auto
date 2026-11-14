@@ -116,7 +116,7 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
       </header>
 
       {/* Conteúdo da Tela */}
-      <main className="flex-1 min-h-0 p-2 overflow-hidden">
+      <main className="flex-1 min-h-0 p-2 overflow-y-auto">
         {activeTab === 'media' && (
           <div className="grid h-full grid-cols-[1.1fr_1fr] gap-2 items-center">
             {/* Capa e Telemetria Musical */}

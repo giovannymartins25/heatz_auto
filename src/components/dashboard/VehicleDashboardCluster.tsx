@@ -19,6 +19,8 @@ export const CLUSTER_PROFILES: Record<DashboardTelemetry['theme'], ClusterProfil
   opala_classic: { width: 730, height: 248 },
   modern: { width: 750, height: 268 },
   motorcycle: { width: 500, height: 228 },
+  toro_endurance: { width: 750, height: 268 },
+  toro_ranch: { width: 750, height: 268 },
   default: { width: 750, height: 268 },
 }
 

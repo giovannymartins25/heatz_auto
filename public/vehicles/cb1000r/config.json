@@ -55,7 +55,7 @@
     "hasClutch": true,
     "hasManualMode": false,
     "defaultDrivingMode": "normal",
-    "supportedModes": ["eco", "normal", "sport"],
+    "supportedModes": [],
     "supportsPaddleShifters": false,
     "manualShiftControls": ["sequential_lever"],
     "supportsNos": false

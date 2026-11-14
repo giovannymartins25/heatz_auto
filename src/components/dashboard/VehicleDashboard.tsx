@@ -27,6 +27,7 @@ import { DragStripTree } from './DragStripTree'
 import { TuningGarageModal } from '@/components/tuning'
 import { toggleAppFullscreen } from '@/utils/fullscreen'
 import type { VehicleConfig, DrivingMode } from '@/types'
+import { getVehicleCapabilities } from '@/types'
 import type { SessionEntryMode } from '@/stores/useSessionStore'
 
 interface VehicleDashboardProps {
@@ -210,7 +211,8 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
       vehicle.transmission.type === 'dct' ||
       vehicle.transmission.defaultMode === 'automatic')
   const hasTcs = !!vehicle.transmission.tcs?.enabled
-  const supportedModes = vehicle.transmission.supportedModes || []
+  const caps = getVehicleCapabilities(vehicle)
+  const supportedModes = caps.supportedDrivingModes
 
   // ── Em dispositivos móveis verticais: permitir jogar no Portrait Cockpit ou virar o celular ──
   if (isMobileDevice && isPortrait) {

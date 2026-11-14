@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useVehicleStore } from '@/stores/useVehicleStore'
 import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
-import { SearchBar, CategoryFilter } from '@/components/ui'
+import { SearchBar, CategoryFilter, VehicleSpecsModal } from '@/components/ui'
 import { TuningGarageModal, DynoTestModal } from '@/components/tuning'
 import type { FilterOption } from '@/components/ui'
 import type { VehicleConfig } from '@/types/vehicle'
@@ -93,7 +93,19 @@ export function HomeScreen() {
   const [activeTab, setActiveTab] = useState<'garage' | 'dealership'>('garage')
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<FilterOption>('all')
+  const [selectedBrand, setSelectedBrand] = useState<string>('all')
+  const [selectedTransmission, setSelectedTransmission] = useState<string>('all')
   const [notification, setNotification] = useState<string | null>(null)
+
+  // Modal de Ficha Técnica
+  const [specsModalData, setSpecsModalData] = useState<{
+    vehicleId: string
+    manifestEntry?: any
+    isOwned?: boolean
+    price?: number
+    onDrive?: () => void
+    onWorkshop?: () => void
+  } | null>(null)
 
   // Modal de Renomeação
   const [renamingCar, setRenamingCar] = useState<GarageCarInstance | null>(null)
@@ -121,10 +133,28 @@ export function HomeScreen() {
     setTimeout(() => setNotification(null), 3000)
   }
 
+  // Marcas únicas disponíveis no catálogo
+  const availableBrands = useMemo(() => {
+    return Array.from(new Set(vehicleList.map((v) => v.brand)))
+  }, [vehicleList])
+
   // Filtragem para Concessionária
   const filteredVehicles = useMemo(() => {
     return vehicleList.filter((v) => {
+      // Filtro de Categoria (Todos / Carros / Motos)
       if (category !== 'all' && v.category !== category) return false
+
+      // Filtro de Fabricante
+      if (selectedBrand !== 'all' && v.brand.toLowerCase() !== selectedBrand.toLowerCase()) return false
+
+      // Filtro de Câmbio (Manual vs Automático/CVT/DCT)
+      if (selectedTransmission !== 'all') {
+        const isAuto = v.transmissionType === 'automatic' || v.transmissionType === 'cvt' || v.transmissionType === 'dct'
+        if (selectedTransmission === 'manual' && isAuto) return false
+        if (selectedTransmission === 'automatic' && !isAuto) return false
+      }
+
+      // Busca por texto
       if (search.trim()) {
         const q = search.toLowerCase()
         return (
@@ -135,7 +165,7 @@ export function HomeScreen() {
       }
       return true
     })
-  }, [vehicleList, search, category])
+  }, [vehicleList, search, category, selectedBrand, selectedTransmission])
 
   // Filtragem para Garagem do Usuário
   const filteredOwnedCars = useMemo(() => {
@@ -316,13 +346,88 @@ export function HomeScreen() {
         </div>
 
         {/* Barra de Ações: Busca + Filtros */}
-        <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 w-full max-w-2xl">
-          <div className="flex-1 w-full">
-            <SearchBar value={search} onChange={setSearch} />
+        <div className="flex flex-col items-center gap-2 w-full max-w-3xl">
+          <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 w-full">
+            <div className="flex-1 w-full">
+              <SearchBar value={search} onChange={setSearch} />
+            </div>
+            {activeTab === 'dealership' && (
+              <div className="w-full sm:w-auto shrink-0">
+                <CategoryFilter active={category} onChange={setCategory} />
+              </div>
+            )}
           </div>
+
+          {/* Filtros de Fabricante e Câmbio na Concessionária */}
           {activeTab === 'dealership' && (
-            <div className="w-full sm:w-auto shrink-0">
-              <CategoryFilter active={category} onChange={setCategory} />
+            <div className="w-full flex flex-col gap-1.5 pt-1 border-t border-white/5">
+              {/* Filtro por Marca */}
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full py-0.5 no-scrollbar text-[8.5px] sm:text-[9.5px] font-mono">
+                <span className="text-zinc-500 uppercase shrink-0 text-[8px] font-bold">Marca:</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBrand('all')}
+                  className={`px-2 py-0.5 rounded-lg border transition-all whitespace-nowrap cursor-pointer ${
+                    selectedBrand === 'all'
+                      ? 'bg-emerald-500 text-black font-black border-emerald-400 shadow-sm'
+                      : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
+                  }`}
+                >
+                  TODAS
+                </button>
+                {availableBrands.map((b) => (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => setSelectedBrand(b)}
+                    className={`px-2 py-0.5 rounded-lg border transition-all whitespace-nowrap cursor-pointer uppercase ${
+                      selectedBrand.toLowerCase() === b.toLowerCase()
+                        ? 'bg-emerald-500 text-black font-black border-emerald-400 shadow-sm'
+                        : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
+                    }`}
+                  >
+                    {b}
+                  </button>
+                ))}
+              </div>
+
+              {/* Filtro por Câmbio */}
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full py-0.5 no-scrollbar text-[8px] sm:text-[9px] font-mono">
+                <span className="text-zinc-500 uppercase shrink-0 text-[8px] font-bold">Câmbio:</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTransmission('all')}
+                  className={`px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                    selectedTransmission === 'all'
+                      ? 'bg-zinc-700 text-white font-bold border-zinc-500'
+                      : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
+                  }`}
+                >
+                  TODOS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTransmission('manual')}
+                  className={`px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                    selectedTransmission === 'manual'
+                      ? 'bg-zinc-700 text-white font-bold border-zinc-500'
+                      : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
+                  }`}
+                >
+                  MANUAL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTransmission('automatic')}
+                  className={`px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                    selectedTransmission === 'automatic'
+                      ? 'bg-zinc-700 text-white font-bold border-zinc-500'
+                      : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
+                  }`}
+                >
+                  AUTOMÁTICO / CVT
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -536,10 +641,10 @@ export function HomeScreen() {
                       </div>
 
                       {/* Ações Secundárias */}
-                      <div className="grid grid-cols-2 gap-1 sm:gap-1.5">
+                      <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
                         <button
                           onClick={() => handleOpenWorkshop(car)}
-                          className="h-7 sm:h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-amber-400/30 font-bold text-[8.5px] sm:text-[9.5px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                          className="h-7 sm:h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-amber-400/30 font-bold text-[8px] sm:text-[9px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
                         >
                           <span>🔧</span>
                           <span>OFICINA</span>
@@ -547,10 +652,25 @@ export function HomeScreen() {
 
                         <button
                           onClick={() => handleOpenDyno(car)}
-                          className="h-7 sm:h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-sky-300 border border-sky-500/30 font-bold text-[8.5px] sm:text-[9.5px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                          className="h-7 sm:h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-sky-300 border border-sky-500/30 font-bold text-[8px] sm:text-[9px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
                         >
                           <span>📈</span>
                           <span>DYNO</span>
+                        </button>
+
+                        <button
+                          onClick={() => setSpecsModalData({
+                            vehicleId: car.vehicleId,
+                            manifestEntry: manifest,
+                            isOwned: true,
+                            onDrive: () => handleSelectMode(car, 'drive'),
+                            onWorkshop: () => handleOpenWorkshop(car),
+                          })}
+                          className="h-7 sm:h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-white/10 font-bold text-[8px] sm:text-[9px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                          title="Abrir Ficha Técnica Completa"
+                        >
+                          <span>📋</span>
+                          <span>FICHA</span>
                         </button>
                       </div>
 
@@ -639,26 +759,42 @@ export function HomeScreen() {
                       </div>
                     </div>
 
-                    {/* Preço e Botão de Compra em Linha Única */}
-                    <div className="pt-1.5 border-t border-white/10 font-mono flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <span className="text-zinc-500 block text-[7px] sm:text-[7.5px] uppercase">Preço</span>
-                        <span className="font-black text-emerald-400 text-[11px] sm:text-xs truncate block">
-                          {sandboxMode ? 'GRÁTIS' : `R$ ${info.price.toLocaleString()}`}
-                        </span>
+                    {/* Preço, Ficha Técnica e Botão de Compra */}
+                    <div className="pt-2 border-t border-white/10 font-mono flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="min-w-0">
+                          <span className="text-zinc-500 block text-[7px] uppercase">Preço</span>
+                          <span className="font-black text-emerald-400 text-xs sm:text-sm truncate block">
+                            {sandboxMode ? 'GRÁTIS' : `R$ ${info.price.toLocaleString()}`}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSpecsModalData({
+                            vehicleId: vehicle.id,
+                            manifestEntry: vehicle,
+                            isOwned: ownedCount > 0,
+                            price: info.price,
+                          })}
+                          className="px-2 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-white/10 font-bold text-[8px] sm:text-[8.5px] uppercase flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                          title="Ver Ficha Técnica Completa"
+                        >
+                          <span>📋</span>
+                          <span>FICHA TÉCNICA</span>
+                        </button>
                       </div>
 
                       <button
                         onClick={() => handleBuyCar(vehicle.id)}
                         disabled={!canAfford}
-                        className={`px-3.5 h-8 sm:h-9 rounded-xl font-black text-[10px] sm:text-[11px] uppercase tracking-wider transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 shrink-0 ${
+                        className={`w-full h-8 sm:h-9 rounded-xl font-black text-[9.5px] sm:text-[10.5px] uppercase tracking-wider transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
                           canAfford
                             ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]'
                             : 'bg-zinc-800 text-zinc-500 border border-white/5 cursor-not-allowed'
                         }`}
                       >
                         <span>🛒</span>
-                        <span>{canAfford ? 'COMPRAR' : 'INSUFICIENTE'}</span>
+                        <span>{canAfford ? 'COMPRAR VEÍCULO' : 'INSUFICIENTE'}</span>
                       </button>
                     </div>
                   </div>
@@ -719,6 +855,20 @@ export function HomeScreen() {
           config={dynoModalData.vehicle}
           upgrades={dynoModalData.instance.upgrades}
           onClose={() => setDynoModalData(null)}
+        />
+      )}
+
+      {/* ─── Modal de Ficha Técnica Completa ─── */}
+      {specsModalData && (
+        <VehicleSpecsModal
+          vehicleId={specsModalData.vehicleId}
+          manifestEntry={specsModalData.manifestEntry}
+          isOwned={specsModalData.isOwned}
+          price={specsModalData.price}
+          onClose={() => setSpecsModalData(null)}
+          onBuy={handleBuyCar}
+          onDrive={specsModalData.onDrive}
+          onWorkshop={specsModalData.onWorkshop}
         />
       )}
 

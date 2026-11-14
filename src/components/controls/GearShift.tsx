@@ -1,5 +1,6 @@
 import { memo, useEffect, useState, useRef } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { getVehicleCapabilities } from '@/types'
 import { HPatternShifter } from './HPatternShifter'
 
 export interface GearShiftProps {
@@ -42,6 +43,10 @@ export const GearShift = memo(function GearShift({
   const shifterLayout = useSimulationStore((s) => s.shifterLayout)
   const toggleShifterLayout = useSimulationStore((s) => s.toggleShifterLayout)
   const vehicleConfig = useSimulationStore((s) => s._config)
+  const isMoto = vehicleConfig?.info.category === 'motorcycle'
+  const caps = vehicleConfig ? getVehicleCapabilities(vehicleConfig) : null
+  const supportsPaddles = caps ? caps.supportsPaddleShifters : true
+  const canShowPaddles = showPaddles && supportsPaddles
 
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
   const lastActionTimeRef = useRef(0)
@@ -256,7 +261,7 @@ export const GearShift = memo(function GearShift({
           </div>
 
           {/* Borboletas Paddle Shift para Trocas Rápidas */}
-          {showPaddles && (
+          {canShowPaddles && (
             <div
               className={`w-full flex ${
                 orientation === 'vertical' ? 'flex-col gap-1' : 'items-center justify-between'
@@ -291,7 +296,7 @@ export const GearShift = memo(function GearShift({
             </div>
           )}
         </div>
-      ) : shifterLayout === 'h_pattern' ? (
+      ) : shifterLayout === 'h_pattern' && !isMoto ? (
         /* ── CÂMBIO MANUAL REAL EM GRADE H (Gated Shifter) ── */
         <HPatternShifter
           gearCount={vehicleConfig?.transmission.gearCount || 5}
@@ -303,13 +308,15 @@ export const GearShift = memo(function GearShift({
         <div className="flex flex-col items-center gap-1.5 p-2 rounded-2xl bg-zinc-950/90 border border-white/10 shadow-xl">
           <div className="w-full flex items-center justify-between px-1 text-[8px] text-zinc-400 font-bold">
             <span className="text-zinc-500">CÂMBIO MANUAL</span>
-            <button
-              onClick={toggleShifterLayout}
-              className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-amber-400 font-black uppercase text-[8px] transition-all cursor-pointer"
-              title="Ativar Câmbio Real em Grade H"
-            >
-              ⚙️ GRADE H
-            </button>
+            {!isMoto && (
+              <button
+                onClick={toggleShifterLayout}
+                className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-amber-400 font-black uppercase text-[8px] transition-all cursor-pointer"
+                title="Ativar Câmbio Real em Grade H"
+              >
+                ⚙️ GRADE H
+              </button>
+            )}
           </div>
 
           <div

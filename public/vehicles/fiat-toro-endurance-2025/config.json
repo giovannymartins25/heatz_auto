@@ -45,7 +45,7 @@
   "transmission": {
     "type": "automatic",
     "defaultMode": "automatic",
-    "supportedSelectorPositions": ["P", "R", "N", "D", "M"],
+    "supportedSelectorPositions": ["P", "R", "N", "D", "S", "M"],
     "gearCount": 6,
     "gearRatios": [
       { "gear": 1, "ratio": 4.459 },
@@ -60,7 +60,7 @@
     "hasClutch": false,
     "hasManualMode": true,
     "defaultDrivingMode": "normal",
-    "supportedModes": ["eco", "normal", "sport"],
+    "supportedModes": [],
     "supportsPaddleShifters": false,
     "manualShiftControls": ["gear_selector_gesture"],
     "supportsNos": true,
@@ -90,7 +90,7 @@
   },
   "dashboard": {
     "type": "default",
-    "theme": "modern",
+    "theme": "toro_endurance",
     "tachometerMax": 7000,
     "speedometerMax": 240,
     "redlineStart": 6200,

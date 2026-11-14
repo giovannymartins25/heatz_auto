@@ -9,6 +9,8 @@ import {
   GolQuadradoRealCluster,
   CivicSiRealCluster,
   Opala4100RealCluster,
+  FiatToroEnduranceCluster,
+  FiatToroRanchCluster,
 } from './clusters'
 
 interface ClusterViewProps {
@@ -51,6 +53,12 @@ export const ClusterView = memo(function ClusterView({ telemetry }: ClusterViewP
 
     case 'opala_classic':
       return <Opala4100RealCluster telemetry={telemetry} />
+
+    case 'toro_endurance':
+      return <FiatToroEnduranceCluster telemetry={telemetry} />
+
+    case 'toro_ranch':
+      return <FiatToroRanchCluster telemetry={telemetry} />
 
     case 'classic':
     default:

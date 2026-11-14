@@ -63,7 +63,7 @@
     "hasClutch": false,
     "hasManualMode": true,
     "defaultDrivingMode": "normal",
-    "supportedModes": ["eco", "normal", "sport"],
+    "supportedModes": [],
     "supportsPaddleShifters": true,
     "manualShiftControls": ["paddle_shifters", "gear_selector_gesture"],
     "supportsNos": true,
@@ -93,7 +93,7 @@
   },
   "dashboard": {
     "type": "default",
-    "theme": "modern",
+    "theme": "toro_ranch",
     "tachometerMax": 6000,
     "speedometerMax": 240,
     "redlineStart": 4500,
