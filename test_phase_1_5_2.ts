@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { useUIStore } from './src/stores/useUIStore'
 import { performanceMonitor } from './src/utils/performanceMonitor'
 import { isFullscreenSupported, isDocumentFullscreen, isStandaloneOrFullscreenApp } from './src/utils/fullscreen'
+import { areDrivingMapPropsEqual } from './src/components/dashboard/DrivingMapViewport'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -113,13 +114,15 @@ test('3.1 Loop de física preservado a 120 Hz com medição dedicada', () => {
   assert.ok(simCode.includes('performanceMonitor.recordPhysicsTick()'), 'Frequência da física instrumentada no loop')
 })
 
-test('3.2 useSimulationStore implementa desacoplamento e throttle visual adaptativo', () => {
+test('3.2 useSimulationStore implementa desacoplamento via _phys e throttle visual determinístico', () => {
   const simCode = read('src/stores/useSimulationStore.ts')
 
+  assert.ok(simCode.includes('export interface PhysicsInternalState'), 'Estado físico interno tipado em PhysicsInternalState')
   assert.ok(simCode.includes('minVisualInterval'), 'Intervalo mínimo visual configurável por perfil')
   assert.ok(simCode.includes('shouldUpdateVisual'), 'Lógica de separação entre avanço físico e renderização')
   assert.ok(simCode.includes('shouldUpdateSlow'), 'Throttle de telemetria secundária (térmica, combustível)')
-  assert.ok(simCode.includes('now - _lastSlowTelemetryUpdate >= 150'), 'Telemetria lenta atualizada a ~6.6 Hz')
+  assert.ok(simCode.includes('phys.elapsedSimMs - phys.lastSlowUpdateMs >= 150'), 'Telemetria lenta atualizada a ~6.6 Hz sem descartar _phys')
+  assert.ok(!simCode.includes('!isBrowser || frameTime'), 'Bypass !isBrowser removido para igualar testes e navegador')
 })
 
 // ─────────────────────────────────────────────────────────────
@@ -160,11 +163,20 @@ test('4.3 MobileQuickMenu disponibiliza atalhos para Tela Cheia, Gráficos e Dia
 // ─────────────────────────────────────────────────────────────
 // 5. OTIMIZAÇÃO DE RE-RENDERIZAÇÃO DO MAPA E CLUSTER
 // ─────────────────────────────────────────────────────────────
-test('5.1 DrivingMapViewport possui comparador customizado em memo para evitar re-renders a 120Hz', () => {
+test('5.1 DrivingMapViewport isola malha SVG estática em MapSvgMesh e atualiza velocidade/rumo no comparador memo', () => {
   const mapCode = read('src/components/dashboard/DrivingMapViewport.tsx')
 
-  assert.ok(mapCode.includes('prevMoving === nextMoving'), 'Compara estado parado/movimento em vez de objeto de telemetria')
+  assert.ok(mapCode.includes('const MapSvgMesh = memo'), 'Malha SVG estática isolada em MapSvgMesh memoizado')
+  assert.ok(mapCode.includes('prevSpeed === nextSpeed'), 'Compara velocidade arredondada no comparador')
   assert.ok(mapCode.includes('prev.size === next.size'), 'Compara tamanho P/M/G')
+  assert.strictEqual(
+    areDrivingMapPropsEqual(
+      { size: 'balanced', onSizeChange: () => {}, telemetry: { speedometer: { speed: 10 } } as any },
+      { size: 'balanced', onSizeChange: () => {}, telemetry: { speedometer: { speed: 45 } } as any },
+    ),
+    false,
+    'Comparador libera re-render quando a velocidade muda de 10 para 45 km/h',
+  )
 })
 
 test('5.2 VehicleDashboardCluster registra contagem real de reconciliações React', () => {

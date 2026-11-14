@@ -16,8 +16,175 @@ import { useGarageStore, type CarUpgrades } from './useGarageStore'
 import { useUIStore } from './useUIStore'
 import { performanceMonitor } from '@/utils/performanceMonitor'
 
-let _lastVisualUpdate = 0
-let _lastSlowTelemetryUpdate = 0
+/**
+ * Estado físico autoritativo desacoplado das publicações visuais do Zustand.
+ * Permite que todos os subsistemas integrem a 120 Hz sem perda nem quantização
+ * mesmo quando a UI recebe snapshots em 35 Hz (ECO), 60 Hz (NORMAL) ou ~6.6 Hz (telemetria lenta).
+ */
+export interface PhysicsInternalState {
+  boostPressureBar: number
+  peakBoostBar: number
+  brakeDiscTemp: number
+  brakeFadeFactor: number
+  isBrakeGlowing: boolean
+  fuelLevelLiters: number
+  isOutOfFuel: boolean
+  coolantTemp: number
+  oilTemp: number
+  isEngineBlown: boolean
+  damageReason: string | null
+  engineBlownTrigger: number
+  isBurningOut: boolean
+  tireSmokeDensity: number
+  nosPressurePercent: number
+  nosActive: boolean
+  dragStage: DragTreeStage
+  dragTimeSlip: DragTimeSlip | null
+  dragDistanceTraveled: number
+  dragTimerStart: number | null
+  dragElapsedSeconds: number
+  dragGreenSimMs: number | null
+  speedKmh: number
+  rpm: number
+  gear: number
+  isRunning: boolean
+  isStalled: boolean
+  isBogWarning: boolean
+  status: EngineStatus
+  isRevLimiting: boolean
+  isKickdown: boolean
+  tcsIntervening: boolean
+  tcsInterventionLevel: number
+  clutchSlipRpm: number
+  clutchSlipRatio: number
+  clutchTorqueTransfer: number
+  clutchHeat: number
+  isClutchSlipping: boolean
+  isLaunchControlArmed: boolean
+  isLaunching: boolean
+  topSpeedRecord: number
+
+  // Acumuladores determinísticos de tempo simulado e contadores de publicação
+  elapsedSimMs: number
+  lastVisualUpdateMs: number
+  lastSlowUpdateMs: number
+  pendingSlowPublish: boolean
+  visualUpdatesCount: number
+  skippedVisualUpdatesCount: number
+  slowUpdatesCount: number
+  skippedSlowUpdatesCount: number
+
+  // Sentinelas do último snapshot publicado na store (detectam setState externo)
+  lastPubBoost: number
+  lastPubPeakBoost: number
+  lastPubBrakeDiscTemp: number
+  lastPubBrakeFadeFactor: number
+  lastPubFuelLevelLiters: number
+  lastPubIsOutOfFuel: boolean
+  lastPubCoolantTemp: number
+  lastPubOilTemp: number
+  lastPubIsEngineBlown: boolean
+  lastPubNosPressurePercent: number
+  lastPubNosActive: boolean
+  lastPubDragStage: DragTreeStage
+  lastPubDragDistance: number
+  lastPubDragTimerStart: number | null
+  lastPubSpeedKmh: number
+  lastPubTopSpeedRecord: number
+}
+
+function createInitialPhysicsInternalState(
+  overrides: Partial<PhysicsInternalState> = {},
+): PhysicsInternalState {
+  const boostPressureBar = overrides.boostPressureBar ?? 0
+  const peakBoostBar = overrides.peakBoostBar ?? 0
+  const brakeDiscTemp = overrides.brakeDiscTemp ?? 60
+  const brakeFadeFactor = overrides.brakeFadeFactor ?? 1.0
+  const fuelLevelLiters = overrides.fuelLevelLiters ?? 45
+  const isOutOfFuel = overrides.isOutOfFuel ?? false
+  const coolantTemp = overrides.coolantTemp ?? 88
+  const oilTemp = overrides.oilTemp ?? 92
+  const isEngineBlown = overrides.isEngineBlown ?? false
+  const nosPressurePercent = overrides.nosPressurePercent ?? 100
+  const nosActive = overrides.nosActive ?? false
+  const dragStage = overrides.dragStage ?? 'idle'
+  const dragDistanceTraveled = overrides.dragDistanceTraveled ?? 0
+  const dragTimerStart = overrides.dragTimerStart ?? null
+  const speedKmh = overrides.speedKmh ?? 0
+  const topSpeedRecord = overrides.topSpeedRecord ?? 0
+
+  return {
+    boostPressureBar,
+    peakBoostBar,
+    brakeDiscTemp,
+    brakeFadeFactor,
+    isBrakeGlowing: brakeDiscTemp >= 500,
+    fuelLevelLiters,
+    isOutOfFuel,
+    coolantTemp,
+    oilTemp,
+    isEngineBlown,
+    damageReason: overrides.damageReason ?? null,
+    engineBlownTrigger: overrides.engineBlownTrigger ?? 0,
+    isBurningOut: false,
+    tireSmokeDensity: 0,
+    nosPressurePercent,
+    nosActive,
+    dragStage,
+    dragTimeSlip: null,
+    dragDistanceTraveled,
+    dragTimerStart,
+    dragElapsedSeconds: 0,
+    dragGreenSimMs: null,
+    speedKmh,
+    rpm: 0,
+    gear: 0,
+    isRunning: false,
+    isStalled: false,
+    isBogWarning: false,
+    status: 'off',
+    isRevLimiting: false,
+    isKickdown: false,
+    tcsIntervening: false,
+    tcsInterventionLevel: 0,
+    clutchSlipRpm: 0,
+    clutchSlipRatio: 0,
+    clutchTorqueTransfer: 0,
+    clutchHeat: 0,
+    isClutchSlipping: false,
+    isLaunchControlArmed: false,
+    isLaunching: false,
+    topSpeedRecord,
+
+    elapsedSimMs: 0,
+    lastVisualUpdateMs: 0,
+    lastSlowUpdateMs: 0,
+    pendingSlowPublish: false,
+    visualUpdatesCount: 0,
+    skippedVisualUpdatesCount: 0,
+    slowUpdatesCount: 0,
+    skippedSlowUpdatesCount: 0,
+
+    lastPubBoost: boostPressureBar,
+    lastPubPeakBoost: peakBoostBar,
+    lastPubBrakeDiscTemp: brakeDiscTemp,
+    lastPubBrakeFadeFactor: brakeFadeFactor,
+    lastPubFuelLevelLiters: fuelLevelLiters,
+    lastPubIsOutOfFuel: isOutOfFuel,
+    lastPubCoolantTemp: coolantTemp,
+    lastPubOilTemp: oilTemp,
+    lastPubIsEngineBlown: isEngineBlown,
+    lastPubNosPressurePercent: nosPressurePercent,
+    lastPubNosActive: nosActive,
+    lastPubDragStage: dragStage,
+    lastPubDragDistance: dragDistanceTraveled,
+    lastPubDragTimerStart: dragTimerStart,
+    lastPubSpeedKmh: speedKmh,
+    lastPubTopSpeedRecord: topSpeedRecord,
+
+    ...overrides,
+  }
+}
 
 
 /**
@@ -271,6 +438,7 @@ interface SimulationState {
   _config: VehicleConfig | null
   _accumulator: number
   _isInitialized: boolean
+  _phys: PhysicsInternalState
 }
 
 type SimulationStore = SimulationState & SimulationActions
@@ -387,6 +555,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   _config: null,
   _accumulator: 0,
   _isInitialized: false,
+  _phys: createInitialPhysicsInternalState(),
 
   init: (config: VehicleConfig, initialUpgrades?: Partial<CarUpgrades>, garageInstanceId?: string | null) => {
     const caps = getVehicleCapabilities(config)
@@ -540,6 +709,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _dragTimerStart: null,
       _dragGreenTime: null,
       _accumulator: 0,
+      _phys: createInitialPhysicsInternalState({ gear: isAutoOrCvt ? -2 : 0 }),
     })
   },
 
@@ -589,24 +759,43 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _transmission.shiftTo(1, 0)
     }
 
+    const startedRunning = _engine.getIsRunning()
+    const startedStatus = _engine.getStatus()
+    const startedRpm = _engine.getRpm()
+    const startedGear = _transmission?.currentGear ?? 0
+    const phys = get()._phys
+    phys.isRunning = startedRunning
+    phys.isStalled = false
+    phys.status = startedStatus
+    phys.rpm = startedRpm
+    phys.gear = startedGear
+    phys.damageReason = null
+
     set({
-      isRunning: _engine.getIsRunning(),
+      isRunning: startedRunning,
       isStalled: false,
-      status: _engine.getStatus(),
-      rpm: _engine.getRpm(),
-      currentGear: _transmission?.currentGear ?? 0,
+      status: startedStatus,
+      rpm: startedRpm,
+      currentGear: startedGear,
       damageReason: null,
     })
   },
 
   stopEngine: () => {
-    const { _engine, _transmission, transmissionMode } = get()
+    const { _engine, _transmission, transmissionMode, _phys } = get()
     if (!_engine) return
 
     _engine.stop()
     if (transmissionMode === 'manual') {
       _transmission?.reset()
     }
+    _phys.isRunning = false
+    _phys.isStalled = false
+    _phys.status = 'off'
+    _phys.rpm = 0
+    _phys.isKickdown = false
+    _phys.tcsIntervening = false
+    _phys.tcsInterventionLevel = 0
     set({
       isRunning: false,
       isStalled: false,
@@ -1240,11 +1429,24 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   refuel: (liters?: number) => {
-    set((s) => ({
-      fuelLevelLiters: Math.min(s.fuelCapacityLiters, s.fuelLevelLiters + (liters ?? s.fuelCapacityLiters)),
-      isOutOfFuel: false,
-      damageReason: s.damageReason === 'Pane Seca: Sem combustível!' ? null : s.damageReason,
-    }))
+    set((s) => {
+      const nextFuel = Math.min(s.fuelCapacityLiters, s._phys.fuelLevelLiters + (liters ?? s.fuelCapacityLiters))
+      const nextDamageReason = s.damageReason === 'Pane Seca: Sem combustível!' ? null : s.damageReason
+      const publishedFuel = Math.round(nextFuel * 1000) / 1000
+      return {
+        fuelLevelLiters: publishedFuel,
+        isOutOfFuel: false,
+        damageReason: nextDamageReason,
+        _phys: {
+          ...s._phys,
+          fuelLevelLiters: nextFuel,
+          lastPubFuelLevelLiters: publishedFuel,
+          isOutOfFuel: false,
+          lastPubIsOutOfFuel: false,
+          damageReason: nextDamageReason,
+        },
+      }
+    })
     HapticFeedback.medium()
   },
 
@@ -1254,17 +1456,40 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   repairEngine: () => {
-    set((s) => ({
-      isEngineBlown: false,
-      damageReason: null,
-      coolantTemp: 88,
-      oilTemp: 92,
-      brakeDiscTemp: 60,
-      brakeFadeFactor: 1.0,
-      isBrakeGlowing: false,
-      isOutOfFuel: false,
-      fuelLevelLiters: Math.max(s.fuelLevelLiters, 15),
-    }))
+    set((s) => {
+      const nextFuel = Math.max(s._phys.fuelLevelLiters, 15)
+      const publishedFuel = Math.round(nextFuel * 1000) / 1000
+      return {
+        isEngineBlown: false,
+        damageReason: null,
+        coolantTemp: 88,
+        oilTemp: 92,
+        brakeDiscTemp: 60,
+        brakeFadeFactor: 1.0,
+        isBrakeGlowing: false,
+        isOutOfFuel: false,
+        fuelLevelLiters: publishedFuel,
+        _phys: {
+          ...s._phys,
+          isEngineBlown: false,
+          lastPubIsEngineBlown: false,
+          damageReason: null,
+          coolantTemp: 88,
+          lastPubCoolantTemp: 88,
+          oilTemp: 92,
+          lastPubOilTemp: 92,
+          brakeDiscTemp: 60,
+          lastPubBrakeDiscTemp: 60,
+          brakeFadeFactor: 1.0,
+          lastPubBrakeFadeFactor: 1.0,
+          isBrakeGlowing: false,
+          isOutOfFuel: false,
+          lastPubIsOutOfFuel: false,
+          fuelLevelLiters: nextFuel,
+          lastPubFuelLevelLiters: publishedFuel,
+        },
+      }
+    })
     HapticFeedback.medium()
   },
 
@@ -1272,90 +1497,181 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const { _physics, _engine } = get()
     _physics?.reset()
     if (_engine) _engine.setRpm(1000)
-    set({
+    set((s) => ({
       dragStage: 'pre_stage',
       dragTimeSlip: null,
       _dragDistanceTraveled: 0,
       _dragTimerStart: null,
       _dragGreenTime: null,
-    })
+      _phys: {
+        ...s._phys,
+        dragStage: 'pre_stage',
+        lastPubDragStage: 'pre_stage',
+        dragTimeSlip: null,
+        dragDistanceTraveled: 0,
+        lastPubDragDistance: 0,
+        dragTimerStart: null,
+        lastPubDragTimerStart: null,
+        dragElapsedSeconds: 0,
+        dragGreenSimMs: null,
+        speedKmh: 0,
+        lastPubSpeedKmh: s.speed,
+        rpm: _engine ? 1000 : s._phys.rpm,
+      },
+    }))
     HapticFeedback.light()
 
     // Sequência Árvore de Natal NHRA Drag Strip
     setTimeout(() => {
-      if (get().dragStage === 'pre_stage') set({ dragStage: 'staged' })
+      if (get().dragStage === 'pre_stage') set((s) => ({
+        dragStage: 'staged',
+        _phys: { ...s._phys, dragStage: 'staged', lastPubDragStage: 'staged' },
+      }))
     }, 600)
     setTimeout(() => {
-      if (get().dragStage === 'staged') set({ dragStage: 'yellow_1' })
+      if (get().dragStage === 'staged') set((s) => ({
+        dragStage: 'yellow_1',
+        _phys: { ...s._phys, dragStage: 'yellow_1', lastPubDragStage: 'yellow_1' },
+      }))
     }, 1200)
     setTimeout(() => {
-      if (get().dragStage === 'yellow_1') set({ dragStage: 'yellow_2' })
+      if (get().dragStage === 'yellow_1') set((s) => ({
+        dragStage: 'yellow_2',
+        _phys: { ...s._phys, dragStage: 'yellow_2', lastPubDragStage: 'yellow_2' },
+      }))
     }, 1700)
     setTimeout(() => {
-      if (get().dragStage === 'yellow_2') set({ dragStage: 'yellow_3' })
+      if (get().dragStage === 'yellow_2') set((s) => ({
+        dragStage: 'yellow_3',
+        _phys: { ...s._phys, dragStage: 'yellow_3', lastPubDragStage: 'yellow_3' },
+      }))
     }, 2200)
     setTimeout(() => {
       if (get().dragStage === 'yellow_3') {
-        set({ dragStage: 'green', _dragGreenTime: performance.now() })
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+        set((s) => ({
+          dragStage: 'green',
+          _dragGreenTime: now,
+          _phys: {
+            ...s._phys,
+            dragStage: 'green',
+            lastPubDragStage: 'green',
+            dragGreenSimMs: s._phys.elapsedSimMs,
+          },
+        }))
         HapticFeedback.heavy()
       }
     }, 2700)
   },
 
   resetDragRace: () => {
-    set({
+    set((s) => ({
       dragStage: 'idle',
       dragTimeSlip: null,
       _dragDistanceTraveled: 0,
       _dragTimerStart: null,
       _dragGreenTime: null,
-    })
+      _phys: {
+        ...s._phys,
+        dragStage: 'idle',
+        lastPubDragStage: 'idle',
+        dragTimeSlip: null,
+        dragDistanceTraveled: 0,
+        lastPubDragDistance: 0,
+        dragTimerStart: null,
+        lastPubDragTimerStart: null,
+        dragElapsedSeconds: 0,
+        dragGreenSimMs: null,
+      },
+    }))
   },
 
   cancelDragRace: () => {
-    set({ dragStage: 'idle' })
+    set((s) => ({
+      dragStage: 'idle',
+      _phys: {
+        ...s._phys,
+        dragStage: 'idle',
+        lastPubDragStage: 'idle',
+      },
+    }))
   },
 
   resetPerformanceStats: () => {
-    const stopped = get().speed <= 0.3
-    set({
+    const stopped = get()._phys.speedKmh <= 0.3 && get().speed <= 0.3
+    set((s) => ({
       best0to100: null,
       last0to100: null,
       current0to100: null,
       isTiming0to100: false,
       topSpeedRecord: 0,
       _timer0to100State: createInitialZeroToHundredState({ armed: stopped }),
-    })
+      _phys: {
+        ...s._phys,
+        topSpeedRecord: 0,
+        lastPubTopSpeedRecord: 0,
+      },
+    }))
   },
 
   setNosActive: (active: boolean) => {
-    const { hasNosKit, nosPressurePercent, isRunning } = get()
-    if (!hasNosKit || nosPressurePercent <= 0 || !isRunning) {
-      set({ nosActive: false })
+    const { hasNosKit, _phys, isRunning } = get()
+    if (!hasNosKit || _phys.nosPressurePercent <= 0 || !isRunning) {
+      set((s) => ({
+        nosActive: false,
+        _phys: {
+          ...s._phys,
+          nosActive: false,
+          lastPubNosActive: false,
+        },
+      }))
       return
     }
     if (active) {
       HapticFeedback.heavy()
     }
-    set({ nosActive: active })
+    set((s) => ({
+      nosActive: active,
+      _phys: {
+        ...s._phys,
+        nosActive: active,
+        lastPubNosActive: active,
+      },
+    }))
   },
 
   purgeNos: () => {
-    const { hasNosKit, nosPressurePercent } = get()
-    if (!hasNosKit || nosPressurePercent <= 0) return
+    const { hasNosKit, _phys } = get()
+    if (!hasNosKit || _phys.nosPressurePercent <= 0) return
     HapticFeedback.light()
-    set((s) => ({
-      isNosPurging: true,
-      nosPurgeTrigger: Date.now(),
-      nosPressurePercent: Math.max(0, s.nosPressurePercent - 3),
-    }))
+    set((s) => {
+      const nextPressure = Math.max(0, s._phys.nosPressurePercent - 3)
+      const pubPressure = Math.round(nextPressure * 10) / 10
+      return {
+        isNosPurging: true,
+        nosPurgeTrigger: Date.now(),
+        nosPressurePercent: pubPressure,
+        _phys: {
+          ...s._phys,
+          nosPressurePercent: nextPressure,
+          lastPubNosPressurePercent: pubPressure,
+        },
+      }
+    })
     setTimeout(() => {
       set({ isNosPurging: false })
     }, 600)
   },
 
   refillNos: () => {
-    set({ nosPressurePercent: 100 })
+    set((s) => ({
+      nosPressurePercent: 100,
+      _phys: {
+        ...s._phys,
+        nosPressurePercent: 100,
+        lastPubNosPressurePercent: 100,
+      },
+    }))
   },
 
   update: (frameTime: number) => {
@@ -1364,66 +1680,130 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     if (!_engine || !_transmission || !_clutch || !_physics || !_config) return
 
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    const phys: PhysicsInternalState = { ...state._phys }
+
+    // Sincroniza eventuais injeções externas via useSimulationStore.setState()
+    if (state.boostPressureBar !== phys.lastPubBoost) {
+      phys.boostPressureBar = state.boostPressureBar
+      phys.lastPubBoost = state.boostPressureBar
+    }
+    if (state.peakBoostBar !== phys.lastPubPeakBoost) {
+      phys.peakBoostBar = state.peakBoostBar
+      phys.lastPubPeakBoost = state.peakBoostBar
+    }
+    if (state.brakeDiscTemp !== phys.lastPubBrakeDiscTemp) {
+      phys.brakeDiscTemp = state.brakeDiscTemp
+      phys.isBrakeGlowing = state.brakeDiscTemp >= 500
+      phys.lastPubBrakeDiscTemp = state.brakeDiscTemp
+    }
+    if (state.brakeFadeFactor !== phys.lastPubBrakeFadeFactor) {
+      phys.brakeFadeFactor = state.brakeFadeFactor
+      phys.lastPubBrakeFadeFactor = state.brakeFadeFactor
+    }
+    if (state.fuelLevelLiters !== phys.lastPubFuelLevelLiters) {
+      phys.fuelLevelLiters = state.fuelLevelLiters
+      phys.lastPubFuelLevelLiters = state.fuelLevelLiters
+    }
+    if (state.isOutOfFuel !== phys.lastPubIsOutOfFuel) {
+      phys.isOutOfFuel = state.isOutOfFuel
+      phys.lastPubIsOutOfFuel = state.isOutOfFuel
+    }
+    if (state.coolantTemp !== phys.lastPubCoolantTemp) {
+      phys.coolantTemp = state.coolantTemp
+      phys.lastPubCoolantTemp = state.coolantTemp
+    }
+    if (state.oilTemp !== phys.lastPubOilTemp) {
+      phys.oilTemp = state.oilTemp
+      phys.lastPubOilTemp = state.oilTemp
+    }
+    if (state.isEngineBlown !== phys.lastPubIsEngineBlown) {
+      phys.isEngineBlown = state.isEngineBlown
+      phys.damageReason = state.damageReason
+      phys.engineBlownTrigger = state.engineBlownTrigger
+      phys.lastPubIsEngineBlown = state.isEngineBlown
+    }
+    if (state.nosPressurePercent !== phys.lastPubNosPressurePercent) {
+      phys.nosPressurePercent = state.nosPressurePercent
+      phys.lastPubNosPressurePercent = state.nosPressurePercent
+    }
+    if (state.nosActive !== phys.lastPubNosActive) {
+      phys.nosActive = state.nosActive
+      phys.lastPubNosActive = state.nosActive
+    }
+    if (state.dragStage !== phys.lastPubDragStage) {
+      phys.dragStage = state.dragStage
+      phys.dragTimeSlip = state.dragTimeSlip ? { ...state.dragTimeSlip } : null
+      phys.lastPubDragStage = state.dragStage
+      if (state.dragStage === 'green' && phys.dragGreenSimMs === null) {
+        phys.dragGreenSimMs = phys.elapsedSimMs
+      }
+    }
+    if (state._dragDistanceTraveled !== phys.lastPubDragDistance) {
+      phys.dragDistanceTraveled = state._dragDistanceTraveled
+      phys.lastPubDragDistance = state._dragDistanceTraveled
+    }
+    if (state._dragTimerStart !== phys.lastPubDragTimerStart) {
+      phys.dragTimerStart = state._dragTimerStart
+      phys.lastPubDragTimerStart = state._dragTimerStart
+    }
+    const injectedSpeedFloor = state.speed !== phys.lastPubSpeedKmh ? state.speed : 0
+    if (state.speed !== phys.lastPubSpeedKmh) {
+      phys.speedKmh = state.speed
+      phys.lastPubSpeedKmh = state.speed
+    }
+    if (state.topSpeedRecord !== phys.lastPubTopSpeedRecord) {
+      phys.topSpeedRecord = state.topSpeedRecord
+      phys.lastPubTopSpeedRecord = state.topSpeedRecord
+    }
+
+    const prevRevLimiting = phys.isRevLimiting
     let accumulator = state._accumulator + frameTime
-    let latestRpm = state.rpm
-    let latestSpeed = state.speed
-    let latestGear = state.currentGear
-    let latestIsRevLimiting = state.isRevLimiting
-    let latestIsRunning = state.isRunning
-    let latestIsStalled = state.isStalled
-    let latestIsBogWarning = state.isBogWarning
-    let latestStatus = state.status
-    let latestIsKickdown = state.isKickdown
-    let latestTcsIntervening = state.tcsIntervening
-    let latestTcsLevel = state.tcsInterventionLevel
-    let latestClutchSlipRpm = state.clutchSlipRpm
-    let latestClutchSlipRatio = state.clutchSlipRatio
-    let latestClutchTorqueTransfer = state.clutchTorqueTransfer
-    let latestClutchHeat = state.clutchHeat
-    let latestIsClutchSlipping = state.isClutchSlipping
     let timer0to100State = state._timer0to100State
     let substeps = 0
 
-    // ─── Launch Control Lógica de Armação / Disparo ───
-    let isLaunchArmed = state.isLaunchControlArmed
-    let isLaunching = state.isLaunching
+    phys.rpm = _engine.getRpm()
+    phys.gear = _transmission.currentGear
+    phys.isRunning = _engine.getIsRunning()
 
-    const canLaunch = state.hasLaunchControl && latestIsRunning && !state.handbrake
-    const isStationary = latestSpeed < 3.5
-    const isLaunchGear = latestGear === 1 || (state.transmissionMode === 'automatic' && latestGear === 1)
+    // ─── Launch Control Lógica de Armação / Disparo ───
+    const canLaunch = state.hasLaunchControl && phys.isRunning && !state.handbrake
+    const isStationary = phys.speedKmh < 3.5
+    const isLaunchGear = phys.gear === 1 || (state.transmissionMode === 'automatic' && phys.gear === 1)
 
     // Armar: parado em 1ª ou D, freio firme (>= 0.60) e acelerador a fundo (>= 0.65)
     if (canLaunch && isStationary && isLaunchGear && state.brake >= 0.60 && state.throttle >= 0.65) {
-      isLaunchArmed = true
-      isLaunching = false
-    } else if (isLaunchArmed && state.brake < 0.25 && state.throttle >= 0.50) {
+      phys.isLaunchControlArmed = true
+      phys.isLaunching = false
+    } else if (phys.isLaunchControlArmed && state.brake < 0.25 && state.throttle >= 0.50) {
       // Piloto soltou o freio com o pé no fundo -> DISPARO / LARGADA!
-      isLaunchArmed = false
-      isLaunching = true
-    } else if (isLaunchArmed && (state.throttle < 0.40 || latestGear === 0 || state.handbrake)) {
+      phys.isLaunchControlArmed = false
+      phys.isLaunching = true
+    } else if (phys.isLaunchControlArmed && (state.throttle < 0.40 || phys.gear === 0 || state.handbrake)) {
       // Cancelou se tirou o pé do acelerador, botou no neutro ou puxou freio de mão
-      isLaunchArmed = false
-      isLaunching = false
+      phys.isLaunchControlArmed = false
+      phys.isLaunching = false
     }
 
-    if (isLaunching && (latestSpeed > 45 || state.throttle < 0.3 || latestGear > 1)) {
-      isLaunching = false
+    if (phys.isLaunching && (phys.speedKmh > 45 || state.throttle < 0.3 || phys.gear > 1)) {
+      phys.isLaunching = false
     }
 
-    while (accumulator >= PHYSICS_TIMESTEP && substeps < MAX_SUBSTEPS) {
+    const maxSubsteps = Math.max(MAX_SUBSTEPS, 12)
+    while (accumulator >= PHYSICS_TIMESTEP && substeps < maxSubsteps) {
       const dt = PHYSICS_TIMESTEP
       performanceMonitor.recordPhysicsTick()
 
       // ─── 1. Tomada de Decisão da Transmissão ───
       if (state.transmissionMode === 'automatic' && _autoTransmission) {
-        if (isLaunchArmed) {
+        if (phys.isLaunchControlArmed) {
           // Com Launch Control armado no automático, segura a embreagem desacoplada
           _clutch.setPosition(0.95)
-          latestIsKickdown = false
-        } else if (isLaunching) {
+          phys.isKickdown = false
+        } else if (phys.isLaunching) {
           // No disparo da largada, joga torque total imediato
           _clutch.setPosition(0.0)
-          latestIsKickdown = true
+          phys.isKickdown = true
         } else {
           // AUTO convencional
           const autoDecision = _autoTransmission.decide({
@@ -1434,30 +1814,27 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             currentGear: _transmission.currentGear,
             drivingMode: state.drivingMode,
             selectorPosition: state.gearSelectorPosition,
-            maxPowerRpm: _config?.engine.maxPowerRpm,
-            maxTorqueRpm: _config?.engine.maxTorqueRpm,
+            maxPowerRpm: _config.engine.maxPowerRpm,
+            maxTorqueRpm: _config.engine.maxTorqueRpm,
             deltaTime: dt,
           })
 
-          latestIsKickdown = autoDecision.isKickdown
+          phys.isKickdown = autoDecision.isKickdown
 
           if (autoDecision.targetGear !== _transmission.currentGear) {
             _transmission.shiftTo(autoDecision.targetGear, _physics.getSpeedKmh())
-            latestGear = autoDecision.targetGear
+            phys.gear = autoDecision.targetGear
           }
 
           const autoClutchPosition = 1.0 - autoDecision.targetClutchEngagement
           _clutch.setPosition(autoClutchPosition)
         }
-
       } else if (state.transmissionMode === 'manual_simulated') {
         // MANUAL_SIMULATED: jogador escolheu a relação.
         // CVT continua gerenciando a embreagem para evitar estol.
-        // Usa a mesma lógica de acoplamento automático do conversor.
         const speedKmh = _physics.getSpeedKmh()
         const currentRpm = _engine.getRpm()
 
-        // Acoplamento CVT proporcional (mesmo algoritmo da AutomaticTransmission)
         let targetClutchEngagement = 1.0
         if (speedKmh < 3 && state.throttle < 0.05 && state.brake > 0.1) {
           targetClutchEngagement = 0.0
@@ -1474,15 +1851,14 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         }
 
         _clutch.setPosition(1.0 - targetClutchEngagement)
-        latestIsKickdown = false
-
+        phys.isKickdown = false
       } else {
         // MANUAL convencional: embreagem controlada pelo jogador
-        latestIsKickdown = false
+        phys.isKickdown = false
       }
 
       const gear = _transmission.currentGear
-      latestGear = gear
+      phys.gear = gear
       const gearRatio = _transmission.calculator.getGearRatio(gear)
       const finalDrive = _config.transmission.finalDrive
       const isInNeutral = gear === 0 || gear === -2
@@ -1506,33 +1882,33 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
       // 4. EngineSimulator: processa o tick com o torque de CARGA da embreagem sobre o volante
       const engineTick = _engine.tick({
-        throttle: isLaunchArmed ? Math.min(state.throttle, 0.45) : state.throttle,
-        loadTorque: clutchState.loadTorqueOnEngine, // carga resistiva real da embreagem
+        throttle: phys.isLaunchControlArmed ? Math.min(state.throttle, 0.45) : state.throttle,
+        loadTorque: clutchState.loadTorqueOnEngine,
         deltaTime: dt,
       })
 
-      latestRpm = engineTick.rpm
-      latestIsRevLimiting = engineTick.isRevLimiting
-      latestIsRunning = _engine.getIsRunning()
-      latestIsStalled = engineTick.isStalled
-      latestIsBogWarning = engineTick.isBogWarning
-      latestStatus = engineTick.status
+      phys.rpm = engineTick.rpm
+      phys.isRevLimiting = engineTick.isRevLimiting
+      phys.isRunning = _engine.getIsRunning()
+      phys.isStalled = engineTick.isStalled
+      phys.isBogWarning = engineTick.isBogWarning
+      phys.status = engineTick.status
 
       // Se o Launch Control estiver armado, fixa o RPM de corte de largada
-      if (isLaunchArmed) {
+      if (phys.isLaunchControlArmed) {
         const launchRpm = _config.transmission.launchControl?.launchRpm || (_config.id === 'porsche-gt3' ? 4500 : 3800)
         if (_engine.getRpm() > launchRpm) {
           _engine.setRpm(launchRpm)
-          latestRpm = launchRpm
+          phys.rpm = launchRpm
         }
       }
 
       // Telemetria da embreagem
-      latestClutchSlipRpm = clutchState.slipRpm
-      latestClutchSlipRatio = clutchState.slipRatio
-      latestClutchTorqueTransfer = clutchState.transmittedTorque
-      latestClutchHeat = clutchState.heat
-      latestIsClutchSlipping = clutchState.isSlipping
+      phys.clutchSlipRpm = clutchState.slipRpm
+      phys.clutchSlipRatio = clutchState.slipRatio
+      phys.clutchTorqueTransfer = clutchState.transmittedTorque
+      phys.clutchHeat = clutchState.heat
+      phys.isClutchSlipping = clutchState.isSlipping
 
       // 5. VehiclePhysics: calcula forças longitudinais com modificadores de Preparação, Peças e Modos
       const stage = state.tuningStage || 0
@@ -1541,7 +1917,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       const exhaustMult = state.exhaustType === 'straight_pipe' ? 1.08 : state.exhaustType === 'sport' ? 1.04 : 1.0
       const turboKitMult = (!_config.engine.turbo?.enabled && state.hasTurbo) ? 1.45 : 1.0
       const driveModeMult = state.drivingMode === 'track' ? 1.10 : state.drivingMode === 'sport' ? 1.05 : 1.0
-      const isNosInjecting = state.nosActive && state.hasNosKit && state.nosPressurePercent > 0 && state.throttle > 0.65 && latestIsRunning
+      const isNosInjecting = phys.nosActive && state.hasNosKit && phys.nosPressurePercent > 0 && state.throttle > 0.65 && phys.isRunning
       const nosMult = isNosInjecting ? 1.55 : 1.0
       const totalTorqueMult = stageMult * intakeMult * exhaustMult * turboKitMult * driveModeMult * nosMult
 
@@ -1556,7 +1932,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _physics.setSurfaceFriction(targetFriction)
 
       const rawBrake = Math.max(state.brake, state.handbrake || gear === -2 ? 1 : 0)
-      const effectiveBrake = rawBrake * state.brakeFadeFactor
+      const effectiveBrake = rawBrake * phys.brakeFadeFactor
       const physicsTick = _physics.tick({
         driveTorqueAtTransmission: clutchState.transmittedTorque * totalTorqueMult,
         gearRatio,
@@ -1565,31 +1941,28 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         deltaTime: dt,
       })
 
-      const prevSubstepSpeed = latestSpeed
-      latestSpeed = gear === -2 ? 0 : physicsTick.speedKmh
+      const prevSubstepSpeed = phys.speedKmh
+      phys.speedKmh = gear === -2 ? 0 : physicsTick.speedKmh
       if (gear === -2) {
         _physics.reset()
       }
 
       const timerStep = stepZeroToHundredTimer(timer0to100State, {
         prevSpeedKmh: prevSubstepSpeed,
-        speedKmh: latestSpeed,
+        speedKmh: phys.speedKmh,
         gear,
         throttle: state.throttle,
         brake: state.brake,
         handbrake: state.handbrake,
-        isRunning: latestIsRunning,
+        isRunning: phys.isRunning,
         deltaTime: dt,
       })
       timer0to100State = timerStep.state
       if (timerStep.isNewBest) {
-        // Premiação de R$ 2.500 por bater novo recorde pessoal de 0 a 100 km/h
         useGarageStore.getState().addCredits(2500)
       }
 
-      // 6. TractionControlSystem: atua após a física, prepara multiplicador para o próximo frame
-      // (O TCS modula o torque de forma suave — a intervenção real ocorre no próximo tick via
-      // throttle efetivo reduzido no EngineSimulator, mas usamos o slipRatio atual para calcular)
+      // 6. TractionControlSystem
       if (_tcs) {
         const tcsDecision = _tcs.decide({
           wheelTorque: physicsTick.wheelTorque,
@@ -1599,362 +1972,409 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           enabled: state.tcsEnabled,
         }, dt)
 
-        latestTcsIntervening = tcsDecision.isIntervening
-        latestTcsLevel = tcsDecision.interventionLevel
+        phys.tcsIntervening = tcsDecision.isIntervening
+        phys.tcsInterventionLevel = tcsDecision.interventionLevel
 
-        // Aplica redução de torque no motor via throttle efetivo
-        // (reduz a aceleração do motor no próximo tick se TCS intervindo)
         if (tcsDecision.isIntervening && physicsTick.isWheelSlipping) {
           const reducedThrottle = state.throttle * tcsDecision.throttleMultiplier
           _engine.tick({
             throttle: reducedThrottle,
-            loadTorque: 0, // compensação já aplicada acima
-            deltaTime: 0,  // frame zero — apenas ajusta o estado interno sem avançar tempo
+            loadTorque: 0,
+            deltaTime: 0,
           })
         }
       }
 
       // 7. Quando 100% acoplado em movimento com rotação suficiente, sincroniza RPM
-      if (gear !== 0 && _clutch.getEngagement() > 0.95 && latestIsRunning) {
-        const expectedRpm = _transmission.calculator.speedToRpm(latestSpeed, gear)
+      if (gear !== 0 && _clutch.getEngagement() > 0.95 && phys.isRunning) {
+        const expectedRpm = _transmission.calculator.speedToRpm(phys.speedKmh, gear)
         if (expectedRpm >= _config.engine.idleRpm) {
           _engine.setRpm(expectedRpm)
-          latestRpm = expectedRpm
+          phys.rpm = expectedRpm
         }
       }
-      accumulator -= dt
-      substeps++
-    }
 
-    // Haptics no rev limiter
-    if (latestIsRevLimiting && !state.isRevLimiting) {
-      HapticFeedback.revLimiter()
-    }
+      // ─── 8. Subsistemas Físicos Secundários em 120 Hz Contínuo (sem quantização) ───
 
-    // ─── Turbo Boost Pressure Calculation ───
-    let currentBoost = state.boostPressureBar
-    let peakBoost = state.peakBoostBar
+      // Turbo Boost Pressure Calculation
+      if (state.hasTurbo) {
+        const turboCfg = _config.engine.turbo || {
+          maxBoostBar: 1.25,
+          spoolRpmStart: 1800,
+          fullBoostRpm: 2800,
+        }
+        const extraBoost = stage === 1 ? 0.35 : stage === 2 ? 0.65 : stage === 3 ? 1.15 : 0.0
+        const maxBoost = (turboCfg.maxBoostBar || 1.25) + extraBoost
+        const spoolRpm = turboCfg.spoolRpmStart || 1600
+        const fullRpm = turboCfg.fullBoostRpm || 2600
 
-    if (state.hasTurbo) {
-      const turboCfg = _config.engine.turbo || {
-        maxBoostBar: 1.25,
-        spoolRpmStart: 1800,
-        fullBoostRpm: 2800,
-      }
-      const stage = state.tuningStage || 0
-      const extraBoost = stage === 1 ? 0.35 : stage === 2 ? 0.65 : stage === 3 ? 1.15 : 0.0
-      const maxBoost = (turboCfg.maxBoostBar || 1.25) + extraBoost
-      const spoolRpm = turboCfg.spoolRpmStart || 1600
-      const fullRpm = turboCfg.fullBoostRpm || 2600
-
-      let targetBoost = -0.7 // Vácuo de marcha lenta (-0.7 bar)
-      if (latestIsRunning) {
-        if (isLaunchArmed) {
-          // Anti-lag no Launch Control: 2-step spools turbo to ~65% do boost máximo
-          targetBoost = maxBoost * 0.65
-        } else if (state.throttle < 0.08) {
-          // Vácuo no coletor de admissão (-0.8 a -0.5 bar)
-          targetBoost = -0.75 + clamp((latestRpm - 1000) / 6000, 0, 0.25)
-        } else {
-          // Sob aceleração
-          if (latestRpm < spoolRpm) {
-            // Abaixo do spool, sobe de vácuo para ~atmosférico (0.0 bar)
-            targetBoost = -0.7 + (state.throttle * 0.7)
+        let targetBoost = -0.7
+        if (phys.isRunning) {
+          if (phys.isLaunchControlArmed) {
+            targetBoost = maxBoost * 0.65
+          } else if (state.throttle < 0.08) {
+            targetBoost = -0.75 + clamp((phys.rpm - 1000) / 6000, 0, 0.25)
+          } else if (phys.rpm < spoolRpm) {
+            targetBoost = -0.7 + state.throttle * 0.7
           } else {
-            // Turbo enchendo proporcionalmente ao giro e acelerador
-            const rpmFactor = clamp((latestRpm - spoolRpm) / (fullRpm - spoolRpm), 0, 1)
+            const rpmFactor = clamp((phys.rpm - spoolRpm) / (fullRpm - spoolRpm), 0, 1)
             targetBoost = state.throttle * (rpmFactor * maxBoost)
           }
+        } else {
+          targetBoost = 0
         }
+
+        const boostSpeed = targetBoost > phys.boostPressureBar ? 4.8 : 8.5
+        phys.boostPressureBar += (targetBoost - phys.boostPressureBar) * clamp(dt * boostSpeed, 0, 1)
+        phys.peakBoostBar = Math.max(phys.peakBoostBar, phys.boostPressureBar)
+      } else if (state.hasBoostGaugeKit) {
+        let targetVacuum = 0
+        if (phys.isRunning) {
+          targetVacuum = state.throttle < 0.08
+            ? -0.75 + clamp((phys.rpm - 1000) / 8000, 0, 0.1)
+            : -0.7 + state.throttle * 0.65
+        }
+        phys.boostPressureBar += (targetVacuum - phys.boostPressureBar) * clamp(dt * 7, 0, 1)
+        phys.peakBoostBar = 0
       } else {
-        targetBoost = 0 // Motor desligado: pressão atmosférica
+        phys.boostPressureBar = 0
+        phys.peakBoostBar = 0
       }
 
-      // Interpolação suave e realista da inércia da turbina
-      const boostSpeed = targetBoost > currentBoost ? 4.8 : 8.5
-      currentBoost += (targetBoost - currentBoost) * clamp(frameTime * boostSpeed, 0, 1)
-      currentBoost = Math.round(currentBoost * 100) / 100
-      peakBoost = Math.max(peakBoost, currentBoost)
-    } else if (state.hasBoostGaugeKit) {
-      // Motor aspirado com manômetro aftermarket: funciona como vacuômetro do coletor
-      // (-0.75 bar em marcha lenta/desaceleração até ~-0.05 bar com borboleta toda aberta)
-      let targetVacuum = 0
-      if (latestIsRunning) {
-        targetVacuum = state.throttle < 0.08
-          ? -0.75 + clamp((latestRpm - 1000) / 8000, 0, 0.1)
-          : -0.7 + state.throttle * 0.65
+      // Top Speed Record
+      phys.topSpeedRecord = Math.max(phys.topSpeedRecord, Math.round(phys.speedKmh))
+
+      // Térmica dos Freios, Brilho & Brake Fade
+      const effectiveBrakeSpeed = injectedSpeedFloor > 0
+        ? Math.max(phys.speedKmh, injectedSpeedFloor)
+        : phys.speedKmh
+      if (rawBrake > 0.05 && effectiveBrakeSpeed > 1) {
+        phys.brakeDiscTemp += rawBrake * (effectiveBrakeSpeed / 75) * 80 * dt
       }
-      currentBoost += (targetVacuum - currentBoost) * clamp(frameTime * 7, 0, 1)
-      currentBoost = Math.round(currentBoost * 100) / 100
-      peakBoost = 0
-    } else {
-      currentBoost = 0
-      peakBoost = 0
-    }
+      const discCooling = ((phys.speedKmh / 100) * 0.75 + 0.18) * Math.max(0, (phys.brakeDiscTemp - 60) / 100) * 9.0 * dt
+      phys.brakeDiscTemp = clamp(phys.brakeDiscTemp - discCooling, 60, 950)
+      phys.isBrakeGlowing = phys.brakeDiscTemp >= 500
+      phys.brakeFadeFactor = phys.brakeDiscTemp > 650
+        ? clamp(1.0 - ((phys.brakeDiscTemp - 650) / 300) * 0.55, 0.45, 1.0)
+        : 1.0
 
-    // ─── Recorde Top Speed ───
-    const topSpeed = Math.max(state.topSpeedRecord, Math.round(latestSpeed))
+      // Sistema Real de Combustível & Consumo Dinâmico
+      if (phys.isRunning) {
+        const hours = dt / 3600
+        const fuelMult = state.fuelType === 'ethanol_e100' ? 1.34 : 1.0
+        const stageFuelFactor = stage === 1 ? 1.2 : stage === 2 ? 1.4 : stage === 3 ? 1.8 : 1.0
+        const burnPerHour = (0.85 + state.throttle * 22.0 + (phys.rpm / _config.engine.maxRpm) * 8.5) * stageFuelFactor * fuelMult
+        phys.fuelLevelLiters = Math.max(0, phys.fuelLevelLiters - burnPerHour * hours)
 
-    // ─── 1. Térmica dos Freios, Brilho Incandescente & Brake Fade ───
-    let latestBrakeDiscTemp = state.brakeDiscTemp
-    const rawBrakeInput = Math.max(state.brake, state.handbrake || latestGear === -2 ? 1 : 0)
-    const effectiveBrakeSpeed = Math.max(latestSpeed, state.speed)
-    if (rawBrakeInput > 0.05 && effectiveBrakeSpeed > 1) {
-      latestBrakeDiscTemp += rawBrakeInput * (effectiveBrakeSpeed / 75) * 80 * frameTime
-    }
-    const discCooling = ((latestSpeed / 100) * 0.75 + 0.18) * Math.max(0, (latestBrakeDiscTemp - 25) / 100) * 9.0 * frameTime
-    latestBrakeDiscTemp = clamp(latestBrakeDiscTemp - discCooling, 25, 950)
-    latestBrakeDiscTemp = Math.round(latestBrakeDiscTemp * 10) / 10
-    const latestIsBrakeGlowing = latestBrakeDiscTemp >= 500
-    const latestBrakeFadeFactor = latestBrakeDiscTemp > 650
-      ? clamp(1.0 - ((latestBrakeDiscTemp - 650) / 300) * 0.55, 0.45, 1.0)
-      : 1.0
+        if (phys.fuelLevelLiters <= 0.005) {
+          phys.fuelLevelLiters = 0
+          phys.isOutOfFuel = true
+          phys.isRunning = false
+          phys.isStalled = true
+          phys.status = 'stalled'
+          _engine.stop()
+        }
+      }
 
-    // ─── 2. Sistema Real de Combustível & Consumo Dinâmico ───
-    let latestFuelLevel = state.fuelLevelLiters
-    let latestIsOutOfFuel = state.isOutOfFuel
-    if (latestIsRunning) {
-      const hours = frameTime / 3600
-      const fuelMult = state.fuelType === 'ethanol_e100' ? 1.34 : 1.0
-      const stage = state.tuningStage || 0
-      const stageFuelFactor = stage === 1 ? 1.2 : stage === 2 ? 1.4 : stage === 3 ? 1.8 : 1.0
-      const burnPerHour = (0.85 + state.throttle * 22.0 + (latestRpm / _config.engine.maxRpm) * 8.5) * stageFuelFactor * fuelMult
-      latestFuelLevel = Math.max(0, latestFuelLevel - burnPerHour * hours)
-      latestFuelLevel = Math.round(latestFuelLevel * 1000) / 1000
+      // Dinâmica Térmica do Motor & Superaquecimento
+      if (phys.isRunning) {
+        const stageHeatMult = stage === 1 ? 1.25 : stage === 2 ? 1.5 : stage === 3 ? 1.85 : 1.0
+        const fuelHeatFactor = state.fuelType === 'ethanol_e100' ? 0.90 : 1.0
+        const heatGenerated = (state.throttle * 0.70 + (phys.rpm / _config.engine.maxRpm) * 0.50) * stageHeatMult * fuelHeatFactor * 8.2 * dt
+        const radFan = phys.coolantTemp > 92 ? 0.45 : 0.15
+        const radCooling = ((phys.speedKmh / 110) + radFan) * Math.max(0, (phys.coolantTemp - 25) / 70) * 7.2 * dt
 
-      if (latestFuelLevel <= 0.005) {
-        latestFuelLevel = 0
-        latestIsOutOfFuel = true
-        latestIsRunning = false
-        latestIsStalled = true
-        latestStatus = 'stalled'
+        phys.coolantTemp = clamp(phys.coolantTemp + heatGenerated - radCooling, 25, 140)
+        phys.oilTemp += (phys.coolantTemp * 1.04 - phys.oilTemp) * clamp(dt * 0.8, 0, 1)
+      } else {
+        phys.coolantTemp = Math.max(25, phys.coolantTemp - 1.2 * dt)
+        phys.oilTemp = Math.max(25, phys.oilTemp - 1.0 * dt)
+      }
+
+      // Superaquecimento crítico (>=125°C)
+      if (phys.coolantTemp >= 125 && !phys.isEngineBlown) {
+        phys.isEngineBlown = true
+        phys.damageReason = 'Superaquecimento (>125°C): Junta Queimada!'
+        phys.isRunning = false
+        phys.isStalled = true
+        phys.status = 'stalled'
+        phys.engineBlownTrigger = Date.now()
         _engine.stop()
+        HapticFeedback.heavy()
       }
-    }
 
-    // ─── 3. Dinâmica Térmica do Motor & Superaquecimento ───
-    let latestCoolantTemp = state.coolantTemp
-    let latestOilTemp = state.oilTemp
-    let latestIsEngineBlown = state.isEngineBlown
-    let latestDamageReason = state.damageReason
-    let latestEngineBlownTrigger = state.engineBlownTrigger
+      // Burnout & Fumaça Densa de Pneus
+      const isHoldBrake = state.brake > 0.35 || state.handbrake
+      const isBurnoutThrottle = state.throttle > 0.60 && phys.rpm > 2600
+      const isForwardOrReverse = gear === 1 || gear === -1 || (state.transmissionMode === 'automatic' && gear === 1)
 
-    if (latestIsRunning) {
-      const stage = state.tuningStage || 0
-      const stageHeatMult = stage === 1 ? 1.25 : stage === 2 ? 1.5 : stage === 3 ? 1.85 : 1.0
-      const fuelHeatFactor = state.fuelType === 'ethanol_e100' ? 0.90 : 1.0
-      const heatGenerated = (state.throttle * 0.70 + (latestRpm / _config.engine.maxRpm) * 0.50) * stageHeatMult * fuelHeatFactor * 8.2 * frameTime
-      const radFan = latestCoolantTemp > 92 ? 0.45 : 0.15
-      const radCooling = ((latestSpeed / 110) + radFan) * Math.max(0, (latestCoolantTemp - 25) / 70) * 7.2 * frameTime
-
-      latestCoolantTemp = clamp(latestCoolantTemp + heatGenerated - radCooling, 25, 140)
-      latestOilTemp += (latestCoolantTemp * 1.04 - latestOilTemp) * clamp(frameTime * 0.8, 0, 1)
-    } else {
-      latestCoolantTemp = Math.max(25, latestCoolantTemp - 1.2 * frameTime)
-      latestOilTemp = Math.max(25, latestOilTemp - 1.0 * frameTime)
-    }
-
-    // Detecção universal de superaquecimento crítico (>125°C)
-    if (latestCoolantTemp >= 125 && !latestIsEngineBlown) {
-      latestIsEngineBlown = true
-      latestDamageReason = 'Superaquecimento (>125°C): Junta Queimada!'
-      latestIsRunning = false
-      latestIsStalled = true
-      latestStatus = 'stalled'
-      latestEngineBlownTrigger = Date.now()
-      _engine.stop()
-      HapticFeedback.heavy()
-    }
-
-    latestCoolantTemp = Math.round(latestCoolantTemp * 10) / 10
-    latestOilTemp = Math.round(latestOilTemp * 10) / 10
-
-    // ─── 4. Burnout & Fumaça Densa de Pneus ───
-    let isBurningOut = false
-    let latestSmoke = state.tireSmokeDensity
-    const isHoldBrake = state.brake > 0.35 || state.handbrake
-    const isBurnoutThrottle = state.throttle > 0.60 && latestRpm > 2600
-    const isForwardOrReverse = latestGear === 1 || latestGear === -1 || (state.transmissionMode === 'automatic' && latestGear === 1)
-
-    if (latestIsRunning && isHoldBrake && isBurnoutThrottle && isForwardOrReverse && latestSpeed < 18) {
-      isBurningOut = true
-      latestSmoke = clamp(latestSmoke + frameTime * 1.8, 0, 1.0)
-    } else {
-      isBurningOut = false
-      latestSmoke = clamp(latestSmoke - frameTime * 0.85, 0, 1.0)
-    }
-
-    // ─── 5. Pista de Arrancada 402m (Drag Strip) ───
-    let latestDragStage = state.dragStage
-    let latestTimeSlip = state.dragTimeSlip ? { ...state.dragTimeSlip } : null
-    let dragDistance = state._dragDistanceTraveled
-    let dragTimerStart = state._dragTimerStart
-    const currentMoveSpeed = Math.max(latestSpeed, state.speed)
-
-    if (
-      (latestDragStage === 'pre_stage' ||
-        latestDragStage === 'staged' ||
-        latestDragStage === 'yellow_1' ||
-        latestDragStage === 'yellow_2' ||
-        latestDragStage === 'yellow_3') &&
-      (currentMoveSpeed > 1.8 || dragDistance > 0.25)
-    ) {
-      latestDragStage = 'false_start'
-      latestTimeSlip = {
-        reactionTime: 0,
-        time60ft: 0,
-        time0to100: 0,
-        time201m: 0,
-        time402m: 0,
-        trapSpeedKmh: Math.round(currentMoveSpeed),
-        isDisqualified: true,
-        createdAt: Date.now(),
+      if (phys.isRunning && isHoldBrake && isBurnoutThrottle && isForwardOrReverse && phys.speedKmh < 18) {
+        phys.isBurningOut = true
+        phys.tireSmokeDensity = clamp(phys.tireSmokeDensity + dt * 1.8, 0, 1.0)
+      } else {
+        phys.isBurningOut = false
+        phys.tireSmokeDensity = clamp(phys.tireSmokeDensity - dt * 0.85, 0, 1.0)
       }
-    } else if (latestDragStage === 'green') {
-      if (currentMoveSpeed > 0.6 || dragDistance > 0.1) {
-        const greenTime = state._dragGreenTime || (performance.now() - 250)
-        const reaction = Math.max(0.001, Math.round((performance.now() - greenTime)) / 1000)
-        latestDragStage = 'racing'
-        dragTimerStart = performance.now()
-        dragDistance = Math.max(0, dragDistance)
-        latestTimeSlip = {
-          reactionTime: reaction,
+
+      // Pista de Arrancada 402m (Drag Strip)
+      const currentMoveSpeed = injectedSpeedFloor > 0
+        ? Math.max(phys.speedKmh, injectedSpeedFloor)
+        : phys.speedKmh
+
+      if (
+        (phys.dragStage === 'pre_stage' ||
+          phys.dragStage === 'staged' ||
+          phys.dragStage === 'yellow_1' ||
+          phys.dragStage === 'yellow_2' ||
+          phys.dragStage === 'yellow_3') &&
+        (currentMoveSpeed > 1.8 || phys.dragDistanceTraveled > 0.25)
+      ) {
+        phys.dragStage = 'false_start'
+        phys.dragTimeSlip = {
+          reactionTime: 0,
           time60ft: 0,
           time0to100: 0,
           time201m: 0,
           time402m: 0,
-          trapSpeedKmh: 0,
-          isDisqualified: false,
+          trapSpeedKmh: Math.round(currentMoveSpeed),
+          isDisqualified: true,
           createdAt: Date.now(),
         }
-      }
-    } else if (latestDragStage === 'racing' && dragTimerStart && latestTimeSlip) {
-      dragDistance += (currentMoveSpeed / 3.6) * frameTime
-      const elapsed = Math.round(((performance.now() - dragTimerStart) / 1000) * 1000) / 1000
-
-      if (dragDistance >= 18.288 && latestTimeSlip.time60ft === 0) {
-        latestTimeSlip.time60ft = elapsed
-      }
-      if (currentMoveSpeed >= 100 && latestTimeSlip.time0to100 === 0) {
-        latestTimeSlip.time0to100 = elapsed
-      }
-      if (dragDistance >= 201.168 && latestTimeSlip.time201m === 0) {
-        latestTimeSlip.time201m = elapsed
-      }
-      if (dragDistance >= 402.336) {
-        latestTimeSlip.time402m = elapsed
-        latestTimeSlip.trapSpeedKmh = Math.round(currentMoveSpeed)
-        latestDragStage = 'finished'
-        HapticFeedback.heavy()
-
-        // Cálculo de Recompensa em Dinheiro na Arrancada 402m
-        if (!latestTimeSlip.isDisqualified) {
-          let prize = 3000
-          const breakdown: string[] = ['Premiação base 402m: +R$ 3.000']
-          if (latestTimeSlip.reactionTime < 0.100) {
-            prize += 5000
-            breakdown.push('Reação perfeita (<0.100s): +R$ 5.000')
-          } else if (latestTimeSlip.reactionTime < 0.250) {
-            prize += 2000
-            breakdown.push('Reação rápida (<0.250s): +R$ 2.000')
+      } else if (phys.dragStage === 'green') {
+        if (currentMoveSpeed > 0.6 || phys.dragDistanceTraveled > 0.1) {
+          const simReactionSec = phys.dragGreenSimMs !== null
+            ? ((phys.elapsedSimMs + substeps * dt * 1000) - phys.dragGreenSimMs) / 1000
+            : 0
+          const wallReactionSec = state._dragGreenTime ? (now - state._dragGreenTime) / 1000 : 0.25
+          const rawReaction = simReactionSec > 0 ? simReactionSec : wallReactionSec
+          const reaction = Math.max(0.001, Math.round(rawReaction * 1000) / 1000)
+          phys.dragStage = 'racing'
+          phys.dragTimerStart = now
+          phys.dragElapsedSeconds = dt
+          phys.dragDistanceTraveled = Math.max(0, phys.dragDistanceTraveled + (currentMoveSpeed / 3.6) * dt)
+          phys.dragTimeSlip = {
+            reactionTime: reaction,
+            time60ft: 0,
+            time0to100: 0,
+            time201m: 0,
+            time402m: 0,
+            trapSpeedKmh: 0,
+            isDisqualified: false,
+            createdAt: Date.now(),
           }
-          if (latestTimeSlip.trapSpeedKmh >= 200) {
-            prize += 3000
-            breakdown.push('Trap Speed > 200 km/h: +R$ 3.000')
-          } else if (latestTimeSlip.trapSpeedKmh >= 160) {
-            prize += 1500
-            breakdown.push('Trap Speed > 160 km/h: +R$ 1.500')
+        }
+      } else if (phys.dragStage === 'racing' && phys.dragTimeSlip) {
+        phys.dragElapsedSeconds += dt
+        phys.dragDistanceTraveled += (currentMoveSpeed / 3.6) * dt
+        const elapsed = Math.round(phys.dragElapsedSeconds * 1000) / 1000
+
+        if (phys.dragDistanceTraveled >= 18.288 && phys.dragTimeSlip.time60ft === 0) {
+          phys.dragTimeSlip.time60ft = elapsed
+        }
+        if (currentMoveSpeed >= 100 && phys.dragTimeSlip.time0to100 === 0) {
+          phys.dragTimeSlip.time0to100 = elapsed
+        }
+        if (phys.dragDistanceTraveled >= 201.168 && phys.dragTimeSlip.time201m === 0) {
+          phys.dragTimeSlip.time201m = elapsed
+        }
+        if (phys.dragDistanceTraveled >= 402.336) {
+          phys.dragTimeSlip.time402m = elapsed
+          phys.dragTimeSlip.trapSpeedKmh = Math.round(currentMoveSpeed)
+          phys.dragStage = 'finished'
+          HapticFeedback.heavy()
+
+          if (!phys.dragTimeSlip.isDisqualified) {
+            let prize = 3000
+            const breakdown: string[] = ['Premiação base 402m: +R$ 3.000']
+            if (phys.dragTimeSlip.reactionTime < 0.100) {
+              prize += 5000
+              breakdown.push('Reação perfeita (<0.100s): +R$ 5.000')
+            } else if (phys.dragTimeSlip.reactionTime < 0.250) {
+              prize += 2000
+              breakdown.push('Reação rápida (<0.250s): +R$ 2.000')
+            }
+            if (phys.dragTimeSlip.trapSpeedKmh >= 200) {
+              prize += 3000
+              breakdown.push('Trap Speed > 200 km/h: +R$ 3.000')
+            } else if (phys.dragTimeSlip.trapSpeedKmh >= 160) {
+              prize += 1500
+              breakdown.push('Trap Speed > 160 km/h: +R$ 1.500')
+            }
+            phys.dragTimeSlip.reward = prize
+            phys.dragTimeSlip.rewardBreakdown = breakdown
+            useGarageStore.getState().addCredits(prize)
           }
-          latestTimeSlip.reward = prize
-          latestTimeSlip.rewardBreakdown = breakdown
-          useGarageStore.getState().addCredits(prize)
         }
       }
-    }
 
-    // ─── 6. Kit de Óxido Nitroso (NOS) & Consumo de Pressão ───
-    let latestNosPressure = state.nosPressurePercent
-    let latestNosActive = state.nosActive
-    if (state.hasNosKit && state.nosActive && state.throttle > 0.60 && latestIsRunning && latestNosPressure > 0) {
-      latestNosPressure = Math.max(0, latestNosPressure - frameTime * 12.5)
-      if (latestNosPressure <= 0) {
-        latestNosActive = false
+      // Kit de Óxido Nitroso (NOS) & Consumo de Pressão
+      if (state.hasNosKit && phys.nosActive && state.throttle > 0.60 && phys.isRunning && phys.nosPressurePercent > 0) {
+        phys.nosPressurePercent = Math.max(0, phys.nosPressurePercent - dt * 12.5)
+        if (phys.nosPressurePercent <= 0) {
+          phys.nosActive = false
+        }
       }
+
+      accumulator -= dt
+      substeps++
     }
 
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
-    const isBrowser = typeof window !== 'undefined'
-    const profile = isBrowser ? useUIStore.getState().graphicProfile : 'high'
+    if (substeps === maxSubsteps && accumulator > PHYSICS_TIMESTEP) {
+      accumulator = 0
+    }
+
+    // Haptics no corte de giro
+    if (phys.isRevLimiting && !prevRevLimiting) {
+      HapticFeedback.revLimiter()
+    }
+
+    // ─── Throttling Determinístico de Publicação Visual (35Hz / 60Hz / 120Hz) & Lenta (150ms) ───
+    phys.elapsedSimMs += frameTime * 1000
+    const profile = useUIStore.getState().graphicProfile
     const minVisualInterval = profile === 'eco' ? 28 : profile === 'normal' ? 15.5 : 0
 
-    const shouldUpdateVisual = !isBrowser || frameTime >= 0.05 || (now - _lastVisualUpdate >= minVisualInterval)
+    const wasLowFuel = state.fuelLevelLiters <= 5
+    const isLowFuel = phys.fuelLevelLiters <= 5
+    const wasHighCoolant = state.coolantTemp >= 115
+    const isHighCoolant = phys.coolantTemp >= 115
+    const wasBrakeFade = state.brakeDiscTemp > 650
+    const isBrakeFade = phys.brakeDiscTemp > 650
+
+    const hasCriticalEvent =
+      phys.isEngineBlown !== state.isEngineBlown ||
+      phys.isOutOfFuel !== state.isOutOfFuel ||
+      phys.isRevLimiting !== state.isRevLimiting ||
+      phys.isRunning !== state.isRunning ||
+      phys.isStalled !== state.isStalled ||
+      phys.dragStage !== state.dragStage ||
+      timer0to100State.isTiming !== state.isTiming0to100 ||
+      timer0to100State.lastCompleted !== state.last0to100 ||
+      phys.isBrakeGlowing !== state.isBrakeGlowing ||
+      phys.nosActive !== state.nosActive
+
+    const hasSlowThresholdCrossed =
+      phys.isEngineBlown !== state.isEngineBlown ||
+      phys.isOutOfFuel !== state.isOutOfFuel ||
+      phys.isBrakeGlowing !== state.isBrakeGlowing ||
+      phys.dragStage !== state.dragStage ||
+      (isLowFuel && !wasLowFuel) ||
+      (isHighCoolant && !wasHighCoolant) ||
+      isBrakeFade !== wasBrakeFade
+
+    if (hasSlowThresholdCrossed || phys.elapsedSimMs - phys.lastSlowUpdateMs >= 150) {
+      phys.pendingSlowPublish = true
+    }
+
+    const shouldUpdateVisual =
+      phys.visualUpdatesCount === 0 ||
+      hasCriticalEvent ||
+      frameTime >= 0.05 ||
+      phys.elapsedSimMs - phys.lastVisualUpdateMs >= minVisualInterval
+
     if (!shouldUpdateVisual) {
+      phys.skippedVisualUpdatesCount += 1
+      phys.skippedSlowUpdatesCount += 1
       state._accumulator = accumulator
+      state._timer0to100State = timer0to100State
+      state._phys = phys
       return
     }
-    _lastVisualUpdate = now
+
+    phys.visualUpdatesCount += 1
+    phys.lastVisualUpdateMs = phys.elapsedSimMs
 
     const shouldUpdateSlow =
-      !isBrowser ||
+      phys.slowUpdatesCount === 0 ||
+      hasCriticalEvent ||
       frameTime >= 0.05 ||
-      latestIsEngineBlown !== state.isEngineBlown ||
-      latestIsOutOfFuel !== state.isOutOfFuel ||
-      latestIsRevLimiting !== state.isRevLimiting ||
-      latestDragStage !== state.dragStage ||
-      (now - _lastSlowTelemetryUpdate >= 150)
+      phys.pendingSlowPublish ||
+      phys.elapsedSimMs - phys.lastSlowUpdateMs >= 150
 
     if (shouldUpdateSlow) {
-      _lastSlowTelemetryUpdate = now
+      phys.slowUpdatesCount += 1
+      phys.lastSlowUpdateMs = phys.elapsedSimMs
+      phys.pendingSlowPublish = false
+    } else {
+      phys.skippedSlowUpdatesCount += 1
     }
 
+    // Valores arredondados apenas na publicação da UI (estado físico contínuo preservado em _phys)
+    const pubBoost = Math.round(phys.boostPressureBar * 100) / 100
+    const pubPeakBoost = Math.round(phys.peakBoostBar * 100) / 100
+    const pubFuel = shouldUpdateSlow ? Math.round(phys.fuelLevelLiters * 1000) / 1000 : state.fuelLevelLiters
+    const pubOutOfFuel = shouldUpdateSlow ? phys.isOutOfFuel : state.isOutOfFuel
+    const pubCoolant = shouldUpdateSlow ? Math.round(phys.coolantTemp * 10) / 10 : state.coolantTemp
+    const pubOil = shouldUpdateSlow ? Math.round(phys.oilTemp * 10) / 10 : state.oilTemp
+    const pubBrakeDiscTemp = shouldUpdateSlow ? Math.round(phys.brakeDiscTemp * 10) / 10 : state.brakeDiscTemp
+    const pubBrakeFadeFactor = shouldUpdateSlow ? phys.brakeFadeFactor : state.brakeFadeFactor
+    const pubNosPressure = Math.round(phys.nosPressurePercent * 10) / 10
+
+    phys.lastPubBoost = pubBoost
+    phys.lastPubPeakBoost = pubPeakBoost
+    phys.lastPubBrakeDiscTemp = pubBrakeDiscTemp
+    phys.lastPubBrakeFadeFactor = pubBrakeFadeFactor
+    phys.lastPubFuelLevelLiters = pubFuel
+    phys.lastPubIsOutOfFuel = pubOutOfFuel
+    phys.lastPubCoolantTemp = pubCoolant
+    phys.lastPubOilTemp = pubOil
+    phys.lastPubIsEngineBlown = phys.isEngineBlown
+    phys.lastPubNosPressurePercent = pubNosPressure
+    phys.lastPubNosActive = phys.nosActive
+    phys.lastPubDragStage = phys.dragStage
+    phys.lastPubDragDistance = phys.dragDistanceTraveled
+    phys.lastPubDragTimerStart = phys.dragTimerStart
+    phys.lastPubSpeedKmh = phys.speedKmh
+    phys.lastPubTopSpeedRecord = phys.topSpeedRecord
+
     set({
-      rpm: latestRpm,
-      speed: latestSpeed,
-      currentGear: latestGear,
-      isRunning: latestIsRunning,
-      isStalled: latestIsStalled,
-      isBogWarning: latestIsBogWarning,
-      status: latestStatus,
-      isKickdown: latestIsKickdown,
-      isRevLimiting: latestIsRevLimiting,
-      isLaunchControlArmed: isLaunchArmed,
-      isLaunching,
-      boostPressureBar: currentBoost,
-      peakBoostBar: peakBoost,
-      tcsIntervening: latestTcsIntervening,
-      tcsInterventionLevel: latestTcsLevel,
-      clutchSlipRpm: latestClutchSlipRpm,
-      clutchSlipRatio: latestClutchSlipRatio,
-      clutchTorqueTransfer: latestClutchTorqueTransfer,
-      clutchHeat: latestClutchHeat,
-      isClutchSlipping: latestIsClutchSlipping,
+      rpm: phys.rpm,
+      speed: phys.speedKmh,
+      currentGear: phys.gear,
+      isRunning: phys.isRunning,
+      isStalled: phys.isStalled,
+      isBogWarning: phys.isBogWarning,
+      status: phys.status,
+      isKickdown: phys.isKickdown,
+      isRevLimiting: phys.isRevLimiting,
+      isLaunchControlArmed: phys.isLaunchControlArmed,
+      isLaunching: phys.isLaunching,
+      boostPressureBar: pubBoost,
+      peakBoostBar: pubPeakBoost,
+      tcsIntervening: phys.tcsIntervening,
+      tcsInterventionLevel: phys.tcsInterventionLevel,
+      clutchSlipRpm: phys.clutchSlipRpm,
+      clutchSlipRatio: phys.clutchSlipRatio,
+      clutchTorqueTransfer: phys.clutchTorqueTransfer,
+      clutchHeat: phys.clutchHeat,
+      isClutchSlipping: phys.isClutchSlipping,
       best0to100: timer0to100State.bestCompleted,
       last0to100: timer0to100State.lastCompleted,
       current0to100: timer0to100State.currentDisplay,
       isTiming0to100: timer0to100State.isTiming,
-      topSpeedRecord: topSpeed,
+      topSpeedRecord: phys.topSpeedRecord,
       _timer0to100State: timer0to100State,
       _accumulator: accumulator,
+      _phys: phys,
 
       // Telemetria secundária desacoplada para evitar re-renderizações desnecessárias a 120Hz
-      fuelLevelLiters: shouldUpdateSlow ? latestFuelLevel : state.fuelLevelLiters,
-      isOutOfFuel: shouldUpdateSlow ? latestIsOutOfFuel : state.isOutOfFuel,
-      coolantTemp: shouldUpdateSlow ? latestCoolantTemp : state.coolantTemp,
-      oilTemp: shouldUpdateSlow ? latestOilTemp : state.oilTemp,
-      isEngineBlown: latestIsEngineBlown,
-      damageReason: latestDamageReason,
-      engineBlownTrigger: latestEngineBlownTrigger,
-      brakeDiscTemp: shouldUpdateSlow ? latestBrakeDiscTemp : state.brakeDiscTemp,
-      isBrakeGlowing: latestIsBrakeGlowing,
-      brakeFadeFactor: shouldUpdateSlow ? latestBrakeFadeFactor : state.brakeFadeFactor,
-      isBurningOut,
-      tireSmokeDensity: latestSmoke,
-      nosPressurePercent: latestNosPressure,
-      nosActive: latestNosActive,
-      dragStage: latestDragStage,
-      dragTimeSlip: latestTimeSlip,
-      _dragDistanceTraveled: dragDistance,
-      _dragTimerStart: dragTimerStart,
+      fuelLevelLiters: pubFuel,
+      isOutOfFuel: pubOutOfFuel,
+      coolantTemp: pubCoolant,
+      oilTemp: pubOil,
+      isEngineBlown: phys.isEngineBlown,
+      damageReason: phys.damageReason,
+      engineBlownTrigger: phys.engineBlownTrigger,
+      brakeDiscTemp: pubBrakeDiscTemp,
+      isBrakeGlowing: phys.isBrakeGlowing,
+      brakeFadeFactor: pubBrakeFadeFactor,
+      isBurningOut: phys.isBurningOut,
+      tireSmokeDensity: phys.tireSmokeDensity,
+      nosPressurePercent: pubNosPressure,
+      nosActive: phys.nosActive,
+      dragStage: phys.dragStage,
+      dragTimeSlip: phys.dragTimeSlip,
+      _dragDistanceTraveled: phys.dragDistanceTraveled,
+      _dragTimerStart: phys.dragTimerStart,
     })
   },
 
@@ -1964,6 +2384,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const defaultSelector = isManual
       ? (supported.includes('N') ? 'N' : (supported[0] ?? 'N'))
       : (supported.includes('P') ? 'P' : (supported[0] ?? 'N'))
+    const initialGear = isManual ? 0 : -2
     set({
       rpm: 0,
       isRunning: false,
@@ -1971,7 +2392,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isBogWarning: false,
       status: 'off',
       isRevLimiting: false,
-      currentGear: isManual ? 0 : -2,
+      currentGear: initialGear,
       // Peças & Customizações Equipadas da Loja
       hasRetrofitInfotainment: false,
       hasBoostGaugeKit: false,
@@ -2041,6 +2462,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _config: null,
       _accumulator: 0,
       _isInitialized: false,
+      _phys: createInitialPhysicsInternalState({
+        gear: initialGear,
+        nosPressurePercent: get().nosPressurePercent,
+        topSpeedRecord: get().topSpeedRecord,
+      }),
     })
   },
 }))

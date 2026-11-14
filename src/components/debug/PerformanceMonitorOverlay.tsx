@@ -73,15 +73,21 @@ export const PerformanceMonitorOverlay = memo(function PerformanceMonitorOverlay
         <b className={data.droppedFrames > 0 ? 'text-amber-400' : 'text-zinc-400'}>{data.droppedFrames}</b>
       </div>
 
-      {data.memoryMb !== null && (
-        <>
-          <span className="text-zinc-700">|</span>
-          <div className="flex items-center gap-1">
-            <span className="text-[7.5px] font-black uppercase text-zinc-500">MEM</span>
-            <b className="font-black text-zinc-200">{data.memoryMb}MB</b>
-          </div>
-        </>
-      )}
+      <span className="text-zinc-700">|</span>
+
+      <div className="flex items-center gap-1">
+        <span className="text-[7.5px] font-black uppercase text-zinc-500">RENDERS</span>
+        <b className="font-black text-emerald-300">{data.reactRendersPerSec}/s</b>
+      </div>
+
+      <span className="text-zinc-700">|</span>
+
+      <div className="flex items-center gap-1">
+        <span className="text-[7.5px] font-black uppercase text-zinc-500">MEM</span>
+        <b className="font-black text-zinc-200">
+          {data.memoryMb !== null ? `${data.memoryMb}MB` : 'N/D'}
+        </b>
+      </div>
 
       {data.longTasksCount > 0 && (
         <>

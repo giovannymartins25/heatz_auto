@@ -1,34 +1,46 @@
 import { memo } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useUIStore } from '@/stores/useUIStore'
 
 /**
  * RainWindshieldEffect — Efeito de chuva dinâmica no para-brisa e limpadores funcionais.
  *
  * Gera gotas de água, pista molhada com redução de atrito e palhetas de limpador
  * oscilando no vidro com animação física realista.
+ * O perfil gráfico ajusta apenas a densidade visual sem alterar o atrito físico da pista.
  */
 export const RainWindshieldEffect = memo(function RainWindshieldEffect() {
   const isRaining = useSimulationStore((s) => s.isRaining)
   const isWiperActive = useSimulationStore((s) => s.isWiperActive)
+  const graphicProfile = useUIStore((s) => s.graphicProfile)
 
   if (!isRaining) return null
+
+  const isEco = graphicProfile === 'eco'
+  const isHigh = graphicProfile === 'high'
+  const dropCount = isEco ? 14 : graphicProfile === 'normal' ? 38 : 52
 
   return (
     <div className="fixed inset-0 pointer-events-none z-35 overflow-hidden select-none">
       {/* ─── Gotas e Linhas de Chuva no Vidro ─── */}
-      <div className="absolute inset-0 bg-sky-950/15 backdrop-blur-[0.5px]">
-        {/* Chuva caindo contínua */}
-        <div className="absolute inset-0 opacity-40 bg-[radial-gradient(#93c5fd_1px,transparent_1px)] [background-size:24px_24px] animate-pulse" />
+      <div className={`absolute inset-0 bg-sky-950/15 ${isEco ? '' : isHigh ? 'backdrop-blur-[1px]' : 'backdrop-blur-[0.5px]'}`}>
+        {/* Camada atmosférica de chuva contínua (omitida/simplificada no modo ECO) */}
+        {!isEco && (
+          <div className="absolute inset-0 opacity-40 bg-[radial-gradient(#93c5fd_1px,transparent_1px)] [background-size:24px_24px] animate-pulse" />
+        )}
+        {isHigh && (
+          <div className="absolute inset-0 bg-gradient-to-b from-sky-300/10 via-transparent to-sky-950/20" />
+        )}
 
         {/* Gotas estáticas condensadas no para-brisa */}
-        {[...Array(24)].map((_, i) => {
+        {Array.from({ length: dropCount }).map((_, i) => {
           const top = ((i * 37) % 95) + '%'
           const left = ((i * 47) % 95) + '%'
           const size = 3 + (i % 4) * 2
           return (
             <div
               key={i}
-              className="absolute rounded-full bg-white/40 border border-white/60 shadow-[0_1px_4px_rgba(255,255,255,0.4)]"
+              className={`absolute rounded-full bg-white/40 border border-white/60 ${isEco ? '' : 'shadow-[0_1px_4px_rgba(255,255,255,0.4)]'}`}
               style={{
                 top,
                 left,

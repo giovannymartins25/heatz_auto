@@ -15,8 +15,10 @@
 export interface PerformanceSnapshot {
   fps: number
   frameTimeMs: number
+  avgFrameTimeMs: number
   frameTimeP95Ms: number
   physicsHz: number
+  physicsTicksTotal: number
   droppedFrames: number
   longTasksCount: number
   longTasksTotalMs: number
@@ -24,36 +26,50 @@ export interface PerformanceSnapshot {
   reactRendersPerSec: number
 }
 
+export type PerformanceMetrics = PerformanceSnapshot
+
+interface FrameSample {
+  dt: number
+  ts: number
+}
+
+const getNowMs = (): number =>
+  typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now()
+
 class PerformanceDiagnosticsTracker {
   private enabled = false
   private rafId = 0
+  private flushTimerId: ReturnType<typeof setInterval> | null = null
   private lastTime = 0
 
-  // Amostragem de quadros (últimos 60 quadros para cálculo de P95 estável)
-  private readonly frameBuffer: number[] = []
-  private readonly maxBufferSize = 60
+  // Amostragem de quadros por janela temporal (1000ms) para FPS e P95 reais
+  private frameSamples: FrameSample[] = []
+  private readonly maxBufferSize = 240
 
-  // Métricas acumuladas
+  // Métricas acumuladas de frame
   private currentFrameTime = 0
+  private avgFrameTimeMs = 0
   private droppedFramesCount = 0
-  private fpsSmoothed = 60
+  private fpsWindow = 0
 
-  // Física
-  private physicsTickCounter = 0
-  private physicsLastSecTime = 0
-  private physicsHz = 120
+  // Física (janela de >= 1000ms para evitar salto artificial em bordas de substep)
+  private physicsTimestamps: number[] = []
+  private physicsTicksTotal = 0
+  private physicsWindowStartMs = 0
+  private physicsHz = 0
 
   // Long tasks
   private longTaskObserver: PerformanceObserver | null = null
   private longTasksCount = 0
   private longTasksTotalMs = 0
 
-  // React renders
-  private renderCounter = 0
+  // React renders (janela deslizante de 1000ms para cair a 0 quando ocioso)
+  private renderTimestamps: number[] = []
   private rendersPerSec = 0
-  private rendersLastSecTime = 0
 
-  // Listeners para UI (disparados a cada ~500ms para não gerar re-renderizações desnecessárias)
+  // Listeners para UI (disparados a cada ~500ms para custo mínimo)
   private listeners: Set<(snapshot: PerformanceSnapshot) => void> = new Set()
   private lastBroadcast = 0
 
@@ -64,7 +80,7 @@ class PerformanceDiagnosticsTracker {
   private initLongTaskObserver() {
     if (typeof window === 'undefined' || typeof PerformanceObserver === 'undefined') return
     try {
-      const types = (PerformanceObserver as any).supportedEntryTypes || []
+      const types = (PerformanceObserver as unknown as { supportedEntryTypes?: string[] }).supportedEntryTypes || []
       if (types.includes('longtask')) {
         this.longTaskObserver = new PerformanceObserver((list) => {
           if (!this.enabled) return
@@ -80,63 +96,139 @@ class PerformanceDiagnosticsTracker {
     }
   }
 
-  public recordPhysicsTick() {
+  public reset(nowMs?: number) {
+    const now = nowMs ?? getNowMs()
+    this.lastTime = now
+    this.lastBroadcast = now
+    this.frameSamples = []
+    this.currentFrameTime = 0
+    this.avgFrameTimeMs = 0
+    this.droppedFramesCount = 0
+    this.fpsWindow = 0
+    this.physicsTimestamps = []
+    this.physicsTicksTotal = 0
+    this.physicsWindowStartMs = now
+    this.physicsHz = 0
+    this.longTasksCount = 0
+    this.longTasksTotalMs = 0
+    this.renderTimestamps = []
+    this.rendersPerSec = 0
+  }
+
+  public recordPhysicsTick(nowMs?: number) {
     if (!this.enabled) return
-    this.physicsTickCounter++
-    const now = performance.now()
-    if (now - this.physicsLastSecTime >= 1000) {
-      this.physicsHz = Math.round((this.physicsTickCounter * 1000) / (now - this.physicsLastSecTime))
-      this.physicsTickCounter = 0
-      this.physicsLastSecTime = now
+    const now = nowMs ?? getNowMs()
+    this.physicsTicksTotal++
+    this.physicsTimestamps.push(now)
+    this.updatePhysicsRate(now)
+  }
+
+  public recordReactRender(nowMs?: number) {
+    if (!this.enabled) return
+    const now = nowMs ?? getNowMs()
+    this.renderTimestamps.push(now)
+    this.updateRenderRate(now)
+  }
+
+  public recordFrameDelta(dt: number, nowMs?: number) {
+    if (!this.enabled || dt <= 0 || dt >= 500) {
+      if (nowMs !== undefined) {
+        this.lastTime = nowMs
+      }
+      return
+    }
+
+    const now = nowMs ?? (this.lastTime + dt)
+    this.lastTime = now
+    this.currentFrameTime = dt
+    this.frameSamples.push({ dt, ts: now })
+
+    // Mantém janela temporal dos últimos 1000ms (respeitando limite máximo de buffer)
+    const cutoff = now - 1000
+    while (
+      this.frameSamples.length > 1 &&
+      (this.frameSamples[0].ts <= cutoff || this.frameSamples.length > this.maxBufferSize)
+    ) {
+      this.frameSamples.shift()
+    }
+
+    // Cálculo por janela temporal real sem distorção EMA
+    let sumDt = 0
+    for (const sample of this.frameSamples) {
+      sumDt += sample.dt
+    }
+    const count = this.frameSamples.length
+    this.avgFrameTimeMs = count > 0 ? sumDt / count : 0
+    this.fpsWindow = sumDt > 0 ? (count * 1000) / sumDt : 0
+
+    // Limiar adaptativo pela mediana: display ~120Hz (mediana < 11.5ms) vs 60Hz
+    const sorted = [...this.frameSamples].map((s) => s.dt).sort((a, b) => a - b)
+    const medianDt = sorted[Math.floor(sorted.length / 2)] ?? dt
+    const dropThresholdMs = medianDt < 11.5 ? 13.5 : 25
+    if (dt > dropThresholdMs) {
+      this.droppedFramesCount++
     }
   }
 
-  public recordReactRender() {
-    if (!this.enabled) return
-    this.renderCounter++
-    const now = performance.now()
-    if (now - this.rendersLastSecTime >= 1000) {
-      this.rendersPerSec = Math.round((this.renderCounter * 1000) / (now - this.rendersLastSecTime))
-      this.renderCounter = 0
-      this.rendersLastSecTime = now
+  private updatePhysicsRate(now: number) {
+    const cutoff = now - 1000
+    while (this.physicsTimestamps.length > 0 && this.physicsTimestamps[0] <= cutoff) {
+      this.physicsTimestamps.shift()
     }
+
+    const elapsedSinceStart = now - this.physicsWindowStartMs
+    if (elapsedSinceStart < 1000) {
+      this.physicsHz = this.physicsTicksTotal > 0 ? 120 : 0
+      return
+    }
+
+    // Janela deslizante de 1000ms exatos para evitar overshoots em bordas de substeps
+    this.physicsHz = this.physicsTimestamps.length
   }
 
-  public start() {
+  private updateRenderRate(now: number) {
+    const cutoff = now - 1000
+    while (this.renderTimestamps.length > 0 && this.renderTimestamps[0] <= cutoff) {
+      this.renderTimestamps.shift()
+    }
+    this.rendersPerSec = this.renderTimestamps.length
+  }
+
+  public flushMetrics(nowMs?: number) {
+    const now = nowMs ?? getNowMs()
+    this.updatePhysicsRate(now)
+    this.updateRenderRate(now)
+  }
+
+  public start(nowMs?: number) {
     if (this.enabled) return
     this.enabled = true
-    this.lastTime = performance.now()
-    this.physicsLastSecTime = this.lastTime
-    this.rendersLastSecTime = this.lastTime
-    this.frameBuffer.length = 0
+    this.reset(nowMs)
+
+    if (typeof setInterval !== 'undefined') {
+      this.flushTimerId = setInterval(() => {
+        if (!this.enabled) return
+        const now = getNowMs()
+        this.flushMetrics(now)
+        this.lastBroadcast = now
+        this.broadcast(now)
+      }, 500)
+      if (typeof this.flushTimerId === 'object' && this.flushTimerId !== null && 'unref' in this.flushTimerId) {
+        ;(this.flushTimerId as { unref?: () => void }).unref?.()
+      }
+    }
 
     const loop = (timestamp: number) => {
       if (!this.enabled) return
 
       const dt = timestamp - this.lastTime
-      this.lastTime = timestamp
-
-      if (dt > 0 && dt < 500) {
-        this.currentFrameTime = dt
-        this.frameBuffer.push(dt)
-        if (this.frameBuffer.length > this.maxBufferSize) {
-          this.frameBuffer.shift()
-        }
-
-        // FPS instantâneo suavizado
-        const currentFps = 1000 / dt
-        this.fpsSmoothed = this.fpsSmoothed * 0.9 + currentFps * 0.1
-
-        // Dropped frame: quando o quadro leva mais de 24ms (~41 FPS) em tela de 60Hz, ou > 12ms em 120Hz
-        if (dt > 25) {
-          this.droppedFramesCount++
-        }
-      }
+      this.recordFrameDelta(dt, timestamp)
 
       // Notifica os componentes a cada 500ms (2Hz) para custo mínimo de UI
       if (timestamp - this.lastBroadcast >= 500) {
         this.lastBroadcast = timestamp
-        this.broadcast()
+        this.flushMetrics(timestamp)
+        this.broadcast(timestamp)
       }
 
       if (typeof requestAnimationFrame !== 'undefined') {
@@ -154,6 +246,10 @@ class PerformanceDiagnosticsTracker {
     if (this.rafId && typeof cancelAnimationFrame !== 'undefined') {
       cancelAnimationFrame(this.rafId)
       this.rafId = 0
+    }
+    if (this.flushTimerId !== null && typeof clearInterval !== 'undefined') {
+      clearInterval(this.flushTimerId)
+      this.flushTimerId = null
     }
   }
 
@@ -177,23 +273,32 @@ class PerformanceDiagnosticsTracker {
   }
 
   private calculateP95(): number {
-    if (this.frameBuffer.length === 0) return 0
-    const sorted = [...this.frameBuffer].sort((a, b) => a - b)
+    if (this.frameSamples.length === 0) return 0
+    const sorted = this.frameSamples.map((s) => s.dt).sort((a, b) => a - b)
     const idx = Math.min(Math.floor(sorted.length * 0.95), sorted.length - 1)
     return Math.round(sorted[idx] * 10) / 10
   }
 
-  public getSnapshot(): PerformanceSnapshot {
+  public getSnapshot(nowMs?: number): PerformanceSnapshot {
+    if (this.enabled && nowMs !== undefined) {
+      this.flushMetrics(nowMs)
+    }
+
     let memoryMb: number | null = null
-    if (typeof performance !== 'undefined' && (performance as any).memory?.usedJSHeapSize) {
-      memoryMb = Math.round(((performance as any).memory.usedJSHeapSize / (1024 * 1024)) * 10) / 10
+    if (typeof performance !== 'undefined') {
+      const perfMem = (performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory
+      if (typeof perfMem?.usedJSHeapSize === 'number' && perfMem.usedJSHeapSize > 0) {
+        memoryMb = Math.round((perfMem.usedJSHeapSize / (1024 * 1024)) * 10) / 10
+      }
     }
 
     return {
-      fps: Math.round(this.fpsSmoothed * 10) / 10,
+      fps: Math.round(this.fpsWindow * 10) / 10,
       frameTimeMs: Math.round(this.currentFrameTime * 10) / 10,
+      avgFrameTimeMs: Math.round(this.avgFrameTimeMs * 10) / 10,
       frameTimeP95Ms: this.calculateP95(),
       physicsHz: this.physicsHz,
+      physicsTicksTotal: this.physicsTicksTotal,
       droppedFrames: this.droppedFramesCount,
       longTasksCount: this.longTasksCount,
       longTasksTotalMs: this.longTasksTotalMs,
@@ -202,8 +307,8 @@ class PerformanceDiagnosticsTracker {
     }
   }
 
-  private broadcast() {
-    const snap = this.getSnapshot()
+  private broadcast(nowMs?: number) {
+    const snap = this.getSnapshot(nowMs)
     for (const listener of this.listeners) {
       try {
         listener(snap)
