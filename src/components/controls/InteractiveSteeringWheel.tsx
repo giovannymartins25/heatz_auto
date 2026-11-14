@@ -22,30 +22,31 @@ export const InteractiveSteeringWheel = memo(function InteractiveSteeringWheel({
   className = '',
 }: InteractiveSteeringWheelProps) {
   const steeringAngle = useSimulationStore((s) => s.steeringAngle)
+  const steeringMethod = useSimulationStore((s) => s.steeringMethod)
   const setSteeringAngle = useSimulationStore((s) => s.setSteeringAngle)
   const setHorn = useSimulationStore((s) => s.setHorn)
 
   const isDraggingRef = useRef(false)
   const [touchAngle, setTouchAngle] = useState(0)
 
-  // Escutar teclado A / D para esterçar
+  // Escutar teclado A / D para esterçar (apenas em modo touch ou keyboard)
   useEffect(() => {
     let target = 0
     const handleKeyDown = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase()
       if (k === 'a' || k === 'arrowleft') {
         target = -0.75
-        setSteeringAngle(target)
+        setSteeringAngle(target, 'keyboard')
       } else if (k === 'd' || k === 'arrowright') {
         target = 0.75
-        setSteeringAngle(target)
+        setSteeringAngle(target, 'keyboard')
       }
     }
     const handleKeyUp = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase()
       if (k === 'a' || k === 'arrowleft' || k === 'd' || k === 'arrowright') {
         target = 0
-        setSteeringAngle(0)
+        setSteeringAngle(0, 'keyboard')
       }
     }
 
@@ -63,27 +64,29 @@ export const InteractiveSteeringWheel = memo(function InteractiveSteeringWheel({
   const size = compact ? 130 : 180
 
   const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (steeringMethod === 'tilt') return
     isDraggingRef.current = true
     ;(e.target as Element).setPointerCapture(e.pointerId)
   }
 
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDraggingRef.current) return
+    if (!isDraggingRef.current || steeringMethod === 'tilt') return
     const rect = e.currentTarget.getBoundingClientRect()
     const centerX = rect.left + rect.width / 2
     const deltaX = (e.clientX - centerX) / (rect.width / 2)
     const clamped = Math.max(-1, Math.min(1, deltaX))
     setTouchAngle(clamped)
-    setSteeringAngle(clamped)
+    setSteeringAngle(clamped, 'touch')
   }
 
   const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (steeringMethod === 'tilt') return
     isDraggingRef.current = false
     try {
       ;(e.target as Element).releasePointerCapture(e.pointerId)
     } catch {}
     setTouchAngle(0)
-    setSteeringAngle(0)
+    setSteeringAngle(0, 'touch')
   }
 
   return (

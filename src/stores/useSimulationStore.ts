@@ -8,6 +8,7 @@ import { ClutchSystem, type ClutchSnapshot } from '@/systems/clutch'
 import { VehiclePhysics, DeterministicIntegrator, type PhysicsIntegrityStatus, type VehiclePhysicsSnapshot } from '@/systems/physics'
 import { TractionControlSystem } from '@/systems/tcs'
 import { PedalInputSystem, createInitialZeroToHundredState, stepZeroToHundredTimer, type ZeroToHundredState } from '@/systems/vehicle'
+import type { SensorPermissionState, SteeringMethod } from '@/systems/input'
 import { MAX_SUBSTEPS } from '@/systems/engine/constants'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 import { clamp } from '@/utils/math'
@@ -131,6 +132,7 @@ export interface SimulationSubstepContext {
   fuelType: FuelType
   now: number
   injectedSpeedFloor: number
+  steeringAngle: number
 }
 
 function cloneRuntimeCandidate(candidate: SimulationRuntimeCandidate): SimulationRuntimeCandidate {
@@ -345,7 +347,17 @@ interface SimulationActions {
   resetDragRace: () => void
   cancelDragRace: () => void
   /** Esterço do Volante (-1 a +1) */
-  setSteeringAngle: (angle: number) => void
+  setSteeringAngle: (angle: number, source?: SteeringMethod) => void
+  /** Método de direção ativo (touch, tilt, keyboard) */
+  setSteeringMethod: (method: SteeringMethod) => void
+  /** Ativa ou desativa a direção por inclinação mobile */
+  setTiltSteeringEnabled: (enabled: boolean) => void
+  /** Ajusta sensibilidade da direção por inclinação */
+  setSteeringSensitivity: (sens: number) => void
+  /** Ajusta a zona morta (deadzone) da direção em graus */
+  setSteeringDeadzone: (deadzone: number) => void
+  /** Atualiza o estado da permissão de sensores mobile */
+  setSensorPermission: (perm: SensorPermissionState) => void
   /** Reseta dados de performance */
   resetPerformanceStats: () => void
   /** Atualiza a simulação (chamado pelo game loop) */
@@ -441,6 +453,11 @@ interface SimulationState {
 
   // Volante & Esterço
   steeringAngle: number
+  steeringMethod: SteeringMethod
+  tiltSteeringEnabled: boolean
+  steeringSensitivity: number
+  steeringDeadzone: number
+  sensorPermission: SensorPermissionState
 
   // Cronômetro 0-100 & Records
   best0to100: number | null
@@ -574,6 +591,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isRaining: false,
   isWiperActive: false,
   steeringAngle: 0,
+  steeringMethod: 'touch',
+  tiltSteeringEnabled: false,
+  steeringSensitivity: 1.0,
+  steeringDeadzone: 2.0,
+  sensorPermission: 'prompt',
   best0to100: null,
   last0to100: null,
   current0to100: null,
@@ -732,6 +754,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       visualSpeed: 0,
       visualRpm: 0,
       interpolationAlpha: 0,
+      steeringAngle: 0,
       isAutomaticVehicle: isAutoOrCvt,
       ambientLightColor: defaultAmbientColor,
       hasTurbo,
@@ -764,7 +787,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       headlightsMode: 'low',
       isRaining: false,
       isWiperActive: false,
-      steeringAngle: 0,
+      steeringMethod: 'touch',
+      tiltSteeringEnabled: false,
+      steeringSensitivity: 1.0,
+      steeringDeadzone: 2.0,
+      sensorPermission: 'prompt',
       rpm: 0,
       speed: 0,
       currentGear: isAutoOrCvt ? -2 : 0,
@@ -1106,8 +1133,46 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     HapticFeedback.light()
   },
 
-  setSteeringAngle: (angle: number) => {
-    set({ steeringAngle: clamp(angle, -1, 1) })
+  setSteeringAngle: (angle: number, source?: SteeringMethod) => {
+    const { steeringMethod } = get()
+    if (source) {
+      if (steeringMethod === 'tilt' && source === 'touch') return
+      if (steeringMethod === 'touch' && source === 'tilt') return
+    }
+    const safeAngle = Number.isFinite(angle) ? angle : 0
+    set({ steeringAngle: clamp(safeAngle, -1, 1) })
+  },
+
+  setSteeringMethod: (method: SteeringMethod) => {
+    set({
+      steeringMethod: method,
+      tiltSteeringEnabled: method === 'tilt',
+      steeringAngle: 0,
+    })
+  },
+
+  setTiltSteeringEnabled: (enabled: boolean) => {
+    set({
+      tiltSteeringEnabled: enabled,
+      steeringMethod: enabled ? 'tilt' : 'touch',
+      steeringAngle: 0,
+    })
+  },
+
+  setSteeringSensitivity: (sens: number) => {
+    if (Number.isFinite(sens)) {
+      set({ steeringSensitivity: clamp(sens, 0.2, 3.5) })
+    }
+  },
+
+  setSteeringDeadzone: (deadzone: number) => {
+    if (Number.isFinite(deadzone)) {
+      set({ steeringDeadzone: clamp(deadzone, 0, 15) })
+    }
+  },
+
+  setSensorPermission: (perm: SensorPermissionState) => {
+    set({ sensorPermission: perm })
   },
 
   toggleSimulatedManual: () => {
@@ -1897,6 +1962,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       fuelType: state.fuelType,
       now,
       injectedSpeedFloor,
+      steeringAngle: state.steeringAngle,
     }
 
     // Sincroniza o estado mestre do integrador com eventuais injeções externas
@@ -2743,6 +2809,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       visualSpeed: 0,
       visualRpm: 0,
       interpolationAlpha: 0,
+      steeringAngle: 0,
       _phys: createInitialPhysicsInternalState({
         gear: initialGear,
         nosPressurePercent: get().nosPressurePercent,

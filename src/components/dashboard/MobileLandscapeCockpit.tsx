@@ -8,7 +8,7 @@ import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter } from '@/components/controls'
+import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone, InteractiveSteeringWheel } from '@/components/controls'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { SwipeableClusterMediaSlot } from './SwipeableClusterMediaSlot'
 import { MobileQuickMenu } from './MobileQuickMenu'
@@ -54,6 +54,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 }: MobileLandscapeCockpitProps) {
   const isDriveMode = entryMode !== 'cluster'
 
+  const steeringMethod = useSimulationStore((s) => s.steeringMethod)
   const throttle = useSimulationStore((s) => s.throttle)
   const throttleLock = useSimulationStore((s) => s.throttleLock)
   const toggleThrottleLock = useSimulationStore((s) => s.toggleThrottleLock)
@@ -220,7 +221,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             <div className="flex-1 flex min-h-0 w-full h-full flex-col gap-0.5 overflow-hidden self-stretch items-center">
               {/* 1. MAPA DE CONDUÇÃO — PARTE SUPERIOR DA REGIÃO CENTRAL */}
               <div
-                className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 ${
+                className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 relative ${
                   mapViewportSize === 'compact'
                     ? 'h-[30%] flex-shrink-0'
                     : mapViewportSize === 'expanded'
@@ -233,6 +234,20 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                   onSizeChange={setMapViewportSize}
                   telemetry={telemetry}
                 />
+
+                {/* HUD Discreto de Direção Mobile (Fase 1.6.2) */}
+                <SteeringControlZone
+                  vehicle={vehicle}
+                  variant="hud-bar"
+                  className="absolute top-1.5 left-2 z-20"
+                />
+
+                {/* Volante Touch Flutuante quando o usuário optar por não usar inclinação no modo Paisagem */}
+                {steeringMethod === 'touch' && (
+                  <div className="absolute bottom-2 left-2 z-30 pointer-events-auto bg-zinc-950/85 p-1 rounded-2xl border border-white/10 backdrop-blur-md shadow-2xl scale-90 sm:scale-100 origin-bottom-left">
+                    <InteractiveSteeringWheel vehicle={vehicle} compact />
+                  </div>
+                )}
               </div>
 
               {/* 2. SLOT INFERIOR RESPONSIVO: PAINEL ORIGINAL (<VehicleDashboardCluster telemetry={telemetry} />) ↔ MULTIMÍDIA VIA SWIPE */}

@@ -7,7 +7,7 @@ import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter } from '@/components/controls'
+import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone, InteractiveSteeringWheel } from '@/components/controls'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { useUIStore } from '@/stores/useUIStore'
 import { SwipeableClusterMediaSlot } from './SwipeableClusterMediaSlot'
@@ -41,6 +41,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 }: MobilePortraitCockpitProps) {
   const isDriveMode = entryMode !== 'cluster'
 
+  const steeringMethod = useSimulationStore((s) => s.steeringMethod)
   const throttle = useSimulationStore((s) => s.throttle)
   const throttleLock = useSimulationStore((s) => s.throttleLock)
   const toggleThrottleLock = useSimulationStore((s) => s.toggleThrottleLock)
@@ -245,6 +246,20 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
                 orientation="horizontal"
                 size="compact"
               />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── 3.5. Zona de Direção Mobile (Touch / Tilt) ─── */}
+      {isDriveMode && (
+        <div className="w-full flex items-center justify-center py-0.5 px-1 flex-shrink-0">
+          {steeringMethod === 'tilt' ? (
+            <SteeringControlZone vehicle={vehicle} variant="hud-bar" />
+          ) : (
+            <div className="flex flex-col items-center">
+              <SteeringControlZone vehicle={vehicle} variant="hud-bar" className="mb-1" />
+              <InteractiveSteeringWheel vehicle={vehicle} compact />
             </div>
           )}
         </div>
