@@ -72,8 +72,6 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
   const setDrivingMode = useSimulationStore((s) => s.setDrivingMode)
   const best0to100 = useSimulationStore((s) => s.best0to100)
 
-  const steeringMethod = useSimulationStore((s) => s.steeringMethod)
-  const setSteeringMethod = useSimulationStore((s) => s.setSteeringMethod)
   const steeringSensitivity = useSimulationStore((s) => s.steeringSensitivity)
   const setSteeringSensitivity = useSimulationStore((s) => s.setSteeringSensitivity)
   const steeringDeadzone = useSimulationStore((s) => s.steeringDeadzone)
@@ -225,155 +223,110 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
           <Tile icon="📈" label="Dyno" sub="POTÊNCIA" onClick={openAndClose(onOpenDyno)} />
         </div>
 
-        {/* Direção e Sensores Mobile (Fase 1.6.2) */}
+        {/* Direção Mobile — Inclinação Física (Fase 1.6.2) */}
         <span className="block mb-1.5 text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
-          Direção e Sensores Mobile
+          Direção por Inclinação do Smartphone
         </span>
         <div className="bg-zinc-900/60 border border-white/10 rounded-2xl p-3 mb-4 space-y-3">
-          {/* Seletor de Modo */}
-          <div>
-            <div className="text-[8px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
-              Método de Direção
+          {/* Feedback de Permissão / Suporte */}
+          {!isSupported && (
+            <div className="px-3 py-2 rounded-xl bg-red-950/40 border border-red-500/30 text-red-300 text-[9px] font-mono">
+              ⚠️ Sensor giroscópio não detectado neste dispositivo/navegador.
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setSteeringMethod('touch')}
-                className={`h-10 rounded-xl border font-mono text-[10px] font-black uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
-                  steeringMethod === 'touch'
-                    ? 'bg-amber-500/20 text-amber-200 border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
-                    : 'bg-zinc-900 text-zinc-400 border-white/10'
-                }`}
-              >
-                <span>🛞</span>
-                <span>Volante Touch</span>
-              </button>
+          )}
+          {isSupported && permission === 'denied' && (
+            <div className="px-3 py-2 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-300 text-[9px] font-mono">
+              ⚠️ Permissão negada pelo navegador. Habilite o acesso a sensores de movimento nas preferências.
+            </div>
+          )}
+          {isSupported && permission === 'prompt' && (
+            <button
+              type="button"
+              onClick={requestPermission}
+              className="w-full py-2 rounded-xl bg-cyan-600/30 border border-cyan-400 text-cyan-200 font-mono text-[9px] font-bold uppercase tracking-wider cursor-pointer"
+            >
+              🔒 Toque aqui para autorizar sensor de inclinação (iOS)
+            </button>
+          )}
 
-              <button
-                type="button"
-                onClick={async () => {
-                  if (permission === 'prompt') {
-                    const granted = await requestPermission()
-                    if (!granted) return
-                  }
-                  setSteeringMethod('tilt')
-                }}
-                className={`h-10 rounded-xl border font-mono text-[10px] font-black uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
-                  steeringMethod === 'tilt'
-                    ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.25)]'
-                    : 'bg-zinc-900 text-zinc-400 border-white/10'
-                }`}
-              >
-                <span>📱</span>
-                <span>Inclinação (Tilt)</span>
-              </button>
+          {/* Botões de Calibração */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={calibrateNeutral}
+              className={`flex-1 h-9 rounded-xl border font-mono text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
+                isCalibrated
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400'
+                  : 'bg-amber-500/20 text-amber-300 border-amber-400 animate-pulse'
+              }`}
+            >
+              <span>🎯</span>
+              <span>{isCalibrated ? 'Recalibrar Centro Neutro' : 'Calibrar Centro Neutro'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={resetCalibration}
+              className="h-9 px-3 rounded-xl border border-white/10 bg-zinc-900 text-zinc-400 font-mono text-[9px] font-bold uppercase hover:text-white cursor-pointer"
+              title="Restaurar ponto zero original"
+            >
+              ↺ 0°
+            </button>
+          </div>
+
+          {/* Telemetria do sensor atual */}
+          <div className="flex items-center justify-between text-[8px] font-mono text-zinc-400 px-1">
+            <span>Ângulo Calibrado: <b className="text-cyan-300">{calibratedAngleDeg > 0 ? `+${calibratedAngleDeg}` : calibratedAngleDeg}°</b></span>
+            <span>Status: <b className={isSupported ? 'text-emerald-400' : 'text-red-400'}>{isSupported ? (permission === 'granted' ? 'ATIVO' : permission.toUpperCase()) : 'INDISPONÍVEL'}</b></span>
+          </div>
+
+          {/* Ajuste de Sensibilidade */}
+          <div>
+            <div className="flex items-center justify-between text-[8px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+              <span>Sensibilidade</span>
+              <span className="text-cyan-400 font-black">{steeringSensitivity.toFixed(1)}x</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[0.5, 1.0, 1.5, 2.0].map((sens) => (
+                <button
+                  key={sens}
+                  type="button"
+                  onClick={() => setSteeringSensitivity(sens)}
+                  className={`h-7 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer ${
+                    steeringSensitivity === sens
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                      : 'bg-zinc-900 text-zinc-400 border-white/10'
+                  }`}
+                >
+                  {sens.toFixed(1)}x
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Configurações quando o modo Tilt estiver selecionado */}
-          {steeringMethod === 'tilt' && (
-            <div className="pt-2 border-t border-white/5 space-y-2.5">
-              {/* Feedback de Permissão / Suporte */}
-              {!isSupported && (
-                <div className="px-3 py-2 rounded-xl bg-red-950/40 border border-red-500/30 text-red-300 text-[9px] font-mono">
-                  ⚠️ Sensor giroscópio não detectado neste dispositivo/navegador.
-                </div>
-              )}
-              {isSupported && permission === 'denied' && (
-                <div className="px-3 py-2 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-300 text-[9px] font-mono">
-                  ⚠️ Permissão negada pelo navegador. Habilite o acesso a sensores de movimento nas preferências.
-                </div>
-              )}
-              {isSupported && permission === 'prompt' && (
+          {/* Ajuste de Zona Morta (Deadzone) */}
+          <div>
+            <div className="flex items-center justify-between text-[8px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+              <span>Zona Morta (Deadzone)</span>
+              <span className="text-cyan-400 font-black">{steeringDeadzone}°</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[0, 2, 4, 6].map((dz) => (
                 <button
+                  key={dz}
                   type="button"
-                  onClick={requestPermission}
-                  className="w-full py-2 rounded-xl bg-cyan-600/30 border border-cyan-400 text-cyan-200 font-mono text-[9px] font-bold uppercase tracking-wider cursor-pointer"
-                >
-                  🔒 Toque aqui para autorizar sensor de inclinação (iOS)
-                </button>
-              )}
-
-              {/* Botões de Calibração */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={calibrateNeutral}
-                  className={`flex-1 h-9 rounded-xl border font-mono text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
-                    isCalibrated
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400'
-                      : 'bg-amber-500/20 text-amber-300 border-amber-400 animate-pulse'
+                  onClick={() => setSteeringDeadzone(dz)}
+                  className={`h-7 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer ${
+                    steeringDeadzone === dz
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                      : 'bg-zinc-900 text-zinc-400 border-white/10'
                   }`}
                 >
-                  <span>🎯</span>
-                  <span>{isCalibrated ? 'Recalibrar Centro Neutro' : 'Calibrar Centro Neutro'}</span>
+                  {dz}°
                 </button>
-
-                <button
-                  type="button"
-                  onClick={resetCalibration}
-                  className="h-9 px-3 rounded-xl border border-white/10 bg-zinc-900 text-zinc-400 font-mono text-[9px] font-bold uppercase hover:text-white cursor-pointer"
-                  title="Restaurar ponto zero original"
-                >
-                  ↺ 0°
-                </button>
-              </div>
-
-              {/* Telemetria do sensor atual */}
-              <div className="flex items-center justify-between text-[8px] font-mono text-zinc-400 px-1">
-                <span>Ângulo Calibrado: <b className="text-cyan-300">{calibratedAngleDeg > 0 ? `+${calibratedAngleDeg}` : calibratedAngleDeg}°</b></span>
-                <span>Status: <b className={isSupported ? 'text-emerald-400' : 'text-red-400'}>{isSupported ? (permission === 'granted' ? 'ATIVO' : permission.toUpperCase()) : 'INDISPONÍVEL'}</b></span>
-              </div>
-
-              {/* Ajuste de Sensibilidade */}
-              <div>
-                <div className="flex items-center justify-between text-[8px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
-                  <span>Sensibilidade</span>
-                  <span className="text-cyan-400 font-black">{steeringSensitivity.toFixed(1)}x</span>
-                </div>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[0.5, 1.0, 1.5, 2.0].map((sens) => (
-                    <button
-                      key={sens}
-                      type="button"
-                      onClick={() => setSteeringSensitivity(sens)}
-                      className={`h-7 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer ${
-                        steeringSensitivity === sens
-                          ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
-                          : 'bg-zinc-900 text-zinc-400 border-white/10'
-                      }`}
-                    >
-                      {sens.toFixed(1)}x
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Ajuste de Zona Morta (Deadzone) */}
-              <div>
-                <div className="flex items-center justify-between text-[8px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
-                  <span>Zona Morta (Deadzone)</span>
-                  <span className="text-cyan-400 font-black">{steeringDeadzone}°</span>
-                </div>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[0, 2, 4, 6].map((dz) => (
-                    <button
-                      key={dz}
-                      type="button"
-                      onClick={() => setSteeringDeadzone(dz)}
-                      className={`h-7 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer ${
-                        steeringDeadzone === dz
-                          ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
-                          : 'bg-zinc-900 text-zinc-400 border-white/10'
-                      }`}
-                    >
-                      {dz}°
-                    </button>
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Sistema & Performance (Fase 1.5.2) */}

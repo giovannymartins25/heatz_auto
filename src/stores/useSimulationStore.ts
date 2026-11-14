@@ -591,8 +591,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isRaining: false,
   isWiperActive: false,
   steeringAngle: 0,
-  steeringMethod: 'touch',
-  tiltSteeringEnabled: false,
+  steeringMethod: 'tilt',
+  tiltSteeringEnabled: true,
   steeringSensitivity: 1.0,
   steeringDeadzone: 2.0,
   sensorPermission: 'prompt',
@@ -787,8 +787,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       headlightsMode: 'low',
       isRaining: false,
       isWiperActive: false,
-      steeringMethod: 'touch',
-      tiltSteeringEnabled: false,
+      steeringMethod: 'tilt',
+      tiltSteeringEnabled: true,
       steeringSensitivity: 1.0,
       steeringDeadzone: 2.0,
       sensorPermission: 'prompt',
@@ -1134,11 +1134,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setSteeringAngle: (angle: number, source?: SteeringMethod) => {
-    const { steeringMethod } = get()
-    if (source) {
-      if (steeringMethod === 'tilt' && source === 'touch') return
-      if (steeringMethod === 'touch' && source === 'tilt') return
-    }
+    // Volante touch virtual foi removido do mobile. Apenas tilt físico e keyboard (desktop) são aceitos.
+    if (source === 'touch') return
     const safeAngle = Number.isFinite(angle) ? angle : 0
     set({ steeringAngle: clamp(safeAngle, -1, 1) })
   },

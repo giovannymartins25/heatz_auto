@@ -52,6 +52,7 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
   const hasNosKit = useSimulationStore((s) => s.hasNosKit)
   const setNosActive = useSimulationStore((s) => s.setNosActive)
   const purgeNos = useSimulationStore((s) => s.purgeNos)
+  const setSteeringAngle = useSimulationStore((s) => s.setSteeringAngle)
   const setActiveKey = useUIStore((s) => s.setActiveKey)
 
   const keysPressedRef = useRef({ w: false, e: false, q: false })
@@ -68,6 +69,7 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
       setThrottle(0)
       setBrake(0)
       setClutch(0)
+      setSteeringAngle(0, 'keyboard')
       return
     }
 
@@ -174,6 +176,13 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
       else if (key === 'x' && !event.repeat && hasNosKit) {
         purgeNos()
       }
+      // Direção no PC / Desktop — A / D
+      else if (key === 'a') {
+        setSteeringAngle(-0.75, 'keyboard')
+      }
+      else if (key === 'd') {
+        setSteeringAngle(0.75, 'keyboard')
+      }
     }
 
     const handleKeyUp = (event: KeyboardEvent) => {
@@ -198,6 +207,8 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
       } else if (key === 'b' || key === 'shift') {
         setActiveKey('nos', false)
         setNosActive(false)
+      } else if (key === 'a' || key === 'd') {
+        setSteeringAngle(0, 'keyboard')
       }
     }
 

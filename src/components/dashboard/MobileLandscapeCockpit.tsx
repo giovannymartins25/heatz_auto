@@ -8,7 +8,7 @@ import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone, InteractiveSteeringWheel } from '@/components/controls'
+import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { SwipeableClusterMediaSlot } from './SwipeableClusterMediaSlot'
 import { MobileQuickMenu } from './MobileQuickMenu'
@@ -54,7 +54,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 }: MobileLandscapeCockpitProps) {
   const isDriveMode = entryMode !== 'cluster'
 
-  const steeringMethod = useSimulationStore((s) => s.steeringMethod)
   const throttle = useSimulationStore((s) => s.throttle)
   const throttleLock = useSimulationStore((s) => s.throttleLock)
   const toggleThrottleLock = useSimulationStore((s) => s.toggleThrottleLock)
@@ -235,19 +234,11 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                   telemetry={telemetry}
                 />
 
-                {/* HUD Discreto de Direção Mobile (Fase 1.6.2) */}
+                {/* Telemetria e Calibração de Direção por Inclinação Mobile (Fase 1.6.2) */}
                 <SteeringControlZone
                   vehicle={vehicle}
-                  variant="hud-bar"
                   className="absolute top-1.5 left-2 z-20"
                 />
-
-                {/* Volante Touch Flutuante quando o usuário optar por não usar inclinação no modo Paisagem */}
-                {steeringMethod === 'touch' && (
-                  <div className="absolute bottom-2 left-2 z-30 pointer-events-auto bg-zinc-950/85 p-1 rounded-2xl border border-white/10 backdrop-blur-md shadow-2xl scale-90 sm:scale-100 origin-bottom-left">
-                    <InteractiveSteeringWheel vehicle={vehicle} compact />
-                  </div>
-                )}
               </div>
 
               {/* 2. SLOT INFERIOR RESPONSIVO: PAINEL ORIGINAL (<VehicleDashboardCluster telemetry={telemetry} />) ↔ MULTIMÍDIA VIA SWIPE */}

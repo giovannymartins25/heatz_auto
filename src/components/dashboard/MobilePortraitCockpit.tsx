@@ -7,7 +7,7 @@ import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone, InteractiveSteeringWheel } from '@/components/controls'
+import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { useUIStore } from '@/stores/useUIStore'
 import { SwipeableClusterMediaSlot } from './SwipeableClusterMediaSlot'
@@ -41,7 +41,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 }: MobilePortraitCockpitProps) {
   const isDriveMode = entryMode !== 'cluster'
 
-  const steeringMethod = useSimulationStore((s) => s.steeringMethod)
   const throttle = useSimulationStore((s) => s.throttle)
   const throttleLock = useSimulationStore((s) => s.throttleLock)
   const toggleThrottleLock = useSimulationStore((s) => s.toggleThrottleLock)
@@ -251,17 +250,10 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         </div>
       )}
 
-      {/* ─── 3.5. Zona de Direção Mobile (Touch / Tilt) ─── */}
+      {/* ─── 3.5. Telemetria e Calibração de Direção por Inclinação Mobile (Fase 1.6.2) ─── */}
       {isDriveMode && (
         <div className="w-full flex items-center justify-center py-0.5 px-1 flex-shrink-0">
-          {steeringMethod === 'tilt' ? (
-            <SteeringControlZone vehicle={vehicle} variant="hud-bar" />
-          ) : (
-            <div className="flex flex-col items-center">
-              <SteeringControlZone vehicle={vehicle} variant="hud-bar" className="mb-1" />
-              <InteractiveSteeringWheel vehicle={vehicle} compact />
-            </div>
-          )}
+          <SteeringControlZone vehicle={vehicle} />
         </div>
       )}
 

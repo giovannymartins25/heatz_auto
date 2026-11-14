@@ -18,6 +18,7 @@
  * 12. Compatibilidade e estabilidade com o integrador determinístico de 120 Hz da Fase 1.6.1.
  */
 
+import fs from 'node:fs'
 import { TiltSteeringController, type TiltSample } from './src/systems/input/TiltSteeringController'
 import { useSimulationStore } from './src/stores/useSimulationStore'
 import golfConfig from './public/vehicles/golf-gti/config.json' with { type: 'json' }
@@ -300,42 +301,41 @@ console.log('\n--- CRITÉRIO 9: Retorno gradual ao centro ---')
   assert(finalCentered === 0, `Após retorno ao centro, atinge rigorosamente zero (obtido=${finalCentered})`)
 }
 
-// ─── TESTE 10: Alternância mútua entre touch e inclinação sem disputa ───
-console.log('\n--- CRITÉRIO 10: Alternância mútua entre touch e inclinação sem disputa ---')
+// ─── TESTE 10: Exclusividade da inclinação mobile e rejeição de touch steering ───
+console.log('\n--- CRITÉRIO 10: Exclusividade da inclinação no mobile e preservação de desktop ---')
 {
   const store = useSimulationStore.getState()
 
-  // 1. Configura modo TOUCH
-  store.setSteeringMethod('touch')
-  assert(useSimulationStore.getState().steeringMethod === 'touch', 'Modo touch ativado')
+  assert(store.steeringMethod === 'tilt', 'Direção mobile inicia configurada exclusivamente por inclinação (tilt)')
+  assert(store.tiltSteeringEnabled === true, 'tiltSteeringEnabled é ativo por padrão para direção física')
 
-  // Touch deve ter sucesso
-  store.setSteeringAngle(0.65, 'touch')
-  assertClose(useSimulationStore.getState().steeringAngle, 0.65, 1e-4, 'setSteeringAngle de fonte touch aceito quando steeringMethod == "touch"')
-
-  // Tilt deve ser rejeitado em modo touch
-  store.setSteeringAngle(-0.80, 'tilt')
-  assertClose(useSimulationStore.getState().steeringAngle, 0.65, 1e-4, 'setSteeringAngle de fonte tilt é IGNORADO quando steeringMethod == "touch"')
-
-  // 2. Configura modo TILT
-  store.setSteeringMethod('tilt')
-  assert(useSimulationStore.getState().steeringMethod === 'tilt', 'Modo tilt ativado')
-  assert(useSimulationStore.getState().steeringAngle === 0, 'Ao alternar modo, volante é centrado em 0')
-
-  // Tilt deve ter sucesso
+  // Tilt físico deve ser aceito
   store.setSteeringAngle(-0.45, 'tilt')
-  assertClose(useSimulationStore.getState().steeringAngle, -0.45, 1e-4, 'setSteeringAngle de fonte tilt aceito quando steeringMethod == "tilt"')
+  assertClose(useSimulationStore.getState().steeringAngle, -0.45, 1e-4, 'setSteeringAngle de fonte tilt aceito como controle físico mobile')
 
-  // Touch deve ser rejeitado em modo tilt
+  // Touch virtual na tela deve ser categoricamente ignorado (sem volante virtual)
   store.setSteeringAngle(0.90, 'touch')
-  assertClose(useSimulationStore.getState().steeringAngle, -0.45, 1e-4, 'setSteeringAngle de fonte touch é IGNORADO quando steeringMethod == "tilt" (sem disputa)')
+  assertClose(useSimulationStore.getState().steeringAngle, -0.45, 1e-4, 'setSteeringAngle de fonte touch é IGNORADO (volante virtual desativado no mobile)')
 
-  // Teclado funciona em ambos como acessibilidade/fallback
+  // Teclado Desktop funciona perfeitamente para garantir compatibilidade no PC
   store.setSteeringAngle(0.75, 'keyboard')
-  assertClose(useSimulationStore.getState().steeringAngle, 0.75, 1e-4, 'Entrada de teclado é permitida em conformidade com acessibilidade')
+  assertClose(useSimulationStore.getState().steeringAngle, 0.75, 1e-4, 'Entrada de teclado Desktop (A/D) é aceita e funcional')
 
-  // Restaura para modo touch
-  store.setSteeringMethod('touch')
+  // Retorna para o centro
+  store.setSteeringAngle(0, 'keyboard')
+
+  // Verificação de ausência de volante virtual nos arquivos dos cockpits mobile e menu
+  const landscapeContent = fs.readFileSync('./src/components/dashboard/MobileLandscapeCockpit.tsx', 'utf-8')
+  assert(!landscapeContent.includes('InteractiveSteeringWheel'), 'MobileLandscapeCockpit NÃO contém InteractiveSteeringWheel (volante virtual removido)')
+
+  const portraitContent = fs.readFileSync('./src/components/dashboard/MobilePortraitCockpit.tsx', 'utf-8')
+  assert(!portraitContent.includes('InteractiveSteeringWheel'), 'MobilePortraitCockpit NÃO contém InteractiveSteeringWheel (volante virtual removido)')
+
+  const zoneContent = fs.readFileSync('./src/components/controls/SteeringControlZone.tsx', 'utf-8')
+  assert(!zoneContent.includes('InteractiveSteeringWheel'), 'SteeringControlZone NÃO contém InteractiveSteeringWheel (apenas indicador discreto)')
+
+  const menuContent = fs.readFileSync('./src/components/dashboard/MobileQuickMenu.tsx', 'utf-8')
+  assert(!menuContent.includes('Volante Touch'), 'MobileQuickMenu NÃO contém opção "Volante Touch" (apenas inclinação)')
 }
 
 // ─── TESTE 11: Ausência de alteração direta da física fora do ciclo determinístico ───
