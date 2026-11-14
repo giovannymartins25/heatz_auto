@@ -4,6 +4,8 @@ import type { DashboardTelemetry } from '@/systems/dashboard'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AMBIENT_COLOR_MAP, type AmbientLightColor } from '@/utils/ambientLighting'
 import { getShortVehicleName } from '@/utils/vehicleSpecs'
+import { FiatToroUconnect7 } from './FiatToroUconnect7'
+import { FiatToroUconnectVertical } from './FiatToroUconnectVertical'
 
 export interface VehicleMultimediaProps {
   vehicle: VehicleConfig
@@ -43,6 +45,7 @@ const ACCENT_BY_BRAND: Record<string, string> = {
   toyota: '#ef4444',
   volkswagen: '#38bdf8',
   chevrolet: '#f59e0b',
+  fiat: '#dc2626',
 }
 
 function fmt(sec: number) {
@@ -66,6 +69,15 @@ export const VehicleMultimedia = memo(function VehicleMultimedia({
   className = '',
   fill = false,
 }: VehicleMultimediaProps) {
+  // Centrais Multimídia Dedicadas por Veículo
+  if (vehicle.id === 'fiat-toro-endurance-2025') {
+    return <FiatToroUconnect7 vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
+  }
+
+  if (vehicle.id === 'fiat-toro-ranch-2025') {
+    return <FiatToroUconnectVertical vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
+  }
+
   const [tab, setTab] = useState<TabId>('home')
   const [clock, setClock] = useState(() => new Date())
   const [track, setTrack] = useState(0)

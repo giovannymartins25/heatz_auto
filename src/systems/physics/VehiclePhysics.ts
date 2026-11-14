@@ -1,12 +1,15 @@
 import { clamp } from '@/utils/math'
 import { VehicleChassis, type ChassisConfig, type DynamicLoadResult, type AxleLoads, createVehicleChassis } from './Chassis'
 
+export type FourWheelDriveMode = 'auto' | '4wd' | '4wd_low'
+
 export interface VehiclePhysicsConfig {
   weight: number        // kg
   wheelDiameter: number // metros
   isMotorcycle?: boolean
   vehicleId?: string
   chassis?: VehicleChassis | ChassisConfig
+  fourWheelDriveMode?: FourWheelDriveMode
 }
 
 export interface PhysicsTickInput {
@@ -56,7 +59,8 @@ export class VehiclePhysics {
   private readonly efficiency: number
   private readonly aeroConstant: number
   private readonly rollingCoeff: number
-  private readonly driveAxleWeightRatio: number
+  private driveAxleWeightRatio: number
+  private fourWheelDriveMode: FourWheelDriveMode = 'auto'
   private readonly isMotorcycle: boolean
   private readonly vehicleId?: string
   private readonly chassis: VehicleChassis
@@ -69,6 +73,7 @@ export class VehiclePhysics {
   constructor(config: VehiclePhysicsConfig) {
     this.isMotorcycle = config.isMotorcycle ?? false
     this.vehicleId = config.vehicleId
+    this.fourWheelDriveMode = config.fourWheelDriveMode ?? 'auto'
 
     // Inicialização da representação física de chassi e centro de massa
     if (config.chassis instanceof VehicleChassis) {
@@ -93,18 +98,45 @@ export class VehiclePhysics {
     this.wheelRadius = this.chassis.wheelRadius
     this.efficiency = this.isMotorcycle ? 0.93 : 0.90
 
-    // Relação de peso no eixo tracionado
-    if (this.vehicleId === 'porsche-gt3' || this.vehicleId === 'opala-4100' || this.isMotorcycle) {
-      // Veículos com tração traseira (RWD / Motocicleta)
-      this.driveAxleWeightRatio = this.chassis.rearWeightRatio
-    } else {
-      // Veículos com tração dianteira (FWD padrão)
-      this.driveAxleWeightRatio = this.chassis.frontWeightRatio
-    }
+    // Relação de peso no eixo tracionado de acordo com arquitetura e modo de tração
+    this.driveAxleWeightRatio = this.calculateDriveAxleWeightRatio()
 
     // Constante aerodinâmica 0.5 * rho * Cd * A
     this.aeroConstant = this.isMotorcycle ? 0.25 : 0.40
     this.rollingCoeff = 0.015 // Asfalto típico
+  }
+
+  /**
+   * Define o modo de tração 4x4 (AUTO, 4WD bloqueado 50/50, 4WD LOW com crawl).
+   */
+  setFourWheelDriveMode(mode: FourWheelDriveMode): void {
+    this.fourWheelDriveMode = mode
+    this.driveAxleWeightRatio = this.calculateDriveAxleWeightRatio()
+  }
+
+  getFourWheelDriveMode(): FourWheelDriveMode {
+    return this.fourWheelDriveMode
+  }
+
+  private calculateDriveAxleWeightRatio(): number {
+    if (this.vehicleId === 'fiat-toro-ranch-2025') {
+      if (this.fourWheelDriveMode === '4wd' || this.fourWheelDriveMode === '4wd_low') {
+        // Bloqueio integral 50/50: ambos os eixos geram tração simultânea (100% da carga normal total do veículo)
+        return 1.0
+      }
+      // AUTO sob demanda: controle eletrônico de acoplamento inteligente (~85% de aderência distribuída)
+      return 0.85
+    }
+    if (this.vehicleId === 'fiat-toro-endurance-2025') {
+      // Picape FWD de entrada: tração apenas dianteira (60% do peso estático)
+      return this.chassis.frontWeightRatio
+    }
+    if (this.vehicleId === 'porsche-gt3' || this.vehicleId === 'opala-4100' || this.isMotorcycle) {
+      // Veículos com tração traseira (RWD / Motocicleta)
+      return this.chassis.rearWeightRatio
+    }
+    // Veículos com tração dianteira (FWD padrão)
+    return this.chassis.frontWeightRatio
   }
 
   /**
@@ -183,8 +215,18 @@ export class VehiclePhysics {
     const maxGripTorque = this.getMaxGripTorque()
     const maxGripForce = maxGripTorque / this.wheelRadius
 
+    // Em 4WD LOW com marcha ultracurta (1ª marcha ou ré), atua a multiplicação de crawl/reduzida
+    let crawlMultiplier = 1.0
+    if (
+      this.vehicleId === 'fiat-toro-ranch-2025' &&
+      this.fourWheelDriveMode === '4wd_low' &&
+      Math.abs(gearRatio) >= 3.8
+    ) {
+      crawlMultiplier = 1.45
+    }
+
     if (gearRatio !== 0 && driveTorqueAtTransmission > 0) {
-      wheelTorque = driveTorqueAtTransmission * effectiveTotalRatio * this.efficiency
+      wheelTorque = driveTorqueAtTransmission * effectiveTotalRatio * crawlMultiplier * this.efficiency
       
       // Verificação de perda de aderência (Wheel Spin)
       if (wheelTorque > maxGripTorque && brake < 0.1) {
@@ -289,6 +331,7 @@ export class VehiclePhysics {
       accelerationMs2: this.accelerationMs2,
       surfaceFriction: this.surfaceFriction,
       wheelSpeedMs: this.wheelSpeedMs,
+      fourWheelDriveMode: this.fourWheelDriveMode,
     }
   }
 
@@ -298,6 +341,9 @@ export class VehiclePhysics {
     this.accelerationMs2 = snapshot.accelerationMs2
     this.surfaceFriction = snapshot.surfaceFriction
     this.wheelSpeedMs = snapshot.wheelSpeedMs
+    if (snapshot.fourWheelDriveMode) {
+      this.setFourWheelDriveMode(snapshot.fourWheelDriveMode)
+    }
   }
 }
 
@@ -309,4 +355,5 @@ export interface VehiclePhysicsSnapshot {
   accelerationMs2: number
   surfaceFriction: number
   wheelSpeedMs: number
+  fourWheelDriveMode?: FourWheelDriveMode
 }

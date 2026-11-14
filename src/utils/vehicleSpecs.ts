@@ -14,6 +14,8 @@ const SHORT_NAMES: Record<string, string> = {
   'yaris-2019': 'YARIS XLS',
   'yaris-xls': 'YARIS XLS',
   cb1000r: 'CB1000R',
+  'fiat-toro-endurance-2025': 'TORO ENDURANCE',
+  'fiat-toro-ranch-2025': 'TORO RANCH',
 }
 
 /** Identificação curta e discreta do veículo para o cockpit mobile. */

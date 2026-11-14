@@ -6,6 +6,7 @@ import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useUIStore } from '@/stores/useUIStore'
 import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
+import { useDeviceTilt } from '@/hooks/useDeviceTilt'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
@@ -53,6 +54,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   entryMode = 'drive',
 }: MobileLandscapeCockpitProps) {
   const isDriveMode = entryMode !== 'cluster'
+
+  // Garante escuta física ininterrupta do sensor de inclinação durante toda a sessão de condução
+  useDeviceTilt()
 
   const throttle = useSimulationStore((s) => s.throttle)
   const throttleLock = useSimulationStore((s) => s.throttleLock)

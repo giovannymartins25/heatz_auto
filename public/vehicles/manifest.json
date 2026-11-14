@@ -164,6 +164,48 @@
       "hasTurbo": false,
       "hasInfotainment": false,
       "configPath": "/vehicles/opala-4100/config.json"
+    },
+    {
+      "id": "fiat-toro-endurance-2025",
+      "name": "Fiat Toro Endurance 1.3 Turbo 270 Flex AT6 2025",
+      "brand": "Fiat",
+      "model": "Toro Endurance T270",
+      "year": 2025,
+      "category": "car",
+      "powerHp": 185,
+      "torqueKgfm": 27.5,
+      "transmissionType": "automatic",
+      "transmissionLabel": "Automático 6 Marchas (Aisin)",
+      "gearCount": 6,
+      "isSimulatedGears": false,
+      "hasManualMode": true,
+      "supportedModes": ["eco", "normal", "sport"],
+      "hasTcs": true,
+      "hasClutchPedal": false,
+      "hasTurbo": true,
+      "hasInfotainment": true,
+      "configPath": "/vehicles/fiat-toro-endurance-2025/config.json"
+    },
+    {
+      "id": "fiat-toro-ranch-2025",
+      "name": "Fiat Toro Ranch 2.2 Turbo Diesel 4x4 AT9 2025",
+      "brand": "Fiat",
+      "model": "Toro Ranch 2.2 Turbodiesel 4x4",
+      "year": 2025,
+      "category": "car",
+      "powerHp": 200,
+      "torqueKgfm": 45.9,
+      "transmissionType": "automatic",
+      "transmissionLabel": "Automático 9 Marchas ZF (4x4)",
+      "gearCount": 9,
+      "isSimulatedGears": false,
+      "hasManualMode": true,
+      "supportedModes": ["eco", "normal", "sport"],
+      "hasTcs": true,
+      "hasClutchPedal": false,
+      "hasTurbo": true,
+      "hasInfotainment": true,
+      "configPath": "/vehicles/fiat-toro-ranch-2025/config.json"
     }
   ]
 }

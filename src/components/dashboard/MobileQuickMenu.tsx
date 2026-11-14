@@ -91,6 +91,8 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
   const setGraphicProfile = useUIStore((s) => s.setGraphicProfile)
   const showPerformanceMonitor = useUIStore((s) => s.showPerformanceMonitor)
   const togglePerformanceMonitor = useUIStore((s) => s.togglePerformanceMonitor)
+  const showTiltIndicator = useUIStore((s) => s.showTiltIndicator)
+  const setShowTiltIndicator = useUIStore((s) => s.setShowTiltIndicator)
 
   const [isFullscreen, setIsFullscreen] = useState(isDocumentFullscreen())
 
@@ -325,6 +327,42 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
                   {dz}°
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Indicador de Inclinação no HUD Mobile */}
+          <div>
+            <div className="flex items-center justify-between text-[8px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+              <span>Indicador de Inclinação (HUD)</span>
+              <span className={showTiltIndicator ? 'text-cyan-400 font-black' : 'text-zinc-500 font-bold'}>
+                {showTiltIndicator ? 'MOSTRAR' : 'OCULTAR'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setShowTiltIndicator(true)}
+                className={`h-7 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  showTiltIndicator
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 font-black shadow-sm'
+                    : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
+                }`}
+              >
+                <span>👁️</span>
+                <span>Mostrar</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowTiltIndicator(false)}
+                className={`h-7 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  !showTiltIndicator
+                    ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-black shadow-sm'
+                    : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
+                }`}
+              >
+                <span>🙈</span>
+                <span>Ocultar</span>
+              </button>
             </div>
           </div>
         </div>

@@ -57,13 +57,17 @@ export function createDefaultUpgrades(vehicleId: string): CarUpgrades {
   const isOriginallyTurbo =
     vehicleId === 'golf-gti' ||
     vehicleId === 'porsche-gt3' ||
-    vehicleId === 'gol-quadrado-turbo'
+    vehicleId === 'gol-quadrado-turbo' ||
+    vehicleId === 'fiat-toro-endurance-2025' ||
+    vehicleId === 'fiat-toro-ranch-2025'
 
   const hasDefaultMultimedia =
     vehicleId === 'golf-gti' ||
     vehicleId === 'porsche-gt3' ||
     vehicleId === 'yaris-2019' ||
-    vehicleId === 'civic-si'
+    vehicleId === 'civic-si' ||
+    vehicleId === 'fiat-toro-endurance-2025' ||
+    vehicleId === 'fiat-toro-ranch-2025'
 
   const defaultFuel: FuelType =
     vehicleId === 'gol-quadrado-turbo'

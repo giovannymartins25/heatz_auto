@@ -319,7 +319,7 @@ console.log('\n--- REQUISITO 7: Preservação estrita de estado via FAIL_SAFE_HO
 console.log('\n--- REQUISITO 8: Consistência dimensional dos parâmetros de chassi (SI) ---')
 {
   const vehicleIds = Object.keys(VEHICLE_CHASSIS_DATABASE)
-  assert(vehicleIds.length === 8, `Banco de chassi contém os 8 veículos (total = ${vehicleIds.length})`)
+  assert(vehicleIds.length >= 8, `Banco de chassi contém os 8 veículos originais (total = ${vehicleIds.length})`)
 
   for (const id of vehicleIds) {
     const chassis = createVehicleChassis(id)

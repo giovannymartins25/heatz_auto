@@ -300,6 +300,30 @@ export const VEHICLE_CHASSIS_DATABASE: Record<string, ChassisConfig> = {
     isProvisional: false,
     notes: 'Honda CB1000R Neo Sports Café (Motocicleta 2-DOF/5-DOF)',
   },
+  'fiat-toro-endurance-2025': {
+    totalMass: 1650,
+    wheelbase: 2.990,
+    centerOfMassHeight: 0.65,
+    frontWeightRatio: 0.60,
+    wheelRadius: 0.686 / 2, // 0.343 m (215/65 R16)
+    wheelInertia: 1.30,
+    wheelCount: 4,
+    gravity: 9.81,
+    isProvisional: false,
+    notes: 'Fiat Toro Endurance 1.3 Turbo 270 Flex AT6 2025 (FWD 4x2)',
+  },
+  'fiat-toro-ranch-2025': {
+    totalMass: 1910,
+    wheelbase: 2.990,
+    centerOfMassHeight: 0.68,
+    frontWeightRatio: 0.56,
+    wheelRadius: 0.700 / 2, // 0.350 m (225/60 R18)
+    wheelInertia: 1.40,
+    wheelCount: 4,
+    gravity: 9.81,
+    isProvisional: false,
+    notes: 'Fiat Toro Ranch 2.2 Turbo Diesel 4x4 AT9 2025 (AWD/4WD sob demanda e Reduzida 4WD LOW)',
+  },
 }
 
 /**

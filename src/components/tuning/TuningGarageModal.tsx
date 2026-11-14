@@ -91,7 +91,12 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const upgrades = liveCar?.upgrades
 
   const isOriginalTurboCar = Boolean(vehicle.engine.turbo?.enabled)
-  const hasFactoryBoost = vehicle.id === 'golf-gti' || vehicle.id === 'porsche-gt3' || vehicle.id === 'gol-quadrado-turbo'
+  const hasFactoryBoost =
+    vehicle.id === 'golf-gti' ||
+    vehicle.id === 'porsche-gt3' ||
+    vehicle.id === 'gol-quadrado-turbo' ||
+    vehicle.id === 'fiat-toro-endurance-2025' ||
+    vehicle.id === 'fiat-toro-ranch-2025'
   const isOriginalInfotainmentCar = Boolean(
     vehicle.dashboard?.hasInfotainment ||
     (vehicle.id !== 'gol-g6' &&

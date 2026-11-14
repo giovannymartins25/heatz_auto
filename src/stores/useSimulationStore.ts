@@ -5,7 +5,7 @@ import type { EngineStatus, FuelType, DragTreeStage, DragTimeSlip } from '@/type
 import { EngineSimulator, type EngineSimulatorSnapshot } from '@/systems/engine'
 import { Transmission, AutomaticTransmission, type TransmissionSnapshot, type AutoTransmissionSnapshot } from '@/systems/transmission'
 import { ClutchSystem, type ClutchSnapshot } from '@/systems/clutch'
-import { VehiclePhysics, DeterministicIntegrator, type PhysicsIntegrityStatus, type VehiclePhysicsSnapshot } from '@/systems/physics'
+import { VehiclePhysics, DeterministicIntegrator, type PhysicsIntegrityStatus, type VehiclePhysicsSnapshot, type FourWheelDriveMode } from '@/systems/physics'
 import { TractionControlSystem } from '@/systems/tcs'
 import { PedalInputSystem, createInitialZeroToHundredState, stepZeroToHundredTimer, type ZeroToHundredState } from '@/systems/vehicle'
 import type { SensorPermissionState, SteeringMethod } from '@/systems/input'
@@ -133,6 +133,7 @@ export interface SimulationSubstepContext {
   now: number
   injectedSpeedFloor: number
   steeringAngle: number
+  fourWheelDriveMode: FourWheelDriveMode
 }
 
 function cloneRuntimeCandidate(candidate: SimulationRuntimeCandidate): SimulationRuntimeCandidate {
@@ -358,6 +359,8 @@ interface SimulationActions {
   setSteeringDeadzone: (deadzone: number) => void
   /** Atualiza o estado da permissão de sensores mobile */
   setSensorPermission: (perm: SensorPermissionState) => void
+  /** Alterna o modo de tração 4x4 (AUTO, 4WD, 4WD LOW) com trava de segurança em velocidade */
+  setFourWheelDriveMode: (mode: FourWheelDriveMode) => void
   /** Reseta dados de performance */
   resetPerformanceStats: () => void
   /** Atualiza a simulação (chamado pelo game loop) */
@@ -458,6 +461,10 @@ interface SimulationState {
   steeringSensitivity: number
   steeringDeadzone: number
   sensorPermission: SensorPermissionState
+
+  // Tração 4x4 (Fiat Toro Ranch 2025 e futuros veículos integrais)
+  fourWheelDriveMode: FourWheelDriveMode
+  fourWheelDriveWarning: string | null
 
   // Cronômetro 0-100 & Records
   best0to100: number | null
@@ -596,6 +603,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   steeringSensitivity: 1.0,
   steeringDeadzone: 2.0,
   sensorPermission: 'prompt',
+  fourWheelDriveMode: 'auto',
+  fourWheelDriveWarning: null,
   best0to100: null,
   last0to100: null,
   current0to100: null,
@@ -792,6 +801,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       steeringSensitivity: 1.0,
       steeringDeadzone: 2.0,
       sensorPermission: 'prompt',
+      fourWheelDriveMode: 'auto',
+      fourWheelDriveWarning: null,
       rpm: 0,
       speed: 0,
       currentGear: isAutoOrCvt ? -2 : 0,
@@ -1170,6 +1181,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setSensorPermission: (perm: SensorPermissionState) => {
     set({ sensorPermission: perm })
+  },
+
+  setFourWheelDriveMode: (mode: FourWheelDriveMode) => {
+    const currentSpeedKmh = get().speed
+    if (mode === '4wd_low' && currentSpeedKmh > 3.0) {
+      set({ fourWheelDriveWarning: '4WD LOW: Pare o veículo para engatar!' })
+      setTimeout(() => {
+        if (get().fourWheelDriveWarning === '4WD LOW: Pare o veículo para engatar!') {
+          set({ fourWheelDriveWarning: null })
+        }
+      }, 3500)
+      return
+    }
+    set({ fourWheelDriveMode: mode, fourWheelDriveWarning: null })
   },
 
   toggleSimulatedManual: () => {
@@ -1960,6 +1985,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       now,
       injectedSpeedFloor,
       steeringAngle: state.steeringAngle,
+      fourWheelDriveMode: state.fourWheelDriveMode,
     }
 
     // Sincroniza o estado mestre do integrador com eventuais injeções externas
@@ -2167,6 +2193,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           targetFriction += 0.14
         }
         _physics.setSurfaceFriction(targetFriction)
+        _physics.setFourWheelDriveMode(ctx.fourWheelDriveMode)
 
         const rawBrake = Math.max(ctx.brake, ctx.handbrake || gear === -2 ? 1 : 0)
         const effectiveBrake = rawBrake * substepPhys.brakeFadeFactor
@@ -2739,6 +2766,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       intakeType: 'stock',
       tires: 'street',
       isAeroWingExtended: false,
+      fourWheelDriveMode: 'auto',
+      fourWheelDriveWarning: null,
 
       clutchPosition: 0,
       transmissionMode: isManual ? 'manual' : 'automatic',

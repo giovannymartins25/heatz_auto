@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useUIStore } from '@/stores/useUIStore'
 import { useDeviceTilt } from '@/hooks/useDeviceTilt'
 import type { VehicleConfig } from '@/types/vehicle'
 
@@ -19,6 +20,7 @@ export interface SteeringControlZoneProps {
 export const SteeringControlZone = memo(function SteeringControlZone({
   className = '',
 }: SteeringControlZoneProps) {
+  const showTiltIndicator = useUIStore((s) => s.showTiltIndicator)
   const steeringAngle = useSimulationStore((s) => s.steeringAngle)
 
   const {
@@ -29,6 +31,12 @@ export const SteeringControlZone = memo(function SteeringControlZone({
     calibratedAngleDeg,
     isCalibrated,
   } = useDeviceTilt()
+
+  // Se o usuário optou por ocultar no Menu Rápido, não exibe o HUD visual,
+  // mas o sensor de inclinação acima (useDeviceTilt) permanece 100% ativo na escuta física.
+  if (!showTiltIndicator) {
+    return null
+  }
 
   const steerPercent = Math.round(Math.abs(steeringAngle) * 100)
   const steerDirection = steeringAngle < -0.02 ? 'ESQ' : steeringAngle > 0.02 ? 'DIR' : 'CENTRO'

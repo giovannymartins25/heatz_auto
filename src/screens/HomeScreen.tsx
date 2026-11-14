@@ -22,6 +22,8 @@ export const VEHICLE_PRICES: Record<string, { price: number; badge: string; desc
   'cb1000r': { price: 72000, badge: 'SUPER NAKED', description: '1.000cc 4 Cilindros · 142 cv · 12.000 RPM · Quickshifter' },
   'porsche-gt3': { price: 1850000, badge: 'MOTORSPORT', description: '4.0 Flat-6 Boxer · 9.000 RPM · Câmbio PDK 7M · Asa Ativa' },
   'opala-4100': { price: 68000, badge: '6 CILINDROS RWD', description: '4.1L 250-S · Tração Traseira · Câmbio 5M · Ronco Cavernoso' },
+  'fiat-toro-endurance-2025': { price: 152000, badge: 'SUP TURBO FLEX', description: '1.3 GSE T270 Flex · Câmbio AT6 Aisin · Tração Dianteira FWD' },
+  'fiat-toro-ranch-2025': { price: 219000, badge: 'SUP 4X4 DIESEL', description: '2.2 MultiJet II Turbodiesel · Câmbio ZF 9HP · Tração 4x4 com Reduzida' },
 }
 
 export function getVehicleSpecs(manifest?: any, vehicleId?: string) {
@@ -53,6 +55,12 @@ export function getVehicleSpecs(manifest?: any, vehicleId?: string) {
   } else if (id.includes('cb1000r')) {
     engine = '998cc 4 Cilindros DOHC'
     drivetrain = 'RWD (Moto)'
+  } else if (id.includes('toro-endurance')) {
+    engine = '1.3 16V GSE T270 Flex'
+    drivetrain = 'FWD (Dianteira)'
+  } else if (id.includes('toro-ranch')) {
+    engine = '2.2 16V MultiJet II Turbodiesel'
+    drivetrain = '4x4 Integral (AWD / LOW)'
   }
 
   const power = manifest?.powerHp ? `${manifest.powerHp} CV` : 'Potência'

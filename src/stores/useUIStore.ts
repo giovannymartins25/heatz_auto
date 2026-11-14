@@ -4,6 +4,19 @@ type Screen = 'home' | 'simulator'
 export type MapViewportSize = 'compact' | 'balanced' | 'expanded'
 export type GraphicProfile = 'eco' | 'normal' | 'high'
 
+const STORAGE_SHOW_TILT_INDICATOR_KEY = 'heatz_show_tilt_indicator'
+
+function getInitialShowTiltIndicator(): boolean {
+  if (typeof window === 'undefined') return true
+  try {
+    const saved = localStorage.getItem(STORAGE_SHOW_TILT_INDICATOR_KEY)
+    if (saved === null) return true
+    return saved === 'true'
+  } catch {
+    return true
+  }
+}
+
 export interface ActiveKeysState {
   w: boolean
   e: boolean
@@ -33,6 +46,8 @@ interface UIStoreState {
   graphicProfile: GraphicProfile
   /** Exibir HUD diagnóstico interno de desempenho (FPS, frame time, P95, física) */
   showPerformanceMonitor: boolean
+  /** Exibir indicador visual de inclinação do smartphone no HUD mobile (padrão: true) */
+  showTiltIndicator: boolean
   /** Teclas do teclado ativas para feedback visual no PC */
   activeKeys: ActiveKeysState
 }
@@ -46,6 +61,7 @@ interface UIStoreActions {
   setMapViewportSize: (size: MapViewportSize) => void
   setGraphicProfile: (profile: GraphicProfile) => void
   togglePerformanceMonitor: () => void
+  setShowTiltIndicator: (show: boolean) => void
   setActiveKey: (key: keyof ActiveKeysState, pressed: boolean) => void
 }
 
@@ -60,6 +76,7 @@ export const useUIStore = create<UIStore>((set) => ({
   mapViewportSize: 'balanced',
   graphicProfile: 'normal',
   showPerformanceMonitor: false,
+  showTiltIndicator: getInitialShowTiltIndicator(),
   activeKeys: {
     w: false,
     e: false,
@@ -80,6 +97,14 @@ export const useUIStore = create<UIStore>((set) => ({
   setMapViewportSize: (size) => set({ mapViewportSize: size }),
   setGraphicProfile: (profile) => set({ graphicProfile: profile }),
   togglePerformanceMonitor: () => set((s) => ({ showPerformanceMonitor: !s.showPerformanceMonitor })),
+  setShowTiltIndicator: (show) => {
+    try {
+      localStorage.setItem(STORAGE_SHOW_TILT_INDICATOR_KEY, String(show))
+    } catch {
+      // Ignora restrições locais de sandbox/localStorage
+    }
+    set({ showTiltIndicator: show })
+  },
   setActiveKey: (key, pressed) =>
     set((s) => {
       if (s.activeKeys[key] === pressed) return s
