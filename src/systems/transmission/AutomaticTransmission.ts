@@ -44,10 +44,18 @@ export class AutomaticTransmission {
   private readonly config: AutomaticTransmissionConfig
   private readonly wheelCircumference: number
   private shiftTimer: number = 0
+  private lastShiftDirection: 'up' | 'down' | 'none' = 'none'
+  private prevThrottle: number = 0
+  private shiftCount: number = 0
+  private coastingTimer: number = 0
 
   constructor(config: AutomaticTransmissionConfig) {
     this.config = config
     this.wheelCircumference = Math.PI * config.wheelDiameter
+  }
+
+  private getGearRatio(gear: number): number {
+    return this.config.gearRatios.find((g) => g.gear === gear)?.ratio ?? 0
   }
 
   /**
@@ -162,20 +170,26 @@ export class AutomaticTransmission {
     const maxGear = this.config.gearRatios.length
 
     this.shiftTimer += deltaTime
+    const throttleDelta = throttle - this.prevThrottle
+    this.prevThrottle = throttle
+    if (throttle < 0.08) {
+      this.coastingTimer += deltaTime
+    } else {
+      this.coastingTimer = 0
+    }
 
     // ─── 1. Acoplamento Automático (Embreagem Interna / Conversor de Torque do CVT) ───
     let targetClutchEngagement = 1.0
     if (vehicleSpeedKmh < 3 && throttle < 0.05 && brake > 0.1) {
       // Parado no semáforo com o pé no freio: desacopla para o motor não morrer
       targetClutchEngagement = 0.0
-    } else if (vehicleSpeedKmh < 22) {
-      // Arrancada com conversor de torque / embreagem CVT:
-      // Permite o motor subir de giro livremente em direção ao alvo do modo de condução
+    } else if (vehicleSpeedKmh < 8 || currentRpm < this.config.idleRpm * 1.18) {
+      // Arrancada suave e proteção anti-estol ao parar; acima de 8 km/h mantém acoplado para freio motor
       const { min: targetMinRpm } = this.getTargetRpmBand(drivingMode, selectorPosition, throttle, maxPowerRpm)
-      const targetLaunchRpm = Math.max(2000, targetMinRpm)
+      const targetLaunchRpm = Math.max(1850, Math.min(targetMinRpm, 2400))
       const rpmRatio = clamp((currentRpm - this.config.idleRpm) / (targetLaunchRpm - this.config.idleRpm), 0, 1)
-      const speedRatio = clamp(vehicleSpeedKmh / 22, 0, 1)
-      targetClutchEngagement = clamp(Math.pow(rpmRatio, 3.0) * 0.72 + speedRatio * 0.28, 0.05, 0.98)
+      const speedRatio = clamp(vehicleSpeedKmh / 14, 0, 1)
+      targetClutchEngagement = clamp(Math.pow(rpmRatio, 2.2) * 0.60 + speedRatio * 0.40, 0.05, 0.98)
     }
 
     // Se estiver em Park (-2) ou ponto morto (0), não realiza trocas automáticas para frente
@@ -198,13 +212,28 @@ export class AutomaticTransmission {
       }
     }
 
-    // Sem kickdown forçado: acelerador alto (80%+/100%) NUNCA pula aleatoriamente para o redline.
+    const { max: targetMaxRpm, downshiftThreshold } = this.getTargetRpmBand(
+      drivingMode,
+      selectorPosition,
+      throttle,
+      maxPowerRpm,
+    )
 
-    // Se acabou de trocar, aguarda histerese mínima para evitar trocas intermitentes normais
-    const shiftCooldown = 0.75
-    const rpmBandMax = this.getTargetRpmBand(drivingMode, selectorPosition, throttle, maxPowerRpm).max
-    const mustUpshiftSoon = currentRpm >= rpmBandMax && this.shiftTimer >= 0.3
-    if (this.shiftTimer < shiftCooldown && !mustUpshiftSoon) {
+    const isContinuousLoop = deltaTime < 0.5
+    const minSameDirCooldown = 0.65
+    const minReverseDirCooldown = 0.95
+    const isEmergencyLowRpm = currentGear > 1 && currentRpm < this.config.idleRpm * 1.15 && this.shiftTimer >= 0.20
+    const isOverRevDanger = currentGear < maxGear && currentRpm >= this.config.maxRpm * 0.94 && this.shiftTimer >= 0.25
+    const isRapidStomp = throttle >= 0.90 && throttleDelta >= 0.28
+
+    if (
+      isContinuousLoop &&
+      this.shiftCount > 0 &&
+      this.shiftTimer < minSameDirCooldown &&
+      !isEmergencyLowRpm &&
+      !isOverRevDanger &&
+      !(isRapidStomp && this.shiftTimer >= 0.30)
+    ) {
       return {
         targetGear: currentGear,
         targetClutchEngagement,
@@ -213,31 +242,67 @@ export class AutomaticTransmission {
       }
     }
 
-    const { max: targetMaxRpm, downshiftThreshold } = this.getTargetRpmBand(
-      drivingMode,
-      selectorPosition,
-      throttle,
-      maxPowerRpm,
-    )
-
-    // ─── 2. REDUÇÃO AUTOMÁTICA (Downshift) POR VELOCIDADE / ROTAÇÃO ───
+    // ─── 2. REDUÇÃO POR KICKDOWN E REDUÇÃO NORMAL COM HISTERESE ANTI-HUNTING ───
     if (currentGear > 1) {
       const lowerGear = currentGear - 1
-      const projectedRpm = this.speedToRpm(vehicleSpeedKmh, lowerGear)
+      const ratioCurrent = this.getGearRatio(currentGear)
+      const ratioLower = this.getGearRatio(lowerGear)
+      const gearStepRatio = ratioCurrent / Math.max(0.1, ratioLower)
+      const speedProjectedRpm = this.speedToRpm(vehicleSpeedKmh, lowerGear)
+      const projectedRpm =
+        speedProjectedRpm > 0 ? speedProjectedRpm : currentRpm / Math.max(0.1, gearStepRatio)
 
-      // Regra de segurança para a 1ª marcha:
-      // Em veículos reais, a 1ª marcha é exclusiva para arrancar da imobilidade.
-      // Nunca reduz de 2ª para 1ª marcha em movimento (>= 12 km/h) ao pisar no acelerador.
+      // Nunca reduz para 1ª marcha em movimento (>= 12 km/h)
       const allowDownshiftToFirst = lowerGear > 1 || vehicleSpeedKmh < 12
 
-      // Se a rotação cair abaixo do threshold do modo (ex: ~2000 no normal, ~4000 no sport)
-      // OU se o veículo estiver quase parando (< 8 km/h):
+      // Kickdown intencional quando o motorista pisa fundo em marcha alta (3ª+) e há margem útil antes do upshift
+      const wantsKickdown =
+        currentGear >= 3 &&
+        (isRapidStomp || (throttle >= 0.92 && this.lastShiftDirection !== 'up' && currentRpm < targetMaxRpm * 0.62)) &&
+        (this.lastShiftDirection !== 'up' || this.shiftTimer >= 0.70)
+
+      if (
+        wantsKickdown &&
+        allowDownshiftToFirst &&
+        projectedRpm >= this.config.idleRpm * 1.35 &&
+        projectedRpm <= Math.min(this.config.maxRpm * 0.86, targetMaxRpm - 250)
+      ) {
+        this.shiftTimer = 0
+        this.lastShiftDirection = 'down'
+        this.shiftCount += 1
+        return {
+          targetGear: lowerGear,
+          targetClutchEngagement: 1.0,
+          isKickdown: true,
+          targetRpm: projectedRpm,
+        }
+      }
+
+      const reverseBlocked =
+        isContinuousLoop && this.lastShiftDirection === 'up' && this.shiftTimer < minReverseDirCooldown
+      // Limiar consciente da razão entre marchas: garante que o RPM pós-upshift nunca caia dentro da zona de downshift
+      const hysteresisDownshiftCeiling = (targetMaxRpm - 320) * gearStepRatio
+      const effectiveDownshiftRpm = isContinuousLoop
+        ? Math.min(downshiftThreshold, hysteresisDownshiftCeiling)
+        : downshiftThreshold
+      const maxSafeProjectedRpm = isContinuousLoop
+        ? Math.min(this.config.maxRpm * 0.85, targetMaxRpm - 260)
+        : this.config.maxRpm * 0.94
+
+      const shouldNormalDownshift =
+        isEmergencyLowRpm ||
+        vehicleSpeedKmh < 8 ||
+        (currentRpm <= effectiveDownshiftRpm && projectedRpm <= maxSafeProjectedRpm)
+
       if (
         allowDownshiftToFirst &&
-        (currentRpm <= downshiftThreshold || vehicleSpeedKmh < 8) &&
+        (!reverseBlocked || isEmergencyLowRpm) &&
+        shouldNormalDownshift &&
         projectedRpm < this.config.maxRpm * 0.94
       ) {
         this.shiftTimer = 0
+        this.lastShiftDirection = 'down'
+        this.shiftCount += 1
         return {
           targetGear: lowerGear,
           targetClutchEngagement: 1.0,
@@ -247,15 +312,24 @@ export class AutomaticTransmission {
       }
     }
 
-    // ─── 3. SUBIDA DE RELAÇÃO (Upshift) ───
+    // ─── 3. SUBIDA DE RELAÇÃO (Upshift) COM PROTEÇÃO EM ALÍVIO DE ACELERADOR E HISTERESE ───
     if (currentGear < maxGear) {
-      // Se o RPM ultrapassou o alvo do modo atual e não estamos com freio pressionado
-      if (currentRpm >= targetMaxRpm && brake < 0.1) {
+      const reverseBlocked =
+        isContinuousLoop && this.lastShiftDirection === 'down' && this.shiftTimer < minReverseDirCooldown
+      const isCoasting = isContinuousLoop && (throttle < 0.08 || (throttleDelta < -0.20 && this.coastingTimer >= 0))
+      const upshiftMargin =
+        isContinuousLoop && this.lastShiftDirection === 'down' && this.shiftTimer < 1.5 ? 200 : 0
+      const effectiveUpshiftRpm = Math.min(this.config.maxRpm * 0.94, targetMaxRpm + upshiftMargin)
+
+      const allowUpshiftLoad = !isCoasting || isOverRevDanger
+      if (allowUpshiftLoad && (!reverseBlocked || isOverRevDanger) && currentRpm >= effectiveUpshiftRpm && brake < 0.1) {
         const higherGear = currentGear + 1
         const projectedRpm = this.speedToRpm(vehicleSpeedKmh, higherGear)
         // Só sobe se a próxima marcha não for cair abaixo da marcha lenta segura
         if (projectedRpm >= this.config.idleRpm * 1.35) {
           this.shiftTimer = 0
+          this.lastShiftDirection = 'up'
+          this.shiftCount += 1
           return {
             targetGear: higherGear,
             targetClutchEngagement: 1.0,
@@ -276,5 +350,9 @@ export class AutomaticTransmission {
 
   reset(): void {
     this.shiftTimer = 0
+    this.lastShiftDirection = 'none'
+    this.prevThrottle = 0
+    this.shiftCount = 0
+    this.coastingTimer = 0
   }
 }

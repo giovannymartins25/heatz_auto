@@ -73,8 +73,8 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
   const turboMultiplier = hasTurbo ? clamp(1 + Math.max(0, boostPressureBar) * 0.45, 0.75, 1.5) : 1
   const instantHp = Math.round(maxPowerHp * rpmFactor * throttleFactor * turboMultiplier * (rpm > 1200 ? 1 : 0.2))
 
-  // Temperatura do óleo
-  const oilTemp = Math.round(coolantTemp + (rpm > 4000 ? 7 : 3))
+  // Temperatura do óleo real da simulação térmica
+  const oilTemp = Math.round(telemetry.auxGauges.oilTemp ?? (coolantTemp + 4))
 
   return (
     <div

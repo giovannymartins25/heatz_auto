@@ -442,7 +442,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
                   </g>
                 </svg>
               </div>
-              <span className="text-[8px] text-zinc-400 font-bold">TEMP 90°C</span>
+              <span className="text-[8px] text-zinc-400 font-bold">TEMP {Math.round(auxGauges.coolantTemp)}°C</span>
             </div>
 
             {/* Combustível */}

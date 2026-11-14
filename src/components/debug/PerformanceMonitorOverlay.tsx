@@ -38,8 +38,10 @@ export const PerformanceMonitorOverlay = memo(function PerformanceMonitorOverlay
 
   if (!isVisible || !data) return null
 
+  // Taxa visual limitada a no máximo 60 FPS enquanto a física permanece em 120 Hz
+  const displayFps = data.visualFps > 0 ? Math.min(60, data.visualFps) : Math.min(60, data.fps)
   // Cores dinâmicas para alertas de frame drop / queda de FPS
-  const fpsColor = data.fps >= 55 ? 'text-emerald-400' : data.fps >= 35 ? 'text-amber-400' : 'text-red-400'
+  const fpsColor = displayFps >= 55 ? 'text-emerald-400' : displayFps >= 35 ? 'text-amber-400' : 'text-red-400'
   const p95Color = data.frameTimeP95Ms <= 18 ? 'text-emerald-400' : data.frameTimeP95Ms <= 30 ? 'text-amber-400' : 'text-red-400'
 
   return (
@@ -49,7 +51,7 @@ export const PerformanceMonitorOverlay = memo(function PerformanceMonitorOverlay
     >
       <div className="flex items-center gap-1">
         <span className="text-[7.5px] font-black uppercase text-zinc-500">FPS</span>
-        <b className={`font-black ${fpsColor}`}>{data.fps.toFixed(1)}</b>
+        <b className={`font-black ${fpsColor}`}>{displayFps.toFixed(1)}</b>
       </div>
 
       <span className="text-zinc-700">|</span>

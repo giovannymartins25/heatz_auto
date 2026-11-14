@@ -72,7 +72,8 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
       (isVtecActive ? 1.08 : 0.92)
   )
 
-  const oilTemp = Math.round(92 + (rpm / redlineRpm) * 16)
+  const coolantTemp = telemetry.auxGauges.coolantTemp ?? 88
+  const oilTemp = Math.round(telemetry.auxGauges.oilTemp ?? (coolantTemp + 4))
 
   return (
     <div

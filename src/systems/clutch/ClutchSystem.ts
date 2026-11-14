@@ -119,8 +119,15 @@ export class ClutchSystem {
     let loadTorqueOnEngine: number
 
     const isNearLock = Math.abs(deltaOmega) < 12.0 && engagement > 0.85
+    const isCoastingEngineBrake =
+      engineTorque < 0 && transmissionAngularVelocity > 1.0 && (isNearLock || deltaOmega < 25.0)
 
-    if (isNearLock) {
+    if (isCoastingEngineBrake) {
+      // Freio motor em movimento: torque negativo retém a transmissão e desacelera o veículo
+      transmittedTorque = clamp(engineTorque * engagement, -frictionCapacity, 0)
+      // Quando há diferença negativa de rotação (ex: redução de marcha), as rodas ajudam a subir o giro do motor
+      loadTorqueOnEngine = isNearLock ? 0 : Math.min(0, dynamicFrictionTorque)
+    } else if (isNearLock) {
       // Regime acoplado rígido: transfere o torque de acionamento do motor
       transmittedTorque = engineTorque
       loadTorqueOnEngine = engineTorque
@@ -134,8 +141,10 @@ export class ClutchSystem {
       loadTorqueOnEngine = dynamicFrictionTorque
     }
 
-    // Limita o torque transmitido à capacidade máxima instantânea
-    transmittedTorque = clamp(transmittedTorque, 0, frictionCapacity)
+    // Limita o torque transmitido à capacidade máxima instantânea (permite freio motor negativo)
+    transmittedTorque = isCoastingEngineBrake
+      ? clamp(transmittedTorque, -frictionCapacity, 0)
+      : clamp(transmittedTorque, 0, frictionCapacity)
 
     // 5. Patinação Ativa
     const isSlipping = slipRpm > 45 && engagement > 0.05 && engagement < 0.98

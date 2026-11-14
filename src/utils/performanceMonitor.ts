@@ -14,6 +14,7 @@
 
 export interface PerformanceSnapshot {
   fps: number
+  visualFps: number
   frameTimeMs: number
   avgFrameTimeMs: number
   frameTimeP95Ms: number
@@ -69,6 +70,10 @@ class PerformanceDiagnosticsTracker {
   private renderTimestamps: number[] = []
   private rendersPerSec = 0
 
+  // Taxa visual real publicada pela simulação (limitada a <= 60 FPS)
+  private visualPublishTimestamps: number[] = []
+  private visualFpsWindow = 0
+
   // Listeners para UI (disparados a cada ~500ms para custo mínimo)
   private listeners: Set<(snapshot: PerformanceSnapshot) => void> = new Set()
   private lastBroadcast = 0
@@ -113,6 +118,8 @@ class PerformanceDiagnosticsTracker {
     this.longTasksTotalMs = 0
     this.renderTimestamps = []
     this.rendersPerSec = 0
+    this.visualPublishTimestamps = []
+    this.visualFpsWindow = 0
   }
 
   public recordPhysicsTick(nowMs?: number) {
@@ -128,6 +135,13 @@ class PerformanceDiagnosticsTracker {
     const now = nowMs ?? getNowMs()
     this.renderTimestamps.push(now)
     this.updateRenderRate(now)
+  }
+
+  public recordVisualPublish(nowMs?: number) {
+    if (!this.enabled) return
+    const now = nowMs ?? getNowMs()
+    this.visualPublishTimestamps.push(now)
+    this.updateVisualRate(now)
   }
 
   public recordFrameDelta(dt: number, nowMs?: number) {
@@ -194,10 +208,28 @@ class PerformanceDiagnosticsTracker {
     this.rendersPerSec = this.renderTimestamps.length
   }
 
+  private updateVisualRate(now: number) {
+    const cutoff = now - 1000
+    while (this.visualPublishTimestamps.length > 0 && this.visualPublishTimestamps[0] <= cutoff) {
+      this.visualPublishTimestamps.shift()
+    }
+    if (this.visualPublishTimestamps.length === 0) {
+      this.visualFpsWindow = 0
+      return
+    }
+    const elapsedSinceStart = Math.max(16.67, Math.min(1000, now - this.physicsWindowStartMs))
+    const rawRate =
+      elapsedSinceStart < 1000
+        ? (this.visualPublishTimestamps.length * 1000) / elapsedSinceStart
+        : this.visualPublishTimestamps.length
+    this.visualFpsWindow = Math.min(60, Math.round(rawRate * 10) / 10)
+  }
+
   public flushMetrics(nowMs?: number) {
     const now = nowMs ?? getNowMs()
     this.updatePhysicsRate(now)
     this.updateRenderRate(now)
+    this.updateVisualRate(now)
   }
 
   public start(nowMs?: number) {
@@ -292,8 +324,15 @@ class PerformanceDiagnosticsTracker {
       }
     }
 
+    const rawFps = Math.round(this.fpsWindow * 10) / 10
+    const visualFps =
+      this.visualPublishTimestamps.length > 0
+        ? this.visualFpsWindow
+        : Math.min(60, rawFps)
+
     return {
-      fps: Math.round(this.fpsWindow * 10) / 10,
+      fps: rawFps,
+      visualFps,
       frameTimeMs: Math.round(this.currentFrameTime * 10) / 10,
       avgFrameTimeMs: Math.round(this.avgFrameTimeMs * 10) / 10,
       frameTimeP95Ms: this.calculateP95(),

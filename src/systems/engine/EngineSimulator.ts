@@ -37,6 +37,7 @@ export class EngineSimulator {
   private status: EngineStatus = 'off'
   private startingElapsed: number = 0
   private lastTorqueOutput: number = 0
+  private lastDrivetrainTorque: number = 0
 
   constructor(config: EngineConfig) {
     this.config = config
@@ -68,6 +69,88 @@ export class EngineSimulator {
 
   getTorqueOutput(): number {
     return this.lastTorqueOutput
+  }
+
+  /**
+   * Calcula torque de combustão e torque de freio motor para um dado acelerador e RPM.
+   */
+  private computeDrivetrainDemand(
+    throttle: number,
+    currentRpm: number,
+    availableTorque: number,
+    includeEngineBrake: boolean,
+  ) {
+    const rawThrottle = clamp(throttle, 0, 1)
+    const progressionExponent = this.config.throttleProgressionExponent ?? 1.45
+    const effectiveThrottle = rawThrottle > 0 ? Math.pow(rawThrottle, progressionExponent) : 0
+    let engineTorque = availableTorque * effectiveThrottle
+
+    let isRevLimiting = false
+    if (currentRpm >= this.config.revLimiter) {
+      engineTorque = 0
+      isRevLimiting = true
+    }
+
+    const frictionTorque = ENGINE_FRICTION_COEFFICIENT * this.angularVelocity
+    let engineBrakeTorque = 0
+    let drivetrainBrakeTorque = 0
+
+    if (includeEngineBrake && rawThrottle < 0.08 && currentRpm > this.config.idleRpm * 1.05) {
+      const coastFactor = 1 - rawThrottle / 0.08
+      const rpmAboveIdleRatio = clamp(
+        (currentRpm - this.config.idleRpm) / Math.max(1000, this.config.maxRpm - this.config.idleRpm),
+        0,
+        1.2,
+      )
+      // Perda por bombeamento em vácuo (em motores turbo reflete a base aspirada sem pressão de boost)
+      const naEquivalentPeak = this.config.turbo?.enabled
+        ? Math.min(this.config.maxTorque * 0.55, 240)
+        : Math.min(this.config.maxTorque, 360)
+      const effectiveBrakeRef = Math.min(availableTorque, naEquivalentPeak)
+      const pumpingLoss =
+        this.config.engineBrakeFactor *
+        (naEquivalentPeak * 0.45 + effectiveBrakeRef * 0.55) *
+        (0.45 + 0.85 * rpmAboveIdleRatio) *
+        coastFactor
+
+      engineBrakeTorque = pumpingLoss
+      drivetrainBrakeTorque = pumpingLoss + frictionTorque * coastFactor
+    }
+
+    const outputTorque = Math.max(0, engineTorque)
+    const drivetrainTorque =
+      outputTorque > 0 ? outputTorque : drivetrainBrakeTorque > 0 ? -drivetrainBrakeTorque : 0
+
+    return {
+      rawThrottle,
+      engineTorque,
+      outputTorque,
+      isRevLimiting,
+      frictionTorque,
+      engineBrakeTorque,
+      drivetrainBrakeTorque,
+      drivetrainTorque,
+    }
+  }
+
+  /**
+   * Torque líquido entregue ao eixo primário via embreagem (Nm).
+   * Positivo sob aceleração, negativo durante freio motor (desaceleração).
+   * Quando `throttle` é informado, calcula o valor instantâneo para o tick corrente sem defasagem de 1 substep.
+   */
+  getDrivetrainTorque(throttle?: number): number {
+    if (throttle === undefined) {
+      return this.lastDrivetrainTorque
+    }
+    if (this.status !== 'running') {
+      this.lastDrivetrainTorque = 0
+      return 0
+    }
+    const currentRpm = this.getRpm()
+    const availableTorque = this.torqueCurve.getTorqueAtRpm(currentRpm)
+    const demand = this.computeDrivetrainDemand(throttle, currentRpm, availableTorque, true)
+    this.lastDrivetrainTorque = demand.drivetrainTorque
+    return demand.drivetrainTorque
   }
 
   getTorqueAtRpm(rpm: number): number {
@@ -105,10 +188,13 @@ export class EngineSimulator {
       const decayTorque = ENGINE_FRICTION_COEFFICIENT * this.angularVelocity + 15
       const decel = decayTorque / this.momentOfInertia
       this.angularVelocity = Math.max(0, this.angularVelocity - decel * deltaTime)
+      this.lastTorqueOutput = 0
+      this.lastDrivetrainTorque = 0
 
       return {
         rpm: this.getRpm(),
         torqueOutput: 0,
+        engineBrakeTorque: 0,
         isRevLimiting: false,
         angularVelocity: this.angularVelocity,
         isStalled: this.status === 'stalled',
@@ -120,6 +206,8 @@ export class EngineSimulator {
     // ─── 2. ESTADO: STARTING (Cranking) ───
     if (this.status === 'starting') {
       this.startingElapsed += deltaTime
+      this.lastTorqueOutput = 0
+      this.lastDrivetrainTorque = 0
 
       // Durante o cranking, qualquer carga de transmissão é ignorada:
       // o motor de arranque gira sozinho sem estar acoplado ao drivetrain
@@ -147,20 +235,17 @@ export class EngineSimulator {
     // ─── 3. ESTADO: RUNNING (Funcionamento Normal) ───
     const currentRpm = this.getRpm()
 
-    // 3.1 Torque do motor baseado na curva de torque x resposta progressiva do acelerador
+    // 3.1/3.2/3.4/3.5 Torque de combustão, limitador, atrito e freio motor via helper compartilhado
     const availableTorque = this.torqueCurve.getTorqueAtRpm(currentRpm)
-    // Demanda de torque proporcional, progressiva e contínua do acelerador (0-100%)
-    const rawThrottle = clamp(throttle, 0, 1)
-    const progressionExponent = this.config.throttleProgressionExponent ?? 1.45
-    const effectiveThrottle = rawThrottle > 0 ? Math.pow(rawThrottle, progressionExponent) : 0
-    let engineTorque = availableTorque * effectiveThrottle
-
-    // 3.2 Limitador de Rotação (Rev Limiter) — corta injeção
-    let isRevLimiting = false
-    if (currentRpm >= this.config.revLimiter) {
-      engineTorque = 0
-      isRevLimiting = true
-    }
+    const {
+      engineTorque,
+      outputTorque,
+      isRevLimiting,
+      frictionTorque,
+      engineBrakeTorque,
+      drivetrainBrakeTorque,
+      drivetrainTorque,
+    } = this.computeDrivetrainDemand(throttle, currentRpm, availableTorque, deltaTime > 0)
 
     // 3.3 Atuador de Marcha Lenta (Idle Controller)
     // Mantém a rotação de idle quando não há carga, mas cede sob carga pesada da transmissão.
@@ -176,15 +261,6 @@ export class EngineSimulator {
     } else if (throttle < 0.12 && currentRpm < this.config.idleRpm * 1.2) {
       const rpmError = this.config.idleRpm - currentRpm
       idleTorque = clamp(rpmError * IDLE_CONTROLLER_GAIN * idleGainReduction, -10, 55)
-    }
-
-    // 3.4 Atrito interno do motor (proporcional à rotação)
-    const frictionTorque = ENGINE_FRICTION_COEFFICIENT * this.angularVelocity
-
-    // 3.5 Freio Motor (quando throttle é baixo e giro alto)
-    let engineBrakeTorque = 0
-    if (throttle < 0.05 && currentRpm > this.config.idleRpm * 1.1) {
-      engineBrakeTorque = this.config.engineBrakeFactor * availableTorque * 0.35
     }
 
     // 3.6 Torque Líquido atuando no virabrequim / volante
@@ -225,12 +301,13 @@ export class EngineSimulator {
     // Ocorre quando RPM está abaixo de 30% acima do idle sob carga
     const isBogWarning = postRpm < this.config.idleRpm * 1.30 && loadTorque > 0 && throttle < 0.4
 
-    const outputTorque = Math.max(0, engineTorque)
     this.lastTorqueOutput = outputTorque
+    this.lastDrivetrainTorque = drivetrainTorque
 
     return {
       rpm: postRpm,
       torqueOutput: outputTorque,
+      engineBrakeTorque: drivetrainBrakeTorque,
       isRevLimiting,
       angularVelocity: this.angularVelocity,
       isStalled: false,

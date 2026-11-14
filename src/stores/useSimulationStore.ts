@@ -31,6 +31,7 @@ export interface PhysicsInternalState {
   isOutOfFuel: boolean
   coolantTemp: number
   oilTemp: number
+  isRadiatorFanOn: boolean
   isEngineBlown: boolean
   damageReason: string | null
   engineBlownTrigger: number
@@ -104,6 +105,7 @@ function createInitialPhysicsInternalState(
   const isOutOfFuel = overrides.isOutOfFuel ?? false
   const coolantTemp = overrides.coolantTemp ?? 88
   const oilTemp = overrides.oilTemp ?? 92
+  const isRadiatorFanOn = overrides.isRadiatorFanOn ?? false
   const isEngineBlown = overrides.isEngineBlown ?? false
   const nosPressurePercent = overrides.nosPressurePercent ?? 100
   const nosActive = overrides.nosActive ?? false
@@ -123,6 +125,7 @@ function createInitialPhysicsInternalState(
     isOutOfFuel,
     coolantTemp,
     oilTemp,
+    isRadiatorFanOn,
     isEngineBlown,
     damageReason: overrides.damageReason ?? null,
     engineBlownTrigger: overrides.engineBlownTrigger ?? 0,
@@ -396,6 +399,7 @@ interface SimulationState {
   // Dinâmica Térmica & Danos
   coolantTemp: number
   oilTemp: number
+  isRadiatorFanOn: boolean
   isEngineBlown: boolean
   damageReason: string | null
   engineBlownTrigger: number
@@ -514,6 +518,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   // Dinâmica Térmica & Danos
   coolantTemp: 88,
   oilTemp: 92,
+  isRadiatorFanOn: false,
   isEngineBlown: false,
   damageReason: null,
   engineBlownTrigger: 0,
@@ -685,12 +690,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       tcsEnabled: hasTcs,
       tcsIntervening: false,
       tcsInterventionLevel: 0,
-      fuelType: initialUpgrades?.fuelType || (config.id === 'gol-quadrado' ? 'ethanol_e100' : 'common_gasoline'),
+      fuelType: initialUpgrades?.fuelType || ((config.id === 'gol-quadrado' || config.id === 'gol-quadrado-turbo') ? 'ethanol_e100' : 'common_gasoline'),
       fuelLevelLiters: 45,
       fuelCapacityLiters: 50,
       isOutOfFuel: false,
       coolantTemp: 88,
       oilTemp: 92,
+      isRadiatorFanOn: false,
       isEngineBlown: false,
       damageReason: null,
       engineBlownTrigger: 0,
@@ -1838,13 +1844,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         let targetClutchEngagement = 1.0
         if (speedKmh < 3 && state.throttle < 0.05 && state.brake > 0.1) {
           targetClutchEngagement = 0.0
-        } else if (speedKmh < 22) {
+        } else if (speedKmh < 8 || currentRpm < _config.engine.idleRpm * 1.18) {
           const idleRpm = _config.engine.idleRpm
-          const targetLaunchRpm = 2200
+          const targetLaunchRpm = Math.max(idleRpm + 800, 1900)
           const rpmRatio = clamp((currentRpm - idleRpm) / (targetLaunchRpm - idleRpm), 0, 1)
-          const speedRatio = clamp(speedKmh / 22, 0, 1)
+          const speedRatio = clamp(speedKmh / 14, 0, 1)
           targetClutchEngagement = clamp(
-            Math.pow(rpmRatio, 3.0) * 0.72 + speedRatio * 0.28,
+            Math.pow(rpmRatio, 2.2) * 0.60 + speedRatio * 0.40,
             0.05,
             0.98,
           )
@@ -1871,18 +1877,22 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         ? _engine.getAngularVelocity()
         : wheelAngVel * (gearRatio * finalDrive)
 
+      const effectiveSubstepThrottle = phys.isLaunchControlArmed
+        ? Math.min(state.throttle, 0.45)
+        : state.throttle
+
       // 3. ClutchSystem: torque de atrito transferido e carga sobre o motor
       const clutchState = _clutch.calculateTorqueTransfer(
         _engine.getAngularVelocity(),
         transInputAngVel,
         isInNeutral,
-        _engine.getTorqueOutput(),
+        _engine.getDrivetrainTorque(effectiveSubstepThrottle),
         dt,
       )
 
       // 4. EngineSimulator: processa o tick com o torque de CARGA da embreagem sobre o volante
       const engineTick = _engine.tick({
-        throttle: phys.isLaunchControlArmed ? Math.min(state.throttle, 0.45) : state.throttle,
+        throttle: effectiveSubstepThrottle,
         loadTorque: clutchState.loadTorqueOnEngine,
         deltaTime: dt,
       })
@@ -1933,8 +1943,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
       const rawBrake = Math.max(state.brake, state.handbrake || gear === -2 ? 1 : 0)
       const effectiveBrake = rawBrake * phys.brakeFadeFactor
+      const driveTorqueAtTransmission =
+        clutchState.transmittedTorque >= 0
+          ? clutchState.transmittedTorque * totalTorqueMult
+          : clutchState.transmittedTorque
       const physicsTick = _physics.tick({
-        driveTorqueAtTransmission: clutchState.transmittedTorque * totalTorqueMult,
+        driveTorqueAtTransmission,
         gearRatio,
         finalDrive,
         brake: effectiveBrake,
@@ -2076,19 +2090,57 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         }
       }
 
-      // Dinâmica Térmica do Motor & Superaquecimento
-      if (phys.isRunning) {
-        const stageHeatMult = stage === 1 ? 1.25 : stage === 2 ? 1.5 : stage === 3 ? 1.85 : 1.0
-        const fuelHeatFactor = state.fuelType === 'ethanol_e100' ? 0.90 : 1.0
-        const heatGenerated = (state.throttle * 0.70 + (phys.rpm / _config.engine.maxRpm) * 0.50) * stageHeatMult * fuelHeatFactor * 8.2 * dt
-        const radFan = phys.coolantTemp > 92 ? 0.45 : 0.15
-        const radCooling = ((phys.speedKmh / 110) + radFan) * Math.max(0, (phys.coolantTemp - 25) / 70) * 7.2 * dt
+      // Dinâmica Térmica do Motor, Termostática, Ventoinha (com Histerese) e Óleo
+      const targetCoolant = _config.dashboard.coolantTempTarget ?? 88
+      if (!phys.isRunning) {
+        phys.isRadiatorFanOn = false
+      } else if (!phys.isRadiatorFanOn && phys.coolantTemp >= 96.0) {
+        phys.isRadiatorFanOn = true
+      } else if (phys.isRadiatorFanOn && phys.coolantTemp <= 91.0) {
+        phys.isRadiatorFanOn = false
+      }
 
-        phys.coolantTemp = clamp(phys.coolantTemp + heatGenerated - radCooling, 25, 140)
-        phys.oilTemp += (phys.coolantTemp * 1.04 - phys.oilTemp) * clamp(dt * 0.8, 0, 1)
+      if (phys.isRunning) {
+        const stageHeatMult = stage === 1 ? 1.25 : stage === 2 ? 1.50 : stage === 3 ? 1.85 : 1.0
+        const fuelHeatFactor = state.fuelType === 'ethanol_e100' ? 0.90 : 1.0
+        const rpmRatio = clamp(phys.rpm / Math.max(1000, _config.engine.maxRpm), 0, 1.2)
+        const engineLoad = clamp(state.throttle * 0.72 + Math.pow(rpmRatio, 1.35) * 0.38, 0.05, 1.25)
+
+        // Válvula termostática mantém estabilidade perto da temperatura ideal e evita quedas bruscas
+        const thermostatOpen = clamp((phys.coolantTemp - (targetCoolant - 2)) / 8, 0.05, 1.0)
+        const coolantHeatIn = (0.10 + engineLoad * 1.15) * stageHeatMult * fuelHeatFactor
+        const radFanFactor = phys.isRadiatorFanOn ? 0.52 : 0.0
+        const airflowFactor = 0.20 + clamp(phys.speedKmh / 100, 0, 1.40) * 0.85 + radFanFactor
+        const tempDeltaAboveAmbient = Math.max(0, phys.coolantTemp - 25) / 65
+        const coolantCoolingOut = airflowFactor * tempDeltaAboveAmbient * thermostatOpen * 0.85
+
+        // Regulação suave em marcha lenta/baixa carga para manter patamar operacional
+        const idleEquilibriumPull =
+          state.throttle < 0.08 && phys.coolantTemp > targetCoolant && phys.coolantTemp < 95.5
+            ? (phys.coolantTemp - targetCoolant) * 0.025
+            : 0
+
+        phys.coolantTemp = clamp(
+          phys.coolantTemp + (coolantHeatIn - coolantCoolingOut - idleEquilibriumPull) * dt,
+          20,
+          135,
+        )
+
+        // Temperatura do óleo com inércia térmica própria ligada a RPM, carga e troca com arrefecimento
+        const targetOilEquilibrium =
+          phys.coolantTemp + 3.5 + (Math.pow(rpmRatio, 1.6) * 11.0 + state.throttle * 6.5) * stageHeatMult
+        const oilTau = phys.oilTemp < targetOilEquilibrium ? 0.065 : 0.045
+        phys.oilTemp = clamp(
+          phys.oilTemp + (targetOilEquilibrium - phys.oilTemp) * clamp(dt * oilTau, 0, 1),
+          20,
+          150,
+        )
+      } else if (phys.status === 'starting') {
+        phys.coolantTemp = Math.max(25, phys.coolantTemp - 0.02 * dt)
+        phys.oilTemp = Math.max(25, phys.oilTemp - 0.02 * dt)
       } else {
-        phys.coolantTemp = Math.max(25, phys.coolantTemp - 1.2 * dt)
-        phys.oilTemp = Math.max(25, phys.oilTemp - 1.0 * dt)
+        phys.coolantTemp = Math.max(25, phys.coolantTemp - Math.max(0.03, (phys.coolantTemp - 25) * 0.008) * dt)
+        phys.oilTemp = Math.max(25, phys.oilTemp - Math.max(0.025, (phys.oilTemp - 25) * 0.006) * dt)
       }
 
       // Superaquecimento crítico (>=125°C)
@@ -2228,10 +2280,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       HapticFeedback.revLimiter()
     }
 
-    // ─── Throttling Determinístico de Publicação Visual (35Hz / 60Hz / 120Hz) & Lenta (150ms) ───
+    // ─── Throttling Determinístico de Publicação Visual (ECO ~35Hz / NORMAL & ALTO máx 60Hz) & Lenta (150ms) ───
     phys.elapsedSimMs += frameTime * 1000
     const profile = useUIStore.getState().graphicProfile
-    const minVisualInterval = profile === 'eco' ? 28 : profile === 'normal' ? 15.5 : 0
+    const minVisualInterval = profile === 'eco' ? 28 : 16.0
 
     const wasLowFuel = state.fuelLevelLiters <= 5
     const isLowFuel = phys.fuelLevelLiters <= 5
@@ -2257,6 +2309,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       phys.isOutOfFuel !== state.isOutOfFuel ||
       phys.isBrakeGlowing !== state.isBrakeGlowing ||
       phys.dragStage !== state.dragStage ||
+      phys.isRadiatorFanOn !== state.isRadiatorFanOn ||
       (isLowFuel && !wasLowFuel) ||
       (isHighCoolant && !wasHighCoolant) ||
       isBrakeFade !== wasBrakeFade
@@ -2282,6 +2335,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     phys.visualUpdatesCount += 1
     phys.lastVisualUpdateMs = phys.elapsedSimMs
+    performanceMonitor.recordVisualPublish()
 
     const shouldUpdateSlow =
       phys.slowUpdatesCount === 0 ||
@@ -2303,8 +2357,14 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const pubPeakBoost = Math.round(phys.peakBoostBar * 100) / 100
     const pubFuel = shouldUpdateSlow ? Math.round(phys.fuelLevelLiters * 1000) / 1000 : state.fuelLevelLiters
     const pubOutOfFuel = shouldUpdateSlow ? phys.isOutOfFuel : state.isOutOfFuel
-    const pubCoolant = shouldUpdateSlow ? Math.round(phys.coolantTemp * 10) / 10 : state.coolantTemp
-    const pubOil = shouldUpdateSlow ? Math.round(phys.oilTemp * 10) / 10 : state.oilTemp
+    const roundedCoolant = Math.round(phys.coolantTemp * 10) / 10
+    const roundedOil = Math.round(phys.oilTemp * 10) / 10
+    const hasTempDelta =
+      Math.abs(roundedCoolant - state.coolantTemp) >= 0.1 ||
+      Math.abs(roundedOil - state.oilTemp) >= 0.1 ||
+      phys.isRadiatorFanOn !== state.isRadiatorFanOn
+    const pubCoolant = (shouldUpdateSlow || hasTempDelta) ? roundedCoolant : state.coolantTemp
+    const pubOil = (shouldUpdateSlow || hasTempDelta) ? roundedOil : state.oilTemp
     const pubBrakeDiscTemp = shouldUpdateSlow ? Math.round(phys.brakeDiscTemp * 10) / 10 : state.brakeDiscTemp
     const pubBrakeFadeFactor = shouldUpdateSlow ? phys.brakeFadeFactor : state.brakeFadeFactor
     const pubNosPressure = Math.round(phys.nosPressurePercent * 10) / 10
@@ -2361,6 +2421,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isOutOfFuel: pubOutOfFuel,
       coolantTemp: pubCoolant,
       oilTemp: pubOil,
+      isRadiatorFanOn: phys.isRadiatorFanOn,
       isEngineBlown: phys.isEngineBlown,
       damageReason: phys.damageReason,
       engineBlownTrigger: phys.engineBlownTrigger,
@@ -2435,6 +2496,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isOutOfFuel: false,
       coolantTemp: 88,
       oilTemp: 92,
+      isRadiatorFanOn: false,
       isEngineBlown: false,
       damageReason: null,
       engineBlownTrigger: 0,

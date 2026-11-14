@@ -3,7 +3,8 @@ import type { EngineStatus } from './simulation'
 /** Resultado de um tick da simulação do motor */
 export interface EngineTickResult {
   rpm: number
-  torqueOutput: number      // Nm
+  torqueOutput: number      // Nm (torque positivo de propulsão)
+  engineBrakeTorque?: number // Nm (magnitude do torque resistivo de freio motor quando negativo no eixo)
   isRevLimiting: boolean
   angularVelocity: number   // rad/s
   isStalled: boolean

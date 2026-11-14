@@ -32,6 +32,11 @@ export interface DashboardInput {
   tcsEnabled: boolean
   tcsIntervening: boolean
   tcsInterventionLevel: number
+  coolantTemp?: number
+  oilTemp?: number
+  fuelLevelLiters?: number
+  fuelCapacityLiters?: number
+  isEngineBlown?: boolean
   dashboardConfig: DashboardConfig
 }
 
@@ -110,6 +115,7 @@ export interface DashboardTelemetry {
     fuelCapacity: number
     fuelPercent: number
     coolantTemp: number
+    oilTemp?: number
     tempTarget: number
     isTempOptimal: boolean
   }
@@ -152,6 +158,11 @@ export class DashboardSystem {
       tcsEnabled,
       tcsIntervening,
       tcsInterventionLevel,
+      coolantTemp: inputCoolantTemp,
+      oilTemp: inputOilTemp,
+      fuelLevelLiters: inputFuelLevelLiters,
+      fuelCapacityLiters: inputFuelCapacityLiters,
+      isEngineBlown,
       dashboardConfig,
     } = input
 
@@ -239,10 +250,18 @@ export class DashboardSystem {
     const throttlePercent = Math.round(clamp(throttle, 0, 1) * 100)
     const brakePercent = Math.round(clamp(brake, 0, 1) * 100)
     const clutchPercent = hasClutch ? Math.round(clamp(clutchPosition, 0, 1) * 100) : null
+    // 8. Instrumentos auxiliares (Combustível e Temperatura ao vivo da simulação)
+    const fuelCapacity = inputFuelCapacityLiters ?? dashboardConfig.fuelCapacity ?? 50
+    const fuelLevel = clamp(inputFuelLevelLiters ?? fuelCapacity, 0, fuelCapacity)
+    const fuelPercent = fuelCapacity > 0 ? Math.round((fuelLevel / fuelCapacity) * 100) : 0
+    const tempTarget = dashboardConfig.coolantTempTarget ?? 90
+    const coolantTemp = inputCoolantTemp ?? tempTarget
+    const oilTemp = inputOilTemp ?? coolantTemp + 4
+
     // 7. Luzes de aviso automotivas (Tell-tales baseadas em estados reais)
     const warningLights = {
-      // Check engine: acende se motor estolou ou no auto-teste durante partida
-      checkEngine: engineStatus === 'stalled' || engineStatus === 'starting',
+      // Check engine: acende se motor estolou, fundiu ou no auto-teste durante partida
+      checkEngine: engineStatus === 'stalled' || engineStatus === 'starting' || Boolean(isEngineBlown),
       // Luz de óleo: acende se motor desligado ou estolado (bomba sem pressão)
       oil: engineStatus === 'off' || engineStatus === 'stalled',
       // Bateria/Alternador: acende se não está gerando carga com motor ligado
@@ -253,18 +272,13 @@ export class DashboardSystem {
       tcs: !tcsEnabled,
       // TCS flash: pisca durante intervenção
       tcsFlash: tcsEnabled && tcsIntervening,
-      // Temperatura: neutro (pronto para futura física térmica)
-      temp: false,
+      // Temperatura: acende se temperatura >= 115°C ou motor superaqueceu
+      temp: coolantTemp >= 115 || Boolean(isEngineBlown),
       // Clutch slip: indica patinão ativa da embreagem
       clutchSlip: hasClutch && (isClutchSlipping ?? false),
       // Bog warning: motor amarrando (pré-afogamento)
       bogWarning: (isBogWarning ?? false) && engineStatus === 'running',
     }
-
-    // 8. Instrumentos auxiliares (Combustível e Temperatura — estrutura preparada)
-    const fuelCapacity = dashboardConfig.fuelCapacity ?? 50
-    const fuelLevel = fuelCapacity
-    const coolantTemp = dashboardConfig.coolantTempTarget ?? 90
 
     return {
       tachometer: {
@@ -329,10 +343,11 @@ export class DashboardSystem {
       auxGauges: {
         fuelLevel,
         fuelCapacity,
-        fuelPercent: 100,
+        fuelPercent,
         coolantTemp,
-        tempTarget: coolantTemp,
-        isTempOptimal: true,
+        oilTemp,
+        tempTarget,
+        isTempOptimal: coolantTemp >= 75 && coolantTemp <= 105,
       },
       theme,
     }
@@ -365,6 +380,11 @@ export class DashboardSystem {
       tcsEnabled: boolean
       tcsIntervening: boolean
       tcsInterventionLevel: number
+      coolantTemp?: number
+      oilTemp?: number
+      fuelLevelLiters?: number
+      fuelCapacityLiters?: number
+      isEngineBlown?: boolean
     },
   ): DashboardInput {
     return {
@@ -395,6 +415,11 @@ export class DashboardSystem {
       tcsEnabled: state.tcsEnabled,
       tcsIntervening: state.tcsIntervening,
       tcsInterventionLevel: state.tcsInterventionLevel,
+      coolantTemp: state.coolantTemp,
+      oilTemp: state.oilTemp,
+      fuelLevelLiters: state.fuelLevelLiters,
+      fuelCapacityLiters: state.fuelCapacityLiters,
+      isEngineBlown: state.isEngineBlown,
       dashboardConfig: config.dashboard,
     }
   }

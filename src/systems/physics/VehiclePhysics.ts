@@ -140,6 +140,14 @@ export class VehiclePhysics {
         this.wheelSpeedMs = this.speedMs
         slipRatio = 0
       }
+    } else if (gearRatio !== 0 && driveTorqueAtTransmission < 0 && this.speedMs > 0.05) {
+      // Freio motor em desaceleração: torque negativo na transmissão desacelera o veículo
+      const rawBrakingWheelTorque =
+        (driveTorqueAtTransmission * effectiveTotalRatio) / Math.max(0.75, this.efficiency)
+      wheelTorque = Math.max(rawBrakingWheelTorque, -maxGripTorque)
+      tractionForce = wheelTorque / this.wheelRadius
+      this.wheelSpeedMs = this.speedMs
+      slipRatio = 0
     } else {
       this.wheelSpeedMs = this.speedMs
     }

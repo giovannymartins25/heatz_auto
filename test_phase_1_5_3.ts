@@ -186,7 +186,7 @@ test('A.2 Equivalência exata de física em 120 FPS (1/120s) e variação mínim
 
   assert.ok(eco120.skippedVisualUpdatesCount > 400, `120 FPS em ECO deve pular >400 frames visuais (pulou ${eco120.skippedVisualUpdatesCount})`)
   assert.ok(normal120.skippedVisualUpdatesCount > 200, `120 FPS em NORMAL deve pular >200 frames visuais (pulou ${normal120.skippedVisualUpdatesCount})`)
-  assert.strictEqual(high120.skippedVisualUpdatesCount, 0, '120 FPS em ALTO não pula atualização visual')
+  assert.ok(high120.skippedVisualUpdatesCount > 200, `Fase 1.5.5: 120 Hz em ALTO respeita teto visual de 60 FPS pulando frames intermediários (pulou ${high120.skippedVisualUpdatesCount})`)
 
   assert.ok(Math.abs(eco120.speed - high120.speed) < 0.001, '120 FPS ECO vs ALTO velocidade idêntica')
   assert.ok(Math.abs(normal120.speed - high120.speed) < 0.001, '120 FPS NORMAL vs ALTO velocidade idêntica')

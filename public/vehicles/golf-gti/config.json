@@ -49,8 +49,8 @@
       { "gear": 1, "ratio": 3.462 },
       { "gear": 2, "ratio": 2.050 },
       { "gear": 3, "ratio": 1.300 },
-      { "gear": 4, "ratio": 0.902 },
-      { "gear": 5, "ratio": 0.914 },
+      { "gear": 4, "ratio": 1.030 },
+      { "gear": 5, "ratio": 0.850 },
       { "gear": 6, "ratio": 0.756 }
     ],
     "reverseRatio": 3.989,

@@ -84,6 +84,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const shifterLayout = useSimulationStore((s) => s.shifterLayout)
   const toggleShifterLayout = useSimulationStore((s) => s.toggleShifterLayout)
   const fuelLevelLiters = useSimulationStore((s) => s.fuelLevelLiters)
+  const fuelCapacityLiters = useSimulationStore((s) => s.fuelCapacityLiters)
   const fuelType = useSimulationStore((s) => s.fuelType)
   const isOutOfFuel = useSimulationStore((s) => s.isOutOfFuel)
   const coolantTemp = useSimulationStore((s) => s.coolantTemp)
@@ -153,6 +154,11 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
       tcsEnabled,
       tcsIntervening,
       tcsInterventionLevel,
+      coolantTemp,
+      oilTemp,
+      fuelLevelLiters,
+      fuelCapacityLiters,
+      isEngineBlown,
     })
     return DashboardSystem.computeTelemetry(input)
   }, [
@@ -178,6 +184,11 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
     tcsEnabled,
     tcsIntervening,
     tcsInterventionLevel,
+    coolantTemp,
+    oilTemp,
+    fuelLevelLiters,
+    fuelCapacityLiters,
+    isEngineBlown,
   ])
 
   const { isLandscape, isPortrait, isMobileDevice, lockLandscape } = useOrientation()

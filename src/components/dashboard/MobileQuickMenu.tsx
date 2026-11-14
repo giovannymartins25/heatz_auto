@@ -222,7 +222,7 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
           <Tile
             icon="⚡"
             label="Gráficos"
-            sub={graphicProfile === 'eco' ? 'ECO (LEVE)' : graphicProfile === 'normal' ? 'NORMAL' : 'ALTO (120HZ)'}
+            sub={graphicProfile === 'eco' ? 'ECO (LEVE)' : graphicProfile === 'normal' ? 'NORMAL' : 'ALTO (60FPS)'}
             active={graphicProfile !== 'normal'}
             activeClass="bg-purple-500/20 border-purple-400 text-purple-200"
             onClick={cycleGraphicProfile}
