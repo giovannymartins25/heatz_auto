@@ -180,6 +180,9 @@ export interface VehicleInfo {
   torqueKgfm?: number        // Ex: 14.3
 }
 
+import type { ChassisConfig } from '@/systems/physics/Chassis'
+export type { ChassisConfig }
+
 /** Configuração completa de um veículo */
 export interface VehicleConfig {
   id: string
@@ -188,6 +191,7 @@ export interface VehicleConfig {
   transmission: TransmissionConfig
   audio: AudioConfig
   dashboard: DashboardConfig
+  chassis?: ChassisConfig
 }
 
 /** Manifest de veículos disponíveis (índice) */

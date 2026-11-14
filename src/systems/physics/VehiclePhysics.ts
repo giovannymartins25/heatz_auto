@@ -1,9 +1,12 @@
 import { clamp } from '@/utils/math'
+import { VehicleChassis, type ChassisConfig, type DynamicLoadResult, type AxleLoads, createVehicleChassis } from './Chassis'
 
 export interface VehiclePhysicsConfig {
   weight: number        // kg
   wheelDiameter: number // metros
   isMotorcycle?: boolean
+  vehicleId?: string
+  chassis?: VehicleChassis | ChassisConfig
 }
 
 export interface PhysicsTickInput {
@@ -31,10 +34,16 @@ export interface PhysicsTickResult {
 
 /**
  * VehiclePhysics — Simulação de dinâmica longitudinal do veículo baseada em forças.
+ * 
+ * Fase 1.6.1: Integrado com VehicleChassis para representação tipada do centro de massa,
+ * geometria entre-eixos e distribuição estática/dinâmica de cargas normais (SI).
  *
- * Substitui o cálculo cinemático rígido (rpmToSpeed) por física real:
+ * Equações físicas fundamentadas:
+ * - Força peso: W = m * g
+ * - Distribuição estática: F_zf0 = m * g * (b / L), F_zr0 = m * g * (a / L)
+ * - Transferência dinâmica: Delta_Fz = (m * h_cg / L) * a_x
  * - Força de tração nas rodas: F_trac = (Torque * Relação * Diferencial * Eficiência) / Raio
- * - Limite de aderência do pneu (Atrito de Coulomb): F_grip = mu * N
+ * - Limite de aderência do pneu (Atrito de Coulomb): F_grip = mu * N_motriz
  * - Escorregamento de roda (Wheel Slip) sob excesso de torque
  * - Resistência ao rolamento: F_rr = Crr * m * g
  * - Arrasto aerodinâmico: F_aero = 0.5 * rho * Cd * A * v²
@@ -48,6 +57,9 @@ export class VehiclePhysics {
   private readonly aeroConstant: number
   private readonly rollingCoeff: number
   private readonly driveAxleWeightRatio: number
+  private readonly isMotorcycle: boolean
+  private readonly vehicleId?: string
+  private readonly chassis: VehicleChassis
 
   private speedMs: number = 0 // velocidade linear em m/s
   private accelerationMs2: number = 0
@@ -55,14 +67,65 @@ export class VehiclePhysics {
   private wheelSpeedMs: number = 0
 
   constructor(config: VehiclePhysicsConfig) {
-    this.mass = Math.max(100, config.weight)
-    this.wheelRadius = config.wheelDiameter / 2
-    this.efficiency = config.isMotorcycle ? 0.93 : 0.90
-    this.driveAxleWeightRatio = config.isMotorcycle ? 0.50 : 0.62 // Tração dianteira no Yaris (~62% peso na frente)
+    this.isMotorcycle = config.isMotorcycle ?? false
+    this.vehicleId = config.vehicleId
+
+    // Inicialização da representação física de chassi e centro de massa
+    if (config.chassis instanceof VehicleChassis) {
+      this.chassis = config.chassis
+    } else if (config.chassis) {
+      this.chassis = new VehicleChassis(config.chassis)
+    } else if (config.vehicleId) {
+      this.chassis = createVehicleChassis(config.vehicleId, {
+        weight: config.weight,
+        wheelDiameter: config.wheelDiameter,
+        isMotorcycle: this.isMotorcycle,
+      })
+    } else {
+      this.chassis = createVehicleChassis(undefined, {
+        weight: config.weight,
+        wheelDiameter: config.wheelDiameter,
+        isMotorcycle: this.isMotorcycle,
+      })
+    }
+
+    this.mass = this.chassis.totalMass
+    this.wheelRadius = this.chassis.wheelRadius
+    this.efficiency = this.isMotorcycle ? 0.93 : 0.90
+
+    // Relação de peso no eixo tracionado
+    if (this.vehicleId === 'porsche-gt3' || this.vehicleId === 'opala-4100' || this.isMotorcycle) {
+      // Veículos com tração traseira (RWD / Motocicleta)
+      this.driveAxleWeightRatio = this.chassis.rearWeightRatio
+    } else {
+      // Veículos com tração dianteira (FWD padrão)
+      this.driveAxleWeightRatio = this.chassis.frontWeightRatio
+    }
 
     // Constante aerodinâmica 0.5 * rho * Cd * A
-    this.aeroConstant = config.isMotorcycle ? 0.25 : 0.40
+    this.aeroConstant = this.isMotorcycle ? 0.25 : 0.40
     this.rollingCoeff = 0.015 // Asfalto típico
+  }
+
+  /**
+   * Retorna a instância física de chassi e centro de massa associada.
+   */
+  getChassis(): VehicleChassis {
+    return this.chassis
+  }
+
+  /**
+   * Retorna as cargas dinâmicas atuais nos eixos sob a aceleração corrente.
+   */
+  getAxleLoads(): DynamicLoadResult {
+    return this.chassis.getDynamicAxleLoads(this.accelerationMs2)
+  }
+
+  /**
+   * Retorna as cargas estáticas em repouso nos eixos.
+   */
+  getStaticAxleLoads(): AxleLoads {
+    return this.chassis.getStaticAxleLoads()
   }
 
   getSpeedKmh(): number {
@@ -96,9 +159,10 @@ export class VehiclePhysics {
 
   /**
    * Retorna o torque máximo que o atrito dos pneus suporta antes de patinar.
+   * Utiliza a carga normal sobre o eixo de tração com base no centro de massa e gravidade física.
    */
   getMaxGripTorque(): number {
-    const normalForce = this.mass * 9.81 * this.driveAxleWeightRatio
+    const normalForce = this.mass * this.chassis.gravity * this.driveAxleWeightRatio
     const maxGripForce = this.surfaceFriction * normalForce
     return maxGripForce * this.wheelRadius
   }
@@ -153,13 +217,13 @@ export class VehiclePhysics {
     }
 
     // 2. Força de Resistência ao Rolamento (Newtons)
-    const rollingResistance = this.rollingCoeff * this.mass * 9.81
+    const rollingResistance = this.rollingCoeff * this.mass * this.chassis.gravity
 
     // 3. Força de Resistência Aerodinâmica (Newtons: proporcional a v²)
     const aeroResistance = this.aeroConstant * this.speedMs * this.speedMs
 
     // 4. Força de Frenagem (Newtons: desaceleração máxima de ~1.1G)
-    const maxBrakeForce = this.mass * 9.81 * 1.1
+    const maxBrakeForce = this.mass * this.chassis.gravity * 1.1
     const brakeForce = clamp(brake, 0, 1) * maxBrakeForce
 
     // 5. Força Líquida atuando no chassi
@@ -215,5 +279,6 @@ export class VehiclePhysics {
   reset(): void {
     this.speedMs = 0
     this.accelerationMs2 = 0
+    this.wheelSpeedMs = 0
   }
 }

@@ -580,6 +580,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       weight: config.info.weight,
       wheelDiameter: config.info.wheelDiameter,
       isMotorcycle: config.info.category === 'motorcycle',
+      vehicleId: config.id,
+      chassis: config.chassis,
     })
 
     let autoTransmission: AutomaticTransmission | null = null
