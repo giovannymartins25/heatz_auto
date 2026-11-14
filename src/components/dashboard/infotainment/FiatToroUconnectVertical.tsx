@@ -103,10 +103,9 @@ export const FiatToroUconnectVertical = memo(function FiatToroUconnectVertical({
       className={`relative flex flex-col justify-between overflow-hidden rounded-2xl bg-zinc-950 border-2 border-amber-900/60 text-zinc-100 select-none shadow-[0_0_30px_rgba(180,83,9,0.25)] ${
         fill ? 'w-full h-full' : 'w-full max-w-[560px] aspect-[9/13]'
       } ${className}`}
-      data-prevent-swipe
     >
-      {/* Moldura Premium Ranch com textura marrom/bronze */}
-      <header className="flex h-8 shrink-0 items-center justify-between border-b border-amber-800/40 bg-gradient-to-r from-amber-950/80 via-zinc-900 to-amber-950/80 px-2.5 text-[9px] font-mono">
+      {/* Moldura Premium Ranch com textura marrom/bronze — Barra de arraste/encaixe */}
+      <header className="flex h-8 shrink-0 items-center justify-between border-b border-amber-800/40 bg-gradient-to-r from-amber-950/80 via-zinc-900 to-amber-950/80 px-2.5 text-[9px] font-mono cursor-grab active:cursor-grabbing select-none">
         <div className="flex items-center gap-1.5">
           <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-900/50 border border-amber-600/40 text-amber-300 font-sans font-black text-[8px] uppercase tracking-wider">
             <span>🐂</span>

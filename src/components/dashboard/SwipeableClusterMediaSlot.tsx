@@ -126,6 +126,7 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
       onPointerMove={handlePointerMove}
       onPointerUp={(e) => endGesture(e)}
       onPointerCancel={(e) => endGesture(e, true)}
+      onLostPointerCapture={(e) => endGesture(e, true)}
       style={{ touchAction: 'pan-y' }}
       aria-label="Slot inferior de instrumentos e multimídia"
       data-swipe-slot
@@ -165,7 +166,12 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
         style={{ width: '200%', transform: `translateX(calc(${-index * 50}% + ${dragOffset}px))` }}
         data-swipe-track
       >
-        <div className="relative h-full w-1/2" data-pane="cluster" aria-hidden={activeView !== 'cluster'}>
+        <div
+          className="relative h-full w-1/2"
+          data-pane="cluster"
+          aria-hidden={activeView !== 'cluster'}
+          style={{ pointerEvents: activeView === 'cluster' ? 'auto' : 'none' }}
+        >
           <div className="absolute inset-0 flex items-center justify-center">
             {supportsPaddleShifters && isManualActive && (
               <div className="flex-shrink-0 mr-1 z-20 pointer-events-auto">

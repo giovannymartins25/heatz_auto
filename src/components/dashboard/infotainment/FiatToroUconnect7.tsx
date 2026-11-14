@@ -89,10 +89,9 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
       className={`relative flex flex-col justify-between overflow-hidden rounded-2xl bg-zinc-950 border border-zinc-800 text-zinc-100 select-none shadow-2xl ${
         fill ? 'w-full h-full' : 'w-full max-w-[720px] aspect-[16/9]'
       } ${className}`}
-      data-prevent-swipe
     >
-      {/* Moldura superior estilo Uconnect 7" */}
-      <header className="flex h-7 shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-3 text-[10px] font-mono">
+      {/* Moldura superior estilo Uconnect 7" — Barra de arraste/encaixe */}
+      <header className="flex h-7 shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-3 text-[10px] font-mono cursor-grab active:cursor-grabbing select-none">
         <div className="flex items-center gap-2">
           {/* Logo Fiat text + bandeira italiana */}
           <div className="flex items-center gap-1 font-black tracking-wider text-red-500">
