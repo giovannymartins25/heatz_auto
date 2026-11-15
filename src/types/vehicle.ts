@@ -255,8 +255,11 @@ export function getVehicleCapabilities(vehicle: VehicleConfig): VehicleCapabilit
         ? transmission.supportedModes
         : ['eco', 'normal', 'sport']
   } else if (vehicle.id.includes('toro-ranch') || vehicle.id.includes('toro')) {
-    // Toro Ranch / outras versões 4x4: foco nos modos de tração 4x4
-    supportedDrivingModes = []
+    // Toro Ranch: possui modos de troca de marcha Eco, Normal e Sport
+    supportedDrivingModes =
+      transmission.supportedModes && transmission.supportedModes.length > 0
+        ? transmission.supportedModes
+        : ['eco', 'normal', 'sport']
   } else if (vehicle.id === 'yaris-2019' || vehicle.id.includes('yaris')) {
     // Yaris possui somente modo NORMAL de condução
     supportedDrivingModes = ['normal']
@@ -273,9 +276,24 @@ export function getVehicleCapabilities(vehicle: VehicleConfig): VehicleCapabilit
 
   // Posições de seletor suportadas
   let supportedSelectorPositions: SelectorPosition[] =
-    transmission.supportedSelectorPositions ?? (isAutoOrCvt ? ['P', 'R', 'N', 'D', 'M'] : ['N'])
+    transmission.supportedSelectorPositions
+      ? [...transmission.supportedSelectorPositions]
+      : (isAutoOrCvt ? ['P', 'R', 'N', 'D', 'M'] : ['N'])
   if (!isAutoOrCvt) {
     supportedSelectorPositions = ['N']
+  } else if (vehicle.id.includes('toro-endurance')) {
+    // Toro Endurance de entrada: sem posição S no câmbio
+    supportedSelectorPositions = supportedSelectorPositions.filter((pos) => pos !== 'S')
+  } else if (vehicle.id.includes('toro-ranch') || vehicle.id.includes('porsche-gt3')) {
+    // Toro Ranch e Porsche GT3: garantem posição S no câmbio
+    if (!supportedSelectorPositions.includes('S')) {
+      const dIndex = supportedSelectorPositions.indexOf('D')
+      if (dIndex >= 0) {
+        supportedSelectorPositions.splice(dIndex + 1, 0, 'S')
+      } else {
+        supportedSelectorPositions.push('S')
+      }
+    }
   }
 
   // Suporte a modo manual em automáticos/CVT

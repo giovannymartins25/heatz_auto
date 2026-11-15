@@ -42,6 +42,7 @@ export const FiatToroRanchCluster = memo(function FiatToroRanchCluster({
 
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const fourWheelDriveMode = useSimulationStore((s) => s.fourWheelDriveMode)
+  const drivingMode = useSimulationStore((s) => s.drivingMode)
   const mileageKm = 18320
 
   const maxRpm = telemetry.tachometer.maxRpm || 6000
@@ -224,7 +225,7 @@ export const FiatToroRanchCluster = memo(function FiatToroRanchCluster({
       <div className="flex-1 h-full flex flex-col justify-between items-center px-2 py-1 min-w-0">
         {/* Barra Superior: Badge Ranch + Luzes-Espia */}
         <div className="w-full flex items-center justify-between border-b border-amber-900/40 pb-1 px-1">
-          {/* Badge Ranch */}
+          {/* Badge Ranch + Modo de Condução */}
           <div className="flex items-center gap-1.5">
             <span className="text-amber-500 font-sans font-black text-xs tracking-wider flex items-center gap-1">
               <span>🐂</span>
@@ -232,6 +233,21 @@ export const FiatToroRanchCluster = memo(function FiatToroRanchCluster({
             </span>
             <span className="text-[8px] font-mono text-amber-800">|</span>
             <span className="text-[8px] font-mono text-amber-400/80 font-bold tracking-wider">4X4 DIESEL AT9</span>
+            {drivingMode === 'sport' && (
+              <span className="px-1.5 py-0.5 rounded bg-red-600/30 border border-red-500/60 text-red-400 font-mono text-[7.5px] font-black tracking-wider uppercase animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]">
+                SPORT
+              </span>
+            )}
+            {drivingMode === 'eco' && (
+              <span className="px-1.5 py-0.5 rounded bg-emerald-600/30 border border-emerald-500/60 text-emerald-400 font-mono text-[7.5px] font-black tracking-wider uppercase shadow-[0_0_8px_rgba(16,185,129,0.4)]">
+                ECO
+              </span>
+            )}
+            {drivingMode === 'normal' && (
+              <span className="px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-800/80 text-amber-300 font-mono text-[7.5px] font-bold tracking-wider uppercase">
+                NORMAL
+              </span>
+            )}
           </div>
 
           {/* Ícones de Alerta */}
