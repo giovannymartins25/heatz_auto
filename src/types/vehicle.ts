@@ -247,8 +247,14 @@ export function getVehicleCapabilities(vehicle: VehicleConfig): VehicleCapabilit
   if (isMoto) {
     // Motocicletas: sem modos fictícios de condução de carros
     supportedDrivingModes = []
-  } else if (vehicle.id.includes('toro')) {
-    // Toro não possui modos de condução de chassi (apenas modo Sport de câmbio na Endurance)
+  } else if (vehicle.id.includes('toro-endurance')) {
+    // Toro Endurance: possui modos de condução Eco, Normal e Sport
+    supportedDrivingModes =
+      transmission.supportedModes && transmission.supportedModes.length > 0
+        ? transmission.supportedModes
+        : ['eco', 'normal', 'sport']
+  } else if (vehicle.id.includes('toro-ranch') || vehicle.id.includes('toro')) {
+    // Toro Ranch / outras versões 4x4: foco nos modos de tração 4x4
     supportedDrivingModes = []
   } else if (vehicle.id === 'yaris-2019' || vehicle.id.includes('yaris')) {
     // Yaris possui somente modo NORMAL de condução

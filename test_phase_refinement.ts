@@ -78,12 +78,12 @@ console.log('--- BLOCO 1: Arquitetura de Capacidades e Recursos (VehicleCapabili
   // Toro Endurance
   const endurance = toroEnduranceConfig as unknown as VehicleConfig
   const enduranceCaps = getVehicleCapabilities(endurance)
-  assert(enduranceCaps.hasDriveModes === false, 'Toro Endurance: sem modos de condução de chassi (hasDriveModes=false)')
-  assert(enduranceCaps.supportedDrivingModes.length === 0, 'Toro Endurance: sem botão de modos de chassi')
+  assert(enduranceCaps.hasDriveModes === true, 'Toro Endurance: possui modos de condução (hasDriveModes=true)')
+  assert(enduranceCaps.supportedDrivingModes.includes('eco') && enduranceCaps.supportedDrivingModes.includes('sport'), 'Toro Endurance: possui modos Eco e Sport de troca')
   assert(enduranceCaps.supportsPaddleShifters === false, 'Toro Endurance: sem paddle shifters no volante')
   assert(enduranceCaps.has4x4Selector === false, 'Toro Endurance: tração dianteira 4x2 sem seletor 4x4')
   assert(enduranceCaps.hasInfotainment === true, 'Toro Endurance: possui central multimídia Uconnect 7"')
-  assert(enduranceCaps.supportedSelectorPositions.includes('S'), 'Toro Endurance: câmbio AT6 possui posição Sport (S) na alavanca')
+  assert(!enduranceCaps.supportedSelectorPositions.includes('S'), 'Toro Endurance: câmbio AT6 sem posição Sport (S) na alavanca')
   assert(enduranceCaps.supportedSelectorPositions.includes('M'), 'Toro Endurance: câmbio AT6 possui modo Manual (M) sequencial')
 
   // Toro Ranch
@@ -91,6 +91,8 @@ console.log('--- BLOCO 1: Arquitetura de Capacidades e Recursos (VehicleCapabili
   const ranchCaps = getVehicleCapabilities(ranch)
   assert(ranchCaps.hasDriveModes === false, 'Toro Ranch: sem modos de condução fictícios de chassi')
   assert(ranchCaps.supportsPaddleShifters === true, 'Toro Ranch: possui paddle shifters no volante para câmbio AT9')
+  assert(ranchCaps.supportedSelectorPositions.includes('S'), 'Toro Ranch: câmbio ZF 9HP AT9 possui posição Sport (S) na alavanca')
+  assert(ranchCaps.supportedSelectorPositions.includes('M'), 'Toro Ranch: câmbio ZF 9HP AT9 possui modo Manual (M) sequencial')
   assert(ranchCaps.has4x4Selector === true, 'Toro Ranch: possui seletor eletrônico 4x4 (AUTO / LOCK / LOW)')
   assert(ranchCaps.hasInfotainment === true, 'Toro Ranch: possui multimídia vertical Uconnect 10.1"')
 

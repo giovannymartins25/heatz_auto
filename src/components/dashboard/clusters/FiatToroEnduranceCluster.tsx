@@ -38,6 +38,7 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
   } = telemetry
 
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
+  const drivingMode = useSimulationStore((s) => s.drivingMode)
   const mileageKm = 12450
 
   const maxRpm = telemetry.tachometer.maxRpm || 7000
@@ -222,11 +223,26 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
       <div className="flex-1 h-full flex flex-col justify-between items-center px-2 py-1 min-w-0">
         {/* Barra Superior: Logo Fiat + Luzes Espia Regulamentares */}
         <div className="w-full flex items-center justify-between border-b border-zinc-800/80 pb-1 px-1">
-          {/* Logo Fiat cromado/vermelho */}
+          {/* Logo Fiat cromado/vermelho + Badge de Modo de Condução */}
           <div className="flex items-center gap-1.5">
             <span className="text-red-500 font-sans font-black text-xs tracking-widest">FIAT</span>
             <span className="text-[8px] font-mono text-zinc-500">|</span>
             <span className="text-[8px] font-mono text-zinc-400 font-bold tracking-wider">TORO ENDURANCE</span>
+            {drivingMode === 'sport' && (
+              <span className="px-1.5 py-0.5 rounded bg-red-600/30 border border-red-500/60 text-red-400 font-mono text-[7.5px] font-black tracking-wider uppercase animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]">
+                SPORT
+              </span>
+            )}
+            {drivingMode === 'eco' && (
+              <span className="px-1.5 py-0.5 rounded bg-emerald-600/30 border border-emerald-500/60 text-emerald-400 font-mono text-[7.5px] font-black tracking-wider uppercase shadow-[0_0_8px_rgba(16,185,129,0.4)]">
+                ECO
+              </span>
+            )}
+            {drivingMode === 'normal' && (
+              <span className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-400 font-mono text-[7.5px] font-bold tracking-wider uppercase">
+                NORMAL
+              </span>
+            )}
           </div>
 
           {/* Ícones de Alerta / Warning Lights */}
@@ -299,7 +315,7 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
         <div className="w-full flex items-center justify-between text-[9px] font-mono text-zinc-400 border-t border-zinc-800/80 pt-1 px-1">
           <span>ODO: <b className="text-white">{Math.round(mileageKm).toLocaleString()} km</b></span>
           <span>RANGE: <b className="text-emerald-400">{Math.round((auxGauges.fuelPercent / 100) * 620)} km</b></span>
-          <span className="text-zinc-500">FWD AT6</span>
+          <span className="text-zinc-400 font-bold uppercase">{drivingMode} · FWD AT6</span>
         </div>
       </div>
 

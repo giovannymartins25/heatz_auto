@@ -45,7 +45,7 @@
   "transmission": {
     "type": "automatic",
     "defaultMode": "automatic",
-    "supportedSelectorPositions": ["P", "R", "N", "D", "M"],
+    "supportedSelectorPositions": ["P", "R", "N", "D", "S", "M"],
     "gearCount": 9,
     "gearRatios": [
       { "gear": 1, "ratio": 4.700 },

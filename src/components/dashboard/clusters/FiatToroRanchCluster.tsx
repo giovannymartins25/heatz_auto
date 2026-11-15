@@ -88,11 +88,12 @@ export const FiatToroRanchCluster = memo(function FiatToroRanchCluster({
   // Barra de Pressão de Turbo Diesel (até 2.0 bar)
   const boostRatio = clamp((boostPressureBar || 0) / 2.0, 0, 1)
 
-  // Formatação de marcha AT9
+  // Formatação de marcha AT9 (P, R, N, D1..D9, S1..S9, M1..M9)
   const gearDisplay =
     gear.isPark ? 'P'
     : gear.isReverse ? 'R'
     : gear.isNeutral ? 'N'
+    : gear.gearSelectorPosition === 'S' ? (gear.label.startsWith('M') ? gear.label : `S${gear.label.replace(/\D/g, '') || ''}`)
     : gear.gearSelectorPosition === 'M' || gear.transmissionMode === 'manual_simulated' ? gear.label
     : `D${gear.label.replace(/\D/g, '') || ''}`
 

@@ -45,7 +45,7 @@
   "transmission": {
     "type": "automatic",
     "defaultMode": "automatic",
-    "supportedSelectorPositions": ["P", "R", "N", "D", "S", "M"],
+    "supportedSelectorPositions": ["P", "R", "N", "D", "M"],
     "gearCount": 6,
     "gearRatios": [
       { "gear": 1, "ratio": 4.459 },
@@ -60,7 +60,7 @@
     "hasClutch": false,
     "hasManualMode": true,
     "defaultDrivingMode": "normal",
-    "supportedModes": [],
+    "supportedModes": ["eco", "normal", "sport"],
     "supportsPaddleShifters": false,
     "manualShiftControls": ["gear_selector_gesture"],
     "supportsNos": true,
