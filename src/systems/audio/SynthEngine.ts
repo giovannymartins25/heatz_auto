@@ -4,7 +4,7 @@ import { clamp, mapRange } from '@/utils/math'
 
 export interface EngineAcousticProfile {
   cylinders: number
-  engineType: 'i4' | 'boxer6' | 'i4_highrev' | 'i4_ap' | 'i4_vtec' | 'v6' | 'v8' | 'i6_chevrolet'
+  engineType: 'i4' | 'boxer6' | 'i4_highrev' | 'i4_ap' | 'i4_vtec' | 'v6' | 'v8' | 'i6_chevrolet' | 'i4_diesel' | 'i4_turbo_flex'
   exhaustResonanceHz: number
   exhaustResonanceQ: number
   intakeResonanceHz: number
@@ -195,6 +195,36 @@ export class SynthEngine implements IAudioEngine {
         hasBrapOnShift: false,
         subHarmonicWeight: 0.22,
         highHarmonicRasp: 0.90,
+        ...custom,
+      }
+    }
+
+    // 5. Fiat Toro Ranch 2.2 MultiJet II Turbodiesel (Ciclo Diesel, batida de compressão pesada, torque encorpado em baixa)
+    if (this.config.engineType === 'i4_diesel') {
+      return {
+        cylinders: 4,
+        engineType: 'i4_diesel',
+        exhaustResonanceHz: 135,
+        exhaustResonanceQ: 2.2,
+        intakeResonanceHz: 350,
+        hasBrapOnShift: false,
+        subHarmonicWeight: 0.72,
+        highHarmonicRasp: 0.35,
+        ...custom,
+      }
+    }
+
+    // 6. Fiat Toro Endurance 1.3 16V GSE T270 Flex (Downsizing turbo moderno, rotação flex, turbo spool rápido)
+    if (this.config.engineType === 'i4_turbo_flex' || this.config.engineType === 'i4_flex') {
+      return {
+        cylinders: 4,
+        engineType: 'i4_turbo_flex',
+        exhaustResonanceHz: 215,
+        exhaustResonanceQ: 2.8,
+        intakeResonanceHz: 520,
+        hasBrapOnShift: false,
+        subHarmonicWeight: 0.38,
+        highHarmonicRasp: 0.60,
         ...custom,
       }
     }
@@ -657,6 +687,8 @@ export class SynthEngine implements IAudioEngine {
    */
   triggerBlowOff(boostBar = 1.0): void {
     if (!this.context || !this._isPlaying) return
+    // Motores ciclo diesel possuem turbinas de geometria variável sem borboleta e sem blow-off atmosférico
+    if (this.profile.engineType === 'i4_diesel') return
     const now = this.context.currentTime
 
     const duration = Math.min(0.65, 0.28 + boostBar * 0.22)
@@ -711,6 +743,8 @@ export class SynthEngine implements IAudioEngine {
    */
   triggerBackfire(): void {
     if (!this.context || !this._isPlaying) return
+    // Motores diesel operam por compressão sem faísca e não produzem estampidos de ignição/overrun
+    if (this.profile.engineType === 'i4_diesel') return
     const now = this.context.currentTime
     if (now - this.lastBackfireTime < 0.065) return
     this.lastBackfireTime = now

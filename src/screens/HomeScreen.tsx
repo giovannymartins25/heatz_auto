@@ -170,17 +170,34 @@ export function HomeScreen() {
   // Filtragem para Garagem do Usuário
   const filteredOwnedCars = useMemo(() => {
     return ownedCars.filter((c) => {
-      if (!search.trim()) return true
-      const q = search.toLowerCase()
       const manifest = vehicleList.find((v) => v.id === c.vehicleId)
-      return (
-        c.customName.toLowerCase().includes(q) ||
-        c.vehicleId.toLowerCase().includes(q) ||
-        (manifest && manifest.name.toLowerCase().includes(q)) ||
-        (manifest && manifest.brand.toLowerCase().includes(q))
-      )
+
+      // Filtro de Categoria
+      if (category !== 'all' && manifest && manifest.category !== category) return false
+
+      // Filtro de Fabricante
+      if (selectedBrand !== 'all' && manifest && manifest.brand.toLowerCase() !== selectedBrand.toLowerCase()) return false
+
+      // Filtro de Câmbio
+      if (selectedTransmission !== 'all' && manifest) {
+        const isAuto = manifest.transmissionType === 'automatic' || manifest.transmissionType === 'cvt' || manifest.transmissionType === 'dct'
+        if (selectedTransmission === 'manual' && isAuto) return false
+        if (selectedTransmission === 'automatic' && !isAuto) return false
+      }
+
+      // Busca por texto
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        return (
+          c.customName.toLowerCase().includes(q) ||
+          c.vehicleId.toLowerCase().includes(q) ||
+          (manifest && manifest.name.toLowerCase().includes(q)) ||
+          (manifest && manifest.brand.toLowerCase().includes(q))
+        )
+      }
+      return true
     })
-  }, [ownedCars, vehicleList, search])
+  }, [ownedCars, vehicleList, search, category, selectedBrand, selectedTransmission])
 
   // Comprar Carro na Concessionária
   const handleBuyCar = (vId: string) => {
@@ -351,85 +368,81 @@ export function HomeScreen() {
             <div className="flex-1 w-full">
               <SearchBar value={search} onChange={setSearch} />
             </div>
-            {activeTab === 'dealership' && (
-              <div className="w-full sm:w-auto shrink-0">
-                <CategoryFilter active={category} onChange={setCategory} />
-              </div>
-            )}
+            <div className="w-full sm:w-auto shrink-0">
+              <CategoryFilter active={category} onChange={setCategory} />
+            </div>
           </div>
 
-          {/* Filtros de Fabricante e Câmbio na Concessionária */}
-          {activeTab === 'dealership' && (
-            <div className="w-full flex flex-col gap-1.5 pt-1 border-t border-white/5">
-              {/* Filtro por Marca */}
-              <div className="flex items-center gap-1.5 overflow-x-auto w-full py-0.5 no-scrollbar text-[8.5px] sm:text-[9.5px] font-mono">
-                <span className="text-zinc-500 uppercase shrink-0 text-[8px] font-bold">Marca:</span>
+          {/* Filtros de Fabricante e Câmbio (Unificados para Garagem e Concessionária) */}
+          <div className="w-full flex flex-col gap-1.5 pt-1 border-t border-white/5">
+            {/* Filtro por Marca */}
+            <div className="flex items-center gap-1.5 overflow-x-auto w-full py-0.5 no-scrollbar text-[8.5px] sm:text-[9.5px] font-mono">
+              <span className="text-zinc-500 uppercase shrink-0 text-[8px] font-bold">Marca:</span>
+              <button
+                type="button"
+                onClick={() => setSelectedBrand('all')}
+                className={`px-2 py-0.5 rounded-lg border transition-all whitespace-nowrap cursor-pointer ${
+                  selectedBrand === 'all'
+                    ? 'bg-amber-500 text-black font-black border-amber-400 shadow-sm'
+                    : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
+                }`}
+              >
+                TODAS
+              </button>
+              {availableBrands.map((b) => (
                 <button
+                  key={b}
                   type="button"
-                  onClick={() => setSelectedBrand('all')}
-                  className={`px-2 py-0.5 rounded-lg border transition-all whitespace-nowrap cursor-pointer ${
-                    selectedBrand === 'all'
-                      ? 'bg-emerald-500 text-black font-black border-emerald-400 shadow-sm'
+                  onClick={() => setSelectedBrand(b)}
+                  className={`px-2 py-0.5 rounded-lg border transition-all whitespace-nowrap cursor-pointer uppercase ${
+                    selectedBrand.toLowerCase() === b.toLowerCase()
+                      ? 'bg-amber-500 text-black font-black border-amber-400 shadow-sm'
                       : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
                   }`}
                 >
-                  TODAS
+                  {b}
                 </button>
-                {availableBrands.map((b) => (
-                  <button
-                    key={b}
-                    type="button"
-                    onClick={() => setSelectedBrand(b)}
-                    className={`px-2 py-0.5 rounded-lg border transition-all whitespace-nowrap cursor-pointer uppercase ${
-                      selectedBrand.toLowerCase() === b.toLowerCase()
-                        ? 'bg-emerald-500 text-black font-black border-emerald-400 shadow-sm'
-                        : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
-                    }`}
-                  >
-                    {b}
-                  </button>
-                ))}
-              </div>
-
-              {/* Filtro por Câmbio */}
-              <div className="flex items-center gap-1.5 overflow-x-auto w-full py-0.5 no-scrollbar text-[8px] sm:text-[9px] font-mono">
-                <span className="text-zinc-500 uppercase shrink-0 text-[8px] font-bold">Câmbio:</span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTransmission('all')}
-                  className={`px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
-                    selectedTransmission === 'all'
-                      ? 'bg-zinc-700 text-white font-bold border-zinc-500'
-                      : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
-                  }`}
-                >
-                  TODOS
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTransmission('manual')}
-                  className={`px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
-                    selectedTransmission === 'manual'
-                      ? 'bg-zinc-700 text-white font-bold border-zinc-500'
-                      : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
-                  }`}
-                >
-                  MANUAL
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTransmission('automatic')}
-                  className={`px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
-                    selectedTransmission === 'automatic'
-                      ? 'bg-zinc-700 text-white font-bold border-zinc-500'
-                      : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
-                  }`}
-                >
-                  AUTOMÁTICO / CVT
-                </button>
-              </div>
+              ))}
             </div>
-          )}
+
+            {/* Filtro por Câmbio */}
+            <div className="flex items-center gap-1.5 overflow-x-auto w-full py-0.5 no-scrollbar text-[8px] sm:text-[9px] font-mono">
+              <span className="text-zinc-500 uppercase shrink-0 text-[8px] font-bold">Câmbio:</span>
+              <button
+                type="button"
+                onClick={() => setSelectedTransmission('all')}
+                className={`px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                  selectedTransmission === 'all'
+                    ? 'bg-zinc-700 text-white font-bold border-zinc-500'
+                    : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
+                }`}
+              >
+                TODOS
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTransmission('manual')}
+                className={`px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                  selectedTransmission === 'manual'
+                    ? 'bg-zinc-700 text-white font-bold border-zinc-500'
+                    : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
+                }`}
+              >
+                MANUAL
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTransmission('automatic')}
+                className={`px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                  selectedTransmission === 'automatic'
+                    ? 'bg-zinc-700 text-white font-bold border-zinc-500'
+                    : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
+                }`}
+              >
+                AUTOMÁTICO / CVT / DCT
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 

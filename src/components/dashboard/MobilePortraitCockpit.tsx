@@ -199,6 +199,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
                 onSizeChange={setMapViewportSize}
                 compact
                 telemetry={telemetry}
+                vehicle={vehicle}
               />
             </div>
 
@@ -233,37 +234,32 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         )}
       </main>
 
-      {/* ─── 3. Câmbio e Perfis de Condução (apenas no modo DIRIGIR) ─── */}
-      {isDriveMode && (
-        <div className="w-full flex items-center justify-between gap-2 pt-1 pb-1 border-t border-white/5 px-1 flex-shrink-0">
-          <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
-            <GearShift size="compact" orientation="horizontal" showPaddles={false} />
-            {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
-              <VerticalGestureShifter size="compact" />
-            )}
-          </div>
-          {caps.supportedDrivingModes.length > 1 && (
-            <div className="flex-shrink-0 flex items-center pr-1">
-              <DrivingModesSelector
-                supportedModes={caps.supportedDrivingModes}
-                orientation="horizontal"
-                size="compact"
-              />
-            </div>
+      {/* ─── 3. Câmbio e Perfis de Condução ─── */}
+      <div className="w-full flex items-center justify-between gap-2 pt-1 pb-1 border-t border-white/5 px-1 flex-shrink-0">
+        <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
+          <GearShift size="compact" orientation="horizontal" showPaddles={false} />
+          {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
+            <VerticalGestureShifter size="compact" />
           )}
         </div>
-      )}
+        {caps.supportedDrivingModes.length > 1 && (
+          <div className="flex-shrink-0 flex items-center pr-1">
+            <DrivingModesSelector
+              supportedModes={caps.supportedDrivingModes}
+              orientation="horizontal"
+              size="compact"
+            />
+          </div>
+        )}
+      </div>
 
       {/* ─── 3.5. Telemetria e Calibração de Direção por Inclinação Mobile (Fase 1.6.2) ─── */}
-      {isDriveMode && (
-        <div className="w-full flex items-center justify-center py-0.5 px-1 flex-shrink-0">
-          <SteeringControlZone vehicle={vehicle} />
-        </div>
-      )}
+      <div className="w-full flex items-center justify-center py-0.5 px-1 flex-shrink-0">
+        <SteeringControlZone vehicle={vehicle} />
+      </div>
 
-      {/* ─── 4. Zona dos polegares: botões laterais + pedais (apenas no modo DIRIGIR) ─── */}
-      {isDriveMode && (
-        <footer className="w-full grid grid-cols-[68px_1fr_68px] sm:grid-cols-[76px_1fr_76px] items-end gap-1.5 px-1 pb-0.5 flex-shrink-0">
+      {/* ─── 4. Zona dos polegares: botões laterais + pedais ─── */}
+      <footer className="w-full grid grid-cols-[68px_1fr_68px] sm:grid-cols-[76px_1fr_76px] items-end gap-1.5 px-1 pb-0.5 flex-shrink-0">
           {/* Coluna esquerda: Freio de mão · START · QuickClutch */}
           <div className="flex flex-col gap-1">
             <button
@@ -384,7 +380,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             )}
           </div>
         </footer>
-      )}
 
       {/* ── Efeitos & Modais ── */}
       <BackfireFlameFlash />

@@ -1,6 +1,8 @@
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import type { MapViewportSize } from '@/stores/useUIStore'
 import type { DashboardTelemetry } from '@/systems/dashboard'
+import type { VehicleConfig } from '@/types/vehicle'
+import { useSimulationStore } from '@/stores/useSimulationStore'
 
 export interface MapNavigationTelemetry {
   /** Coordenadas no plano cartográfico 2D (metros ou unidades virtuais do grid) */
@@ -19,6 +21,7 @@ export interface DrivingMapViewportProps {
   compact?: boolean
   className?: string
   telemetry?: DashboardTelemetry
+  vehicle?: VehicleConfig
   /** Telemetria preparatória de navegação para futura movimentação dinâmica do mapa */
   navigation?: MapNavigationTelemetry
 }
@@ -257,6 +260,7 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
   compact = false,
   className = '',
   telemetry,
+  vehicle,
   navigation,
 }: DrivingMapViewportProps) {
   const rawSpeed = navigation?.speedKmh ?? telemetry?.speedometer.speed ?? 0
@@ -264,6 +268,46 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
   const isMoving = currentSpeed > 0
   const headingLabel = navigation?.headingDeg !== undefined ? `${Math.round(navigation.headingDeg)}°` : '358°'
   const paddingClass = compact ? 'p-1.5' : 'p-2'
+
+  const downforceN = useSimulationStore((s) => s.downforceN)
+
+  // Cálculo da Próxima Curva e Velocidade Recomendada: v_rec = sqrt(mu_total * g * R)
+  const curveInfo = useMemo(() => {
+    const trackCurves = [
+      { id: 'c1', name: 'Curva da Praça', positionM: 140, radiusM: 42, direction: 'right' as const },
+      { id: 'c2', name: 'Acesso Norte', positionM: 320, radiusM: 65, direction: 'left' as const },
+      { id: 'c3', name: 'Grampo Sul', positionM: 490, radiusM: 26, direction: 'right' as const },
+    ]
+
+    const traveled = (navigation?.distanceTraveledMeters ?? 0) % 600
+    // Encontrar a próxima curva no percurso de 600m
+    let target = trackCurves.find((c) => c.positionM > traveled)
+    let dist = target ? target.positionM - traveled : (600 - traveled) + trackCurves[0].positionM
+    if (!target) target = trackCurves[0]
+
+    // Física da curva
+    const g = 9.81
+    const mass = vehicle?.info.weight || 1400
+    const muBase = 1.02 // atrito base pneu esportivo
+    // Carga aerodinâmica normal adicional: mu_total = muBase + (downforce / (m * g))
+    const muAeroBonus = Math.max(0, downforceN) / (mass * g)
+    const muTotal = muBase + muAeroBonus
+    // v_rec em m/s -> km/h
+    const vRecMs = Math.sqrt(muTotal * g * target.radiusM)
+    const vRecKmh = Math.round(vRecMs * 3.6)
+
+    const isAlert = dist <= 120
+    const shouldBrake = isAlert && currentSpeed > vRecKmh + 4
+
+    return {
+      target,
+      dist: Math.round(dist),
+      vRecKmh,
+      muTotal: Number(muTotal.toFixed(2)),
+      isAlert,
+      shouldBrake,
+    }
+  }, [navigation?.distanceTraveledMeters, vehicle?.info.weight, downforceN, currentSpeed])
 
   return (
     <section
@@ -292,6 +336,37 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
           <span>{headingLabel}</span>
         </div>
       </div>
+
+      {/* ── 2.1 Alerta e Orientação Antecipada de Curvas (v_rec = sqrt(mu * g * R)) ── */}
+      {curveInfo.isAlert && (
+        <div className="relative z-10 mx-auto -mt-1 px-2 pointer-events-none transition-all">
+          <div
+            className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border backdrop-blur-md shadow-lg ${
+              curveInfo.shouldBrake
+                ? 'bg-rose-950/80 border-rose-500 text-rose-100 animate-pulse shadow-[0_0_15px_rgba(244,63,94,0.4)]'
+                : 'bg-black/80 border-sky-400/40 text-slate-200 shadow-[0_0_12px_rgba(56,189,248,0.25)]'
+            }`}
+          >
+            <span className="text-sm font-black">
+              {curveInfo.target.direction === 'right' ? '↱' : '↰'}
+            </span>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1 text-[7.5px] font-bold uppercase tracking-wider">
+                <span className={curveInfo.shouldBrake ? 'text-rose-400' : 'text-sky-400'}>
+                  {curveInfo.target.name}
+                </span>
+                <span className="text-slate-400">· R:{curveInfo.target.radiusM}m em {curveInfo.dist}m</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[8.5px] font-black font-mono">
+                <span>REC: <strong className={curveInfo.shouldBrake ? 'text-rose-300' : 'text-emerald-400'}>{curveInfo.vRecKmh} km/h</strong></span>
+                {curveInfo.shouldBrake && (
+                  <span className="text-[7.5px] text-rose-400 font-black tracking-widest uppercase">⚠ REDUZA</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 3. Rodapé com Informações de Rua & Seletor de Modos ── */}
       <div className={`relative z-10 mt-auto flex items-end justify-between w-full ${paddingClass}`}>

@@ -1,5 +1,6 @@
 import { clamp } from '@/utils/math'
 import { VehicleChassis, type ChassisConfig, type DynamicLoadResult, type AxleLoads, createVehicleChassis } from './Chassis'
+import type { SuspensionHeight, RearWingPosition } from '@/stores/useGarageStore'
 
 export type FourWheelDriveMode = 'auto' | '4wd' | '4wd_low'
 
@@ -59,13 +60,22 @@ export class VehiclePhysics {
   private readonly mass: number
   private readonly wheelRadius: number
   private readonly efficiency: number
-  private readonly aeroConstant: number
   private readonly rollingCoeff: number
   private driveAxleWeightRatio: number
   private fourWheelDriveMode: FourWheelDriveMode = 'auto'
   private readonly isMotorcycle: boolean
   private readonly vehicleId?: string
   private readonly chassis: VehicleChassis
+
+  // Propriedades Aerodinâmicas e de Suspensão Dinâmicas
+  private baseAeroConstant: number = 0.40
+  private currentAeroConstant: number = 0.40
+  private downforceCoeff: number = 0.10
+  private suspensionHeightOffset: number = 0
+  private effectiveDownforceN: number = 0
+  private suspensionHeight: SuspensionHeight = 'stock'
+  private rearWingPosition: RearWingPosition = 'balanced'
+  private isAeroWingExtended: boolean = false
 
   private speedMs: number = 0 // velocidade linear em m/s
   private accelerationMs2: number = 0
@@ -106,8 +116,71 @@ export class VehiclePhysics {
     this.driveAxleWeightRatio = this.calculateDriveAxleWeightRatio()
 
     // Constante aerodinâmica 0.5 * rho * Cd * A
-    this.aeroConstant = this.isMotorcycle ? 0.25 : 0.40
+    this.baseAeroConstant = this.isMotorcycle ? 0.25 : 0.40
+    this.currentAeroConstant = this.baseAeroConstant
+    this.downforceCoeff = this.vehicleId === 'porsche-gt3' ? 0.35 : 0.08
     this.rollingCoeff = 0.015 // Asfalto típico
+  }
+
+  /**
+   * Configura a altura da suspensão e deslocamento do centro de gravidade.
+   */
+  setSuspensionHeight(height: SuspensionHeight): void {
+    this.suspensionHeight = height
+    switch (height) {
+      case 'sport':
+        this.suspensionHeightOffset = -0.03 // -30 mm
+        break
+      case 'track':
+        this.suspensionHeightOffset = -0.05 // -50 mm
+        break
+      case 'lift':
+        this.suspensionHeightOffset = 0.03 // +30 mm (Front Lift Porsche / off-road)
+        break
+      default:
+        this.suspensionHeightOffset = 0
+        break
+    }
+  }
+
+  getSuspensionHeight(): SuspensionHeight {
+    return this.suspensionHeight
+  }
+
+  /**
+   * Configura parâmetros aerodinâmicos funcionais (asa traseira e downforce).
+   */
+  setAerodynamics(wingPosition: RearWingPosition, isExtended = true): void {
+    this.rearWingPosition = wingPosition
+    this.isAeroWingExtended = isExtended
+
+    const isPorsche = this.vehicleId === 'porsche-gt3'
+    if (isPorsche || isExtended) {
+      if (wingPosition === 'low_drag') {
+        // Baixo arrasto para velocidade máxima em retas longas
+        this.currentAeroConstant = this.baseAeroConstant * 0.88
+        this.downforceCoeff = 0.12
+      } else if (wingPosition === 'high_downforce') {
+        // Alto downforce: maior aderência em curvas, porém mais arrasto em retas
+        this.currentAeroConstant = this.baseAeroConstant * 1.32
+        this.downforceCoeff = 0.65
+      } else {
+        // Equilíbrio padrão de pista
+        this.currentAeroConstant = this.baseAeroConstant * 1.05
+        this.downforceCoeff = 0.35
+      }
+    } else {
+      this.currentAeroConstant = this.baseAeroConstant
+      this.downforceCoeff = 0.05
+    }
+  }
+
+  getDownforceN(): number {
+    return this.effectiveDownforceN
+  }
+
+  getEffectiveAeroConstant(): number {
+    return this.currentAeroConstant
   }
 
   /**
@@ -181,7 +254,7 @@ export class VehiclePhysics {
     const b = this.chassis.distanceCgToRearAxle
     const a = this.chassis.distanceCgToFrontAxle
     const L = this.chassis.wheelbase
-    const h = this.chassis.centerOfMassHeight
+    const h = Math.max(0.20, this.chassis.centerOfMassHeight + this.suspensionHeightOffset)
 
     const staticFront = totalWeight * (cosTheta * (b / L) - sinTheta * (h / L))
     const staticRear = totalWeight * (cosTheta * (a / L) + sinTheta * (h / L))
@@ -275,7 +348,10 @@ export class VehiclePhysics {
       normalForceOnDrivenWheels = axleLoads.frontAxleLoad
     }
 
-    const maxGripForce = this.surfaceFriction * normalForceOnDrivenWheels
+    // Downforce aerodinâmico transfere carga normal para os eixos em alta velocidade
+    const downforceOnDrivenWheels = this.effectiveDownforceN * this.driveAxleWeightRatio
+    const totalNormalForce = normalForceOnDrivenWheels + downforceOnDrivenWheels
+    const maxGripForce = this.surfaceFriction * totalNormalForce
     return maxGripForce * this.wheelRadius
   }
 
@@ -289,7 +365,10 @@ export class VehiclePhysics {
     const thetaRad = Math.atan(this.roadGradePercent / 100)
     const cosTheta = Math.cos(thetaRad)
     const sinTheta = Math.sin(thetaRad)
-    const normalWeight = this.mass * this.chassis.gravity * cosTheta
+
+    // Downforce aerodinâmico real proporcional a v²: F_downforce = C_downforce * v²
+    this.effectiveDownforceN = this.downforceCoeff * this.speedMs * this.speedMs
+    const normalWeight = this.mass * this.chassis.gravity * cosTheta + this.effectiveDownforceN
 
     // 1. Torque e Força de Tração teórica nas Rodas (Newtons)
     let wheelTorque = 0
@@ -339,7 +418,7 @@ export class VehiclePhysics {
     const rollingResistance = this.rollingCoeff * normalWeight
 
     // 3. Força de Resistência Aerodinâmica (Newtons: proporcional a v²)
-    const aeroResistance = this.aeroConstant * this.speedMs * this.speedMs
+    const aeroResistance = this.currentAeroConstant * this.speedMs * this.speedMs
 
     // 4. Força Gravitacional de Rampa / Subida (Newtons)
     // Positiva na subida (resiste ao avanço); negativa na descida (auxilia o avanço)
@@ -419,6 +498,9 @@ export class VehiclePhysics {
       roadGradePercent: this.roadGradePercent,
       wheelSpeedMs: this.wheelSpeedMs,
       fourWheelDriveMode: this.fourWheelDriveMode,
+      suspensionHeight: this.suspensionHeight,
+      rearWingPosition: this.rearWingPosition,
+      effectiveDownforceN: this.effectiveDownforceN,
     }
   }
 
@@ -434,6 +516,12 @@ export class VehiclePhysics {
     if (snapshot.fourWheelDriveMode) {
       this.setFourWheelDriveMode(snapshot.fourWheelDriveMode)
     }
+    if (snapshot.suspensionHeight) {
+      this.setSuspensionHeight(snapshot.suspensionHeight)
+    }
+    if (snapshot.rearWingPosition) {
+      this.setAerodynamics(snapshot.rearWingPosition, this.isAeroWingExtended)
+    }
   }
 }
 
@@ -447,4 +535,7 @@ export interface VehiclePhysicsSnapshot {
   roadGradePercent?: number
   wheelSpeedMs: number
   fourWheelDriveMode?: FourWheelDriveMode
+  suspensionHeight?: SuspensionHeight
+  rearWingPosition?: RearWingPosition
+  effectiveDownforceN?: number
 }

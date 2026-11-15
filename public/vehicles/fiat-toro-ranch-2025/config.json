@@ -80,14 +80,14 @@
   "audio": {
     "useSamples": false,
     "synthConfig": {
-      "baseFrequency": 48,
+      "baseFrequency": 44,
       "harmonics": [1, 1.5, 2, 2.8, 3.6, 4.5],
-      "gainIdle": 0.22,
+      "gainIdle": 0.24,
       "gainMax": 0.88,
       "cylinders": 4,
-      "engineType": "i4",
-      "exhaustResonanceHz": 180,
-      "intakeResonanceHz": 420,
+      "engineType": "i4_diesel",
+      "exhaustResonanceHz": 140,
+      "intakeResonanceHz": 360,
       "hasBrapOnShift": false
     }
   },

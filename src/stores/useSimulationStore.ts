@@ -13,7 +13,7 @@ import { MAX_SUBSTEPS } from '@/systems/engine/constants'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 import { clamp } from '@/utils/math'
 import type { AmbientLightColor } from '@/utils/ambientLighting'
-import { useGarageStore, type CarUpgrades } from './useGarageStore'
+import { useGarageStore, type CarUpgrades, type ExhaustType, type SuspensionHeight, type RearWingPosition } from './useGarageStore'
 import { useUIStore } from './useUIStore'
 import { performanceMonitor } from '@/utils/performanceMonitor'
 
@@ -121,9 +121,13 @@ export interface SimulationSubstepContext {
   gearSelectorPosition: GearSelectorPosition
   tuningStage: 0 | 1 | 2 | 3
   intakeType: 'stock' | 'cold_air'
-  exhaustType: 'stock' | 'sport' | 'straight_pipe'
+  exhaustType: ExhaustType
   hasTurbo: boolean
   hasNosKit: boolean
+  hasPopsAndBangs: boolean
+  popsAndBangsEnabled: boolean
+  suspensionHeight: SuspensionHeight
+  rearWingPosition: RearWingPosition
   tires: 'street' | 'semi_slick'
   isRaining: boolean
   isAeroWingExtended: boolean
@@ -263,6 +267,12 @@ interface SimulationActions {
   /** Asa traseira aerodinâmica (Porsche / Supercarros) */
   setAeroWing: (extended: boolean) => void
   toggleAeroWing: () => void
+  /** Altura da suspensão (Original, Sport, Track, Lift) */
+  setSuspensionHeight: (height: SuspensionHeight) => void
+  /** Posição/ângulo aerodinâmico da asa traseira */
+  setRearWingPosition: (pos: RearWingPosition) => void
+  /** Alterna ativação de Pops & Bangs */
+  togglePopsAndBangs: () => void
   /** Liga o motor (ou aciona arranque se parado/estolado) */
   startEngine: () => void
   /** Desliga o motor */
@@ -449,10 +459,15 @@ interface SimulationState {
   hasBoostGaugeKit: boolean
   /** Unidade da garagem carregada no simulador (null = carro de fábrica sem garagem) */
   garageInstanceId: string | null
-  exhaustType: 'stock' | 'sport' | 'straight_pipe'
+  exhaustType: ExhaustType
   intakeType: 'stock' | 'cold_air'
   tires: 'street' | 'semi_slick'
   isAeroWingExtended: boolean
+  hasPopsAndBangs: boolean
+  popsAndBangsEnabled: boolean
+  suspensionHeight: SuspensionHeight
+  rearWingPosition: RearWingPosition
+  downforceN: number
 
   // Volante & Esterço
   steeringAngle: number
@@ -562,6 +577,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   intakeType: 'stock',
   tires: 'street',
   isAeroWingExtended: false,
+  hasPopsAndBangs: false,
+  popsAndBangsEnabled: false,
+  suspensionHeight: 'stock',
+  rearWingPosition: 'balanced',
+  downforceN: 0,
 
   clutchPosition: 0,
   transmissionMode: 'manual',
@@ -738,6 +758,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       },
     )
 
+    if (initialUpgrades?.suspensionHeight) {
+      physics.setSuspensionHeight(initialUpgrades.suspensionHeight)
+    }
+    const defaultWing = initialUpgrades?.rearWingPosition ?? (config.id === 'porsche-gt3' ? 'balanced' : 'low_drag')
+    physics.setAerodynamics(defaultWing, config.id === 'porsche-gt3')
+
     const defaultAmbientColor: AmbientLightColor =
       config.id === 'golf-gti'
         ? 'red'
@@ -779,7 +805,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       exhaustType: initialUpgrades?.exhaustType || (hasTurbo ? 'sport' : 'stock'),
       intakeType: initialUpgrades?.intakeType || 'stock',
       tires: initialUpgrades?.tires || 'street',
-      isAeroWingExtended: false,
+      isAeroWingExtended: config.id === 'porsche-gt3',
+      hasPopsAndBangs: initialUpgrades?.hasPopsAndBangs ?? false,
+      popsAndBangsEnabled: initialUpgrades?.popsAndBangsEnabled ?? false,
+      suspensionHeight: initialUpgrades?.suspensionHeight ?? 'stock',
+      rearWingPosition: initialUpgrades?.rearWingPosition ?? (config.id === 'porsche-gt3' ? 'balanced' : 'low_drag'),
+      downforceN: 0,
       isLaunchControlArmed: false,
       isLaunching: false,
       boostPressureBar: 0,
@@ -1078,12 +1109,19 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       const hasNosKit =
         upgrades.hasNosKit !== undefined ? upgrades.hasNosKit : state.hasNosKit
       const exhaustValveOpen = upgrades.exhaustValveOpen ?? state.exhaustValveOpen
+      const hasPopsAndBangs =
+        upgrades.hasPopsAndBangs !== undefined ? upgrades.hasPopsAndBangs : state.hasPopsAndBangs
+      const popsAndBangsEnabled =
+        upgrades.popsAndBangsEnabled !== undefined ? upgrades.popsAndBangsEnabled : state.popsAndBangsEnabled
+      const suspensionHeight = upgrades.suspensionHeight ?? state.suspensionHeight
+      const rearWingPosition = upgrades.rearWingPosition ?? state.rearWingPosition
 
       if (_physics) {
         let baseFric = tires === 'semi_slick' ? 1.22 : 0.95
         if (state.isRaining) baseFric = tires === 'semi_slick' ? 0.52 : 0.62
-        if (state.isAeroWingExtended) baseFric += 0.14
         _physics.setSurfaceFriction(baseFric)
+        _physics.setSuspensionHeight(suspensionHeight)
+        _physics.setAerodynamics(rearWingPosition, state.isAeroWingExtended)
       }
 
       return {
@@ -1096,22 +1134,47 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         hasBoostGaugeKit,
         hasNosKit,
         exhaustValveOpen,
+        hasPopsAndBangs,
+        popsAndBangsEnabled,
+        suspensionHeight,
+        rearWingPosition,
       }
     })
   },
 
   setAeroWing: (extended: boolean) => {
-    const { _physics, isRaining, tires } = get()
-    let baseFric = tires === 'semi_slick' ? 1.22 : 0.95
-    if (isRaining) baseFric = tires === 'semi_slick' ? 0.52 : 0.62
-    if (extended) baseFric += 0.14
-    _physics?.setSurfaceFriction(baseFric)
+    const { _physics, rearWingPosition } = get()
+    _physics?.setAerodynamics(rearWingPosition, extended)
     set({ isAeroWingExtended: extended })
     HapticFeedback.light()
   },
 
   toggleAeroWing: () => {
     get().setAeroWing(!get().isAeroWingExtended)
+  },
+
+  setSuspensionHeight: (height: SuspensionHeight) => {
+    const { _physics } = get()
+    _physics?.setSuspensionHeight(height)
+    set({ suspensionHeight: height })
+    HapticFeedback.light()
+  },
+
+  setRearWingPosition: (pos: RearWingPosition) => {
+    const { _physics, isAeroWingExtended } = get()
+    _physics?.setAerodynamics(pos, isAeroWingExtended)
+    set({ rearWingPosition: pos })
+    HapticFeedback.light()
+  },
+
+  togglePopsAndBangs: () => {
+    const next = !get().popsAndBangsEnabled
+    set({ popsAndBangsEnabled: next })
+    const instanceId = get().garageInstanceId
+    if (instanceId) {
+      useGarageStore.getState().installUpgrade(instanceId, { popsAndBangsEnabled: next })
+    }
+    HapticFeedback.light()
   },
 
   cycleHeadlights: () => {
@@ -1993,6 +2056,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       exhaustType: state.exhaustType,
       hasTurbo: state.hasTurbo,
       hasNosKit: state.hasNosKit,
+      hasPopsAndBangs: state.hasPopsAndBangs,
+      popsAndBangsEnabled: state.popsAndBangsEnabled,
+      suspensionHeight: state.suspensionHeight,
+      rearWingPosition: state.rearWingPosition,
       tires: state.tires,
       isRaining: state.isRaining,
       isAeroWingExtended: state.isAeroWingExtended,
@@ -2196,7 +2263,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         const stage = ctx.tuningStage || 0
         const stageMult = stage === 1 ? 1.25 : stage === 2 ? 1.50 : stage === 3 ? 1.85 : 1.0
         const intakeMult = ctx.intakeType === 'cold_air' ? 1.06 : 1.0
-        const exhaustMult = ctx.exhaustType === 'straight_pipe' ? 1.08 : ctx.exhaustType === 'sport' ? 1.04 : 1.0
+        const exhaustMult =
+          ctx.exhaustType === 'straight_pipe' ? 1.08
+          : ctx.exhaustType === 'downpipe' ? 1.07
+          : ctx.exhaustType === 'cat_back' ? 1.05
+          : ctx.exhaustType === 'sport' ? 1.04
+          : 1.0
         const turboKitMult = (!_config.engine.turbo?.enabled && ctx.hasTurbo) ? 1.45 : 1.0
         const driveModeMult = ctx.drivingMode === 'track' ? 1.10 : ctx.drivingMode === 'sport' ? 1.05 : 1.0
         const isNosInjecting = substepPhys.nosActive && ctx.hasNosKit && substepPhys.nosPressurePercent > 0 && ctx.throttle > 0.65 && substepPhys.isRunning
@@ -2207,11 +2279,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         if (ctx.isRaining) {
           targetFriction = ctx.tires === 'semi_slick' ? 0.52 : 0.62
         }
-        if (ctx.isAeroWingExtended) {
-          targetFriction += 0.14
-        }
         _physics.setSurfaceFriction(targetFriction)
         _physics.setFourWheelDriveMode(ctx.fourWheelDriveMode)
+        _physics.setSuspensionHeight(ctx.suspensionHeight)
+        _physics.setAerodynamics(ctx.rearWingPosition, ctx.isAeroWingExtended)
 
         const rawBrake = Math.max(ctx.brake, ctx.handbrake || gear === -2 ? 1 : 0)
         const effectiveBrake = rawBrake * substepPhys.brakeFadeFactor
@@ -2757,6 +2828,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       dragTimeSlip: phys.dragTimeSlip,
       _dragDistanceTraveled: phys.dragDistanceTraveled,
       _dragTimerStart: phys.dragTimerStart,
+      downforceN: Math.round(_physics.getDownforceN()),
     })
   },
 

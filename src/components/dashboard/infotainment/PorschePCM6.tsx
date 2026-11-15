@@ -38,9 +38,13 @@ export const PorschePCM6 = memo(function PorschePCM6({
 }: PorschePCM6Props) {
   const [activeTab, setActiveTab] = useState<PorscheActiveTab>('track')
   const [clockTime, setClockTime] = useState('14:32')
-  const [isFrontLiftActive, setIsFrontLiftActive] = useState(false)
   const isAeroWingExtended = useSimulationStore((s) => s.isAeroWingExtended)
   const toggleAeroWing = useSimulationStore((s) => s.toggleAeroWing)
+  const suspensionHeight = useSimulationStore((s) => s.suspensionHeight)
+  const setSuspensionHeight = useSimulationStore((s) => s.setSuspensionHeight)
+  const rearWingPosition = useSimulationStore((s) => s.rearWingPosition)
+  const setRearWingPosition = useSimulationStore((s) => s.setRearWingPosition)
+  const downforceN = useSimulationStore((s) => s.downforceN)
 
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
@@ -223,41 +227,99 @@ export const PorschePCM6 = memo(function PorschePCM6({
         {activeTab === 'chassis' && (
           <div className="w-full flex flex-col items-center justify-center py-1 gap-2">
             <span className="text-[8px] text-amber-400 font-bold uppercase tracking-widest">
-              CHASSIS DYNAMICS & AERODINÂMICA ATIVA
+              CHASSIS DYNAMICS & AERODINÂMICA ATIVA (SWAN-NECK)
             </span>
 
             <div className="w-full grid grid-cols-2 gap-2 px-1">
-              {/* Front Axle Lift System */}
-              <button
-                onClick={() => setIsFrontLiftActive(!isFrontLiftActive)}
-                className={`p-2.5 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                  isFrontLiftActive
-                    ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                    : 'bg-zinc-900/80 border-white/10 text-zinc-400 hover:text-white'
-                }`}
-              >
-                <span className="text-xl">⏫</span>
-                <strong className="text-[9px] font-black">LIFT DIANTEIRO</strong>
-                <span className={`text-[7px] font-bold ${isFrontLiftActive ? 'text-amber-400' : 'text-zinc-500'}`}>
-                  {isFrontLiftActive ? '+30mm ELEVADO' : 'PADRÃO PISTA'}
-                </span>
-              </button>
+              {/* Ajuste de Altura de Suspensão / Front Axle Lift */}
+              <div className="bg-zinc-900/80 border border-white/10 p-2 rounded-xl flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] font-black text-amber-400">SUSPENSÃO & LIFT</span>
+                  <span className="text-[7px] text-zinc-400 font-mono">
+                    {suspensionHeight === 'track' ? '-30mm PISTA' : suspensionHeight === 'lift' ? '+30mm LIFT' : 'PADRÃO 0mm'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  <button
+                    onClick={() => setSuspensionHeight('track')}
+                    className={`py-1 text-[7px] font-bold rounded border transition-colors cursor-pointer ${
+                      suspensionHeight === 'track'
+                        ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                        : 'bg-black/40 border-white/10 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    PISTA
+                  </button>
+                  <button
+                    onClick={() => setSuspensionHeight('stock')}
+                    className={`py-1 text-[7px] font-bold rounded border transition-colors cursor-pointer ${
+                      suspensionHeight === 'stock'
+                        ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                        : 'bg-black/40 border-white/10 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    NORMAL
+                  </button>
+                  <button
+                    onClick={() => setSuspensionHeight('lift')}
+                    className={`py-1 text-[7px] font-bold rounded border transition-colors cursor-pointer ${
+                      suspensionHeight === 'lift'
+                        ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                        : 'bg-black/40 border-white/10 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    LIFT +30
+                  </button>
+                </div>
+              </div>
 
-              {/* Active Rear Wing */}
-              <button
-                onClick={toggleAeroWing}
-                className={`p-2.5 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                  isAeroWingExtended
-                    ? 'bg-red-500/20 border-red-400 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.4)]'
-                    : 'bg-zinc-900/80 border-white/10 text-zinc-400 hover:text-white'
-                }`}
-              >
-                <span className="text-xl">🪽</span>
-                <strong className="text-[9px] font-black">ASA TRASEIRA</strong>
-                <span className={`text-[7px] font-bold ${isAeroWingExtended ? 'text-red-400' : 'text-zinc-500'}`}>
-                  {isAeroWingExtended ? '+150KG DOWNFORCE' : 'MODO AUTOMÁTICO'}
-                </span>
-              </button>
+              {/* Swan-neck Wing / Aerodinâmica Funcional */}
+              <div className="bg-zinc-900/80 border border-white/10 p-2 rounded-xl flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] font-black text-red-400">ASA SWAN-NECK</span>
+                  <span className="text-[7px] text-zinc-400 font-mono">
+                    {rearWingPosition === 'high_downforce' ? 'MAX CARGA' : rearWingPosition === 'low_drag' ? 'MAX VEL' : 'EQUILÍBRIO'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  <button
+                    onClick={() => {
+                      setRearWingPosition('low_drag')
+                      if (isAeroWingExtended) toggleAeroWing()
+                    }}
+                    className={`py-1 text-[7px] font-bold rounded border transition-colors cursor-pointer ${
+                      rearWingPosition === 'low_drag'
+                        ? 'bg-cyan-500/25 border-cyan-400 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
+                        : 'bg-black/40 border-white/10 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    LOW DRAG
+                  </button>
+                  <button
+                    onClick={() => setRearWingPosition('balanced')}
+                    className={`py-1 text-[7px] font-bold rounded border transition-colors cursor-pointer ${
+                      rearWingPosition === 'balanced'
+                        ? 'bg-zinc-500/25 border-zinc-300 text-white shadow-[0_0_10px_rgba(255,255,255,0.2)]'
+                        : 'bg-black/40 border-white/10 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    BALANCED
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRearWingPosition('high_downforce')
+                      if (!isAeroWingExtended) toggleAeroWing()
+                    }}
+                    className={`py-1 text-[7px] font-bold rounded border transition-colors cursor-pointer ${
+                      rearWingPosition === 'high_downforce'
+                        ? 'bg-red-500/25 border-red-400 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
+                        : 'bg-black/40 border-white/10 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    DOWNFORCE
+                  </button>
+                </div>
+              </div>
 
               {/* PSE - Porsche Sport Exhaust (Válvula de Difusor) */}
               <button
@@ -293,8 +355,9 @@ export const PorschePCM6 = memo(function PorschePCM6({
             </div>
 
             <div className="w-full flex justify-between items-center px-2 py-1 rounded bg-black/60 text-[7px] text-zinc-400 border border-white/5">
-              <span>PROTEÇÃO DE SPOILER: <b className="text-white">{isFrontLiftActive ? 'ATIVA' : 'DESLIGADA'}</b></span>
-              <span>CARGA AERODINÂMICA: <b className="text-amber-400">{isAeroWingExtended ? 'MAX (+150KG)' : 'DYNAMIC'}</b></span>
+              <span>SUSPENSÃO: <b className="text-white">{suspensionHeight.toUpperCase()}</b></span>
+              <span>DOWNFORCE REAL: <b className="text-amber-400">{downforceN ? `${downforceN.toFixed(0)} N (${(downforceN / 9.81).toFixed(0)} kgf)` : '0 N'}</b></span>
+              <span>ASA: <b className="text-red-400">{rearWingPosition.toUpperCase()}</b></span>
             </div>
           </div>
         )}

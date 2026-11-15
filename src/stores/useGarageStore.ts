@@ -1,19 +1,31 @@
 import { create } from 'zustand'
 import type { FuelType } from '@/types/simulation'
 
+export type ExhaustType = 'stock' | 'sport' | 'cat_back' | 'downpipe' | 'straight_pipe'
+export type SuspensionHeight = 'stock' | 'sport' | 'track' | 'lift'
+export type RearWingPosition = 'low_drag' | 'balanced' | 'high_downforce'
+
 export interface CarUpgrades {
   turboKit: boolean // Se tem kit turbo instalado (mesmo em carros aspirados)
   multimediaKit: boolean // Central multimídia 2-DIN retrofit com YouTube
   boostGaugeKit: boolean // Manômetro de turbo/vácuo aftermarket instalado no interior (coluna/painel)
-  exhaustType: 'stock' | 'sport' | 'straight_pipe' // Escapamento: original, esportivo com difusor ou direto
+  exhaustType: ExhaustType // Escapamento: original, esportivo, cat-back, downpipe ou direto
   intakeType: 'stock' | 'cold_air' // Admissão: original ou intake cônico K&N
   tires: 'street' | 'semi_slick' // Pneus de rua ou semi-slick de arrancada
   tuningStage: 0 | 1 | 2 | 3 // Estágio de reprogramação de ECU
   exhaustValveOpen: boolean // Válvula de difusor aberta/fechada
   fuelType: FuelType // Tipo de combustível (Etanol E100, Podium 102 ou Gasolina Comum)
   hasNosKit: boolean // Kit de Óxido Nitroso (Garrafa NOS 10 lbs)
+  hasPopsAndBangs: boolean // Mapa de ECU com Pops & Bangs adquirido na oficina
+  popsAndBangsEnabled: boolean // Se o recurso de Pops & Bangs está ativado
+  suspensionHeight: SuspensionHeight // Altura da suspensão (Original, Sport -30mm, Track -50mm, Front Lift +30mm)
+  rearWingPosition: RearWingPosition // Posição/ângulo aerodinâmico da asa traseira
+  clutchUpgrade: 'stock' | 'ceramic' // Embreagem original vs cerâmica reforçada
+  brakeUpgrade: 'stock' | 'sport' // Freios originais vs esportivos perfurados
   paintColor?: string // Cor da carroceria
+  bodyColor?: string // Alias para cor da carroceria
   brakeCaliperColor?: string // Cor das pinças de freio
+  caliperColor?: string // Alias para cor das pinças de freio
 }
 
 export interface GarageCarInstance {
@@ -87,6 +99,12 @@ export function createDefaultUpgrades(vehicleId: string): CarUpgrades {
     exhaustValveOpen: false,
     fuelType: defaultFuel,
     hasNosKit: false,
+    hasPopsAndBangs: false,
+    popsAndBangsEnabled: false,
+    suspensionHeight: 'stock',
+    rearWingPosition: vehicleId === 'porsche-gt3' ? 'balanced' : 'low_drag',
+    clutchUpgrade: 'stock',
+    brakeUpgrade: 'stock',
     paintColor: undefined,
     brakeCaliperColor: undefined,
   }

@@ -125,7 +125,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           </div>
         )}
 
-        {/* ═══ 1. ESQUERDA: MENU + IDENTIFICAÇÃO CURTA (topo) · PEDAIS (base, só no modo DIRIGIR) ═══ */}
+        {/* ═══ 1. ESQUERDA: MENU + IDENTIFICAÇÃO CURTA (topo) · PEDAIS (base) ═══ */}
         <aside className="flex flex-col justify-between items-start h-full pt-0 pb-0.5 pr-1.5 border-r border-white/5 flex-shrink-0 gap-1">
           <div className="flex items-center gap-1.5 min-w-0" data-vehicle-id>
             <button
@@ -149,7 +149,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               {shortName}
             </span>
           </div>
-          {isDriveMode && (
+
           <div className="flex items-end justify-center gap-1.5 sm:gap-2 min-h-0">
             {hasClutch && (
               <div className="flex flex-col items-center justify-end gap-1 h-full">
@@ -215,7 +215,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               />
             </div>
           </div>
-          )}
         </aside>
 
         {/* ═══ 2. CENTRO: MAPA SUPERIOR + SLOT INFERIOR (PAINEL ↔ MULTIMÍDIA) ═══ */}
@@ -236,6 +235,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                   size={mapViewportSize}
                   onSizeChange={setMapViewportSize}
                   telemetry={telemetry}
+                  vehicle={vehicle}
                 />
 
                 {/* Telemetria e Calibração de Direção por Inclinação Mobile (Fase 1.6.2) */}
@@ -277,7 +277,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
         </main>
 
         {/* ═══ 3. DIREITA: CONTROLES (BUZINA/TCS no topo alinhado ao mapa · CÂMBIO · START) ═══ */}
-        <aside className={`flex flex-col items-stretch justify-between h-full pt-0 pb-0.5 pl-1.5 border-l border-white/5 flex-shrink-0 gap-1 ${isDriveMode ? 'w-[124px] sm:w-[140px]' : 'w-auto min-w-[88px]'}`}>
+        <aside className="flex flex-col items-stretch justify-between h-full pt-0 pb-0.5 pl-1.5 border-l border-white/5 flex-shrink-0 gap-1 w-[124px] sm:w-[140px]">
         {/* Direita superior: [ 📢 ] [ TCS ] em cima, 0–100 no meio, e botão NOS abaixo */}
         <div className="flex flex-col items-end gap-0.5 flex-shrink-0 w-full">
           <div className="flex items-center gap-1.5">
@@ -350,62 +350,59 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             </button>
           )}
         </div>
-          {isDriveMode && (
-            <>
-              {/* Topo: Moto Freio dianteiro */}
-              {isMotorcycle && (
-                <button
-                  type="button"
-                  onPointerDown={() => setBrake(1)}
-                  onPointerUp={() => setBrake(0)}
-                  onPointerLeave={() => setBrake(0)}
-                  onPointerCancel={() => setBrake(0)}
-                  className="h-9 rounded-xl border border-red-400/50 bg-red-950/50 font-mono text-[8.5px] font-black text-red-200 active:bg-red-500/40"
-                  aria-label="Manete de freio dianteiro"
-                >
-                  F. DIANTEIRO
-                </button>
-              )}
-  
-              {/* Meio: Perfis de Condução & Câmbio */}
-              <div className="flex-1 flex flex-col items-center justify-center gap-1 min-h-0 w-full py-0.5">
-                {caps.supportedDrivingModes.length > 1 && (
-                  <DrivingModesSelector
-                    supportedModes={caps.supportedDrivingModes}
-                    orientation="grid"
-                    size="compact"
-                    showTitle={true}
-                    className="w-full"
-                  />
-                )}
-                <div className="flex items-center justify-center gap-1.5">
-                  <GearShift orientation="vertical" size="compact" showPaddles={false} />
-                  {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
-                    <VerticalGestureShifter size="compact" />
-                  )}
-                </div>
-              </div>
-  
-              {/* Base: Freio de mão + START — alturas compactas anti-corte */}
-              <div className="grid grid-cols-2 gap-1.5 flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={toggleHandbrake}
-                  className={`h-11 rounded-xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer shadow-sm ${
-                    handbrake
-                      ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_8px_rgba(249,115,22,0.8)]'
-                      : 'bg-zinc-900 border-white/10 text-zinc-400'
-                  }`}
-                  aria-label="Freio de mão"
-                >
-                  <span className="text-[11px] sm:text-xs">(P)</span>
-                  <span className="text-[6.5px] sm:text-[7px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
-                </button>
-                <MobileStartButton variant="square" className="h-11 w-full rounded-xl" />
-              </div>
-            </>
+
+        {/* Topo: Moto Freio dianteiro */}
+        {isMotorcycle && (
+          <button
+            type="button"
+            onPointerDown={() => setBrake(1)}
+            onPointerUp={() => setBrake(0)}
+            onPointerLeave={() => setBrake(0)}
+            onPointerCancel={() => setBrake(0)}
+            className="h-9 rounded-xl border border-red-400/50 bg-red-950/50 font-mono text-[8.5px] font-black text-red-200 active:bg-red-500/40"
+            aria-label="Manete de freio dianteiro"
+          >
+            F. DIANTEIRO
+          </button>
+        )}
+
+        {/* Meio: Perfis de Condução & Câmbio */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-1 min-h-0 w-full py-0.5">
+          {caps.supportedDrivingModes.length > 1 && (
+            <DrivingModesSelector
+              supportedModes={caps.supportedDrivingModes}
+              orientation="grid"
+              size="compact"
+              showTitle={true}
+              className="w-full"
+            />
           )}
-        </aside>
+          <div className="flex items-center justify-center gap-1.5">
+            <GearShift orientation="vertical" size="compact" showPaddles={false} />
+            {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
+              <VerticalGestureShifter size="compact" />
+            )}
+          </div>
+        </div>
+
+        {/* Base: Freio de mão + START — alturas compactas anti-corte */}
+        <div className="grid grid-cols-2 gap-1.5 flex-shrink-0">
+          <button
+            type="button"
+            onClick={toggleHandbrake}
+            className={`h-11 rounded-xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer shadow-sm ${
+              handbrake
+                ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_8px_rgba(249,115,22,0.8)]'
+                : 'bg-zinc-900 border-white/10 text-zinc-400'
+            }`}
+            aria-label="Freio de mão"
+          >
+            <span className="text-[11px] sm:text-xs">(P)</span>
+            <span className="text-[6.5px] sm:text-[7px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
+          </button>
+          <MobileStartButton variant="square" className="h-11 w-full rounded-xl" />
+        </div>
+      </aside>
       </div>
 
       {/* ── Efeitos & Modais ── */}

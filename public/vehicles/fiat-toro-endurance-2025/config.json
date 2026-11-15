@@ -82,8 +82,8 @@
       "gainIdle": 0.18,
       "gainMax": 0.85,
       "cylinders": 4,
-      "engineType": "i4",
-      "exhaustResonanceHz": 210,
+      "engineType": "i4_turbo_flex",
+      "exhaustResonanceHz": 215,
       "intakeResonanceHz": 520,
       "hasBrapOnShift": false
     }

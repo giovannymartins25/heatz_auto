@@ -29,6 +29,9 @@ export function useAudio(config: VehicleConfig | null) {
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
+  const hasPopsAndBangs = useSimulationStore((s) => s.hasPopsAndBangs)
+  const popsAndBangsEnabled = useSimulationStore((s) => s.popsAndBangsEnabled)
+  const exhaustType = useSimulationStore((s) => s.exhaustType)
   const triggerBackfireFlame = useSimulationStore((s) => s.triggerBackfireFlame)
   const windowsOpen = useSimulationStore((s) => s.windowsOpen)
   const gearGrindTrigger = useSimulationStore((s) => s.gearGrindTrigger)
@@ -92,14 +95,16 @@ export function useAudio(config: VehicleConfig | null) {
     synth.setRpm(rpm)
     synth.setThrottle(throttle)
     synth.setTurboBoost(boostPressureBar)
-    synth.setExhaustValve(exhaustValveOpen)
+    synth.setExhaustValve(exhaustValveOpen || exhaustType === 'straight_pipe' || (hasPopsAndBangs && popsAndBangsEnabled))
 
-    if (isRevLimiting && exhaustValveOpen) {
+    const isPopsActive = hasPopsAndBangs && popsAndBangsEnabled
+
+    if (isRevLimiting && (exhaustValveOpen || isPopsActive || exhaustType === 'straight_pipe')) {
       synth.triggerBackfire()
       triggerBackfireFlame()
     }
 
-    if (isLaunchControlArmed && exhaustValveOpen) {
+    if (isLaunchControlArmed && (exhaustValveOpen || isPopsActive)) {
       synth.triggerLaunchLimiter()
       if (Math.random() < 0.3) {
         triggerBackfireFlame()
@@ -111,14 +116,22 @@ export function useAudio(config: VehicleConfig | null) {
     const prevBoost = prevBoostRef.current
     if (throttle < 0.22 && prevThrottle >= 0.45 && prevBoost > 0.25) {
       synth.triggerBlowOff(prevBoost)
-      if (exhaustValveOpen && Math.random() < 0.4) {
+      if ((exhaustValveOpen || isPopsActive) && Math.random() < 0.4) {
+        triggerBackfireFlame()
+      }
+    }
+
+    // Overrun Crackles / Pops and Bangs ativo ao soltar o acelerador em giros médios/altos
+    if (isPopsActive && throttle < 0.15 && prevThrottle >= 0.38 && rpm > 2600) {
+      synth.triggerBackfire()
+      if (Math.random() < (exhaustType === 'straight_pipe' || exhaustType === 'downpipe' ? 0.75 : 0.4)) {
         triggerBackfireFlame()
       }
     }
 
     prevThrottleRef.current = throttle
     prevBoostRef.current = boostPressureBar
-  }, [rpm, throttle, isRevLimiting, isLaunchControlArmed, boostPressureBar, exhaustValveOpen, triggerBackfireFlame])
+  }, [rpm, throttle, isRevLimiting, isLaunchControlArmed, boostPressureBar, exhaustValveOpen, hasPopsAndBangs, popsAndBangsEnabled, exhaustType, triggerBackfireFlame])
 
   // Troca de marcha em alta rotação (PDK / DSG / Racing shift brap)
   useEffect(() => {
@@ -126,12 +139,13 @@ export function useAudio(config: VehicleConfig | null) {
     if (!synth || !synth.isPlaying) return
 
     const prevGear = prevGearRef.current
-    if (currentGear > prevGear && prevGear > 0 && throttle > 0.4 && rpm > 3400 && exhaustValveOpen) {
+    const isPopsActive = hasPopsAndBangs && popsAndBangsEnabled
+    if (currentGear > prevGear && prevGear > 0 && throttle > 0.4 && rpm > 3400 && (exhaustValveOpen || isPopsActive || exhaustType === 'straight_pipe')) {
       synth.triggerShiftBrap()
       triggerBackfireFlame()
     }
     prevGearRef.current = currentGear
-  }, [currentGear, throttle, rpm, triggerBackfireFlame])
+  }, [currentGear, throttle, rpm, hasPopsAndBangs, popsAndBangsEnabled, exhaustType, exhaustValveOpen, triggerBackfireFlame])
 
   // Controle de buzina
   useEffect(() => {
