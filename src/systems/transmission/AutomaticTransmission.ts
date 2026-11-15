@@ -8,6 +8,7 @@ export interface AutomaticTransmissionConfig {
   wheelDiameter: number
   maxRpm: number
   idleRpm: number
+  revLimiter?: number
   isCvt?: boolean
 }
 
@@ -22,6 +23,7 @@ export interface AutoShiftInput {
   fourWheelDriveMode?: FourWheelDriveMode
   maxPowerRpm?: number
   maxTorqueRpm?: number
+  revLimiter?: number
   deltaTime: number
 }
 
@@ -83,37 +85,42 @@ export class AutomaticTransmission {
    * - Matriz de estratégia:
    *   * D + NORMAL: Convencional (~2.850-3.200 RPM upshift, ~1.950-2.100 RPM downshift)
    *   * D + SPORT ou S + NORMAL: Esportiva (~5.200-5.800 RPM upshift, ~3.800-4.200 RPM downshift)
-   *   * S + SPORT: Desempenho Máximo (troca na faixa de potência ideal sem ficar desnecessariamente no limitador)
+   *   * S + SPORT: Desempenho Máximo no Corte de Giro (Upshift no limitador / redline)
    *   * D + ECO: Econômica (~2.050-2.350 RPM upshift, ~1.350-1.550 RPM downshift)
    */
   private getTargetRpmBand(
     drivingMode: DrivingMode,
     selectorPosition: SelectorPosition = 'D',
     throttle: number,
-    maxPowerRpm?: number,
+    _maxPowerRpm?: number,
+    revLimiterRpm?: number,
   ): {
     min: number
     max: number
     downshiftThreshold: number
   } {
     const { maxRpm } = this.config
+    const cutoffRpm = revLimiterRpm || this.config.revLimiter || maxRpm
     const isSelectorSport = selectorPosition === 'S'
     const isModeSport = drivingMode === 'sport' || drivingMode === 'track'
     const isEco = drivingMode === 'eco' && !isSelectorSport
 
-    // 10.4 S + SPORT: Desempenho Máximo
+    // 10.4 S + SPORT: Desempenho Máximo / Troca no Corte de Giro (Redline / Rev Limiter)
     if (isSelectorSport && isModeSport) {
-      const peakPowerRpm = maxPowerRpm && maxPowerRpm > 3000 ? maxPowerRpm : maxRpm * 0.9
-      const targetUpshift = Math.min(
-        maxRpm - 150,
-        throttle > 0.75 ? peakPowerRpm + 120 + throttle * 180 : peakPowerRpm - 300 + throttle * 350,
-      )
+      // Sob aceleração esportiva (throttle >= 0.40), estica tudo até o corte de giro com margem mínima de 25 RPM
+      // Sob aceleração moderada (< 0.40), mantém giro alto escalonado
+      const targetUpshift =
+        throttle >= 0.40
+          ? cutoffRpm - 25
+          : Math.min(cutoffRpm - 25, Math.max(3800, cutoffRpm * 0.72 + throttle * (cutoffRpm * 0.26)))
+
       const downshiftTarget = Math.max(
-        3800,
-        Math.min(targetUpshift - 1200, peakPowerRpm - 1800 + throttle * 600),
+        Math.min(3800, cutoffRpm * 0.58),
+        cutoffRpm * 0.52 + throttle * 450,
       )
+
       return {
-        min: 3600 + throttle * 500,
+        min: Math.min(3600 + throttle * 500, cutoffRpm * 0.70),
         max: targetUpshift,
         downshiftThreshold: downshiftTarget,
       }
@@ -168,11 +175,16 @@ export class AutomaticTransmission {
       selectorPosition = 'D',
       fourWheelDriveMode = 'auto',
       maxPowerRpm,
+      revLimiter,
       deltaTime,
     } = input
     const maxGear = this.config.gearRatios.length
     const hasCrawlerFirstGear = this.config.gearRatios.length === 9 && (this.config.gearRatios[0]?.ratio ?? 0) >= 4.5
     const is4wdLow = fourWheelDriveMode === '4wd_low'
+    const cutoffRpm = revLimiter || this.config.revLimiter || this.config.maxRpm
+    const isSelectorSport = selectorPosition === 'S'
+    const isModeSport = drivingMode === 'sport' || drivingMode === 'track'
+    const isSportCutoff = isSelectorSport && isModeSport
 
     // Em transmissões ZF 9HP com 1ª marcha ultracurta (crawler ratio 4.700:1):
     // No modo D convencional (AUTO ou 4WD LOCK), a arrancada padrão é em 2ª marcha (2.840:1).
@@ -202,7 +214,7 @@ export class AutomaticTransmission {
       targetClutchEngagement = 0.0
     } else if (vehicleSpeedKmh < 8 || currentRpm < this.config.idleRpm * 1.18) {
       // Arrancada suave e proteção anti-estol ao parar; acima de 8 km/h mantém acoplado para freio motor
-      const { min: targetMinRpm } = this.getTargetRpmBand(drivingMode, selectorPosition, throttle, maxPowerRpm)
+      const { min: targetMinRpm } = this.getTargetRpmBand(drivingMode, selectorPosition, throttle, maxPowerRpm, cutoffRpm)
       const targetLaunchRpm = Math.max(1850, Math.min(targetMinRpm, 2400))
       const rpmRatio = clamp((currentRpm - this.config.idleRpm) / (targetLaunchRpm - this.config.idleRpm), 0, 1)
       const speedRatio = clamp(vehicleSpeedKmh / 14, 0, 1)
@@ -234,13 +246,15 @@ export class AutomaticTransmission {
       selectorPosition,
       throttle,
       maxPowerRpm,
+      cutoffRpm,
     )
 
     const isContinuousLoop = deltaTime < 0.5
     const minSameDirCooldown = 0.65
     const minReverseDirCooldown = 0.95
     const isEmergencyLowRpm = currentGear > 1 && currentRpm < this.config.idleRpm * 1.15 && this.shiftTimer >= 0.20
-    const isOverRevDanger = currentGear < maxGear && currentRpm >= this.config.maxRpm * 0.94 && this.shiftTimer >= 0.25
+    const overRevDangerThreshold = isSportCutoff ? cutoffRpm - 20 : this.config.maxRpm * 0.94
+    const isOverRevDanger = currentGear < maxGear && currentRpm >= overRevDangerThreshold && this.shiftTimer >= 0.20
     const isRapidStomp = throttle >= 0.90 && throttleDelta >= 0.28
 
     if (
@@ -339,7 +353,9 @@ export class AutomaticTransmission {
       const isCoasting = isContinuousLoop && (throttle < 0.08 || (throttleDelta < -0.20 && this.coastingTimer >= 0))
       const upshiftMargin =
         isContinuousLoop && this.lastShiftDirection === 'down' && this.shiftTimer < 1.5 ? 200 : 0
-      const effectiveUpshiftRpm = Math.min(this.config.maxRpm * 0.94, targetMaxRpm + upshiftMargin)
+      const effectiveUpshiftRpm = isSportCutoff
+        ? Math.min(cutoffRpm - 25, targetMaxRpm)
+        : Math.min(this.config.maxRpm * 0.94, targetMaxRpm + upshiftMargin)
 
       const allowUpshiftLoad = !isCoasting || isOverRevDanger
       if (allowUpshiftLoad && (!reverseBlocked || isOverRevDanger) && currentRpm >= effectiveUpshiftRpm && brake < 0.1) {

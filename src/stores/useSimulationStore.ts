@@ -715,6 +715,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         wheelDiameter: config.info.wheelDiameter,
         maxRpm: config.engine.maxRpm,
         idleRpm: config.engine.idleRpm,
+        revLimiter: config.engine.revLimiter,
         isCvt: config.transmission.type === 'cvt',
       })
     }
@@ -2166,6 +2167,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
               fourWheelDriveMode: ctx.fourWheelDriveMode,
               maxPowerRpm: _config.engine.maxPowerRpm,
               maxTorqueRpm: _config.engine.maxTorqueRpm,
+              revLimiter: _config.engine.revLimiter,
               deltaTime: dt,
             })
 
