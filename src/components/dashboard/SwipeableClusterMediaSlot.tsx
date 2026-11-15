@@ -50,6 +50,7 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
   const [dragging, setDragging] = useState(false)
 
   const startRef = useRef<{ x: number; y: number; id: number } | null>(null)
+  const lastDxRef = useRef(0)
   const lockedRef = useRef(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -67,53 +68,97 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
   )
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Apenas botão primário (toque ou botão esquerdo do mouse)
     if (!e.isPrimary) return
+    if (e.button !== undefined && e.button !== 0) return
+
     const target = e.target as HTMLElement
-    // Não sequestrar toques de botões, sliders e campos
+    // Não sequestrar toques de botões, links, inputs, selects, textareas e elementos marcados
     if (target.closest('button, a, input, select, textarea, [data-prevent-swipe]')) return
+
     startRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId }
+    lastDxRef.current = 0
     lockedRef.current = false
+
+    // Captura o ponteiro imediatamente para garantir rastreamento contínuo em desktop e mobile
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch { /* noop */ }
   }
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const s = startRef.current
     if (!s) return
+
     const dx = e.clientX - s.x
     const dy = e.clientY - s.y
+    lastDxRef.current = dx
+
+    // Decisão de travamento horizontal
     if (!lockedRef.current) {
-      if (Math.abs(dy) > Math.abs(dx) * 1.5 && Math.abs(dy) > 10) {
-        startRef.current = null // gesto vertical: ignora
+      // Se for preponderantemente vertical e além de 18px, é rolagem interna de lista: libera
+      if (Math.abs(dy) > 18 && Math.abs(dy) > Math.abs(dx) * 2) {
+        try {
+          if (rootRef.current?.hasPointerCapture(s.id)) {
+            rootRef.current.releasePointerCapture(s.id)
+          }
+        } catch { /* noop */ }
+        startRef.current = null
         return
       }
-      if (Math.abs(dx) > 8) {
+
+      // Trava o gesto horizontal quando há movimento horizontal definido (>= 4px)
+      if (Math.abs(dx) >= 4 && Math.abs(dx) >= Math.abs(dy)) {
         lockedRef.current = true
         setDragging(true)
-        try { rootRef.current?.setPointerCapture(s.id) } catch { /* noop */ }
-      } else return
+      } else {
+        return
+      }
     }
+
     if (lockedRef.current) {
       e.stopPropagation()
     }
+
     // Resistência nas bordas (esquerda no painel / direita na mídia)
     const w = rootRef.current?.clientWidth ?? 300
     const max = w * 0.6
     let off = Math.max(-max, Math.min(max, dx))
-    if ((activeView === 'cluster' && dx > 0) || (activeView === 'multimedia' && dx < 0)) off *= 0.2
+    if ((activeView === 'cluster' && dx > 0) || (activeView === 'multimedia' && dx < 0)) {
+      off *= 0.2
+    }
     setDragOffset(off)
   }
 
   const endGesture = (e: React.PointerEvent<HTMLDivElement>, cancelled = false) => {
     const s = startRef.current
-    startRef.current = null
+    if (!s) return
+
     const wasLocked = lockedRef.current
+    const currentX =
+      e.clientX !== undefined && Number.isFinite(e.clientX) && e.clientX !== 0
+        ? e.clientX
+        : s.x + lastDxRef.current
+    const dx = currentX - s.x
+
+    startRef.current = null
     lockedRef.current = false
     setDragging(false)
     setDragOffset(0)
-    if (!s || !wasLocked || cancelled) return
-    const dx = e.clientX - s.x
-    if (dx <= -SWIPE_THRESHOLD && activeView === 'cluster') setView('multimedia')
-    else if (dx >= SWIPE_THRESHOLD && activeView === 'multimedia') setView('cluster')
-    try { rootRef.current?.releasePointerCapture(s.id) } catch { /* noop */ }
+
+    try {
+      if (rootRef.current?.hasPointerCapture(s.id)) {
+        rootRef.current.releasePointerCapture(s.id)
+      }
+    } catch { /* noop */ }
+
+    if (!wasLocked || cancelled) return
+
+    if (dx <= -SWIPE_THRESHOLD && activeView === 'cluster') {
+      setView('multimedia')
+    } else if (dx >= SWIPE_THRESHOLD && activeView === 'multimedia') {
+      setView('cluster')
+    }
   }
 
   const index = activeView === 'cluster' ? 0 : 1
@@ -121,12 +166,13 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
   return (
     <div
       ref={rootRef}
-      className={`relative w-full h-full min-h-0 flex-1 self-stretch select-none overflow-hidden ${className}`}
+      className={`relative w-full h-full min-h-0 flex-1 self-stretch select-none overflow-hidden ${
+        dragging ? 'cursor-grabbing' : 'cursor-grab'
+      } ${className}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={(e) => endGesture(e)}
       onPointerCancel={(e) => endGesture(e, true)}
-      onLostPointerCapture={(e) => endGesture(e, true)}
       style={{ touchAction: 'pan-y' }}
       aria-label="Slot inferior de instrumentos e multimídia"
       data-swipe-slot
@@ -163,14 +209,18 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
       {/* Esteira: dois painéis de MESMA largura e altura (cada um = 100% do slot) */}
       <div
         className={`absolute inset-y-0 left-0 flex ${dragging ? '' : 'transition-transform duration-300 ease-out'}`}
-        style={{ width: '200%', transform: `translateX(calc(${-index * 50}% + ${dragOffset}px))` }}
+        style={{
+          width: '200%',
+          transform: `translateX(calc(${-index * 50}% + ${dragOffset}px))`,
+          touchAction: 'pan-y',
+        }}
         data-swipe-track
       >
         <div
           className="relative h-full w-1/2"
           data-pane="cluster"
           aria-hidden={activeView !== 'cluster'}
-          style={{ pointerEvents: activeView === 'cluster' ? 'auto' : 'none' }}
+          style={{ pointerEvents: dragging ? 'none' : (activeView === 'cluster' ? 'auto' : 'none') }}
         >
           <div className="absolute inset-0 flex items-center justify-center">
             {supportsPaddleShifters && isManualActive && (
@@ -198,7 +248,7 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
           className="relative h-full w-1/2"
           data-pane="multimedia"
           aria-hidden={activeView !== 'multimedia'}
-          style={{ pointerEvents: activeView === 'multimedia' ? 'auto' : 'none' }}
+          style={{ pointerEvents: dragging ? 'none' : (activeView === 'multimedia' ? 'auto' : 'none') }}
         >
           <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} fill />
         </div>

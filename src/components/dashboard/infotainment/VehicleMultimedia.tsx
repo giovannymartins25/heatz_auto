@@ -187,7 +187,7 @@ export const VehicleMultimedia = memo(function VehicleMultimedia({
   return (
     <div
       className={`${fill ? 'absolute inset-0 w-full h-full' : 'relative h-60 w-[30rem] max-w-full'} flex flex-col min-h-0 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-zinc-950 via-zinc-900 to-black text-white select-none ${className}`}
-      style={{ filter: `brightness(${0.55 + brightness / 220})` }}
+      style={{ filter: `brightness(${0.55 + brightness / 220})`, touchAction: 'pan-y' }}
       data-multimedia-root
     >
       {/* Barra de status (reserva espaço à direita para o botão de alternância painel/mídia) */}
