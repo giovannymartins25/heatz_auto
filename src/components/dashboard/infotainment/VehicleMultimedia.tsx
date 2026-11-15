@@ -256,7 +256,7 @@ export const VehicleMultimedia = memo(function VehicleMultimedia({
       </div>
 
       {/* Conteúdo principal — mesmo espaço para todas as funções */}
-      <div className="min-h-0 flex-1 overflow-hidden p-1.5" data-multimedia-main>
+      <div className="min-h-0 flex-1 overflow-y-auto p-1.5" data-multimedia-main style={{ touchAction: 'pan-y' }}>
         {tab === 'home' && (
           <div className="grid h-full grid-cols-2 gap-1.5">
             <div className="flex min-h-0 flex-col justify-between rounded-xl border border-white/10 bg-zinc-900/60 p-2">

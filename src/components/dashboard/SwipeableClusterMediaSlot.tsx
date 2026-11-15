@@ -260,12 +260,14 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
         </div>
 
         <div
-          className="relative h-full w-1/2"
+          className="relative h-full w-1/2 overflow-hidden"
           data-pane="multimedia"
           aria-hidden={activeView !== 'multimedia'}
           style={{ pointerEvents: dragging ? 'none' : (activeView === 'multimedia' ? 'auto' : 'none') }}
         >
-          <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} fill />
+          <div className="absolute inset-0 w-full h-full flex items-center justify-center p-0.5 sm:p-1 overflow-hidden">
+            <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} fill />
+          </div>
         </div>
       </div>
     </div>

@@ -93,7 +93,7 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
     >
       {/* Moldura superior estilo Uconnect 7" — Barra de arraste/encaixe */}
       <header
-        className="flex h-7 shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-3 pr-24 text-[10px] font-mono cursor-grab active:cursor-grabbing select-none"
+        className="flex h-7 shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-3 pr-28 text-[9px] sm:text-[10px] font-mono cursor-grab active:cursor-grabbing select-none"
         style={{ touchAction: 'none' }}
       >
         <div className="flex items-center gap-2">
@@ -110,10 +110,9 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
           <span className="text-zinc-400 font-sans font-bold text-[9px]">Uconnect™ 7"</span>
         </div>
 
-        <div className="flex items-center gap-3 text-zinc-400 text-[9px]">
+        <div className="flex items-center gap-2 text-zinc-400 text-[8.5px]">
           <span>26°C</span>
           <span>📶 4G</span>
-          <span>📱 Bluetooth</span>
           <span className="font-bold text-white">{timeStr}</span>
         </div>
       </header>
@@ -212,42 +211,42 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
         )}
 
         {activeTab === 'climate' && (
-          <div className="grid h-full grid-cols-[1fr_1.1fr_1fr] gap-2 items-center">
+          <div className="grid h-full grid-cols-[1fr_1.1fr_1fr] gap-1.5 items-center">
             {/* Temperatura */}
-            <div className="flex h-full flex-col items-center justify-center gap-1 rounded-xl bg-zinc-900/70 border border-white/5 p-2">
-              <span className="text-[8px] font-mono font-bold text-zinc-400 uppercase">Temperatura</span>
-              <div className="flex items-center gap-2">
+            <div className="flex h-full flex-col items-center justify-center gap-0.5 rounded-xl bg-zinc-900/70 border border-white/5 p-1.5">
+              <span className="text-[7.5px] font-mono font-bold text-zinc-400 uppercase">Temperatura</span>
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setTemp((t) => Math.max(16, t - 0.5))}
-                  className="h-8 w-8 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer"
+                  className="h-6 w-6 sm:h-7 sm:w-7 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer text-sm"
                 >
                   −
                 </button>
-                <span className="text-2xl font-black text-red-400 font-mono min-w-[65px] text-center">
+                <span className="text-lg sm:text-2xl font-black text-red-400 font-mono min-w-[55px] text-center">
                   {temp.toFixed(1)}°
                 </span>
                 <button
                   type="button"
                   onClick={() => setTemp((t) => Math.min(30, t + 0.5))}
-                  className="h-8 w-8 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer"
+                  className="h-6 w-6 sm:h-7 sm:w-7 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer text-sm"
                 >
                   +
                 </button>
               </div>
-              <span className="text-[7.5px] font-mono text-zinc-500">Ar Digital Automático</span>
+              <span className="text-[7px] font-mono text-zinc-500">Ar Digital Automático</span>
             </div>
 
             {/* Ventilação */}
-            <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl bg-zinc-900/70 border border-white/5 p-2">
-              <span className="text-[8px] font-mono font-bold text-zinc-400 uppercase">Fluxo de Ar</span>
-              <div className="flex items-end gap-1.5 h-10">
+            <div className="flex h-full flex-col items-center justify-center gap-1 rounded-xl bg-zinc-900/70 border border-white/5 p-1.5">
+              <span className="text-[7.5px] font-mono font-bold text-zinc-400 uppercase">Fluxo de Ar</span>
+              <div className="flex items-end gap-1 h-8 sm:h-10">
                 {[1, 2, 3, 4, 5].map((lvl) => (
                   <button
                     key={lvl}
                     type="button"
                     onClick={() => setFanSpeed(lvl)}
-                    className="w-5 rounded-t-sm transition-all cursor-pointer"
+                    className="w-4 sm:w-5 rounded-t-sm transition-all cursor-pointer"
                     style={{
                       height: `${lvl * 20}%`,
                       background: lvl <= fanSpeed ? '#dc2626' : '#27272a',
@@ -256,15 +255,15 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
                   />
                 ))}
               </div>
-              <span className="text-[7.5px] font-mono text-zinc-400">Nível {fanSpeed} de 5</span>
+              <span className="text-[7px] font-mono text-zinc-400">Nível {fanSpeed} de 5</span>
             </div>
 
             {/* Botões de Comando */}
-            <div className="grid grid-cols-2 gap-1.5 h-full content-center">
+            <div className="grid grid-cols-2 gap-1 h-full content-center">
               <button
                 type="button"
                 onClick={() => setIsAcOn(!isAcOn)}
-                className={`py-2 px-1 rounded-lg border font-mono text-[9px] font-black uppercase transition-all cursor-pointer ${
+                className={`py-1 px-1 rounded-lg border font-mono text-[8px] font-black uppercase transition-all cursor-pointer ${
                   isAcOn ? 'bg-red-600 text-white border-red-500' : 'bg-zinc-900 text-zinc-500 border-white/5'
                 }`}
               >
@@ -273,7 +272,7 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
               <button
                 type="button"
                 onClick={() => setIsAuto(!isAuto)}
-                className={`py-2 px-1 rounded-lg border font-mono text-[9px] font-black uppercase transition-all cursor-pointer ${
+                className={`py-1 px-1 rounded-lg border font-mono text-[8px] font-black uppercase transition-all cursor-pointer ${
                   isAuto ? 'bg-red-600 text-white border-red-500' : 'bg-zinc-900 text-zinc-500 border-white/5'
                 }`}
               >
@@ -282,7 +281,7 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
               <button
                 type="button"
                 onClick={() => setRecirc(!recirc)}
-                className={`py-2 px-1 rounded-lg border font-mono text-[8px] font-bold uppercase transition-all cursor-pointer ${
+                className={`py-1 px-1 rounded-lg border font-mono text-[7.5px] font-bold uppercase transition-all cursor-pointer ${
                   recirc ? 'bg-red-600 text-white border-red-500' : 'bg-zinc-900 text-zinc-500 border-white/5'
                 }`}
               >
@@ -291,7 +290,7 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
               <button
                 type="button"
                 onClick={() => setDefrost(!defrost)}
-                className={`py-2 px-1 rounded-lg border font-mono text-[8px] font-bold uppercase transition-all cursor-pointer ${
+                className={`py-1 px-1 rounded-lg border font-mono text-[7.5px] font-bold uppercase transition-all cursor-pointer ${
                   defrost ? 'bg-red-600 text-white border-red-500' : 'bg-zinc-900 text-zinc-500 border-white/5'
                 }`}
               >
@@ -302,36 +301,36 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
         )}
 
         {activeTab === 'vehicle' && (
-          <div className="grid h-full grid-cols-4 gap-2 items-center">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 items-stretch my-auto">
             {/* Card 1: Velocidade e Marcha */}
-            <div className="flex h-full flex-col justify-center items-center rounded-xl bg-zinc-900/70 border border-white/5 p-2">
-              <span className="text-[7.5px] font-mono text-zinc-500 uppercase">Velocidade</span>
-              <div className="text-2xl font-black font-mono text-white">{speedKmh}</div>
-              <span className="text-[7.5px] font-mono text-zinc-500">KM/H · AT6</span>
+            <div className="flex flex-col justify-center items-center rounded-xl bg-zinc-900/70 border border-white/5 p-1.5">
+              <span className="text-[7px] font-mono text-zinc-500 uppercase">Velocidade</span>
+              <div className="text-xl sm:text-2xl font-black font-mono text-white">{speedKmh}</div>
+              <span className="text-[7px] font-mono text-zinc-500">KM/H · AT6</span>
             </div>
 
             {/* Card 2: Motor T270 Flex */}
-            <div className="flex h-full flex-col justify-center items-center rounded-xl bg-zinc-900/70 border border-white/5 p-2">
-              <span className="text-[7.5px] font-mono text-zinc-500 uppercase">1.3 Turbo Flex</span>
-              <div className="text-lg font-black font-mono text-red-400">{rpm}</div>
-              <span className="text-[7.5px] font-mono text-zinc-500">RPM (Máx 6.500)</span>
+            <div className="flex flex-col justify-center items-center rounded-xl bg-zinc-900/70 border border-white/5 p-1.5">
+              <span className="text-[7px] font-mono text-zinc-500 uppercase">1.3 Turbo Flex</span>
+              <div className="text-base sm:text-lg font-black font-mono text-red-400">{rpm}</div>
+              <span className="text-[7px] font-mono text-zinc-500">RPM (Máx 6.500)</span>
             </div>
 
             {/* Card 3: Pressão de Turbo */}
-            <div className="flex h-full flex-col justify-center items-center rounded-xl bg-zinc-900/70 border border-white/5 p-2">
-              <span className="text-[7.5px] font-mono text-zinc-500 uppercase">Pressão Turbo</span>
-              <div className="text-lg font-black font-mono text-white">
+            <div className="flex flex-col justify-center items-center rounded-xl bg-zinc-900/70 border border-white/5 p-1.5">
+              <span className="text-[7px] font-mono text-zinc-500 uppercase">Pressão Turbo</span>
+              <div className="text-base sm:text-lg font-black font-mono text-white">
                 {boostPressureBar > 0.05 ? `${boostPressureBar.toFixed(2)}` : '0.00'}
               </div>
-              <span className="text-[7.5px] font-mono text-zinc-500">BAR (Pico 1.25)</span>
+              <span className="text-[7px] font-mono text-zinc-500">BAR (Pico 1.25)</span>
             </div>
 
             {/* Card 4: Tração FWD (Endurance) */}
-            <div className="flex h-full flex-col justify-center items-center rounded-xl bg-zinc-900/70 border border-white/5 p-2 text-center">
-              <span className="text-[7.5px] font-mono text-zinc-500 uppercase">Arquitetura Tração</span>
-              <div className="text-xs font-black font-mono text-emerald-400 mt-1">FWD 4x2</div>
-              <span className="text-[7px] font-mono text-zinc-400 mt-0.5 leading-tight">
-                Eixo Dianteiro · Picape Monobloco
+            <div className="flex flex-col justify-center items-center rounded-xl bg-zinc-900/70 border border-white/5 p-1.5 text-center">
+              <span className="text-[7px] font-mono text-zinc-500 uppercase">Arquitetura Tração</span>
+              <div className="text-xs font-black font-mono text-emerald-400 mt-0.5">FWD 4x2</div>
+              <span className="text-[6.5px] font-mono text-zinc-400 mt-0.5 leading-tight">
+                Eixo Dianteiro
               </span>
             </div>
           </div>

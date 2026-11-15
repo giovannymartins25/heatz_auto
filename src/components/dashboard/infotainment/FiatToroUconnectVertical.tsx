@@ -107,7 +107,7 @@ export const FiatToroUconnectVertical = memo(function FiatToroUconnectVertical({
     >
       {/* Moldura Premium Ranch com textura marrom/bronze — Barra de arraste/encaixe */}
       <header
-        className="flex h-8 shrink-0 items-center justify-between border-b border-amber-800/40 bg-gradient-to-r from-amber-950/80 via-zinc-900 to-amber-950/80 px-2.5 pr-24 text-[9px] font-mono cursor-grab active:cursor-grabbing select-none"
+        className="flex h-8 shrink-0 items-center justify-between border-b border-amber-800/40 bg-gradient-to-r from-amber-950/80 via-zinc-900 to-amber-950/80 px-2.5 pr-28 text-[9px] font-mono cursor-grab active:cursor-grabbing select-none"
         style={{ touchAction: 'none' }}
       >
         <div className="flex items-center gap-1.5">

@@ -88,162 +88,164 @@ export const ClassicRadioAudioUnit = memo(function ClassicRadioAudioUnit({
 
   return (
     <div
-      className={`relative rounded-xl border-2 border-zinc-700 bg-gradient-to-b from-zinc-800 via-zinc-900 to-black p-2 sm:p-3 select-none font-mono flex flex-col justify-between shadow-2xl ${
+      className={`relative rounded-xl border-2 border-zinc-700 bg-gradient-to-b from-zinc-800 via-zinc-900 to-black p-1.5 sm:p-2.5 select-none font-mono flex flex-col justify-between shadow-2xl overflow-hidden ${
         fill ? 'w-full h-full' : 'w-[320px] h-[190px]'
       } ${className}`}
     >
       {/* ─── Moldura Superior com Marca do Rádio ─── */}
-      <div className="flex items-center justify-between px-1 pb-1 border-b border-white/10 text-[8px] sm:text-[9px]">
+      <div className="flex items-center justify-between px-1 pr-28 pb-1 border-b border-white/10 text-[8px] sm:text-[9px] shrink-0">
         <div className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="font-bold tracking-wider text-zinc-300 uppercase">
-            {isOpala ? 'ALFACELL SIRIUS · AM/FM CASSETTE' : 'VOLKSWAGEN SOUND · 1-DIN MP3'}
+          <span className="font-bold tracking-wider text-zinc-300 uppercase truncate">
+            {isOpala ? 'ALFACELL SIRIUS' : 'VOLKSWAGEN SOUND'}
           </span>
         </div>
-        <span className="text-zinc-500 font-bold uppercase">{vehicle.info.brand} AUDIO</span>
+        <span className="text-zinc-500 font-bold uppercase shrink-0">{vehicle.info.brand} AUDIO</span>
       </div>
 
-      {/* ─── Visor LCD / VFD Retrô ─── */}
-      <div
-        className={`my-1.5 p-2 rounded-lg border ${displayTheme.border} ${displayTheme.bg} ${displayTheme.glow} flex flex-col justify-between`}
-      >
-        <div className="flex items-center justify-between text-[9px] font-black">
-          <div className="flex items-center gap-2">
-            <span className={`px-1 py-0.2 rounded bg-black/60 ${displayTheme.accentText}`}>{band}</span>
-            <span className={displayTheme.text}>{band === 'BT' ? 'BLUETOOTH' : `${currentFreq.toFixed(1)} MHz`}</span>
+      <div className="flex-1 min-h-0 w-full flex flex-col justify-between overflow-y-auto py-0.5" style={{ touchAction: 'pan-y' }}>
+        {/* ─── Visor LCD / VFD Retrô ─── */}
+        <div
+          className={`my-0.5 p-1 sm:p-1.5 rounded-lg border ${displayTheme.border} ${displayTheme.bg} ${displayTheme.glow} flex flex-col justify-between`}
+        >
+          <div className="flex items-center justify-between text-[8px] sm:text-[9px] font-black">
+            <div className="flex items-center gap-1.5">
+              <span className={`px-1 py-0.2 rounded bg-black/60 ${displayTheme.accentText}`}>{band}</span>
+              <span className={displayTheme.text}>{band === 'BT' ? 'BLUETOOTH' : `${currentFreq.toFixed(1)} MHz`}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {loudness && <span className="text-[7px] px-1 rounded bg-black/60 text-amber-400">LOUD</span>}
+              <span className={displayTheme.text}>VOL {volume}%</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {loudness && <span className="text-[7.5px] px-1 rounded bg-black/60 text-amber-400">LOUD</span>}
-            <span className={displayTheme.text}>VOL {volume}%</span>
+
+          <div className="my-0.5 flex items-center justify-between">
+            <div className="min-w-0 pr-2">
+              <div className={`text-[10px] sm:text-xs font-black truncate tracking-wider ${displayTheme.text}`}>
+                {currentTrack.title.toUpperCase()}
+              </div>
+              <div className="text-[7.5px] sm:text-[8px] text-zinc-400 truncate uppercase">
+                {currentTrack.artist}
+              </div>
+            </div>
+            <div className={`text-[9px] font-bold shrink-0 ${displayTheme.text}`}>
+              {formatSec(elapsed)} / {formatSec(currentTrack.dur)}
+            </div>
+          </div>
+
+          {/* Barra de Progresso Retrô (Segmentada) */}
+          <div className="w-full h-1 rounded bg-black/80 p-0.5 flex gap-0.5 overflow-hidden border border-white/5">
+            {Array.from({ length: 24 }).map((_, i) => {
+              const active = i / 24 <= elapsed / currentTrack.dur
+              return (
+                <div
+                  key={i}
+                  className={`flex-1 h-full rounded-xs transition-colors ${
+                    active ? (isGol ? 'bg-sky-400' : 'bg-emerald-400') : 'bg-zinc-800'
+                  }`}
+                />
+              )
+            })}
           </div>
         </div>
 
-        <div className="my-1 flex items-center justify-between">
-          <div className="min-w-0 pr-2">
-            <div className={`text-[11px] sm:text-xs font-black truncate tracking-wider ${displayTheme.text}`}>
-              {currentTrack.title.toUpperCase()}
-            </div>
-            <div className="text-[8px] text-zinc-400 truncate uppercase">
-              {currentTrack.artist}
-            </div>
-          </div>
-          <div className={`text-[10px] font-bold shrink-0 ${displayTheme.text}`}>
-            {formatSec(elapsed)} / {formatSec(currentTrack.dur)}
-          </div>
-        </div>
-
-        {/* Barra de Progresso Retrô (Segmentada) */}
-        <div className="w-full h-1.5 rounded bg-black/80 p-0.5 flex gap-0.5 overflow-hidden border border-white/5">
-          {Array.from({ length: 24 }).map((_, i) => {
-            const active = i / 24 <= elapsed / currentTrack.dur
-            return (
-              <div
-                key={i}
-                className={`flex-1 h-full rounded-xs transition-colors ${
-                  active ? (isGol ? 'bg-sky-400' : 'bg-emerald-400') : 'bg-zinc-800'
+        {/* ─── Painel de Controle e Teclas Físicas ─── */}
+        <div className="flex flex-col gap-1 pt-0.5">
+          {/* Presets Numéricos 1 a 6 */}
+          <div className="grid grid-cols-6 gap-1 font-mono text-[7.5px] sm:text-[8.5px]">
+            {[1, 2, 3, 4, 5, 6].map((num) => (
+              <button
+                key={num}
+                type="button"
+                onClick={() => {
+                  setPreset(num)
+                  setTrackIndex((num - 1) % TRACKS.length)
+                  setElapsed(0)
+                }}
+                className={`py-0.5 sm:py-1 rounded border font-bold transition-all active:scale-95 cursor-pointer ${
+                  preset === num
+                    ? 'bg-zinc-700 text-white border-white/40 shadow-inner'
+                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border-white/10'
                 }`}
-              />
-            )
-          })}
-        </div>
-      </div>
-
-      {/* ─── Painel de Controle e Teclas Físicas ─── */}
-      <div className="flex flex-col gap-1.5 pt-1">
-        {/* Presets Numéricos 1 a 6 */}
-        <div className="grid grid-cols-6 gap-1 font-mono text-[8px] sm:text-[9px]">
-          {[1, 2, 3, 4, 5, 6].map((num) => (
-            <button
-              key={num}
-              type="button"
-              onClick={() => {
-                setPreset(num)
-                setTrackIndex((num - 1) % TRACKS.length)
-                setElapsed(0)
-              }}
-              className={`py-1 rounded border font-bold transition-all active:scale-95 cursor-pointer ${
-                preset === num
-                  ? 'bg-zinc-700 text-white border-white/40 shadow-inner'
-                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border-white/10'
-              }`}
-            >
-              {num}
-            </button>
-          ))}
-        </div>
-
-        {/* Botões Operacionais: SEEK, PLAY, BAND, LOUD, VOLUME */}
-        <div className="flex items-center justify-between gap-1 text-[8.5px] font-bold">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                setTrackIndex((t) => (t - 1 + TRACKS.length) % TRACKS.length)
-                setElapsed(0)
-              }}
-              className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/10 active:scale-95 cursor-pointer"
-              title="Faixa Anterior / Sintonia para baixo"
-            >
-              ◀◀ TUNE
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsPlaying(!isPlaying)}
-              className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-white/10 active:scale-95 cursor-pointer"
-              title={isPlaying ? 'Pausar' : 'Reproduzir'}
-            >
-              {isPlaying ? '⏸ PAUSE' : '▶ PLAY'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTrackIndex((t) => (t + 1) % TRACKS.length)
-                setElapsed(0)
-              }}
-              className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/10 active:scale-95 cursor-pointer"
-              title="Próxima Faixa / Sintonia para cima"
-            >
-              TUNE ▶▶
-            </button>
+              >
+                {num}
+              </button>
+            ))}
           </div>
 
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                const bands: RadioBand[] = ['FM1', 'FM2', 'AM', 'BT']
-                const next = bands[(bands.indexOf(band) + 1) % bands.length]
-                setBand(next)
-              }}
-              className="px-1.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/10 active:scale-95 cursor-pointer"
-            >
-              BAND
-            </button>
-            <button
-              type="button"
-              onClick={() => setLoudness(!loudness)}
-              className={`px-1.5 py-1 rounded border active:scale-95 cursor-pointer ${
-                loudness ? 'bg-amber-600/30 text-amber-300 border-amber-500/40' : 'bg-zinc-900 text-zinc-500 border-white/10'
-              }`}
-            >
-              LOUD
-            </button>
-            <div className="flex items-center gap-0.5 bg-black/60 px-1 py-0.5 rounded border border-white/10">
+          {/* Botões Operacionais: SEEK, PLAY, BAND, LOUD, VOLUME */}
+          <div className="flex items-center justify-between gap-1 text-[7.5px] sm:text-[8px] font-bold">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setVolume((v) => Math.max(0, v - 10))}
-                className="px-1 text-zinc-400 hover:text-white"
+                onClick={() => {
+                  setTrackIndex((t) => (t - 1 + TRACKS.length) % TRACKS.length)
+                  setElapsed(0)
+                }}
+                className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/10 active:scale-95 cursor-pointer"
+                title="Faixa Anterior / Sintonia para baixo"
               >
-                -
+                ◀◀
               </button>
-              <span className="text-[7.5px] text-zinc-300">VOL</span>
               <button
                 type="button"
-                onClick={() => setVolume((v) => Math.min(100, v + 10))}
-                className="px-1 text-zinc-400 hover:text-white"
+                onClick={() => setIsPlaying(!isPlaying)}
+                className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-white/10 active:scale-95 cursor-pointer"
+                title={isPlaying ? 'Pausar' : 'Reproduzir'}
               >
-                +
+                {isPlaying ? '⏸ PAUSE' : '▶ PLAY'}
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTrackIndex((t) => (t + 1) % TRACKS.length)
+                  setElapsed(0)
+                }}
+                className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/10 active:scale-95 cursor-pointer"
+                title="Próxima Faixa / Sintonia para cima"
+              >
+                ▶▶
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const bands: RadioBand[] = ['FM1', 'FM2', 'AM', 'BT']
+                  const next = bands[(bands.indexOf(band) + 1) % bands.length]
+                  setBand(next)
+                }}
+                className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/10 active:scale-95 cursor-pointer"
+              >
+                BAND
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoudness(!loudness)}
+                className={`px-1.5 py-0.5 rounded border active:scale-95 cursor-pointer ${
+                  loudness ? 'bg-amber-600/30 text-amber-300 border-amber-500/40' : 'bg-zinc-900 text-zinc-500 border-white/10'
+                }`}
+              >
+                LOUD
+              </button>
+              <div className="flex items-center gap-0.5 bg-black/60 px-1 py-0.5 rounded border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setVolume((v) => Math.max(0, v - 10))}
+                  className="px-1 text-zinc-400 hover:text-white"
+                >
+                  -
+                </button>
+                <span className="text-[7.5px] text-zinc-300">VOL</span>
+                <button
+                  type="button"
+                  onClick={() => setVolume((v) => Math.min(100, v + 10))}
+                  className="px-1 text-zinc-400 hover:text-white"
+                >
+                  +
+                </button>
+              </div>
             </div>
           </div>
         </div>

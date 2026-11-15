@@ -167,9 +167,9 @@ export const InternetMediaCenter = memo(function InternetMediaCenter({
   }
 
   return (
-    <div className={`w-full flex flex-col items-center select-none font-mono ${compact ? 'gap-1' : 'gap-1.5'}`}>
+    <div className={`w-full flex flex-col items-center select-none font-mono ${compact ? 'gap-0.5 my-auto' : 'gap-1.5 my-auto'}`}>
       {/* ── Barra Superior: Status da Conexão & Modo de Exibição ── */}
-      <div className="w-full flex items-center justify-between px-1 text-[8px] sm:text-[9px] border-b border-white/10 pb-1">
+      <div className="w-full flex items-center justify-between px-1 text-[7.5px] sm:text-[9px] border-b border-white/10 pb-0.5">
         <div className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
           <span className="font-black text-red-500 tracking-wider">YOUTUBE ONLINE</span>
@@ -178,27 +178,27 @@ export const InternetMediaCenter = memo(function InternetMediaCenter({
         <div className="flex items-center gap-1">
           <button
             onClick={() => setViewType('video')}
-            className={`px-1.5 py-0.5 rounded text-[7px] font-bold transition-colors cursor-pointer ${
+            className={`px-1.5 py-0.2 sm:py-0.5 rounded text-[6.5px] sm:text-[7px] font-bold transition-colors cursor-pointer ${
               viewType === 'video' ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            🎬 TELA VÍDEO
+            🎬 VÍDEO
           </button>
           <button
             onClick={() => setViewType('player')}
-            className={`px-1.5 py-0.5 rounded text-[7px] font-bold transition-colors cursor-pointer ${
+            className={`px-1.5 py-0.2 sm:py-0.5 rounded text-[6.5px] sm:text-[7px] font-bold transition-colors cursor-pointer ${
               viewType === 'player' ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            📻 PLAYLISTS
+            📻 MÚSICA
           </button>
           <button
             onClick={openExternalYouTube}
-            className="px-1.5 py-0.5 rounded text-[7px] font-bold bg-zinc-900 border border-white/10 text-zinc-300 hover:text-white transition-colors cursor-pointer flex items-center gap-0.5"
+            className="px-1.5 py-0.2 sm:py-0.5 rounded text-[6.5px] sm:text-[7px] font-bold bg-zinc-900 border border-white/10 text-zinc-300 hover:text-white transition-colors cursor-pointer flex items-center gap-0.5"
             title="Abrir YouTube oficial no navegador"
           >
             <span>🌐</span>
-            <span>ABRIR SITE</span>
+            <span>SITE</span>
           </button>
         </div>
       </div>
@@ -209,7 +209,9 @@ export const InternetMediaCenter = memo(function InternetMediaCenter({
           {/* Tela de Vídeo com Proporção Ampla */}
           <div
             className={`relative w-full rounded-xl overflow-hidden bg-black border border-white/15 shadow-inner transition-all duration-200 ${
-              isExpanded ? 'h-[160px] sm:h-[185px]' : 'h-[120px] sm:h-[135px]'
+              isExpanded
+                ? compact ? 'h-[110px] sm:h-[140px]' : 'h-[160px] sm:h-[185px]'
+                : compact ? 'h-[75px] sm:h-[100px]' : 'h-[115px] sm:h-[135px]'
             }`}
           >
             {isPlaying ? (
@@ -223,27 +225,27 @@ export const InternetMediaCenter = memo(function InternetMediaCenter({
             ) : (
               <div
                 onClick={() => setIsPlaying(true)}
-                className="w-full h-full flex flex-col items-center justify-center bg-zinc-950/90 text-center p-2 cursor-pointer group hover:bg-zinc-900/90 transition-colors"
+                className="w-full h-full flex flex-col items-center justify-center bg-zinc-950/90 text-center p-1.5 cursor-pointer group hover:bg-zinc-900/90 transition-colors"
               >
-                <div className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center text-lg shadow-[0_0_15px_rgba(220,38,38,0.7)] group-hover:scale-110 transition-transform mb-1">
+                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-red-600 text-white flex items-center justify-center text-sm sm:text-base shadow-[0_0_15px_rgba(220,38,38,0.7)] group-hover:scale-110 transition-transform mb-0.5">
                   ▶
                 </div>
-                <strong className="text-white text-[10px] line-clamp-1">{selectedTrack.title}</strong>
-                <span className="text-zinc-400 text-[8px]">{selectedTrack.artist}</span>
-                <span className="text-red-400 text-[7px] mt-1 font-bold">CLIQUE PARA DAR PLAY NO YOUTUBE</span>
+                <strong className="text-white text-[9px] sm:text-[10px] line-clamp-1">{selectedTrack.title}</strong>
+                <span className="text-zinc-400 text-[7px] sm:text-[8px]">{selectedTrack.artist}</span>
+                <span className="text-red-400 text-[6.5px] font-bold mt-0.5">TOQUE PARA DAR PLAY</span>
               </div>
             )}
           </div>
 
           {/* Faixa atual e botão de tela ampliada */}
-          <div className="w-full flex items-center justify-between px-1 mt-1 text-[8px] text-zinc-400">
-            <div className="flex items-center gap-1 truncate max-w-[210px]">
+          <div className="w-full flex items-center justify-between px-1 mt-0.5 text-[7px] sm:text-[8px] text-zinc-400">
+            <div className="flex items-center gap-1 truncate max-w-[190px] sm:max-w-[240px]">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="truncate text-white font-bold">{selectedTrack.title}</span>
             </div>
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="text-[7px] font-bold text-zinc-400 hover:text-white px-1.5 py-0.2 rounded bg-zinc-900 border border-white/5 cursor-pointer"
+              className="text-[6.5px] sm:text-[7px] font-bold text-zinc-400 hover:text-white px-1.5 py-0.2 rounded bg-zinc-900 border border-white/5 cursor-pointer"
             >
               {isExpanded ? '⤓ REDUZIR' : '⤢ EXPANDIR'}
             </button>

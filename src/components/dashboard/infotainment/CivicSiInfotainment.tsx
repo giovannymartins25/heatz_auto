@@ -72,15 +72,15 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
 
   return (
     <div
-      className={`relative flex flex-col justify-between rounded-3xl bg-[#090b0e] border-4 border-[#222834] shadow-[0_12px_36px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.06)] font-mono select-none overflow-hidden ${
-        fill ? 'w-full h-full max-w-full max-h-full p-2.5 sm:p-3' : (compact ? 'w-80 h-64 p-2' : 'w-88 sm:w-96 h-80 sm:h-88 p-3')
+      className={`relative flex flex-col justify-between rounded-2xl sm:rounded-3xl bg-[#090b0e] border-2 sm:border-4 border-[#222834] shadow-[0_12px_36px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.06)] font-mono select-none overflow-hidden ${
+        fill ? 'w-full h-full max-w-full max-h-full p-1.5 sm:p-2.5' : (compact ? 'w-80 h-64 p-2' : 'w-88 sm:w-96 h-80 sm:h-88 p-3')
       } ${className}`}
       style={{
         boxShadow: `0 0 24px ${ambientTheme.glowRgba}, inset 0 0 12px ${ambientTheme.glowRgba}`,
       }}
     >
       {/* ── Barra Superior do Display 2-DIN ── */}
-      <div className="w-full flex items-center justify-between px-2 pb-1.5 border-b border-red-950/80 text-[9px] text-zinc-400">
+      <div className="w-full flex items-center justify-between px-2 pr-28 pb-1 border-b border-red-950/80 text-[8.5px] sm:text-[9px] text-zinc-400 shrink-0">
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-red-600 shadow-[0_0_8px_rgba(239,68,68,0.9)]" />
           <span className="font-bold text-white tracking-wider">HONDA Si H-AUDIO</span>
@@ -96,84 +96,84 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
       </div>
 
       {/* ── Conteúdo Central da Tela ── */}
-      <div className="flex-1 w-full flex flex-col items-center justify-center p-1.5">
+      <div className="flex-1 min-h-0 w-full flex flex-col justify-between overflow-y-auto p-1" style={{ touchAction: 'pan-y' }}>
         {/* ABA 1: TELEMETRIA VTEC & MANÔMETROS */}
         {activeTab === 'vtec' && (
-          <div className="w-full flex flex-col items-center gap-1.5">
+          <div className="w-full flex flex-col items-center gap-1 my-auto">
             <div className="w-full flex items-center justify-around">
               {/* Mostrador 1: i-VTEC Status */}
               <div className="flex flex-col items-center">
-                <span className="text-[7px] font-bold text-red-500 uppercase tracking-widest mb-0.5">
+                <span className="text-[6.5px] sm:text-[7px] font-bold text-red-500 uppercase tracking-widest mb-0.5">
                   i-VTEC STATUS
                 </span>
                 <div
                   className={`relative flex flex-col items-center justify-center rounded-full bg-zinc-900/90 border transition-all ${
-                    compact ? 'w-[66px] h-[66px]' : 'w-[76px] h-[76px]'
+                    compact || fill ? 'w-[52px] h-[52px] sm:w-[68px] sm:h-[68px]' : 'w-[76px] h-[76px]'
                   } ${
                     isVtecActive
                       ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.6)]'
                       : 'border-zinc-700'
                   }`}
                 >
-                  <span className={`text-base sm:text-lg font-black leading-none z-10 ${isVtecActive ? 'text-red-400' : 'text-white'}`}>
+                  <span className={`${compact || fill ? 'text-sm sm:text-base' : 'text-base sm:text-lg'} font-black leading-none z-10 ${isVtecActive ? 'text-red-400' : 'text-white'}`}>
                     {isVtecActive ? 'ENGAGED' : '5.8K'}
                   </span>
-                  <span className="text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
+                  <span className="text-[6.5px] sm:text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
                     {isVtecActive ? 'CAM 2' : 'CAM 1'}
                   </span>
                 </div>
-                <span className="text-[8px] text-zinc-500 font-bold mt-0.5">
-                  {isVtecActive ? '8.300 RPM MAX' : 'VTEC @ 5.800'}
+                <span className="text-[7px] sm:text-[8px] text-zinc-500 font-bold mt-0.5">
+                  {isVtecActive ? '8.300 MAX' : 'VTEC @ 5.8K'}
                 </span>
               </div>
 
               {/* Mostrador 2: Potência Instantânea */}
               <div className="flex flex-col items-center">
-                <span className="text-[7px] font-bold text-red-500 uppercase tracking-widest mb-0.5">
+                <span className="text-[6.5px] sm:text-[7px] font-bold text-red-500 uppercase tracking-widest mb-0.5">
                   POTÊNCIA
                 </span>
                 <div
                   className={`relative flex flex-col items-center justify-center rounded-full bg-zinc-900/90 border border-zinc-700 ${
-                    compact ? 'w-[66px] h-[66px]' : 'w-[76px] h-[76px]'
+                    compact || fill ? 'w-[52px] h-[52px] sm:w-[68px] sm:h-[68px]' : 'w-[76px] h-[76px]'
                   }`}
                 >
-                  <span className="text-base sm:text-lg font-black text-white leading-none z-10">
+                  <span className={`${compact || fill ? 'text-sm sm:text-base' : 'text-base sm:text-lg'} font-black text-white leading-none z-10`}>
                     {instantHp}
                   </span>
-                  <span className="text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
+                  <span className="text-[6.5px] sm:text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
                     CV
                   </span>
                 </div>
-                <span className="text-[8px] text-zinc-500 font-bold mt-0.5">
+                <span className="text-[7px] sm:text-[8px] text-zinc-500 font-bold mt-0.5">
                   MAX {maxPowerHp} CV
                 </span>
               </div>
 
               {/* Mostrador 3: Temperatura Óleo */}
               <div className="flex flex-col items-center">
-                <span className="text-[7px] font-bold text-red-500 uppercase tracking-widest mb-0.5">
+                <span className="text-[6.5px] sm:text-[7px] font-bold text-red-500 uppercase tracking-widest mb-0.5">
                   ÓLEO
                 </span>
                 <div
                   className={`relative flex flex-col items-center justify-center rounded-full bg-zinc-900/90 border border-zinc-700 ${
-                    compact ? 'w-[66px] h-[66px]' : 'w-[76px] h-[76px]'
+                    compact || fill ? 'w-[52px] h-[52px] sm:w-[68px] sm:h-[68px]' : 'w-[76px] h-[76px]'
                   }`}
                 >
-                  <span className="text-base sm:text-lg font-black text-white leading-none z-10">
+                  <span className={`${compact || fill ? 'text-sm sm:text-base' : 'text-base sm:text-lg'} font-black text-white leading-none z-10`}>
                     {oilTemp}
                   </span>
-                  <span className="text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
+                  <span className="text-[6.5px] sm:text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
                     °C
                   </span>
                 </div>
-                <span className="text-[8px] text-emerald-400 font-bold mt-0.5">
+                <span className="text-[7px] sm:text-[8px] text-emerald-400 font-bold mt-0.5">
                   NORMAL
                 </span>
               </div>
             </div>
 
             {/* Barra de Engate do i-VTEC */}
-            <div className="w-full flex flex-col px-1 pt-1 border-t border-white/5">
+            <div className="w-full flex flex-col px-1 pt-0.5 border-t border-white/5">
               <div className="w-full flex justify-between items-center text-[7px] text-zinc-400 mb-0.5">
                 <span className="font-bold text-red-400">FAIXA DE ATUAÇÃO VTEC (K20Z3)</span>
                 <span className="text-zinc-400 font-black">
@@ -193,8 +193,8 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
             </div>
 
             {/* Status do trem de força OEM Civic Si */}
-            <div className="w-full flex items-center justify-between px-2 py-1 rounded bg-black/60 border border-white/5 text-[7.5px] font-mono text-zinc-400">
-              <span>MOTOR: <b className="text-red-400">K20Z3 DOHC i-VTEC</b></span>
+            <div className="w-full flex items-center justify-between px-2 py-0.5 rounded bg-black/60 border border-white/5 text-[7px] font-mono text-zinc-400">
+              <span>MOTOR: <b className="text-red-400">K20Z3 i-VTEC</b></span>
               <span>LSD: <b className="text-white">HELICAL</b></span>
               <span>CORTE: <b className="text-amber-400">8.300 RPM</b></span>
             </div>
@@ -203,21 +203,21 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
 
         {/* ABA 2: CLIMATIZAÇÃO DIGITAL Si */}
         {activeTab === 'clima' && (
-          <ClimateControlPanel theme="honda" compact={compact} />
+          <ClimateControlPanel theme="honda" compact={compact || fill} />
         )}
 
         {/* ABA 3: YOUTUBE & STREAMING */}
         {activeTab === 'media' && (
-          <InternetMediaCenter theme="honda" compact={compact} />
+          <InternetMediaCenter theme="honda" compact={compact || fill} />
         )}
 
         {/* ABA 4: ILUMINAÇÃO DE CABINE */}
         {activeTab === 'ambient' && (
-          <div className="w-full flex flex-col items-center justify-center py-2 gap-2 text-center">
-            <span className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest">
+          <div className="w-full flex flex-col items-center justify-center py-1 gap-1 text-center my-auto">
+            <span className="text-[7.5px] sm:text-[8px] text-zinc-400 font-bold uppercase tracking-widest">
               ILUMINAÇÃO DE CABINE HONDA Si
             </span>
-            <div className="w-full grid grid-cols-4 gap-1.5 px-2 my-1">
+            <div className="w-full grid grid-cols-4 gap-1 px-1 my-0.5">
               {(
                 [
                   { id: 'red', name: 'VERMELHO Si', hex: '#ef4444' },
@@ -231,17 +231,17 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
                   <button
                     key={color.id}
                     onClick={() => setAmbientLightColor(color.id)}
-                    className={`flex flex-col items-center p-1.5 rounded-xl border transition-all cursor-pointer ${
+                    className={`flex flex-col items-center p-1 rounded-lg border transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-zinc-800 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)] scale-105'
                         : 'bg-zinc-900/60 border-white/10 hover:border-white/30'
                     }`}
                   >
                     <span
-                      className="w-4 h-4 rounded-full border border-white/20 mb-1"
+                      className="w-3.5 h-3.5 rounded-full border border-white/20 mb-0.5"
                       style={{ backgroundColor: color.hex }}
                     />
-                    <span className="text-[7px] font-bold text-zinc-300">
+                    <span className="text-[6.5px] font-bold text-zinc-300">
                       {color.name}
                     </span>
                   </button>
@@ -253,7 +253,7 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
       </div>
 
       {/* ── Barra Inferior de Navegação Touch (Botões 2-DIN Si) ── */}
-      <div className="w-full flex items-center justify-around pt-1 border-t border-red-950/80 text-[8px] font-bold">
+      <div className="w-full flex items-center justify-around pt-1 border-t border-red-950/80 text-[7.5px] sm:text-[8px] font-bold shrink-0">
         <button
           onClick={() => setActiveTab('vtec')}
           className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${

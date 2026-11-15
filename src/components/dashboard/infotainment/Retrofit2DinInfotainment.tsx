@@ -80,15 +80,15 @@ export const Retrofit2DinInfotainment = memo(function Retrofit2DinInfotainment({
 
   return (
     <div
-      className={`relative flex flex-col justify-between rounded-3xl bg-[#090b10] border-4 border-[#222838] shadow-[0_12px_36px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.08)] font-mono select-none overflow-hidden ${
-        fill ? 'w-full h-full max-w-full max-h-full p-2.5 sm:p-3' : (compact ? 'w-80 h-64 p-2' : 'w-88 sm:w-96 h-80 sm:h-88 p-3')
+      className={`relative flex flex-col justify-between rounded-2xl sm:rounded-3xl bg-[#090b10] border-2 sm:border-4 border-[#222838] shadow-[0_12px_36px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.08)] font-mono select-none overflow-hidden ${
+        fill ? 'w-full h-full max-w-full max-h-full p-1.5 sm:p-2.5' : (compact ? 'w-80 h-64 p-2' : 'w-88 sm:w-96 h-80 sm:h-88 p-3')
       } ${className}`}
       style={{
         boxShadow: `0 0 24px ${ambientTheme.glowRgba}, inset 0 0 12px ${ambientTheme.glowRgba}`,
       }}
     >
       {/* ── Barra Superior do Display 2-DIN ── */}
-      <div className="w-full flex items-center justify-between px-2 pb-1.5 border-b border-white/10 text-[9px] text-zinc-400">
+      <div className="w-full flex items-center justify-between px-2 pr-28 pb-1 border-b border-white/10 text-[8.5px] sm:text-[9px] text-zinc-400 shrink-0">
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.9)] animate-pulse" />
           <span className="font-black text-white tracking-wider">SMART 2-DIN RETROFIT</span>
@@ -104,31 +104,31 @@ export const Retrofit2DinInfotainment = memo(function Retrofit2DinInfotainment({
       </div>
 
       {/* ── Área Central de Conteúdo ── */}
-      <div className="flex-1 w-full flex items-center justify-center overflow-hidden py-1">
+      <div className="flex-1 min-h-0 w-full flex flex-col justify-between overflow-y-auto p-1" style={{ touchAction: 'pan-y' }}>
         
         {/* ABA 1: TELEMETRIA ESPORTIVA & MANÔMETRO DE TURBO / VÁCUO */}
         {activeTab === 'telemetry' && (
-          <div className="w-full h-full flex flex-col justify-between gap-1.5 animate-in fade-in duration-150">
-            <div className="grid grid-cols-2 gap-2 flex-1">
+          <div className="w-full flex flex-col justify-between gap-1 my-auto animate-in fade-in duration-150">
+            <div className="grid grid-cols-2 gap-1.5 flex-1">
               {/* Manômetro Digital & Analógico */}
-              <div className="p-2 rounded-2xl bg-black/60 border border-white/10 flex flex-col items-center justify-center relative shadow-inner">
-                <span className="text-[8px] uppercase tracking-wider text-zinc-400 font-bold mb-1">
+              <div className="p-1 sm:p-2 rounded-xl bg-black/60 border border-white/10 flex flex-col items-center justify-center relative shadow-inner">
+                <span className="text-[7px] uppercase tracking-wider text-zinc-400 font-bold mb-0.5">
                   {hasTurbo ? 'PRESSÃO DE TURBO' : 'VACUÔMETRO DE MOTOR'}
                 </span>
                 <BoostGauge
                   boostBar={boostPressureBar}
                   peakBar={peakBoostBar}
-                  size={compact ? 68 : 80}
+                  size={compact || fill ? 52 : 76}
                   showPeak={hasTurbo}
                 />
               </div>
 
               {/* Painel Dragy 0-100 & Potência */}
-              <div className="flex flex-col justify-between gap-1 p-2 rounded-2xl bg-black/60 border border-white/10 shadow-inner">
+              <div className="flex flex-col justify-between gap-0.5 p-1 sm:p-2 rounded-xl bg-black/60 border border-white/10 shadow-inner">
                 {/* Potência Instantânea */}
                 <div className="text-center">
-                  <span className="text-[7.5px] uppercase tracking-wider text-zinc-400 block">Potência Estimada</span>
-                  <span className="text-base sm:text-lg font-black text-emerald-400">{instantHp} CV</span>
+                  <span className="text-[6.5px] uppercase tracking-wider text-zinc-400 block">Potência Estimada</span>
+                  <span className="text-sm sm:text-base font-black text-emerald-400">{instantHp} CV</span>
                   <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden mt-0.5">
                     <div
                       className="bg-emerald-500 h-full transition-all duration-75"
@@ -138,17 +138,17 @@ export const Retrofit2DinInfotainment = memo(function Retrofit2DinInfotainment({
                 </div>
 
                 {/* Dragy 0-100 */}
-                <div className="text-center pt-1 border-t border-white/5">
-                  <span className="text-[7.5px] uppercase tracking-wider text-amber-400 font-bold block">
+                <div className="text-center pt-0.5 border-t border-white/5">
+                  <span className="text-[6.5px] uppercase tracking-wider text-amber-400 font-bold block">
                     {isTiming0to100 ? '⏱️ CRONOMETRANDO...' : '0-100 KM/H'}
                   </span>
-                  <div className="flex items-center justify-around text-[10px]">
+                  <div className="flex items-center justify-around text-[9px]">
                     <div>
-                      <span className="text-[7px] text-zinc-500 block">ATUAL</span>
+                      <span className="text-[6.5px] text-zinc-500 block">ATUAL</span>
                       <span className="font-bold text-white">{current0to100 ? `${current0to100}s` : '--'}</span>
                     </div>
                     <div>
-                      <span className="text-[7px] text-zinc-500 block">RECORDE</span>
+                      <span className="text-[6.5px] text-zinc-500 block">RECORDE</span>
                       <span className="font-bold text-amber-400">{best0to100 ? `${best0to100}s` : '--'}</span>
                     </div>
                   </div>
@@ -157,11 +157,11 @@ export const Retrofit2DinInfotainment = memo(function Retrofit2DinInfotainment({
             </div>
 
             {/* Barra Inferior Rápida */}
-            <div className="w-full flex items-center justify-between px-2 py-1 rounded-xl bg-black/40 border border-white/5 text-[8px] text-zinc-400">
+            <div className="w-full flex items-center justify-between px-2 py-0.5 rounded-lg bg-black/40 border border-white/5 text-[7px] text-zinc-400">
               <span>ESTÁGIO: <b className="text-white">{tuningStage === 0 ? 'STOCK' : `STAGE ${tuningStage}`}</b></span>
               <button
                 onClick={toggleExhaustValve}
-                className={`px-2 py-0.5 rounded font-bold cursor-pointer transition-all ${
+                className={`px-1.5 py-0.2 rounded font-bold cursor-pointer transition-all ${
                   exhaustValveOpen ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-400'
                 }`}
               >
@@ -173,23 +173,23 @@ export const Retrofit2DinInfotainment = memo(function Retrofit2DinInfotainment({
 
         {/* ABA 2: CLIMATIZAÇÃO DIGITAL TOUCH */}
         {activeTab === 'clima' && (
-          <ClimateControlPanel theme="gti" compact={compact} />
+          <ClimateControlPanel theme="gti" compact={compact || fill} />
         )}
 
         {/* ABA 3: YOUTUBE & STREAMING ONLINE */}
         {activeTab === 'media' && (
-          <InternetMediaCenter theme="gti" compact={compact} />
+          <InternetMediaCenter theme="gti" compact={compact || fill} />
         )}
 
         {/* ABA 4: ILUMINAÇÃO AMBIENTE RGB */}
         {activeTab === 'ambient' && (
-          <div className="w-full h-full flex flex-col justify-between p-2 animate-in fade-in duration-150">
+          <div className="w-full flex flex-col justify-between p-1 my-auto animate-in fade-in duration-150">
             <div>
-              <span className="text-xs font-black text-white block">ILUMINAÇÃO AMBIENTE DA CABINE</span>
-              <span className="text-[8px] text-zinc-400">Personalize a cor dos LEDs do console e cluster</span>
+              <span className="text-[10px] sm:text-xs font-black text-white block">ILUMINAÇÃO AMBIENTE DA CABINE</span>
+              <span className="text-[7px] sm:text-[8px] text-zinc-400">Personalize a cor dos LEDs do console e cluster</span>
             </div>
 
-            <div className="grid grid-cols-4 gap-2 my-auto">
+            <div className="grid grid-cols-4 gap-1 my-1">
               {(
                 [
                   { id: 'red', name: 'Vermelho Racing', color: 'bg-red-500' },
@@ -206,14 +206,14 @@ export const Retrofit2DinInfotainment = memo(function Retrofit2DinInfotainment({
                   <button
                     key={amb.id}
                     onClick={() => setAmbientLightColor(amb.id)}
-                    className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all cursor-pointer ${
+                    className={`flex flex-col items-center gap-0.5 p-1 rounded-lg border transition-all cursor-pointer ${
                       isSelected
                         ? 'border-white bg-white/10 shadow-[0_0_12px_rgba(255,255,255,0.4)]'
                         : 'border-white/5 bg-black/40 hover:border-white/20'
                     }`}
                   >
-                    <span className={`w-4 h-4 rounded-full ${amb.color} shadow-sm`} />
-                    <span className="text-[7.5px] font-bold text-zinc-300 text-center leading-tight">
+                    <span className={`w-3 h-3 rounded-full ${amb.color} shadow-sm`} />
+                    <span className="text-[6.5px] font-bold text-zinc-300 text-center leading-tight">
                       {amb.name.split(' ')[0]}
                     </span>
                   </button>
@@ -221,7 +221,7 @@ export const Retrofit2DinInfotainment = memo(function Retrofit2DinInfotainment({
               })}
             </div>
 
-            <div className="text-[7.5px] text-zinc-500 text-center">
+            <div className="text-[7px] text-zinc-500 text-center">
               Cor selecionada: <b className="text-white uppercase">{ambientLightColor}</b>
             </div>
           </div>
@@ -230,53 +230,53 @@ export const Retrofit2DinInfotainment = memo(function Retrofit2DinInfotainment({
       </div>
 
       {/* ── Teclas Físicas Inferiores do Rádio 2-DIN ── */}
-      <div className="w-full grid grid-cols-4 gap-1 pt-1.5 border-t border-white/10 text-[9px] font-black">
+      <div className="w-full grid grid-cols-4 gap-1 pt-1 border-t border-white/10 text-[7.5px] sm:text-[8px] font-black shrink-0">
         <button
           onClick={() => setActiveTab('telemetry')}
-          className={`py-1 rounded-xl transition-all cursor-pointer flex flex-col items-center ${
+          className={`py-0.5 sm:py-1 rounded-lg transition-all cursor-pointer flex flex-col items-center ${
             activeTab === 'telemetry'
               ? 'bg-emerald-500 text-black shadow-[0_0_10px_rgba(16,185,129,0.7)]'
               : 'bg-zinc-900/80 text-zinc-400 hover:text-white'
           }`}
         >
           <span>📊</span>
-          <span className="text-[7.5px]">TELEMETRIA</span>
+          <span className="text-[7px]">TELEMETRIA</span>
         </button>
 
         <button
           onClick={() => setActiveTab('media')}
-          className={`py-1 rounded-xl transition-all cursor-pointer flex flex-col items-center ${
+          className={`py-0.5 sm:py-1 rounded-lg transition-all cursor-pointer flex flex-col items-center ${
             activeTab === 'media'
               ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(239,68,68,0.7)]'
               : 'bg-zinc-900/80 text-zinc-400 hover:text-white'
           }`}
         >
           <span>▶️</span>
-          <span className="text-[7.5px]">YOUTUBE</span>
+          <span className="text-[7px]">YOUTUBE</span>
         </button>
 
         <button
           onClick={() => setActiveTab('clima')}
-          className={`py-1 rounded-xl transition-all cursor-pointer flex flex-col items-center ${
+          className={`py-0.5 sm:py-1 rounded-lg transition-all cursor-pointer flex flex-col items-center ${
             activeTab === 'clima'
               ? 'bg-sky-500 text-black shadow-[0_0_10px_rgba(14,165,233,0.7)]'
               : 'bg-zinc-900/80 text-zinc-400 hover:text-white'
           }`}
         >
           <span>❄️</span>
-          <span className="text-[7.5px]">CLIMA</span>
+          <span className="text-[7px]">CLIMA</span>
         </button>
 
         <button
           onClick={() => setActiveTab('ambient')}
-          className={`py-1 rounded-xl transition-all cursor-pointer flex flex-col items-center ${
+          className={`py-0.5 sm:py-1 rounded-lg transition-all cursor-pointer flex flex-col items-center ${
             activeTab === 'ambient'
               ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(147,51,234,0.7)]'
               : 'bg-zinc-900/80 text-zinc-400 hover:text-white'
           }`}
         >
           <span>💡</span>
-          <span className="text-[7.5px]">LUZ RGB</span>
+          <span className="text-[7px]">LUZ RGB</span>
         </button>
       </div>
     </div>
