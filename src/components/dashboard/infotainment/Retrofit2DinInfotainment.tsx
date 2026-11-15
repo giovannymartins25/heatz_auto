@@ -11,6 +11,7 @@ export interface Retrofit2DinInfotainmentProps {
   vehicle: VehicleConfig
   telemetry: DashboardTelemetry
   compact?: boolean
+  fill?: boolean
   className?: string
 }
 
@@ -31,6 +32,7 @@ export const Retrofit2DinInfotainment = memo(function Retrofit2DinInfotainment({
   vehicle,
   telemetry,
   compact = false,
+  fill = false,
   className = '',
 }: Retrofit2DinInfotainmentProps) {
   const [activeTab, setActiveTab] = useState<RetrofitActiveTab>('telemetry')
@@ -79,7 +81,7 @@ export const Retrofit2DinInfotainment = memo(function Retrofit2DinInfotainment({
   return (
     <div
       className={`relative flex flex-col justify-between rounded-3xl bg-[#090b10] border-4 border-[#222838] shadow-[0_12px_36px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.08)] font-mono select-none overflow-hidden ${
-        compact ? 'w-80 h-64 p-2' : 'w-88 sm:w-96 h-80 sm:h-88 p-3'
+        fill ? 'w-full h-full max-w-full max-h-full p-2.5 sm:p-3' : (compact ? 'w-80 h-64 p-2' : 'w-88 sm:w-96 h-80 sm:h-88 p-3')
       } ${className}`}
       style={{
         boxShadow: `0 0 24px ${ambientTheme.glowRgba}, inset 0 0 12px ${ambientTheme.glowRgba}`,

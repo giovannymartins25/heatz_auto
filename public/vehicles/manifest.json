@@ -141,7 +141,7 @@
       "hasTcs": true,
       "hasClutchPedal": true,
       "hasTurbo": false,
-      "hasInfotainment": false,
+      "hasInfotainment": true,
       "configPath": "/vehicles/civic-si/config.json"
     },
     {

@@ -10,6 +10,7 @@ export interface CivicSiInfotainmentProps {
   vehicle: VehicleConfig
   telemetry: DashboardTelemetry
   compact?: boolean
+  fill?: boolean
   className?: string
 }
 
@@ -21,7 +22,7 @@ type CivicActiveTab = 'vtec' | 'clima' | 'media' | 'ambient'
  * Características autênticas do Civic Si K20:
  * - Moldura automotiva 2-DIN em preto fosco com textura de fibra de carbono e friso vermelho Si
  * - Abas:
- *   1. VTEC TELEMETRY: Status de acoplamento do i-VTEC (5.800 RPM), Manômetro (Vácuo / Turbo se preparado), Potência CV e Óleo
+ *   1. VTEC TELEMETRY: Status de acoplamento do i-VTEC (5.800 RPM), Manômetro de Potência CV, Óleo e Água
  *   2. CLIMA DIGITAL: Ar-condicionado touch com Dual-Zone e ventilação
  *   3. YOUTUBE / STREAMING: Acesso online ao YouTube, videoclipes e player musical
  *   4. AMBIENTE Si: Iluminação ambiente da cabine sincronizada com o painel Multiplex
@@ -30,6 +31,7 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
   vehicle,
   telemetry,
   compact = false,
+  fill = false,
   className = '',
 }: CivicSiInfotainmentProps) {
   const [activeTab, setActiveTab] = useState<CivicActiveTab>('vtec')
@@ -38,13 +40,6 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
   const setAmbientLightColor = useSimulationStore((s) => s.setAmbientLightColor)
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.red
-
-  const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
-  const hasTurbo = useSimulationStore((s) => s.hasTurbo)
-  const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
-  const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
-  const tuningStage = useSimulationStore((s) => s.tuningStage)
-  const setTuningStage = useSimulationStore((s) => s.setTuningStage)
 
   const maxPowerHp = vehicle.engine.maxPower || 192
   const redlineRpm = vehicle.engine.maxRpm || 8400
@@ -78,7 +73,7 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
   return (
     <div
       className={`relative flex flex-col justify-between rounded-3xl bg-[#090b0e] border-4 border-[#222834] shadow-[0_12px_36px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.06)] font-mono select-none overflow-hidden ${
-        compact ? 'w-80 h-64 p-2' : 'w-88 sm:w-96 h-80 sm:h-88 p-3'
+        fill ? 'w-full h-full max-w-full max-h-full p-2.5 sm:p-3' : (compact ? 'w-80 h-64 p-2' : 'w-88 sm:w-96 h-80 sm:h-88 p-3')
       } ${className}`}
       style={{
         boxShadow: `0 0 24px ${ambientTheme.glowRgba}, inset 0 0 12px ${ambientTheme.glowRgba}`,
@@ -106,10 +101,10 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
         {activeTab === 'vtec' && (
           <div className="w-full flex flex-col items-center gap-1.5">
             <div className="w-full flex items-center justify-around">
-              {/* Mostrador 1: VTEC / Boost */}
+              {/* Mostrador 1: i-VTEC Status */}
               <div className="flex flex-col items-center">
                 <span className="text-[7px] font-bold text-red-500 uppercase tracking-widest mb-0.5">
-                  {hasTurbo ? 'TURBO BOOST' : 'i-VTEC STATUS'}
+                  i-VTEC STATUS
                 </span>
                 <div
                   className={`relative flex flex-col items-center justify-center rounded-full bg-zinc-900/90 border transition-all ${
@@ -121,10 +116,10 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
                   }`}
                 >
                   <span className={`text-base sm:text-lg font-black leading-none z-10 ${isVtecActive ? 'text-red-400' : 'text-white'}`}>
-                    {hasTurbo ? (boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : boostPressureBar.toFixed(2)) : isVtecActive ? 'ENGAGED' : '5.8K'}
+                    {isVtecActive ? 'ENGAGED' : '5.8K'}
                   </span>
                   <span className="text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
-                    {hasTurbo ? 'BAR' : isVtecActive ? 'CAM 2' : 'CAM 1'}
+                    {isVtecActive ? 'CAM 2' : 'CAM 1'}
                   </span>
                 </div>
                 <span className="text-[8px] text-zinc-500 font-bold mt-0.5">
@@ -197,31 +192,11 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
               </div>
             </div>
 
-            {/* Controles de Escape e Preparação Honda Racing */}
-            <div className="w-full grid grid-cols-2 gap-1.5 px-1 pt-1 border-t border-white/5">
-              <button
-                onClick={toggleExhaustValve}
-                className={`py-1 px-1.5 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  exhaustValveOpen
-                    ? 'bg-red-500/20 border-red-500 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
-                    : 'bg-zinc-900 border-white/10 text-zinc-400'
-                }`}
-              >
-                <span>⚡ DIFUSOR:</span>
-                <span className="font-black">{exhaustValveOpen ? 'ABERTO' : 'CIVIL'}</span>
-              </button>
-
-              <button
-                onClick={() => setTuningStage(((tuningStage + 1) % 4) as 0 | 1 | 2 | 3)}
-                className={`py-1 px-1.5 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  tuningStage > 0
-                    ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
-                    : 'bg-zinc-900 border-white/10 text-zinc-400'
-                }`}
-              >
-                <span>🔧 PREPARAÇÃO:</span>
-                <span className="font-black">{tuningStage === 0 ? 'STOCK' : `STG ${tuningStage}`}</span>
-              </button>
+            {/* Status do trem de força OEM Civic Si */}
+            <div className="w-full flex items-center justify-between px-2 py-1 rounded bg-black/60 border border-white/5 text-[7.5px] font-mono text-zinc-400">
+              <span>MOTOR: <b className="text-red-400">K20Z3 DOHC i-VTEC</b></span>
+              <span>LSD: <b className="text-white">HELICAL</b></span>
+              <span>CORTE: <b className="text-amber-400">8.300 RPM</b></span>
             </div>
           </div>
         )}

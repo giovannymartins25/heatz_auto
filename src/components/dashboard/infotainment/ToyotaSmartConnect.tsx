@@ -11,43 +11,40 @@ interface ToyotaSmartConnectProps {
   vehicle: VehicleConfig
   telemetry: DashboardTelemetry
   compact?: boolean
+  fill?: boolean
   className?: string
 }
 
-type ToyotaActiveTab = 'gr-four' | 'clima' | 'media' | 'ambient'
+type ToyotaActiveTab = 'eco' | 'clima' | 'media' | 'ambient'
 
 /**
- * ToyotaSmartConnect — Central Multimídia oficial Toyota Smart Connect / Gazoo Racing (Yaris GR).
+ * ToyotaSmartConnect — Central Multimídia oficial Toyota Play 7" / Smart Connect (Toyota Yaris 1.5 XLS).
  *
- * Características autênticas Gazoo Racing:
- * - Design esportivo em grafite fosco com detalhes em vermelho GR e branco acetinado
- * - Recursos exclusivos do Yaris:
- *   1. GR-FOUR AWD MONITOR:
- *      - Seletor de tração: NORMAL (60:40 dianteira), SPORT (30:70 traseira divertida) e TRACK (50:50 rally)
- *      - Gráfico interativo de transferência de torque entre as 4 rodas
- *      - INTERCOOLER WATER SPRAY: Botão oficial do Yaris Rallye de borrifar água no intercooler para resfriamento!
- *   2. TOYOTA NANOEX CLIMATE: Climatização digital automática com purificador de ar
- *   3. TOYOTA MULTIMEDIA: Acesso ao YouTube e player de músicas conectado
+ * Características autênticas do Yaris XLS Sedan:
+ * - Design moderno com acabamento em grafite acetinado e detalhes em vermelho e ciano
+ * - Recursos oficiais do Yaris:
+ *   1. ECO MONITOR & DRIVE:
+ *      - Computador de bordo com consumo médio e instantâneo
+ *      - Indicador de condução econômica ECO em tempo real
+ *      - Mostrador de potência instantânea Dual VVT-i (0 a 110 CV)
+ *      - Autonomia estimada
+ *   2. TOYOTA CLIMATE: Climatização digital automática com purificador de ar
+ *   3. TOYOTA MULTIMEDIA: Acesso ao YouTube e reprodutor musical com streaming
+ *   4. LUZ DE CABINE: Iluminação ambiente sincronizada
  */
 export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
   vehicle,
   telemetry,
   compact = false,
+  fill = false,
   className = '',
 }: ToyotaSmartConnectProps) {
-  const [activeTab, setActiveTab] = useState<ToyotaActiveTab>('gr-four')
+  const [activeTab, setActiveTab] = useState<ToyotaActiveTab>('eco')
   const [clockTime, setClockTime] = useState('14:32')
-  const [grFourMode, setGrFourMode] = useState<'normal' | 'sport' | 'track'>('track')
-  const [isSprayingWater, setIsSprayingWater] = useState(false)
-  const [intakeTemp, setIntakeTemp] = useState(38) // Temperatura do ar de admissão
 
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
   const setAmbientLightColor = useSimulationStore((s) => s.setAmbientLightColor)
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.cyan
-  const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
-  const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
-  const tuningStage = useSimulationStore((s) => s.tuningStage)
-  const setTuningStage = useSimulationStore((s) => s.setTuningStage)
 
   const maxPowerHp = vehicle.engine.maxPower || 110
   const redlineRpm = vehicle.engine.maxRpm || 6400
@@ -66,36 +63,23 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
     return () => clearInterval(timer)
   }, [])
 
-  // Ação de Spray de Água no Intercooler
-  const triggerWaterSpray = () => {
-    setIsSprayingWater(true)
-    setIntakeTemp((prev) => Math.max(22, prev - 8))
-    setTimeout(() => {
-      setIsSprayingWater(false)
-    }, 1500)
-  }
-
   // Potência instantânea em CV
   const throttleFactor = 0.25 + 0.75 * (throttlePercent / 100)
   const rpmFactor = clamp(rpm / redlineRpm, 0.1, 1.05)
   const instantHp = Math.round(maxPowerHp * rpmFactor * throttleFactor * (rpm > 1200 ? 1 : 0.2))
 
-  // Divisão de torque GR-FOUR
-  const frontTorquePercent = grFourMode === 'sport' ? 30 : grFourMode === 'track' ? 50 : 60
-  const rearTorquePercent = 100 - frontTorquePercent
-
   return (
     <div
       className={`relative flex flex-col rounded-[1.8rem] bg-gradient-to-b from-[#141519] via-[#0d0e12] to-[#07080a] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} overflow-hidden select-none font-mono transition-all duration-300 ${
-        compact ? 'w-[270px] p-2' : 'w-[325px] sm:w-[350px] p-2.5 sm:p-3'
+        fill ? 'w-full h-full max-w-full max-h-full p-2.5 sm:p-3' : (compact ? 'w-[270px] p-2' : 'w-[325px] sm:w-[350px] p-2.5 sm:p-3')
       } ${className}`}
     >
-      {/* ── Barra Superior Gazoo Racing ── */}
+      {/* ── Barra Superior Toyota Play ── */}
       <div className={`w-full flex items-center justify-between pb-1.5 mb-1.5 border-b ${ambientTheme.headerBorderClass} text-[8px] sm:text-[9px]`}>
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: ambientTheme.hex }} />
-          <span className="font-black text-white tracking-wider">TOYOTA SMART CONNECT</span>
-          <span className="font-bold hidden xs:inline" style={{ color: ambientTheme.hex }}>· GR-FOUR</span>
+          <span className="font-black text-white tracking-wider">TOYOTA PLAY 7"</span>
+          <span className="font-bold hidden xs:inline" style={{ color: ambientTheme.hex }}>· SMART CONNECT</span>
         </div>
         <div className="flex items-center gap-2 text-zinc-400 font-bold">
           <span className="text-[7px] text-zinc-500">T-CONNECT</span>
@@ -105,88 +89,39 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
 
       {/* ── Conteúdo Central por Aba ── */}
       <div className="w-full min-h-[175px] flex flex-col justify-center">
-        {/* ABA 1: GR-FOUR AWD & WATER SPRAY */}
-        {activeTab === 'gr-four' && (
-          <div className="w-full flex flex-col items-center gap-1.5">
-            {/* Seletor de Tração GR-FOUR */}
-            <div className="w-full flex items-center justify-between px-1 text-[8px]">
-              <span className="font-bold text-zinc-400">DISTRIBUIÇÃO GR-FOUR:</span>
+        {/* ABA 1: ECO & DRIVE MONITOR */}
+        {activeTab === 'eco' && (
+          <div className="w-full flex flex-col items-center gap-2">
+            {/* Status ECO */}
+            <div className="w-full flex items-center justify-between px-1 text-[8.5px]">
+              <span className="font-bold text-zinc-400 uppercase">COMPUTADOR DE BORDO:</span>
               <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setGrFourMode('normal')}
-                  className={`px-1.5 py-0.5 rounded transition-all cursor-pointer ${
-                    grFourMode === 'normal'
-                      ? 'bg-red-600 text-white font-bold'
-                      : 'bg-zinc-900 text-zinc-400'
+                <span
+                  className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                    throttlePercent < 45 && rpm < 3500
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+                      : 'bg-zinc-800 text-zinc-500'
                   }`}
                 >
-                  NORMAL (60:40)
-                </button>
-                <button
-                  onClick={() => setGrFourMode('sport')}
-                  className={`px-1.5 py-0.5 rounded transition-all cursor-pointer ${
-                    grFourMode === 'sport'
-                      ? 'bg-amber-600 text-white font-bold'
-                      : 'bg-zinc-900 text-zinc-400'
-                  }`}
-                >
-                  SPORT (30:70)
-                </button>
-                <button
-                  onClick={() => setGrFourMode('track')}
-                  className={`px-1.5 py-0.5 rounded transition-all cursor-pointer ${
-                    grFourMode === 'track'
-                      ? 'bg-red-600 text-white font-bold'
-                      : 'bg-zinc-900 text-zinc-400'
-                  }`}
-                >
-                  TRACK (50:50)
-                </button>
+                  🍃 ECO DRIVE {throttlePercent < 45 && rpm < 3500 ? 'ATIVO' : 'OFF'}
+                </span>
               </div>
             </div>
 
-            {/* Painel Central: Gráfico das 4 Rodas + Manômetro Turbo/Potência */}
-            <div className="w-full flex items-center justify-around py-0.5">
-              {/* Gráfico do Chassi 4WD do Yaris */}
+            {/* Painel Central: Consumo Médio, Potência VVT-i e Autonomia */}
+            <div className="w-full flex items-center justify-around py-1">
+              {/* Consumo Médio */}
               <div className="flex flex-col items-center">
                 <span className="text-[7px] font-bold text-zinc-400 uppercase mb-0.5">
-                  TRAÇÃO 4X4
+                  CONSUMO MÉDIO
                 </span>
-                <div className="relative w-20 h-24 rounded-2xl bg-zinc-900/90 border border-white/10 flex flex-col justify-between items-center p-1.5">
-                  {/* Rodas Dianteiras */}
-                  <div className="w-full flex justify-between items-center px-1">
-                    <div
-                      className={`w-3.5 h-6 rounded border ${
-                        throttlePercent > 10 ? 'bg-red-500 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'bg-zinc-800 border-zinc-600'
-                      }`}
-                    />
-                    <span className="text-[7px] font-mono text-zinc-400 font-bold">{frontTorquePercent}%</span>
-                    <div
-                      className={`w-3.5 h-6 rounded border ${
-                        throttlePercent > 10 ? 'bg-red-500 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'bg-zinc-800 border-zinc-600'
-                      }`}
-                    />
-                  </div>
-
-                  <span className="text-[7px] font-black text-red-500 uppercase tracking-widest">
-                    GR-FOUR
+                <div className="flex flex-col items-center justify-center p-2 rounded-xl bg-zinc-900/90 border border-white/10 min-w-[70px]">
+                  <span className="text-lg font-black text-emerald-400 leading-none">
+                    13,8
                   </span>
-
-                  {/* Rodas Traseiras */}
-                  <div className="w-full flex justify-between items-center px-1">
-                    <div
-                      className={`w-3.5 h-6 rounded border ${
-                        throttlePercent > 10 ? 'bg-amber-500 border-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]' : 'bg-zinc-800 border-zinc-600'
-                      }`}
-                    />
-                    <span className="text-[7px] font-mono text-zinc-400 font-bold">{rearTorquePercent}%</span>
-                    <div
-                      className={`w-3.5 h-6 rounded border ${
-                        throttlePercent > 10 ? 'bg-amber-500 border-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]' : 'bg-zinc-800 border-zinc-600'
-                      }`}
-                    />
-                  </div>
+                  <span className="text-[7px] font-mono text-zinc-400 mt-0.5">KM/L</span>
                 </div>
+                <span className="text-[7px] text-zinc-500 mt-0.5">GASOLINA</span>
               </div>
 
               {/* Potência Instantânea */}
@@ -213,7 +148,7 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
                       cy={compact ? 33 : 38}
                       r={compact ? 27 : 31}
                       fill="none"
-                      stroke="#ef4444"
+                      stroke="#e11d48"
                       strokeWidth="3"
                       strokeDasharray={compact ? 170 : 195}
                       strokeDashoffset={
@@ -235,59 +170,35 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
                 </span>
               </div>
 
-              {/* Botão Oficial de Intercooler Water Spray */}
+              {/* Autonomia Estimada */}
               <div className="flex flex-col items-center">
-                <span className="text-[7px] font-bold text-sky-400 uppercase mb-0.5">
-                  SPRAY RADIADOR
+                <span className="text-[7px] font-bold text-zinc-400 uppercase mb-0.5">
+                  AUTONOMIA
                 </span>
-                <button
-                  onClick={triggerWaterSpray}
-                  className={`relative flex flex-col items-center justify-center rounded-2xl border transition-all cursor-pointer ${
-                    compact ? 'w-[66px] h-[66px]' : 'w-[76px] h-[76px]'
-                  } ${
-                    isSprayingWater
-                      ? 'bg-sky-500/30 border-sky-300 shadow-[0_0_20px_rgba(56,189,248,0.7)] animate-pulse'
-                      : 'bg-zinc-900/90 border-sky-500/40 hover:border-sky-400'
-                  }`}
-                  title="Borrifar água no Intercooler para resfriamento"
-                >
-                  <span className="text-xl">💦</span>
-                  <strong className="text-[8px] font-black text-white mt-0.5">
-                    {isSprayingWater ? 'BORRIFANDO!' : 'WATER SPRAY'}
-                  </strong>
-                  <span className="text-[6px] font-mono text-sky-300">
-                    {intakeTemp}°C ADMISSÃO
+                <div className="flex flex-col items-center justify-center p-2 rounded-xl bg-zinc-900/90 border border-white/10 min-w-[70px]">
+                  <span className="text-lg font-black text-sky-400 leading-none">
+                    520
                   </span>
-                </button>
-                <span className="text-[7px] text-zinc-500 mt-0.5">RALLY SPEC</span>
+                  <span className="text-[7px] font-mono text-zinc-400 mt-0.5">KM REST.</span>
+                </div>
+                <span className="text-[7px] text-zinc-500 mt-0.5">TANQUE 45L</span>
               </div>
             </div>
 
-            {/* Controles de Escape e Preparação Gazoo Racing */}
-            <div className="w-full grid grid-cols-2 gap-1.5 px-1 pt-1 border-t border-white/5">
-              <button
-                onClick={toggleExhaustValve}
-                className={`py-1 px-1.5 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  exhaustValveOpen
-                    ? 'bg-red-500/20 border-red-500 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
-                    : 'bg-zinc-900 border-white/10 text-zinc-400'
-                }`}
-              >
-                <span>⚡ ESCAPE GR:</span>
-                <span className="font-black">{exhaustValveOpen ? 'DIRETO' : 'CIVIL'}</span>
-              </button>
-
-              <button
-                onClick={() => setTuningStage(((tuningStage + 1) % 4) as 0 | 1 | 2 | 3)}
-                className={`py-1 px-1.5 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  tuningStage > 0
-                    ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
-                    : 'bg-zinc-900 border-white/10 text-zinc-400'
-                }`}
-              >
-                <span>🔧 PREPARAÇÃO:</span>
-                <span className="font-black">{tuningStage === 0 ? 'STOCK' : `STG ${tuningStage}`}</span>
-              </button>
+            {/* Eficiência do Estilo de Condução */}
+            <div className="w-full flex items-center justify-between px-2 py-1 rounded bg-black/40 border border-white/5 text-[8px] font-mono">
+              <span className="text-zinc-400">ECO SCORE:</span>
+              <div className="flex items-center gap-1">
+                <div className="w-24 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-500 to-sky-400 transition-all duration-300"
+                    style={{ width: `${Math.max(10, Math.round(100 - throttlePercent * 0.8))}%` }}
+                  />
+                </div>
+                <span className="text-emerald-400 font-bold">
+                  {Math.max(10, Math.round(100 - throttlePercent * 0.8))}/100
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -361,14 +272,14 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
       {/* ── Botões Capacitivos Virtuais Toyota (Rodapé) ── */}
       <div className="w-full flex items-center justify-between border-t border-white/10 pt-1.5 mt-1.5 text-[6.5px] sm:text-[7.5px] font-bold">
         <button
-          onClick={() => setActiveTab('gr-four')}
+          onClick={() => setActiveTab('eco')}
           className={`px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
-            activeTab === 'gr-four'
-              ? 'bg-red-600 text-white shadow-[0_0_8px_rgba(220,38,38,0.5)]'
+            activeTab === 'eco'
+              ? 'bg-emerald-600 text-white shadow-[0_0_8px_rgba(16,185,129,0.5)]'
               : 'text-zinc-500 hover:text-zinc-300'
           }`}
         >
-          GR-FOUR
+          ECO MONITOR
         </button>
         <button
           onClick={() => setActiveTab('clima')}

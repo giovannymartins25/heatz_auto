@@ -13,7 +13,7 @@ import { MAX_SUBSTEPS } from '@/systems/engine/constants'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 import { clamp } from '@/utils/math'
 import type { AmbientLightColor } from '@/utils/ambientLighting'
-import { useGarageStore, type CarUpgrades, type ExhaustType, type SuspensionHeight, type RearWingPosition } from './useGarageStore'
+import { useGarageStore, type CarUpgrades, type ExhaustType, type SuspensionHeight, type RearWingPosition, type RearWingType, type TurboLevel, type EngineInternals } from './useGarageStore'
 import { useUIStore } from './useUIStore'
 import { performanceMonitor } from '@/utils/performanceMonitor'
 
@@ -457,6 +457,9 @@ interface SimulationState {
   hasRetrofitInfotainment: boolean
   /** Manômetro de turbo/vácuo aftermarket instalado no interior */
   hasBoostGaugeKit: boolean
+  turboLevel: TurboLevel
+  engineInternals: EngineInternals
+  rearWingType: RearWingType
   /** Unidade da garagem carregada no simulador (null = carro de fábrica sem garagem) */
   garageInstanceId: string | null
   exhaustType: ExhaustType
@@ -572,6 +575,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   // Peças & Customizações Equipadas da Loja
   hasRetrofitInfotainment: false,
   hasBoostGaugeKit: false,
+  turboLevel: 'none',
+  engineInternals: 'stock',
+  rearWingType: 'none',
   garageInstanceId: null,
   exhaustType: 'stock',
   intakeType: 'stock',
@@ -763,7 +769,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       physics.setSuspensionHeight(initialUpgrades.suspensionHeight)
     }
     const defaultWing = initialUpgrades?.rearWingPosition ?? (config.id === 'porsche-gt3' ? 'balanced' : 'low_drag')
-    physics.setAerodynamics(defaultWing, config.id === 'porsche-gt3')
+    const initialWingType: RearWingType = initialUpgrades?.rearWingType ?? (config.id === 'porsche-gt3' || config.id === 'civic-si' ? 'oem' : 'none')
+    physics.setAerodynamics(defaultWing, config.id === 'porsche-gt3', initialWingType)
 
     const defaultAmbientColor: AmbientLightColor =
       config.id === 'golf-gti'
@@ -794,6 +801,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isAutomaticVehicle: isAutoOrCvt,
       ambientLightColor: defaultAmbientColor,
       hasTurbo,
+      turboLevel: initialUpgrades?.turboLevel ?? (initialUpgrades?.turboKit || hasTurbo ? 'basic' : 'none'),
+      engineInternals: initialUpgrades?.engineInternals ?? 'stock',
+      rearWingType: initialWingType,
       hasLaunchControl,
       hasRetrofitInfotainment: Boolean(initialUpgrades?.multimediaKit),
       hasBoostGaugeKit: Boolean(initialUpgrades?.boostGaugeKit),
@@ -1099,6 +1109,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const { _config, _physics } = get()
     set((state) => {
       const hasTurbo = Boolean(_config?.engine.turbo?.enabled || (upgrades.turboKit !== undefined ? upgrades.turboKit : state.hasTurbo))
+      const turboLevel = upgrades.turboLevel ?? state.turboLevel ?? (hasTurbo ? 'basic' : 'none')
+      const engineInternals = upgrades.engineInternals ?? state.engineInternals ?? 'stock'
+      const rearWingType = upgrades.rearWingType ?? state.rearWingType ?? (_config?.id === 'porsche-gt3' || _config?.id === 'civic-si' ? 'oem' : 'none')
       const exhaustType = upgrades.exhaustType ?? state.exhaustType
       const intakeType = upgrades.intakeType ?? state.intakeType
       const tires = upgrades.tires ?? state.tires
@@ -1122,11 +1135,14 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         if (state.isRaining) baseFric = tires === 'semi_slick' ? 0.52 : 0.62
         _physics.setSurfaceFriction(baseFric)
         _physics.setSuspensionHeight(suspensionHeight)
-        _physics.setAerodynamics(rearWingPosition, state.isAeroWingExtended)
+        _physics.setAerodynamics(rearWingPosition, state.isAeroWingExtended, rearWingType)
       }
 
       return {
         hasTurbo,
+        turboLevel,
+        engineInternals,
+        rearWingType,
         exhaustType,
         intakeType,
         tires,
@@ -1144,8 +1160,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setAeroWing: (extended: boolean) => {
-    const { _physics, rearWingPosition } = get()
-    _physics?.setAerodynamics(rearWingPosition, extended)
+    const { _physics, rearWingPosition, rearWingType } = get()
+    _physics?.setAerodynamics(rearWingPosition, extended, rearWingType)
     set({ isAeroWingExtended: extended })
     HapticFeedback.light()
   },
@@ -1162,8 +1178,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setRearWingPosition: (pos: RearWingPosition) => {
-    const { _physics, isAeroWingExtended } = get()
-    _physics?.setAerodynamics(pos, isAeroWingExtended)
+    const { _physics, isAeroWingExtended, rearWingType } = get()
+    _physics?.setAerodynamics(pos, isAeroWingExtended, rearWingType)
     set({ rearWingPosition: pos })
     HapticFeedback.light()
   },
@@ -1510,7 +1526,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         break
       }
       case 'S': {
-        const targetGear = get().currentGear > 0 ? get().currentGear : 1
+        const targetGear = speed < 2 ? 1 : (get().currentGear > 0 ? get().currentGear : 1)
         _autoTransmission?.reset()
         _transmission.shiftTo(targetGear, speed, undefined, true)
         HapticFeedback.gearShift()
@@ -2852,6 +2868,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       // Peças & Customizações Equipadas da Loja
       hasRetrofitInfotainment: false,
       hasBoostGaugeKit: false,
+      turboLevel: 'none',
+      engineInternals: 'stock',
+      rearWingType: 'none',
       garageInstanceId: null,
       exhaustType: 'stock',
       exhaustValveOpen: false,

@@ -12,6 +12,7 @@ interface GolfGTIDiscoverProProps {
   vehicle: VehicleConfig
   telemetry: DashboardTelemetry
   compact?: boolean
+  fill?: boolean
   className?: string
 }
 
@@ -33,6 +34,7 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
   vehicle,
   telemetry,
   compact = false,
+  fill = false,
   className = '',
 }: GolfGTIDiscoverProProps) {
   const [activeTab, setActiveTab] = useState<GTIActiveTab>('sport')
@@ -41,10 +43,6 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
   const setAmbientLightColor = useSimulationStore((s) => s.setAmbientLightColor)
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.red
-  const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
-  const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
-  const tuningStage = useSimulationStore((s) => s.tuningStage)
-  const setTuningStage = useSimulationStore((s) => s.setTuningStage)
 
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
@@ -79,7 +77,7 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
   return (
     <div
       className={`relative flex flex-col rounded-[1.8rem] bg-gradient-to-b from-[#131418] via-[#0b0c0f] to-[#050608] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} overflow-hidden select-none font-mono transition-all duration-300 ${
-        compact ? 'w-[270px] p-2' : 'w-[325px] sm:w-[350px] p-2.5 sm:p-3'
+        fill ? 'w-full h-full max-w-full max-h-full p-2.5 sm:p-3' : (compact ? 'w-[270px] p-2' : 'w-[325px] sm:w-[350px] p-2.5 sm:p-3')
       } ${className}`}
     >
       {/* ── Friso Superior GTI & Barra de Status ── */}
@@ -233,31 +231,11 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
               </div>
             </div>
 
-            {/* Controles de Escape e Preparação GTI */}
-            <div className="w-full grid grid-cols-2 gap-1.5 px-1 pt-1 border-t border-white/5">
-              <button
-                onClick={toggleExhaustValve}
-                className={`py-1 px-1.5 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  exhaustValveOpen
-                    ? 'bg-red-500/20 border-red-500 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
-                    : 'bg-zinc-900 border-white/10 text-zinc-400'
-                }`}
-              >
-                <span>⚡ ESCAPE:</span>
-                <span className="font-black">{exhaustValveOpen ? 'ABERTO' : 'CIVIL'}</span>
-              </button>
-
-              <button
-                onClick={() => setTuningStage(((tuningStage + 1) % 4) as 0 | 1 | 2 | 3)}
-                className={`py-1 px-1.5 rounded-lg border font-mono text-[8px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  tuningStage > 0
-                    ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
-                    : 'bg-zinc-900 border-white/10 text-zinc-400'
-                }`}
-              >
-                <span>🔧 PREPARAÇÃO:</span>
-                <span className="font-black">{tuningStage === 0 ? 'STOCK' : `STG ${tuningStage}`}</span>
-              </button>
+            {/* Status Oficial VW Sport HMI */}
+            <div className="w-full flex items-center justify-between px-2 py-1 rounded bg-black/60 border border-white/5 text-[7.5px] font-mono text-zinc-400 mt-1">
+              <span>MOTOR: <b className="text-red-400">2.0 TSI EA888</b></span>
+              <span>CÂMBIO: <b className="text-white">DSG DQ250</b></span>
+              <span>BOOST: <b className="text-amber-400">{boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : '0.00'} BAR</b></span>
             </div>
           </div>
         )}

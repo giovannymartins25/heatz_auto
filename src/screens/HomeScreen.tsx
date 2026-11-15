@@ -2,7 +2,14 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useVehicleStore } from '@/stores/useVehicleStore'
 import { useGarageStore, type GarageCarInstance } from '@/stores/useGarageStore'
-import { SearchBar, CategoryFilter, VehicleSpecsModal } from '@/components/ui'
+import {
+  SearchBar,
+  CategoryFilter,
+  VehicleSpecsModal,
+  ManufacturerSection,
+  GarageCarCard,
+  DealershipVehicleCard,
+} from '@/components/ui'
 import { TuningGarageModal, DynoTestModal } from '@/components/tuning'
 import type { FilterOption } from '@/components/ui'
 import type { VehicleConfig } from '@/types/vehicle'
@@ -198,6 +205,51 @@ export function HomeScreen() {
       return true
     })
   }, [ownedCars, vehicleList, search, category, selectedBrand, selectedTransmission])
+
+  // Agrupamento vertical dinâmico da Garagem por Fabricante (Estilo Forza Horizon)
+  const groupedOwnedCarsByBrand = useMemo(() => {
+    const brandMap = new Map<string, GarageCarInstance[]>()
+
+    for (const car of filteredOwnedCars) {
+      const manifest = vehicleList.find((v) => v.id === car.vehicleId)
+      const brand = manifest?.brand || 'Outros'
+      if (!brandMap.has(brand)) {
+        brandMap.set(brand, [])
+      }
+      brandMap.get(brand)!.push(car)
+    }
+
+    const groups: { brand: string; cars: GarageCarInstance[] }[] = []
+    for (const [brand, cars] of brandMap.entries()) {
+      if (cars.length > 0) {
+        groups.push({ brand, cars })
+      }
+    }
+
+    return groups.sort((a, b) => a.brand.localeCompare(b.brand))
+  }, [filteredOwnedCars, vehicleList])
+
+  // Agrupamento vertical dinâmico da Concessionária por Fabricante (Estilo Forza Horizon)
+  const groupedDealershipByBrand = useMemo(() => {
+    const brandMap = new Map<string, typeof vehicleList>()
+
+    for (const v of filteredVehicles) {
+      const brand = v.brand || 'Outros'
+      if (!brandMap.has(brand)) {
+        brandMap.set(brand, [])
+      }
+      brandMap.get(brand)!.push(v)
+    }
+
+    const groups: { brand: string; vehicles: typeof vehicleList }[] = []
+    for (const [brand, vehicles] of brandMap.entries()) {
+      if (vehicles.length > 0) {
+        groups.push({ brand, vehicles })
+      }
+    }
+
+    return groups.sort((a, b) => a.brand.localeCompare(b.brand))
+  }, [filteredVehicles])
 
   // Comprar Carro na Concessionária
   const handleBuyCar = (vId: string) => {
@@ -459,361 +511,137 @@ export function HomeScreen() {
 
         {/* ─── ABA 1: MINHA GARAGEM ─── */}
         {!isLoading && activeTab === 'garage' && (
-          <div className="flex flex-col gap-3 sm:gap-4">
+          <div className="flex flex-col gap-4 sm:gap-6">
             <div className="flex items-center justify-between px-1 text-[11px] sm:text-xs font-mono text-zinc-400">
               <span>{filteredOwnedCars.length} veículos na coleção</span>
-              <span className="text-[9px] sm:text-[10px] text-zinc-500">Múltiplas preparações suportadas</span>
+              <span className="text-[9px] sm:text-[10px] text-zinc-500">
+                {groupedOwnedCarsByBrand.length} {groupedOwnedCarsByBrand.length === 1 ? 'fabricante' : 'fabricantes'}
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6">
-              {filteredOwnedCars.map((car) => {
-                const manifest = vehicleList.find((v) => v.id === car.vehicleId)
-                const isActive = activeCarInstanceId === car.instanceId
-                const up = car.upgrades
-                const specs = getVehicleSpecs(manifest, car.vehicleId)
+            {filteredOwnedCars.length === 0 ? (
+              <div className="py-16 text-center border border-white/5 rounded-2xl bg-zinc-950/60 p-6">
+                <span className="text-3xl block mb-2">🔍</span>
+                <p className="text-zinc-400 font-mono text-xs uppercase tracking-wider">
+                  Nenhum veículo encontrado com os filtros selecionados
+                </p>
+              </div>
+            ) : (
+              groupedOwnedCarsByBrand.map((group) => {
+                const countLabel = `${group.cars.length} ${
+                  group.cars.length === 1 ? 'MÁQUINA NA COLEÇÃO' : 'MÁQUINAS NA COLEÇÃO'
+                }`
 
                 return (
-                  <div
-                    key={car.instanceId}
-                    className={`relative rounded-xl sm:rounded-2xl border-2 p-2.5 sm:p-3.5 lg:p-4 bg-gradient-to-b from-zinc-900/90 via-zinc-950 to-black flex flex-col justify-between gap-1.5 sm:gap-2.5 transition-all shadow-xl hover:shadow-2xl car-card-landscape ${
-                      isActive ? 'border-[var(--color-accent)] ring-1 ring-[var(--color-accent)]/50' : 'border-white/10 hover:border-white/20'
-                    }`}
+                  <ManufacturerSection
+                    key={group.brand}
+                    brand={group.brand}
+                    countLabel={countLabel}
                   >
-                    {/* Topo do Card */}
-                    <div>
-                      <div className="flex items-start justify-between gap-1.5 mb-1 sm:mb-1.5">
-                        <div className="min-w-0">
-                          <span className="text-[8.5px] sm:text-[9.5px] font-mono uppercase tracking-widest text-zinc-400 block truncate">
-                            {manifest?.brand || 'VEÍCULO'}
-                          </span>
-                          <h3 className="text-sm sm:text-base font-black text-white tracking-tight flex items-center gap-1 truncate">
-                            <span className="truncate">{car.customName}</span>
-                            <button
-                              onClick={() => { setRenamingCar(car); setNewNameInput(car.customName) }}
-                              className="text-zinc-500 hover:text-amber-400 text-[11px] p-0.5 cursor-pointer shrink-0"
-                              title="Renomear carro"
-                            >
-                              ✏️
-                            </button>
-                          </h3>
-                        </div>
+                    {group.cars.map((car) => {
+                      const manifest = vehicleList.find((v) => v.id === car.vehicleId)
+                      const isActive = activeCarInstanceId === car.instanceId
+                      const specs = getVehicleSpecs(manifest, car.vehicleId)
+                      const sellPrice = Math.round((VEHICLE_PRICES[car.vehicleId]?.price || 50000) * 0.7)
 
-                        {isActive && (
-                          <span className="px-2 py-0.5 rounded-full text-[7px] sm:text-[7.5px] font-black uppercase tracking-wider bg-[var(--color-accent)] text-white shadow-md shrink-0">
-                            SELECIONADO
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Imagem / Preview do Veículo — escala moderada e 100% visível sem cortes */}
-                      <div className="w-full h-20 sm:h-24 md:h-28 lg:h-32 rounded-lg sm:rounded-xl bg-zinc-950/90 border border-white/5 overflow-hidden relative flex items-center justify-center my-1 sm:my-1.5 car-thumb-landscape">
-                        {manifest?.thumbnailPath ? (
-                          <img
-                            src={manifest.thumbnailPath}
-                            alt={car.customName}
-                            className="w-full h-full object-contain p-1.5 sm:p-2 opacity-95 hover:scale-105 transition-transform duration-300"
-                          />
-                        ) : (
-                          <span className="text-2xl sm:text-3xl">🏎️</span>
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
-                        <span className="absolute bottom-1 left-1 text-[7.5px] sm:text-[8.5px] font-mono text-zinc-400 bg-black/80 px-1.5 py-0.5 rounded border border-white/10">
-                          ODÔMETRO: {car.mileageKm.toLocaleString()} KM
-                        </span>
-                      </div>
-
-                      {/* Especificações Técnicas Claras */}
-                      <div className="bg-zinc-900/70 rounded-lg p-1.5 sm:p-2 border border-white/5 my-1 sm:my-1.5 text-[8px] sm:text-[9px] font-mono space-y-0.5">
-                        <div className="flex justify-between items-center text-zinc-300">
-                          <span className="text-zinc-500 uppercase">MOTOR:</span>
-                          <span className="font-bold text-white truncate max-w-[68%] text-right">{specs.engine}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-zinc-300">
-                          <span className="text-zinc-500 uppercase">FORÇA:</span>
-                          <span className="font-bold text-amber-300">{specs.power} · {specs.torque}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-zinc-300">
-                          <span className="text-zinc-500 uppercase">CÂMBIO / TRAÇÃO:</span>
-                          <span className="font-bold text-zinc-200">{specs.transmission} · {specs.drivetrain}</span>
-                        </div>
-                      </div>
-
-                      {/* Tags de Peças Instaladas (Upgrades) */}
-                      <div className="flex flex-wrap gap-1 my-1 font-mono text-[7px] sm:text-[7.5px]">
-                        {/* Turbo Kit */}
-                        <span
-                          className={`px-1.5 py-0.5 rounded font-bold uppercase border ${
-                            up.turboKit
-                              ? 'bg-sky-500/20 text-sky-300 border-sky-400/40'
-                              : 'bg-zinc-800/60 text-zinc-400 border-white/5'
-                          }`}
-                        >
-                          {up.turboKit ? '🌀 TURBO' : '🍃 ASPIRADO'}
-                        </span>
-
-                        {/* Stage ECU */}
-                        <span
-                          className={`px-1.5 py-0.5 rounded font-bold uppercase border ${
-                            up.tuningStage > 0
-                              ? 'bg-red-500/20 text-red-300 border-red-500/40'
-                              : 'bg-zinc-800/60 text-zinc-400 border-white/5'
-                          }`}
-                        >
-                          {up.tuningStage === 0 ? 'STOCK' : `STAGE ${up.tuningStage}`}
-                        </span>
-
-                        {/* Escapamento */}
-                        <span
-                          className={`px-1.5 py-0.5 rounded font-bold uppercase border ${
-                            up.exhaustType === 'straight_pipe'
-                              ? 'bg-orange-500/20 text-orange-300 border-orange-400/40'
-                              : up.exhaustType === 'sport'
-                              ? 'bg-amber-500/20 text-amber-300 border-amber-400/40'
-                              : 'bg-zinc-800/60 text-zinc-400 border-white/5'
-                          }`}
-                        >
-                          {up.exhaustType === 'straight_pipe'
-                            ? '💥 DIRETO'
-                            : up.exhaustType === 'sport'
-                            ? '⚡ SPORT'
-                            : 'ORIGINAL'}
-                        </span>
-
-                        {/* Pneus */}
-                        <span
-                          className={`px-1.5 py-0.5 rounded font-bold uppercase border ${
-                            up.tires === 'semi_slick'
-                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40'
-                              : 'bg-zinc-800/60 text-zinc-400 border-white/5'
-                          }`}
-                        >
-                          {up.tires === 'semi_slick' ? '🏁 SEMI-SLICK' : 'RADIAL'}
-                        </span>
-
-                        {/* Manômetro Aftermarket */}
-                        {up.boostGaugeKit && (
-                          <span className="px-1.5 py-0.5 rounded font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-400/40">
-                            ⏱️ MANÔMETRO
-                          </span>
-                        )}
-
-                        {/* Multimídia */}
-                        {up.multimediaKit && (
-                          <span className="px-1.5 py-0.5 rounded font-bold uppercase bg-purple-500/20 text-purple-300 border border-purple-400/40">
-                            📺 2-DIN
-                          </span>
-                        )}
-
-                        {/* Kit Nitro NOS */}
-                        {up.hasNosKit && (
-                          <span className="px-1.5 py-0.5 rounded font-bold uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
-                            ⚡ NITRO
-                          </span>
-                        )}
-
-                        {/* Pintura Customizada */}
-                        {up.paintColor && (
-                          <span className="px-1.5 py-0.5 rounded font-bold uppercase bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-400/40 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: up.paintColor }} />
-                            <span>PINTURA</span>
-                          </span>
-                        )}
-
-                        {/* Pinças de Freio */}
-                        {up.brakeCaliperColor && (
-                          <span className="px-1.5 py-0.5 rounded font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-400/40 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: up.brakeCaliperColor }} />
-                            <span>PINÇAS</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Botões de Ação do Veículo: PAINEL e DIRIGIR (Fase 1.5) */}
-                    <div className="flex flex-col gap-1.5 pt-1.5 border-t border-white/10 font-mono">
-                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
-                        {/* Botão Painel */}
-                        <button
-                          onClick={() => handleSelectMode(car, 'cluster')}
-                          className="h-10 sm:h-11 rounded-xl bg-gradient-to-r from-zinc-800 to-zinc-700 hover:from-zinc-700 hover:to-zinc-600 text-white font-black text-[10px] sm:text-xs uppercase tracking-wider border border-white/20 shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
-                          title="Visualizar apenas o Painel Original do veículo (sem mapa)"
-                        >
-                          <span className="text-sm sm:text-base">📟</span>
-                          <span>PAINEL</span>
-                        </button>
-
-                        {/* Botão Dirigir */}
-                        <button
-                          onClick={() => handleSelectMode(car, 'drive')}
-                          className="h-10 sm:h-11 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-black text-[10px] sm:text-xs uppercase tracking-wider border border-red-400/40 shadow-lg shadow-red-600/30 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
-                          title="Abrir Cockpit Completo com Mapa e Controles"
-                        >
-                          <span className="text-sm sm:text-base">🏎️</span>
-                          <span>DIRIGIR</span>
-                        </button>
-                      </div>
-
-                      {/* Ações Secundárias */}
-                      <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
-                        <button
-                          onClick={() => handleOpenWorkshop(car)}
-                          className="h-7 sm:h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-amber-400/30 font-bold text-[8px] sm:text-[9px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          <span>🔧</span>
-                          <span>OFICINA</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleOpenDyno(car)}
-                          className="h-7 sm:h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-sky-300 border border-sky-500/30 font-bold text-[8px] sm:text-[9px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          <span>📈</span>
-                          <span>DYNO</span>
-                        </button>
-
-                        <button
-                          onClick={() => setSpecsModalData({
-                            vehicleId: car.vehicleId,
-                            manifestEntry: manifest,
-                            isOwned: true,
-                            onDrive: () => handleSelectMode(car, 'drive'),
-                            onWorkshop: () => handleOpenWorkshop(car),
-                          })}
-                          className="h-7 sm:h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-white/10 font-bold text-[8px] sm:text-[9px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
-                          title="Abrir Ficha Técnica Completa"
-                        >
-                          <span>📋</span>
-                          <span>FICHA</span>
-                        </button>
-                      </div>
-
-                      {/* Botão de Vender */}
-                      {ownedCars.length > 1 && (
-                        <button
-                          onClick={() => handleSellCar(car)}
-                          className="w-full py-0.5 rounded text-[7.5px] sm:text-[8px] text-zinc-500 hover:text-red-400 hover:bg-red-950/20 transition-all cursor-pointer text-center"
-                        >
-                          Vender por R$ {Math.round((VEHICLE_PRICES[car.vehicleId]?.price || 50000) * 0.7).toLocaleString()}
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                      return (
+                        <GarageCarCard
+                          key={car.instanceId}
+                          car={car}
+                          manifest={manifest}
+                          specs={specs}
+                          isActive={isActive}
+                          canSell={ownedCars.length > 1}
+                          sellPrice={sellPrice}
+                          onRename={() => {
+                            setRenamingCar(car)
+                            setNewNameInput(car.customName)
+                          }}
+                          onSelectMode={(mode) => handleSelectMode(car, mode)}
+                          onOpenWorkshop={() => handleOpenWorkshop(car)}
+                          onOpenDyno={() => handleOpenDyno(car)}
+                          onOpenSpecs={() =>
+                            setSpecsModalData({
+                              vehicleId: car.vehicleId,
+                              manifestEntry: manifest,
+                              isOwned: true,
+                              onDrive: () => handleSelectMode(car, 'drive'),
+                              onWorkshop: () => handleOpenWorkshop(car),
+                            })
+                          }
+                          onSell={() => handleSellCar(car)}
+                        />
+                      )
+                    })}
+                  </ManufacturerSection>
                 )
-              })}
-            </div>
+              })
+            )}
           </div>
         )}
 
         {/* ─── ABA 2: CONCESSIONÁRIA / LOJA DE CARROS ─── */}
         {!isLoading && activeTab === 'dealership' && (
-          <div className="flex flex-col gap-3 sm:gap-4">
+          <div className="flex flex-col gap-4 sm:gap-6">
             <div className="flex items-center justify-between px-1 text-[11px] sm:text-xs font-mono text-zinc-400">
               <span>{filteredVehicles.length} modelos disponíveis</span>
-              <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold">Compre quantas unidades quiser</span>
+              <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold">
+                {groupedDealershipByBrand.length} {groupedDealershipByBrand.length === 1 ? 'fabricante disponível' : 'fabricantes disponíveis'}
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-6">
-              {filteredVehicles.map((vehicle) => {
-                const info = VEHICLE_PRICES[vehicle.id] || { price: 50000, badge: 'CATÁLOGO', description: '' }
-                const ownedCount = ownedCars.filter((c) => c.vehicleId === vehicle.id).length
-                const canAfford = sandboxMode || credits >= info.price
+            {filteredVehicles.length === 0 ? (
+              <div className="py-16 text-center border border-white/5 rounded-2xl bg-zinc-950/60 p-6">
+                <span className="text-3xl block mb-2">🔍</span>
+                <p className="text-zinc-400 font-mono text-xs uppercase tracking-wider">
+                  Nenhum modelo disponível com os filtros selecionados
+                </p>
+              </div>
+            ) : (
+              groupedDealershipByBrand.map((group) => {
+                const countLabel = `${group.vehicles.length} ${
+                  group.vehicles.length === 1 ? 'MODELO DISPONÍVEL' : 'MODELOS DISPONÍVEIS'
+                }`
 
                 return (
-                  <div
-                    key={vehicle.id}
-                    className="rounded-xl sm:rounded-2xl border border-white/10 p-2.5 sm:p-3.5 lg:p-4 bg-gradient-to-b from-zinc-900/80 via-zinc-950 to-black flex flex-col justify-between gap-1.5 sm:gap-2.5 shadow-xl hover:border-white/20 transition-all car-card-landscape"
+                  <ManufacturerSection
+                    key={group.brand}
+                    brand={group.brand}
+                    countLabel={countLabel}
                   >
-                    <div>
-                      <div className="flex items-start justify-between gap-1 mb-1 sm:mb-1.5">
-                        <span className="text-[8.5px] sm:text-[9.5px] font-mono uppercase tracking-widest text-zinc-400">
-                          {vehicle.brand}
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded text-[7px] sm:text-[7.5px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                          {info.badge}
-                        </span>
-                      </div>
+                    {group.vehicles.map((vehicle) => {
+                      const info = VEHICLE_PRICES[vehicle.id] || {
+                        price: 50000,
+                        badge: 'CATÁLOGO',
+                        description: '',
+                      }
+                      const ownedCount = ownedCars.filter((c) => c.vehicleId === vehicle.id).length
+                      const canAfford = sandboxMode || credits >= info.price
 
-                      <h3 className="text-sm sm:text-base font-black text-white tracking-tight mb-1 sm:mb-1.5">
-                        {vehicle.name}
-                      </h3>
-
-                      {/* Imagem do modelo */}
-                      <div className="w-full h-20 sm:h-24 md:h-28 lg:h-32 rounded-lg sm:rounded-xl bg-zinc-950/90 border border-white/5 overflow-hidden relative flex items-center justify-center mb-1.5 sm:mb-2 car-thumb-landscape">
-                        {vehicle.thumbnailPath ? (
-                          <img
-                            src={vehicle.thumbnailPath}
-                            alt={vehicle.name}
-                            className="w-full h-full object-contain p-1.5 sm:p-2 opacity-95 hover:scale-105 transition-transform duration-300"
-                          />
-                        ) : (
-                          <span className="text-2xl sm:text-3xl">🏎️</span>
-                        )}
-                        {ownedCount > 0 && (
-                          <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded-full text-[7px] sm:text-[7.5px] font-mono font-bold bg-amber-500 text-black">
-                            {ownedCount} NA GARAGEM
-                          </span>
-                        )}
-                      </div>
-
-                      <p className="text-[8.5px] sm:text-[9.5px] font-mono text-zinc-400 mb-1.5 sm:mb-2 line-clamp-2">
-                        {info.description || `${vehicle.powerHp} CV · ${vehicle.transmissionType.toUpperCase()}`}
-                      </p>
-
-                      {/* Specs Rápidas */}
-                      <div className="grid grid-cols-2 gap-1 py-1 px-1.5 rounded-lg bg-black/40 border border-white/5 text-center font-mono text-[7.5px] sm:text-[8.5px] mb-1.5 sm:mb-2">
-                        <div>
-                          <span className="text-zinc-500 block text-[6.5px] sm:text-[7px] uppercase">Potência</span>
-                          <span className="font-bold text-white">{vehicle.powerHp} CV</span>
-                        </div>
-                        <div>
-                          <span className="text-zinc-500 block text-[6.5px] sm:text-[7px] uppercase">Torque</span>
-                          <span className="font-bold text-amber-400">{vehicle.torqueKgfm} kgfm</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Preço, Ficha Técnica e Botão de Compra */}
-                    <div className="pt-2 border-t border-white/10 font-mono flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between">
-                        <div className="min-w-0">
-                          <span className="text-zinc-500 block text-[7px] uppercase">Preço</span>
-                          <span className="font-black text-emerald-400 text-xs sm:text-sm truncate block">
-                            {sandboxMode ? 'GRÁTIS' : `R$ ${info.price.toLocaleString()}`}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSpecsModalData({
-                            vehicleId: vehicle.id,
-                            manifestEntry: vehicle,
-                            isOwned: ownedCount > 0,
-                            price: info.price,
-                          })}
-                          className="px-2 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-white/10 font-bold text-[8px] sm:text-[8.5px] uppercase flex items-center gap-1 cursor-pointer transition-all active:scale-95"
-                          title="Ver Ficha Técnica Completa"
-                        >
-                          <span>📋</span>
-                          <span>FICHA TÉCNICA</span>
-                        </button>
-                      </div>
-
-                      <button
-                        onClick={() => handleBuyCar(vehicle.id)}
-                        disabled={!canAfford}
-                        className={`w-full h-8 sm:h-9 rounded-xl font-black text-[9.5px] sm:text-[10.5px] uppercase tracking-wider transition-all shadow active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
-                          canAfford
-                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]'
-                            : 'bg-zinc-800 text-zinc-500 border border-white/5 cursor-not-allowed'
-                        }`}
-                      >
-                        <span>🛒</span>
-                        <span>{canAfford ? 'COMPRAR VEÍCULO' : 'INSUFICIENTE'}</span>
-                      </button>
-                    </div>
-                  </div>
+                      return (
+                        <DealershipVehicleCard
+                          key={vehicle.id}
+                          vehicle={vehicle}
+                          priceInfo={info}
+                          ownedCount={ownedCount}
+                          canAfford={canAfford}
+                          sandboxMode={sandboxMode}
+                          onBuy={() => handleBuyCar(vehicle.id)}
+                          onOpenSpecs={() =>
+                            setSpecsModalData({
+                              vehicleId: vehicle.id,
+                              manifestEntry: vehicle,
+                              isOwned: ownedCount > 0,
+                              price: info.price,
+                            })
+                          }
+                        />
+                      )
+                    })}
+                  </ManufacturerSection>
                 )
-              })}
-            </div>
+              })
+            )}
           </div>
         )}
       </main>

@@ -1,6 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 
 export interface HPatternShifterProps {
   className?: string
@@ -23,14 +22,12 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
   className = '',
   gearCount = 5,
   size = 'normal',
-  showModeToggle = true,
 }) => {
   const currentGear = useSimulationStore((s) => s.currentGear)
   const isGearGrinding = useSimulationStore((s) => s.isGearGrinding)
   const clutchPosition = useSimulationStore((s) => s.clutchPosition)
   const shiftHPattern = useSimulationStore((s) => s.shiftHPattern)
   const isEngineBlown = useSimulationStore((s) => s.isEngineBlown)
-  const toggleShifterLayout = useSimulationStore((s) => s.toggleShifterLayout)
   const speed = useSimulationStore((s) => s.speed)
   const isRevLimiting = useSimulationStore((s) => s.isRevLimiting)
 
@@ -349,7 +346,7 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
         </div>
       </div>
 
-      {/* ── Rodapé: Marcha Atual e Botão de Alternância H-Gate ↔ Seq ── */}
+      {/* ── Rodapé: Marcha Atual ── */}
       <div className="w-full mt-1.5 flex items-center justify-between text-[9px] px-1 text-zinc-400">
         <div>
           ENGATADA:{' '}
@@ -357,19 +354,9 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
             {currentGear === -1 ? 'RÉ' : currentGear === 0 ? 'NEUTRO' : `${currentGear}ª`}
           </strong>
         </div>
-
-        {showModeToggle && (
-          <button
-            onClick={() => {
-              toggleShifterLayout()
-              HapticFeedback.light()
-            }}
-            className="px-2 py-0.5 rounded-lg border border-white/10 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[8px] font-black uppercase transition-all active:scale-95 cursor-pointer"
-            title="Alternar para Câmbio Sequencial (+ / -)"
-          >
-            SEQ (+/-)
-          </button>
-        )}
+        <div className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider">
+          GRADE H {gearCount}M
+        </div>
       </div>
     </div>
   )

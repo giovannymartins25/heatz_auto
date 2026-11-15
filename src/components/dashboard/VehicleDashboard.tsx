@@ -84,8 +84,6 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const tuningStage = useSimulationStore((s) => s.tuningStage)
   const windowsOpen = useSimulationStore((s) => s.windowsOpen)
   const toggleWindows = useSimulationStore((s) => s.toggleWindows)
-  const shifterLayout = useSimulationStore((s) => s.shifterLayout)
-  const toggleShifterLayout = useSimulationStore((s) => s.toggleShifterLayout)
   const fuelLevelLiters = useSimulationStore((s) => s.fuelLevelLiters)
   const fuelCapacityLiters = useSimulationStore((s) => s.fuelCapacityLiters)
   const fuelType = useSimulationStore((s) => s.fuelType)
@@ -612,8 +610,8 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
 
           {/* Central Multimídia Automotiva ao lado (Console Central com Sport HMI / Turbo / Yaris / Porsche) */}
           {hasInfotainment && (
-            <div className="flex flex-col items-center justify-center shrink-0">
-              <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} />
+            <div className="flex flex-col items-center justify-center shrink-0 w-[380px] lg:w-[440px] xl:w-[480px] self-stretch">
+              <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} fill />
             </div>
           )}
         </div>
@@ -690,25 +688,16 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             )}
           </div>
 
-          {/* Seletor de Câmbio: H-Pattern vs Sequencial para manuais, ou PRNDS/M para automáticos */}
+          {/* Seletor de Câmbio Padrão Fixo (Sem alternância/inversão de padrão) */}
           <div className="flex items-center gap-1.5">
-            {vehicle.transmission.hasClutch && (
-              <button
-                onClick={toggleShifterLayout}
-                className="px-2 py-1.5 rounded-lg border border-white/10 bg-zinc-900 text-zinc-400 hover:text-white font-mono text-[9px] font-bold uppercase transition-all"
-                title="Alternar entre Câmbio Sequencial (+/-) e Grade H (1ª-6ª + R)"
-              >
-                {shifterLayout === 'h_pattern' ? 'GRADE H' : 'SEQ (+/-)'}
-              </button>
-            )}
             <GearShift />
           </div>
         </div>
 
-        {/* Câmbio H-Pattern Interativo na Tela (quando ativado no modo manual) */}
-        {vehicle.transmission.hasClutch && shifterLayout === 'h_pattern' && (
+        {/* Câmbio H-Pattern Interativo na Tela para veículos manuais */}
+        {vehicle.transmission.hasClutch && (
           <div className="w-full max-w-xs animate-in zoom-in-95 duration-150">
-            <HPatternShifter gearCount={vehicle.transmission.gearCount} />
+            <HPatternShifter gearCount={vehicle.transmission.gearCount} showModeToggle={false} />
           </div>
         )}
 

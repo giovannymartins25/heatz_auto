@@ -187,9 +187,16 @@ export class AutomaticTransmission {
     const isSportCutoff = isSelectorSport && isModeSport
 
     // Em transmissões ZF 9HP com 1ª marcha ultracurta (crawler ratio 4.700:1):
-    // No modo D convencional (AUTO ou 4WD LOCK), a arrancada padrão é em 2ª marcha (2.840:1).
-    // No modo 4WD LOW, a arrancada ocorre exclusivamente em 1ª marcha para rastejo off-road.
-    if (selectorPosition === 'D' && hasCrawlerFirstGear && !is4wdLow && currentGear === 1 && vehicleSpeedKmh < 8) {
+    // No modo D convencional (AUTO ou 4WD LOCK) sob condução suave (throttle <= 0.50), a arrancada padrão é em 2ª marcha (2.840:1).
+    // No modo S (Sport), em 4WD LOW ou sob aceleração forte em D (throttle > 0.50), a arrancada utiliza a 1ª marcha com força total.
+    if (
+      selectorPosition === 'D' &&
+      hasCrawlerFirstGear &&
+      !is4wdLow &&
+      currentGear === 1 &&
+      vehicleSpeedKmh < 8 &&
+      throttle <= 0.50
+    ) {
       return {
         targetGear: 2,
         targetClutchEngagement: 1.0,
@@ -283,11 +290,20 @@ export class AutomaticTransmission {
       const projectedRpm =
         speedProjectedRpm > 0 ? speedProjectedRpm : currentRpm / Math.max(0.1, gearStepRatio)
 
-      // Nunca reduz para 1ª marcha em movimento (>= 12 km/h);
-      // Em transmissões com 1ª crawler (ZF 9HP), só reduz para 1ª se 4WD LOW estiver ativo ou em modo manual M
+      // Nunca reduz para 1ª marcha em movimento elevado (>= 12 km/h);
+      // Em transmissões com 1ª crawler (ZF 9HP):
+      // - Em S (Sport), desce para 1ª marcha ao desacelerar/parar (< 10 km/h) para arrancada esportiva;
+      // - Em 4WD LOW ou modo M, reduz para 1ª crawler;
+      // - Em D, mantém 2ª marcha ao parar, exceto sob kickdown ou aceleração forte (throttle > 0.50).
       const allowDownshiftToFirst =
         lowerGear > 1 ||
-        (vehicleSpeedKmh < 12 && (!hasCrawlerFirstGear || is4wdLow || selectorPosition === 'M'))
+        (vehicleSpeedKmh < 12 && (
+          !hasCrawlerFirstGear ||
+          is4wdLow ||
+          selectorPosition === 'M' ||
+          selectorPosition === 'S' ||
+          (selectorPosition === 'D' && throttle > 0.50)
+        ))
 
       // Kickdown intencional quando o motorista pisa fundo em marcha alta (3ª+) e há margem útil antes do upshift
       const wantsKickdown =
@@ -326,6 +342,8 @@ export class AutomaticTransmission {
       const shouldNormalDownshift =
         isEmergencyLowRpm ||
         vehicleSpeedKmh < 8 ||
+        (hasCrawlerFirstGear && selectorPosition === 'S' && vehicleSpeedKmh < 10) ||
+        (hasCrawlerFirstGear && selectorPosition === 'D' && throttle > 0.50 && vehicleSpeedKmh < 10) ||
         (currentRpm <= effectiveDownshiftRpm && projectedRpm <= maxSafeProjectedRpm)
 
       if (

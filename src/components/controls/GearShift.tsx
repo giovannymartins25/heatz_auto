@@ -41,12 +41,10 @@ export const GearShift = memo(function GearShift({
   const selectSport = useSimulationStore((s) => s.selectSport)
   const selectManual = useSimulationStore((s) => s.selectManual)
   const shifterLayout = useSimulationStore((s) => s.shifterLayout)
-  const toggleShifterLayout = useSimulationStore((s) => s.toggleShifterLayout)
   const vehicleConfig = useSimulationStore((s) => s._config)
   const isMoto = vehicleConfig?.info.category === 'motorcycle'
   const caps = vehicleConfig ? getVehicleCapabilities(vehicleConfig) : null
   const supportsPaddles = caps ? caps.supportsPaddleShifters : true
-  const canShowPaddles = showPaddles && supportsPaddles
 
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
   const lastActionTimeRef = useRef(0)
@@ -129,10 +127,10 @@ export const GearShift = memo(function GearShift({
 
       {/* ── SELETOR AUTOMÁTICO PRNDS (Filtrado estritamente pelas posições suportadas) ── */}
       {isAutomaticVehicle ? (
-        <div className="flex flex-col items-center gap-1.5 p-1.5 rounded-2xl bg-zinc-950/90 border border-white/10 shadow-xl">
-          <div className="w-full flex items-center justify-between px-1 text-[8px] text-zinc-400 font-bold">
-            <span className="text-zinc-500">CÂMBIO AUTO</span>
-            <span className="text-amber-400 font-black">
+        <div className="flex flex-col items-center gap-1.5 p-2 rounded-2xl bg-zinc-950/90 border border-white/10 shadow-xl">
+          <div className="w-full flex items-center justify-between gap-1 px-1 text-[8px] text-zinc-400 font-bold border-b border-white/5 pb-1">
+            <span className="text-zinc-500 uppercase tracking-wider text-[7px] sm:text-[8px]">CÂMBIO AUTO</span>
+            <span className="px-1.5 py-0.5 rounded bg-zinc-900 text-amber-400 font-black text-[9px] border border-amber-400/25 tracking-wide shadow-sm whitespace-nowrap">
               {activeLabel}
             </span>
           </div>
@@ -141,8 +139,8 @@ export const GearShift = memo(function GearShift({
           <div
             className={
               orientation === 'vertical'
-                ? 'grid grid-cols-2 gap-1'
-                : 'flex items-center gap-1'
+                ? 'grid grid-cols-2 gap-1.5 p-0.5'
+                : 'flex items-center gap-1.5 p-0.5'
             }
           >
             {/* P - PARK */}
@@ -153,7 +151,7 @@ export const GearShift = memo(function GearShift({
                 onClick={(e) => { e.preventDefault(); selectPark(); }}
                 style={{ touchAction: 'none' }}
                 disabled={!isRunning}
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-black text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isP
                     ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.8)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
@@ -172,7 +170,7 @@ export const GearShift = memo(function GearShift({
                 onClick={(e) => { e.preventDefault(); selectReverse(); }}
                 style={{ touchAction: 'none' }}
                 disabled={!isRunning}
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-black text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isR
                     ? 'bg-red-600 text-white border-red-400 shadow-[0_0_12px_rgba(220,38,38,0.8)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
@@ -191,7 +189,7 @@ export const GearShift = memo(function GearShift({
                 onClick={(e) => { e.preventDefault(); selectNeutral(); }}
                 style={{ touchAction: 'none' }}
                 disabled={!isRunning}
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-black text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isN
                     ? 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.8)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
@@ -210,7 +208,7 @@ export const GearShift = memo(function GearShift({
                 onClick={(e) => { e.preventDefault(); selectDrive(); }}
                 style={{ touchAction: 'none' }}
                 disabled={!isRunning}
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-black text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isD
                     ? 'bg-sky-600 text-white border-sky-400 shadow-[0_0_12px_rgba(2,132,199,0.8)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
@@ -229,7 +227,7 @@ export const GearShift = memo(function GearShift({
                 onClick={(e) => { e.preventDefault(); selectSport(); }}
                 style={{ touchAction: 'none' }}
                 disabled={!isRunning}
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-black text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isS
                     ? 'bg-rose-600 text-white border-rose-400 shadow-[0_0_12px_rgba(225,29,72,0.8)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
@@ -248,7 +246,7 @@ export const GearShift = memo(function GearShift({
                 onClick={(e) => { e.preventDefault(); selectManual(); }}
                 style={{ touchAction: 'none' }}
                 disabled={!isRunning}
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-black text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isM
                     ? 'bg-amber-400 text-black border-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.8)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
@@ -261,7 +259,7 @@ export const GearShift = memo(function GearShift({
           </div>
 
           {/* Borboletas Paddle Shift para Trocas Rápidas */}
-          {canShowPaddles && (
+          {showPaddles && supportsPaddles && (
             <div
               className={`w-full flex ${
                 orientation === 'vertical' ? 'flex-col gap-1' : 'items-center justify-between'
@@ -301,44 +299,60 @@ export const GearShift = memo(function GearShift({
         <HPatternShifter
           gearCount={vehicleConfig?.transmission.gearCount || 5}
           size={size === 'compact' ? 'compact' : 'normal'}
-          showModeToggle={true}
+          showModeToggle={false}
         />
       ) : (
-        /* ── SELETOR SEQUENCIAL [-] [N] [+] COM BOTÃO PARA VOLTAR PARA GRADE H ── */
+        /* ── SELETOR SEQUENCIAL LIMPO [-] [N] [+] SEM INVERSÃO NEM BOTÃO DE ALTERNÂNCIA ── */
         <div className="flex flex-col items-center gap-1.5 p-2 rounded-2xl bg-zinc-950/90 border border-white/10 shadow-xl">
-          <div className="w-full flex items-center justify-between px-1 text-[8px] text-zinc-400 font-bold">
-            <span className="text-zinc-500">CÂMBIO MANUAL</span>
-            {!isMoto && (
-              <button
-                onClick={toggleShifterLayout}
-                className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-amber-400 font-black uppercase text-[8px] transition-all cursor-pointer"
-                title="Ativar Câmbio Real em Grade H"
-              >
-                ⚙️ GRADE H
-              </button>
-            )}
+          <div className="w-full flex items-center justify-between px-1 text-[8px] text-zinc-400 font-bold border-b border-white/5 pb-1">
+            <span className="text-zinc-500 uppercase tracking-wider text-[7px] sm:text-[8px]">
+              {isMoto ? 'CÂMBIO MOTO' : 'CÂMBIO MANUAL'}
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-zinc-900 text-amber-400 font-black text-[9px] border border-amber-400/25">
+              {currentGear === -1 ? 'RÉ' : currentGear === 0 ? 'NEUTRO' : `${currentGear}ª`}
+            </span>
           </div>
 
           <div
             className={`flex items-center gap-2 sm:gap-3 ${
-              orientation === 'vertical' ? 'flex-col-reverse' : 'flex-row'
+              orientation === 'vertical' ? 'flex-col' : 'flex-row'
             }`}
           >
-            {/* Botão Downshift (▼ -) */}
-            <button
-              id="btn-shift-down"
-              onPointerDown={handleShiftDown}
-              onTouchStart={handleShiftDown}
-              onClick={handleShiftDown}
-              disabled={!isRunning}
-              style={{ touchAction: 'none' }}
-              className={`${buttonSizeClass} rounded-2xl border-2 border-zinc-700/80 bg-zinc-900/80 active:bg-zinc-800 active:border-zinc-500 disabled:opacity-30 disabled:pointer-events-none flex flex-col items-center justify-center font-mono font-black text-[var(--color-text-secondary)] transition-all active:scale-90 cursor-pointer shadow-lg`}
-              aria-label="Reduzir marcha"
-              title="Tecla ] — Reduzir marcha"
-            >
-              <span className="text-[10px] leading-none text-zinc-500">▼</span>
-              <span className="leading-none mt-0.5">-</span>
-            </button>
+            {/* No layout vertical: [+] fica no topo, [N] no meio, [-] embaixo */}
+            {orientation === 'vertical' && (
+              <button
+                id="btn-shift-up"
+                onPointerDown={handleShiftUp}
+                onTouchStart={handleShiftUp}
+                onClick={handleShiftUp}
+                disabled={!isRunning}
+                style={{ touchAction: 'none' }}
+                className={`${buttonSizeClass} rounded-2xl border-2 border-zinc-700/80 bg-zinc-900/80 active:bg-zinc-800 active:border-[var(--color-accent)] disabled:opacity-30 disabled:pointer-events-none flex flex-col items-center justify-center font-mono font-black text-[var(--color-accent)] transition-all active:scale-90 cursor-pointer shadow-lg`}
+                aria-label="Subir marcha"
+                title="Tecla [ — Subir marcha"
+              >
+                <span className="text-[10px] leading-none text-[var(--color-accent-muted)]">▲</span>
+                <span className="leading-none mt-0.5">+</span>
+              </button>
+            )}
+
+            {/* No layout horizontal: [-] fica à esquerda */}
+            {orientation !== 'vertical' && (
+              <button
+                id="btn-shift-down"
+                onPointerDown={handleShiftDown}
+                onTouchStart={handleShiftDown}
+                onClick={handleShiftDown}
+                disabled={!isRunning}
+                style={{ touchAction: 'none' }}
+                className={`${buttonSizeClass} rounded-2xl border-2 border-zinc-700/80 bg-zinc-900/80 active:bg-zinc-800 active:border-zinc-500 disabled:opacity-30 disabled:pointer-events-none flex flex-col items-center justify-center font-mono font-black text-[var(--color-text-secondary)] transition-all active:scale-90 cursor-pointer shadow-lg`}
+                aria-label="Reduzir marcha"
+                title="Tecla ] — Reduzir marcha"
+              >
+                <span className="text-[10px] leading-none text-zinc-500">▼</span>
+                <span className="leading-none mt-0.5">-</span>
+              </button>
+            )}
 
             {/* Botão Neutro (N) */}
             <button
@@ -359,21 +373,41 @@ export const GearShift = memo(function GearShift({
               N
             </button>
 
-            {/* Botão Upshift (▲ +) */}
-            <button
-              id="btn-shift-up"
-              onPointerDown={handleShiftUp}
-              onTouchStart={handleShiftUp}
-              onClick={handleShiftUp}
-              disabled={!isRunning}
-              style={{ touchAction: 'none' }}
-              className={`${buttonSizeClass} rounded-2xl border-2 border-zinc-700/80 bg-zinc-900/80 active:bg-zinc-800 active:border-[var(--color-accent)] disabled:opacity-30 disabled:pointer-events-none flex flex-col items-center justify-center font-mono font-black text-[var(--color-accent)] transition-all active:scale-90 cursor-pointer shadow-lg`}
-              aria-label="Subir marcha"
-              title="Tecla [ — Subir marcha"
-            >
-              <span className="text-[10px] leading-none text-[var(--color-accent-muted)]">▲</span>
-              <span className="leading-none mt-0.5">+</span>
-            </button>
+            {/* No layout vertical: [-] fica embaixo */}
+            {orientation === 'vertical' && (
+              <button
+                id="btn-shift-down"
+                onPointerDown={handleShiftDown}
+                onTouchStart={handleShiftDown}
+                onClick={handleShiftDown}
+                disabled={!isRunning}
+                style={{ touchAction: 'none' }}
+                className={`${buttonSizeClass} rounded-2xl border-2 border-zinc-700/80 bg-zinc-900/80 active:bg-zinc-800 active:border-zinc-500 disabled:opacity-30 disabled:pointer-events-none flex flex-col items-center justify-center font-mono font-black text-[var(--color-text-secondary)] transition-all active:scale-90 cursor-pointer shadow-lg`}
+                aria-label="Reduzir marcha"
+                title="Tecla ] — Reduzir marcha"
+              >
+                <span className="text-[10px] leading-none text-zinc-500">▼</span>
+                <span className="leading-none mt-0.5">-</span>
+              </button>
+            )}
+
+            {/* No layout horizontal: [+] fica à direita */}
+            {orientation !== 'vertical' && (
+              <button
+                id="btn-shift-up"
+                onPointerDown={handleShiftUp}
+                onTouchStart={handleShiftUp}
+                onClick={handleShiftUp}
+                disabled={!isRunning}
+                style={{ touchAction: 'none' }}
+                className={`${buttonSizeClass} rounded-2xl border-2 border-zinc-700/80 bg-zinc-900/80 active:bg-zinc-800 active:border-[var(--color-accent)] disabled:opacity-30 disabled:pointer-events-none flex flex-col items-center justify-center font-mono font-black text-[var(--color-accent)] transition-all active:scale-90 cursor-pointer shadow-lg`}
+                aria-label="Subir marcha"
+                title="Tecla [ — Subir marcha"
+              >
+                <span className="text-[10px] leading-none text-[var(--color-accent-muted)]">▲</span>
+                <span className="leading-none mt-0.5">+</span>
+              </button>
+            )}
           </div>
         </div>
       )}

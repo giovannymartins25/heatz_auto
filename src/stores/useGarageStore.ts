@@ -4,9 +4,15 @@ import type { FuelType } from '@/types/simulation'
 export type ExhaustType = 'stock' | 'sport' | 'cat_back' | 'downpipe' | 'straight_pipe'
 export type SuspensionHeight = 'stock' | 'sport' | 'track' | 'lift'
 export type RearWingPosition = 'low_drag' | 'balanced' | 'high_downforce'
+export type TurboLevel = 'none' | 'basic' | 'intermediate' | 'big_turbo'
+export type EngineInternals = 'stock' | 'reinforced' | 'forged' | 'race'
+export type RearWingType = 'none' | 'oem' | 'aftermarket' | 'sport_gt'
 
 export interface CarUpgrades {
   turboKit: boolean // Se tem kit turbo instalado (mesmo em carros aspirados)
+  turboLevel?: TurboLevel // Nível de sobrealimentação (aspirado stock, turbo básico, intermediário ou big turbo)
+  engineInternals?: EngineInternals // Preparação interna do bloco (original, reforçado, forjado, pista)
+  rearWingType?: RearWingType // Equipamento aerodinâmico traseiro instalado
   multimediaKit: boolean // Central multimídia 2-DIN retrofit com YouTube
   boostGaugeKit: boolean // Manômetro de turbo/vácuo aftermarket instalado no interior (coluna/painel)
   exhaustType: ExhaustType // Escapamento: original, esportivo, cat-back, downpipe ou direto
@@ -88,8 +94,18 @@ export function createDefaultUpgrades(vehicleId: string): CarUpgrades {
       ? 'premium_podium'
       : 'common_gasoline'
 
+  const defaultTurboLevel: TurboLevel = isOriginallyTurbo
+    ? (vehicleId === 'gol-quadrado-turbo' ? 'intermediate' : 'basic')
+    : 'none'
+
+  const defaultInternals: EngineInternals = vehicleId === 'gol-quadrado-turbo' ? 'forged' : 'stock'
+  const defaultWingType: RearWingType = vehicleId === 'porsche-gt3' || vehicleId === 'civic-si' ? 'oem' : 'none'
+
   return {
     turboKit: isOriginallyTurbo,
+    turboLevel: defaultTurboLevel,
+    engineInternals: defaultInternals,
+    rearWingType: defaultWingType,
     multimediaKit: hasDefaultMultimedia,
     boostGaugeKit: false,
     exhaustType: isOriginallyTurbo ? 'sport' : 'stock',

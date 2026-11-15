@@ -12,6 +12,7 @@ interface PorschePCM6Props {
   vehicle: VehicleConfig
   telemetry: DashboardTelemetry
   compact?: boolean
+  fill?: boolean
   className?: string
 }
 
@@ -26,7 +27,7 @@ type PorscheActiveTab = 'track' | 'chassis' | 'clima' | 'media' | 'ambient'
  *   1. TRACK PRECISION: Boost bar Bi-Turbo em alta resolução, Friction Circle (G-Force 360°) e TPMS 4 pneus
  *   2. CHASSIS & AERO:
  *      - Front Axle Lift (+30mm no eixo dianteiro com animação e aviso de spoiler protegido)
- *      - Active Rear Wing (Asa traseira ativa com modos Automático / Downforce Máximo +150kg)
+ *      - Active Rear Wing (Asa traseira ativa com recolher / elevar e modos Low Drag / Balanced / High Downforce)
  *   3. CLIMATE: Porsche Advanced 2-Zone Climate com Ionizador de ar
  *   4. PCM STREAMING: Acesso ao YouTube e reprodutor de músicas online
  */
@@ -34,12 +35,13 @@ export const PorschePCM6 = memo(function PorschePCM6({
   vehicle,
   telemetry,
   compact = false,
+  fill = false,
   className = '',
 }: PorschePCM6Props) {
   const [activeTab, setActiveTab] = useState<PorscheActiveTab>('track')
   const [clockTime, setClockTime] = useState('14:32')
   const isAeroWingExtended = useSimulationStore((s) => s.isAeroWingExtended)
-  const toggleAeroWing = useSimulationStore((s) => s.toggleAeroWing)
+  const setAeroWing = useSimulationStore((s) => s.setAeroWing)
   const suspensionHeight = useSimulationStore((s) => s.suspensionHeight)
   const setSuspensionHeight = useSimulationStore((s) => s.setSuspensionHeight)
   const rearWingPosition = useSimulationStore((s) => s.rearWingPosition)
@@ -55,8 +57,6 @@ export const PorschePCM6 = memo(function PorschePCM6({
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.amber
   const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
   const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
-  const tuningStage = useSimulationStore((s) => s.tuningStage)
-  const setTuningStage = useSimulationStore((s) => s.setTuningStage)
 
   const rpm = telemetry.tachometer.rpm
   const speed = telemetry.speedometer.speed
@@ -88,7 +88,7 @@ export const PorschePCM6 = memo(function PorschePCM6({
   return (
     <div
       className={`relative flex flex-col rounded-[1.8rem] bg-gradient-to-b from-[#16171d] via-[#0c0d12] to-[#060709] border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} overflow-hidden select-none font-mono transition-all duration-300 ${
-        compact ? 'w-[270px] p-2' : 'w-[325px] sm:w-[350px] p-2.5 sm:p-3'
+        fill ? 'w-full h-full max-w-full max-h-full p-2.5 sm:p-3' : (compact ? 'w-[270px] p-2' : 'w-[325px] sm:w-[350px] p-2.5 sm:p-3')
       } ${className}`}
     >
       {/* ── Barra Superior Porsche PCM ── */}
@@ -276,17 +276,38 @@ export const PorschePCM6 = memo(function PorschePCM6({
               {/* Swan-neck Wing / Aerodinâmica Funcional */}
               <div className="bg-zinc-900/80 border border-white/10 p-2 rounded-xl flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[8px] font-black text-red-400">ASA SWAN-NECK</span>
-                  <span className="text-[7px] text-zinc-400 font-mono">
-                    {rearWingPosition === 'high_downforce' ? 'MAX CARGA' : rearWingPosition === 'low_drag' ? 'MAX VEL' : 'EQUILÍBRIO'}
+                  <span className="text-[8px] font-black text-red-400">ASA ATIVA (SWAN-NECK)</span>
+                  <span className={`text-[7px] font-mono font-bold ${isAeroWingExtended ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                    {isAeroWingExtended ? '▲ ELEVADA (UP)' : '▼ RECOLHIDA (DOWN)'}
                   </span>
                 </div>
+                {/* 1. Atuador: Recolher vs Elevar */}
+                <div className="grid grid-cols-2 gap-1">
+                  <button
+                    onClick={() => setAeroWing(false)}
+                    className={`py-1 text-[7px] font-bold rounded border transition-colors cursor-pointer ${
+                      !isAeroWingExtended
+                        ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                        : 'bg-black/40 border-white/10 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    ⬇️ RECOLHER
+                  </button>
+                  <button
+                    onClick={() => setAeroWing(true)}
+                    className={`py-1 text-[7px] font-bold rounded border transition-colors cursor-pointer ${
+                      isAeroWingExtended
+                        ? 'bg-emerald-500/25 border-emerald-400 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                        : 'bg-black/40 border-white/10 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    ⬆️ ELEVAR (+150KG)
+                  </button>
+                </div>
+                {/* 2. Ângulo de ataque */}
                 <div className="grid grid-cols-3 gap-1">
                   <button
-                    onClick={() => {
-                      setRearWingPosition('low_drag')
-                      if (isAeroWingExtended) toggleAeroWing()
-                    }}
+                    onClick={() => setRearWingPosition('low_drag')}
                     className={`py-1 text-[7px] font-bold rounded border transition-colors cursor-pointer ${
                       rearWingPosition === 'low_drag'
                         ? 'bg-cyan-500/25 border-cyan-400 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
@@ -306,10 +327,7 @@ export const PorschePCM6 = memo(function PorschePCM6({
                     BALANCED
                   </button>
                   <button
-                    onClick={() => {
-                      setRearWingPosition('high_downforce')
-                      if (!isAeroWingExtended) toggleAeroWing()
-                    }}
+                    onClick={() => setRearWingPosition('high_downforce')}
                     className={`py-1 text-[7px] font-bold rounded border transition-colors cursor-pointer ${
                       rearWingPosition === 'high_downforce'
                         ? 'bg-red-500/25 border-red-400 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
@@ -337,21 +355,14 @@ export const PorschePCM6 = memo(function PorschePCM6({
                 </span>
               </button>
 
-              {/* Porsche Motorsport Tuning Stage Selector */}
-              <button
-                onClick={() => setTuningStage(((tuningStage + 1) % 4) as 0 | 1 | 2 | 3)}
-                className={`p-2.5 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                  tuningStage > 0
-                    ? 'bg-red-950/60 border-red-500 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.4)]'
-                    : 'bg-zinc-900/80 border-white/10 text-zinc-400 hover:text-white'
-                }`}
-              >
-                <span className="text-xl">🔧</span>
-                <strong className="text-[9px] font-black">MOTORSPORT MAP</strong>
-                <span className={`text-[7px] font-bold ${tuningStage > 0 ? 'text-red-400' : 'text-zinc-500'}`}>
-                  {tuningStage === 0 ? 'STAGE 0 (STOCK)' : `STAGE ${tuningStage} TUNING`}
+              {/* Porsche Stability & Launch Control Status */}
+              <div className="p-2.5 rounded-2xl border border-white/10 bg-zinc-900/80 flex flex-col items-center justify-center gap-1 text-center">
+                <span className="text-xl">🛡️</span>
+                <strong className="text-[9px] font-black text-white">PORSCHE STABILITY (PSM)</strong>
+                <span className="text-[7px] font-bold text-emerald-400">
+                  SISTEMA ELETRÔNICO ATIVO · SPORT CHRONO
                 </span>
-              </button>
+              </div>
             </div>
 
             <div className="w-full flex justify-between items-center px-2 py-1 rounded bg-black/60 text-[7px] text-zinc-400 border border-white/5">

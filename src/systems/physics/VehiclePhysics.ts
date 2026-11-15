@@ -1,6 +1,6 @@
 import { clamp } from '@/utils/math'
 import { VehicleChassis, type ChassisConfig, type DynamicLoadResult, type AxleLoads, createVehicleChassis } from './Chassis'
-import type { SuspensionHeight, RearWingPosition } from '@/stores/useGarageStore'
+import type { SuspensionHeight, RearWingPosition, RearWingType } from '@/stores/useGarageStore'
 
 export type FourWheelDriveMode = 'auto' | '4wd' | '4wd_low'
 
@@ -76,6 +76,7 @@ export class VehiclePhysics {
   private suspensionHeight: SuspensionHeight = 'stock'
   private rearWingPosition: RearWingPosition = 'balanced'
   private isAeroWingExtended: boolean = false
+  private rearWingType: RearWingType = 'none'
 
   private speedMs: number = 0 // velocidade linear em m/s
   private accelerationMs2: number = 0
@@ -148,15 +149,25 @@ export class VehiclePhysics {
   }
 
   /**
-   * Configura parâmetros aerodinâmicos funcionais (asa traseira e downforce).
+   * Configura parâmetros aerodinâmicos funcionais (asa traseira, tipo de aerofólio e downforce).
    */
-  setAerodynamics(wingPosition: RearWingPosition, isExtended = true): void {
+  setAerodynamics(
+    wingPosition: RearWingPosition = 'balanced',
+    isExtended = true,
+    wingType: RearWingType = 'none'
+  ): void {
     this.rearWingPosition = wingPosition
     this.isAeroWingExtended = isExtended
+    this.rearWingType = wingType
 
     const isPorsche = this.vehicleId === 'porsche-gt3'
-    if (isPorsche || isExtended) {
-      if (wingPosition === 'low_drag') {
+    if (isPorsche) {
+      // Porsche 911 GT3 RS: Aerodinâmica Ativa controlada pelo PCM 6.0
+      if (!isExtended) {
+        // Asa recolhida: menor arrasto
+        this.currentAeroConstant = this.baseAeroConstant * 0.92
+        this.downforceCoeff = 0.10
+      } else if (wingPosition === 'low_drag') {
         // Baixo arrasto para velocidade máxima em retas longas
         this.currentAeroConstant = this.baseAeroConstant * 0.88
         this.downforceCoeff = 0.12
@@ -165,13 +176,39 @@ export class VehiclePhysics {
         this.currentAeroConstant = this.baseAeroConstant * 1.32
         this.downforceCoeff = 0.65
       } else {
-        // Equilíbrio padrão de pista
+        // Equilíbrio padrão de pista (balanced)
         this.currentAeroConstant = this.baseAeroConstant * 1.05
         this.downforceCoeff = 0.35
       }
     } else {
-      this.currentAeroConstant = this.baseAeroConstant
-      this.downforceCoeff = 0.05
+      // Demais veículos com aerofólios configuráveis na oficina
+      switch (wingType) {
+        case 'sport_gt': {
+          // Asa alta Motorsport GT: Downforce brutal em curvas, porém maior arrasto em retas (+24% drag)
+          this.currentAeroConstant = this.baseAeroConstant * 1.24
+          this.downforceCoeff = 0.55
+          break
+        }
+        case 'aftermarket': {
+          // Spoiler ducktail esportivo: Downforce moderado, leve acréscimo de arrasto (+8% drag)
+          this.currentAeroConstant = this.baseAeroConstant * 1.08
+          this.downforceCoeff = 0.28
+          break
+        }
+        case 'oem': {
+          // Spoiler original de fábrica (ex: Civic Si)
+          this.currentAeroConstant = this.baseAeroConstant * 1.02
+          this.downforceCoeff = 0.16
+          break
+        }
+        case 'none':
+        default: {
+          // Sem aerofólio traseiro: menor arrasto possível, mas carga aerodinâmica mínima
+          this.currentAeroConstant = this.baseAeroConstant * 0.96
+          this.downforceCoeff = 0.04
+          break
+        }
+      }
     }
   }
 
@@ -181,6 +218,10 @@ export class VehiclePhysics {
 
   getEffectiveAeroConstant(): number {
     return this.currentAeroConstant
+  }
+
+  getRearWingType(): RearWingType {
+    return this.rearWingType
   }
 
   /**

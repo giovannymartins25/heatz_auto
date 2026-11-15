@@ -45,6 +45,20 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
   initialView = 'cluster',
   onViewChange,
 }: SwipeableClusterMediaSlotProps) {
+  // Motocicletas (CB1000R): utilizam painel TFT dedicado sem tela de multimídia ou gesto de swipe
+  if (vehicle.info.category === 'motorcycle' || vehicle.id === 'cb1000r') {
+    return (
+      <div
+        className={`relative flex items-center justify-center w-full h-full overflow-hidden select-none ${className}`}
+        aria-label="Painel TFT de instrumentos da motocicleta"
+      >
+        <div className="flex-1 h-full min-w-0 flex items-center justify-center">
+          <VehicleDashboardCluster telemetry={telemetry} expanded={expanded} />
+        </div>
+      </div>
+    )
+  }
+
   const [activeView, setActiveView] = useState<'cluster' | 'multimedia'>(initialView)
   const [dragOffset, setDragOffset] = useState(0)
   const [dragging, setDragging] = useState(false)
@@ -152,7 +166,8 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
       }
     } catch { /* noop */ }
 
-    if (!wasLocked || cancelled) return
+    if (!wasLocked) return
+    if (cancelled && Math.abs(dx) < SWIPE_THRESHOLD) return
 
     if (dx <= -SWIPE_THRESHOLD && activeView === 'cluster') {
       setView('multimedia')

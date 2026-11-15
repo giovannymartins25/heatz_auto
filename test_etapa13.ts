@@ -137,9 +137,9 @@ async function runEtapa13Tests() {
   const dynoWithNos = calculateDynoProfile(golConfig, { stage: 2, turboKit: true, hasNosKit: true })
 
   assert(
-    dynoWithNos.maxPowerHp > dynoWithoutNos.maxPowerHp &&
-    dynoWithNos.maxTorqueNm > dynoWithoutNos.maxTorqueNm,
-    `Dinamômetro computa o incremento de potência com NOS (Sem NOS: ${dynoWithoutNos.maxPowerHp} cv vs Com NOS: ${dynoWithNos.maxPowerHp} cv)`
+    dynoWithNos.maxEnginePowerHp > dynoWithoutNos.maxEnginePowerHp &&
+    dynoWithNos.maxEngineTorqueNm > dynoWithoutNos.maxEngineTorqueNm,
+    `Dinamômetro computa o incremento de potência com NOS (Sem NOS: ${dynoWithoutNos.maxEnginePowerHp} cv vs Com NOS: ${dynoWithNos.maxEnginePowerHp} cv)`
   )
 
   // ─────────────────────────────────────────────────────────────
