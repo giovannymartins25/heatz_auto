@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
 import { clamp } from '@/utils/math'
 import { ClusterIndicatorIcon } from '@/components/gauges'
 
@@ -43,7 +44,8 @@ export const FiatToroRanchCluster = memo(function FiatToroRanchCluster({
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const fourWheelDriveMode = useSimulationStore((s) => s.fourWheelDriveMode)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
-  const mileageKm = 18320
+  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
+  const coolantSegments = Math.round(clamp((auxGauges.coolantTemp - 50) / 80, 0, 1) * 8)
 
   const maxRpm = telemetry.tachometer.maxRpm || 6000
   const redlineRpm = telemetry.tachometer.redlineStart || 4500
@@ -100,7 +102,7 @@ export const FiatToroRanchCluster = memo(function FiatToroRanchCluster({
 
   return (
     <div
-      className="relative flex items-center justify-between w-[750px] h-[268px] bg-gradient-to-b from-[#0d0905] via-[#120c06] to-[#0a0704] border-2 border-amber-900/60 rounded-3xl p-3 select-none overflow-hidden font-sans shadow-2xl text-zinc-100"
+      className="relative flex items-center justify-between w-full max-w-[750px] min-h-[268px] bg-gradient-to-b from-[#0d0905] via-[#120c06] to-[#0a0704] border-2 border-amber-900/60 rounded-3xl p-3 select-none overflow-hidden font-sans shadow-2xl text-zinc-100"
       style={{
         boxShadow: 'inset 0 0 50px rgba(0,0,0,0.95), 0 10px 30px rgba(180,83,9,0.2)',
       }}
@@ -405,7 +407,7 @@ export const FiatToroRanchCluster = memo(function FiatToroRanchCluster({
           </div>
           <div className="w-full h-2.5 bg-zinc-950 rounded-lg p-0.5 border border-amber-900/40 flex gap-0.5">
             {[...Array(8)].map((_, i) => {
-              const active = i <= 4
+              const active = i < coolantSegments
               return (
                 <div
                   key={i}

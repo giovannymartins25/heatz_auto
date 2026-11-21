@@ -133,6 +133,15 @@ export const VehicleMultimedia = memo(function VehicleMultimedia({
     return <ClassicDashboardBlankUnit vehicle={vehicle} className={className} fill={fill} />
   }
 
+  return <GenericVehicleMultimedia vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
+})
+
+function GenericVehicleMultimedia({
+  vehicle,
+  telemetry,
+  className = '',
+  fill = false,
+}: VehicleMultimediaProps) {
   const [tab, setTab] = useState<TabId>('home')
   const [clock, setClock] = useState(() => new Date())
   const [track, setTrack] = useState(0)
@@ -409,4 +418,4 @@ export const VehicleMultimedia = memo(function VehicleMultimedia({
       </nav>
     </div>
   )
-})
+}

@@ -1,4 +1,4 @@
-import { memo, useState, useEffect } from 'react'
+import { memo, useState, useEffect, useRef } from 'react'
 import type { VehicleConfig } from '@/types/vehicle'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import {
@@ -62,6 +62,10 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const [activeTab, setActiveTab] = useState<ShopTab>('motor')
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null)
   const [isDynoOpen, setIsDynoOpen] = useState(false)
+  const tabsScrollRef = useRef<HTMLDivElement>(null)
+  const scrollTabs = (dir: -1 | 1) => {
+    tabsScrollRef.current?.scrollBy({ left: dir * 200, behavior: 'smooth' })
+  }
 
   // Store de Simulação
   const hasTurbo = useSimulationStore((s) => s.hasTurbo)
@@ -125,7 +129,9 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const isPopsPurchased = Boolean(upgrades?.hasPopsAndBangs ?? hasPopsAndBangs)
   const isPopsActive = Boolean(upgrades?.popsAndBangsEnabled ?? popsAndBangsEnabled)
   const isTurboInstalled = isOriginalTurboCar || Boolean(upgrades?.turboKit ?? hasTurbo)
-  const activeTurboLevel: TurboLevel = (upgrades?.turboLevel ?? turboLevel) || (isTurboInstalled ? 'basic' : 'none')
+  const rawTurboLevel = upgrades?.turboLevel ?? turboLevel
+  const activeTurboLevel: TurboLevel =
+    rawTurboLevel ?? (isOriginalTurboCar ? 'none' : isTurboInstalled ? 'basic' : 'none')
   const activeInternals: EngineInternals = (upgrades?.engineInternals ?? engineInternals) || 'stock'
   const activeWingType: RearWingType = (upgrades?.rearWingType ?? rearWingType) || (vehicle.id === 'porsche-gt3' || vehicle.id === 'civic-si' ? 'oem' : 'none')
   const isMultimediaInstalled = Boolean(upgrades?.multimediaKit ?? hasRetrofitInfotainment)
@@ -133,6 +139,8 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const isNosInstalled = Boolean(upgrades?.hasNosKit ?? hasNosKit)
 
   const isMoto = vehicle.info.category === 'motorcycle'
+  const hasManualClutch = Boolean(vehicle.transmission.hasClutch)
+  const supportsFrontAxleLift = !isMoto && vehicle.id === 'porsche-gt3'
   const hasFactoryOEMMedia =
     vehicle.id === 'porsche-gt3' ||
     vehicle.id === 'golf-gti' ||
@@ -140,9 +148,15 @@ export const TuningGarageModal = memo(function TuningGarageModal({
     vehicle.id === 'yaris-2019' ||
     vehicle.id.includes('toro')
   const isRetrofitCompatible =
-    vehicle.id === 'gol-g6' ||
-    vehicle.id === 'gol-quadrado-turbo' ||
-    vehicle.id === 'opala-1979'
+    !isMoto && (
+      vehicle.id === 'gol-g6' ||
+      vehicle.id === 'gol-quadrado-turbo' ||
+      vehicle.id === 'opala-4100'
+    )
+
+  const displayVehicleLabel = vehicle.info.name.toLowerCase().startsWith(vehicle.info.brand.toLowerCase())
+    ? vehicle.info.name
+    : `${vehicle.info.brand} ${vehicle.info.name}`
 
   const showNotification = (msg: string) => {
     setFeedbackMsg(msg)
@@ -156,18 +170,28 @@ export const TuningGarageModal = memo(function TuningGarageModal({
     price: number,
     itemName: string,
   ) => {
-    if (!sandboxMode && credits < price) {
-      showNotification(`❌ Saldo insuficiente! Faltam R$ ${(price - credits).toLocaleString()}`)
+    const isRemoving = value === false || value === 'stock' || (upgradeKey === 'turboLevel' && value === 'none') || (upgradeKey === 'rearWingType' && value === 'none')
+    const effectivePrice = isRemoving ? 0 : Math.max(0, price)
+
+    if (!sandboxMode && credits < effectivePrice) {
+      showNotification(`❌ Saldo insuficiente! Faltam R$ ${(effectivePrice - credits).toLocaleString()}`)
       return
     }
 
-    if (!sandboxMode && price > 0) {
-      addCredits(-price)
+    if (!sandboxMode && effectivePrice > 0) {
+      addCredits(-effectivePrice)
     }
 
     const partialUpgrade: Partial<CarUpgrades> = { [upgradeKey]: value }
     if (upgradeKey === 'turboLevel') {
-      partialUpgrade.turboKit = value !== 'none'
+      // Em carros turbo de fábrica, selecionar 'none' restaura a turbina original mantendo turboKit = true
+      partialUpgrade.turboKit = isOriginalTurboCar ? true : value !== 'none'
+    }
+    if (upgradeKey === 'bodyColor') {
+      partialUpgrade.paintColor = value
+    }
+    if (upgradeKey === 'caliperColor') {
+      partialUpgrade.brakeCaliperColor = value
     }
 
     if (liveCar && liveCar.instanceId) {
@@ -180,7 +204,11 @@ export const TuningGarageModal = memo(function TuningGarageModal({
     if (upgradeKey === 'rearWingPosition') setRearWingPosition(value)
 
     HapticFeedback.gearShift()
-    showNotification(`✅ ${itemName} instalado com sucesso!`)
+    showNotification(
+      isRemoving
+        ? `🔄 ${itemName} restaurado/removido!`
+        : `✅ ${itemName} instalado com sucesso!`,
+    )
   }
 
   // Atalho Tecla ESC
@@ -202,12 +230,13 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const stageMult = activeStage === 1 ? 1.22 : activeStage === 2 ? 1.45 : activeStage === 3 ? 1.80 : 1.0
   let turboMult = 1.0
   if (!isOriginalTurboCar) {
-    if (activeTurboLevel === 'basic' || isTurboInstalled) turboMult = 1.28
+    if (activeTurboLevel === 'big_turbo') turboMult = 1.95
     else if (activeTurboLevel === 'intermediate') turboMult = 1.55
-    else if (activeTurboLevel === 'big_turbo') turboMult = 1.95
+    else if (activeTurboLevel === 'basic' || isTurboInstalled) turboMult = 1.28
   } else {
-    if (activeTurboLevel === 'intermediate') turboMult = 1.25
-    else if (activeTurboLevel === 'big_turbo') turboMult = 1.60
+    if (activeTurboLevel === 'big_turbo') turboMult = 1.60
+    else if (activeTurboLevel === 'intermediate') turboMult = 1.25
+    else if (activeTurboLevel === 'basic') turboMult = 1.12
   }
   const intakeMult = activeIntake === 'cold_air' ? 1.05 : 1.0
 
@@ -256,7 +285,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                 </span>
               </div>
               <span className="text-[9.5px] text-zinc-400">
-                {vehicle.info.brand} {vehicle.info.name} · Impacto real na simulação determinística 120Hz
+                {displayVehicleLabel} · Impacto real na simulação determinística 120Hz
               </span>
             </div>
           </div>
@@ -348,25 +377,48 @@ export const TuningGarageModal = memo(function TuningGarageModal({
           </button>
         </div>
 
-        {/* ─── 10 Abas da Oficina Reformulada ─── */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[10px] font-black border-b border-white/10 no-scrollbar touch-pan-x flex-nowrap py-1">
-          {tabs.map((t) => {
-            const isSel = activeTab === t.id
-            return (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                className={`px-3 py-1.5 min-h-[36px] rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shrink-0 select-none ${
-                  isSel
-                    ? 'bg-red-600 text-white shadow-[0_0_12px_rgba(239,68,68,0.5)]'
-                    : 'bg-zinc-900/80 text-zinc-400 hover:text-white'
-                }`}
-              >
-                <span className="text-xs">{t.icon}</span>
-                <span className="whitespace-nowrap">{t.label}</span>
-              </button>
-            )
-          })}
+        {/* ─── 10 Abas da Oficina Reformulada (com setas táteis para mobile) ─── */}
+        <div className="relative flex items-center gap-1 border-b border-white/10 py-1">
+          <button
+            type="button"
+            onClick={() => scrollTabs(-1)}
+            aria-label="Rolar categorias à esquerda"
+            className="w-8 h-10 flex-shrink-0 rounded-xl bg-zinc-900/95 border border-white/15 hover:bg-zinc-800 text-zinc-200 flex items-center justify-center font-black text-base active:scale-95 cursor-pointer"
+          >
+            ‹
+          </button>
+          <div
+            ref={tabsScrollRef}
+            className="flex flex-1 min-w-0 items-center gap-2 overflow-x-auto py-0.5 px-0.5 no-scrollbar touch-pan-x flex-nowrap scroll-smooth snap-x"
+          >
+            {tabs.map((t) => {
+              const isSel = activeTab === t.id
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`px-3.5 py-2 min-h-[44px] rounded-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 select-none snap-start active:scale-95 ${
+                    isSel
+                      ? 'bg-gradient-to-r from-red-600 to-red-500 text-white shadow-[0_0_14px_rgba(239,68,68,0.55)] border border-red-400/60 ring-1 ring-red-400/30'
+                      : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-white/10'
+                  }`}
+                >
+                  <span className="text-sm sm:text-base">{t.icon}</span>
+                  <span className="text-[11px] sm:text-xs font-black tracking-wide whitespace-nowrap">
+                    {t.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => scrollTabs(1)}
+            aria-label="Rolar categorias à direita"
+            className="w-8 h-10 flex-shrink-0 rounded-xl bg-zinc-900/95 border border-white/15 hover:bg-zinc-800 text-zinc-200 flex items-center justify-center font-black text-base active:scale-95 cursor-pointer"
+          >
+            ›
+          </button>
         </div>
 
         {/* ─── Conteúdo da Aba Ativa ─── */}
@@ -510,54 +562,66 @@ export const TuningGarageModal = memo(function TuningGarageModal({
           {activeTab === 'admissao' && (
             <div className="flex flex-col gap-3">
               {/* Sobrealimentação Turbo */}
-              <div>
-                <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
-                  <span className="text-sky-400 text-xs">🌀</span>
-                  <span className="text-[10px] font-black uppercase text-zinc-300 tracking-wider">
-                    Kits de Sobrealimentação Turboalimentada
-                  </span>
+              {isMoto ? (
+                <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-950/20 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🏍️</span>
+                    <strong className="text-xs font-black text-amber-300">SOBREALIMENTAÇÃO AUTOMOTIVA INCOMPATÍVEL COM MOTOCICLETA</strong>
+                  </div>
+                  <p className="text-[9.5px] text-zinc-400">
+                    Kits turbo automotivos com intercooler frontal não são compatíveis com o chassi naked da motocicleta. Utilize o filtro esportivo de alta vazão abaixo.
+                  </p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {[
-                    { id: 'none' as TurboLevel, title: isOriginalTurboCar ? 'Turbo Original de Fábrica' : 'Aspirado Original (Sem Turbo)', desc: isOriginalTurboCar ? 'Pressão e turbina original de fábrica' : 'Motor aspirado sem sobrealimentação (+0 bar)', mult: '+0%', price: 0 },
-                    { id: 'basic' as TurboLevel, title: 'Kit Turbo Básico de Rua (+0.4 bar)', desc: 'Turbina de rua com baixa inércia. Instalação em motores aspirados sem forjar motor!', mult: '+28%', price: 4800 },
-                    { id: 'intermediate' as TurboLevel, title: 'Kit Turbo Intermediário (+0.8 bar)', desc: 'Turbina roletada com intercooler frontal e válvula wastegate externa', mult: '+55%', price: 8900 },
-                    { id: 'big_turbo' as TurboLevel, title: 'Big Turbo Drag Motorsport (+1.5 bar)', desc: 'Turbocompressor grande de pista para ganho colossal de potência em alta', mult: '+95%', price: 16500 },
-                  ].map((item) => {
-                    const isEq = activeTurboLevel === item.id || (item.id === 'none' && !isTurboInstalled)
-                    return (
-                      <div
-                        key={item.id}
-                        className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
-                          isEq ? 'bg-sky-950/40 border-sky-500 shadow-[0_0_15px_rgba(14,165,233,0.25)]' : 'bg-zinc-900/70 border-white/10'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex justify-between items-center">
-                            <strong className="text-xs font-black text-white">{item.title}</strong>
-                            <span className="text-[10px] text-sky-400 font-bold">{item.mult}</span>
+              ) : (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
+                    <span className="text-sky-400 text-xs">🌀</span>
+                    <span className="text-[10px] font-black uppercase text-zinc-300 tracking-wider">
+                      Kits de Sobrealimentação Turboalimentada
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[
+                      { id: 'none' as TurboLevel, title: isOriginalTurboCar ? 'Turbo Original de Fábrica' : 'Aspirado Original (Sem Turbo)', desc: isOriginalTurboCar ? 'Pressão e turbina original de fábrica' : 'Motor aspirado sem sobrealimentação (+0 bar)', mult: '+0%', price: 0 },
+                      { id: 'basic' as TurboLevel, title: isOriginalTurboCar ? 'Upgrade Turbina Híbrida Rua (+0.3 bar)' : 'Kit Turbo Básico de Rua (+0.45 bar)', desc: isOriginalTurboCar ? 'Rotor billet de menor inércia com ganho de pressão sobre o conjunto original' : 'Turbina de rua com baixa inércia. Instalação em motores aspirados!', mult: isOriginalTurboCar ? '+12%' : '+28%', price: 4800 },
+                      { id: 'intermediate' as TurboLevel, title: isOriginalTurboCar ? 'Turbo Stage Intermediário (+0.65 bar)' : 'Kit Turbo Intermediário (+0.85 bar)', desc: 'Turbina roletada com intercooler frontal e válvula wastegate externa', mult: isOriginalTurboCar ? '+25%' : '+55%', price: 8900 },
+                      { id: 'big_turbo' as TurboLevel, title: 'Big Turbo Drag Motorsport (+1.2 a +1.5 bar)', desc: 'Turbocompressor grande de pista para ganho colossal de potência em alta', mult: isOriginalTurboCar ? '+60%' : '+95%', price: 16500 },
+                    ].map((item) => {
+                      const isEq = activeTurboLevel === item.id || (!isOriginalTurboCar && item.id === 'none' && !isTurboInstalled)
+                      return (
+                        <div
+                          key={item.id}
+                          className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
+                            isEq ? 'bg-sky-950/40 border-sky-500 shadow-[0_0_15px_rgba(14,165,233,0.25)]' : 'bg-zinc-900/70 border-white/10'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex justify-between items-center gap-2">
+                              <strong className="text-xs font-black text-white">{item.title}</strong>
+                              <span className="text-[10px] text-sky-400 font-bold shrink-0">{item.mult}</span>
+                            </div>
+                            <p className="text-[8.5px] text-zinc-400 mt-1">{item.desc}</p>
                           </div>
-                          <p className="text-[8.5px] text-zinc-400 mt-1">{item.desc}</p>
+                          <div className="flex justify-between items-center mt-1">
+                            <span className="text-[10px] font-black text-amber-400">
+                              {item.price === 0 ? 'ORIGINAL' : `R$ ${item.price.toLocaleString()}`}
+                            </span>
+                            <button
+                              onClick={() => handlePurchaseAndEquip('turboLevel', item.id, item.price, item.title)}
+                              disabled={isEq}
+                              className={`min-h-8 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${
+                                isEq ? 'bg-zinc-800 text-zinc-500 cursor-default' : 'bg-sky-600 hover:bg-sky-500 text-white cursor-pointer'
+                              }`}
+                            >
+                              {isEq ? 'EQUIPADO' : 'INSTALAR'}
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center mt-1">
-                          <span className="text-[10px] font-black text-amber-400">
-                            {item.price === 0 ? 'ORIGINAL' : `R$ ${item.price.toLocaleString()}`}
-                          </span>
-                          <button
-                            onClick={() => handlePurchaseAndEquip('turboLevel', item.id, item.price, item.title)}
-                            disabled={isEq}
-                            className={`px-3 py-1 rounded-xl text-[9px] font-black uppercase transition-all ${
-                              isEq ? 'bg-zinc-800 text-zinc-500 cursor-default' : 'bg-sky-600 hover:bg-sky-500 text-white cursor-pointer'
-                            }`}
-                          >
-                            {isEq ? 'EQUIPADO' : 'INSTALAR'}
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Filtro de Ar & Admissão */}
               <div>
@@ -811,93 +875,128 @@ export const TuningGarageModal = memo(function TuningGarageModal({
 
           {/* 4. TRANSMISSÃO */}
           {activeTab === 'transmissao' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div
-                className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
-                  activeClutch === 'stock' ? 'bg-orange-950/30 border-orange-500' : 'bg-zinc-900/70 border-white/10'
-                }`}
-              >
-                <div>
-                  <strong className="text-xs font-black text-white">Embreagem Original (Stock)</strong>
-                  <p className="text-[9px] text-zinc-400 mt-1">Disco orgânico convencional para uso diário civil</p>
+            !hasManualClutch ? (
+              <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-950/20 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">⚙️</span>
+                  <strong className="text-xs font-black text-amber-300">
+                    TRANSMISSÃO {vehicle.transmission.type === 'cvt' ? 'CVT' : 'AUTOMÁTICA / DUPLA EMBREAGEM'} — EMBREAGEM MANUAL INCOMPATÍVEL
+                  </strong>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-amber-400">GRÁTIS</span>
-                  <button
-                    onClick={() => handlePurchaseAndEquip('clutchUpgrade', 'stock', 0, 'Embreagem Stock')}
-                    disabled={activeClutch === 'stock'}
-                    className="px-3 py-1 rounded-xl text-[9px] font-black uppercase bg-zinc-800 text-zinc-400"
-                  >
-                    {activeClutch === 'stock' ? 'EQUIPADO' : 'INSTALAR'}
-                  </button>
-                </div>
+                <p className="text-[9.5px] text-zinc-400">
+                  Este veículo utiliza transmissão {vehicle.transmission.type === 'cvt' ? 'CVT com conversor de torque' : 'automática / eletro-hidráulica sem pedal de embreagem'}. Kits de embreagem monodisco/cerâmica de câmbio manual não se aplicam a este conjunto.
+                </p>
               </div>
-
-              <div
-                className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
-                  activeClutch === 'ceramic' ? 'bg-orange-950/30 border-orange-500' : 'bg-zinc-900/70 border-white/10'
-                }`}
-              >
-                <div>
-                  <div className="flex justify-between items-center">
-                    <strong className="text-xs font-black text-white">Embreagem Multidisco Cerâmica</strong>
-                    <span className="text-[9px] text-orange-400 font-bold">900 Nm Grip</span>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div
+                  className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
+                    activeClutch === 'stock' ? 'bg-orange-950/30 border-orange-500' : 'bg-zinc-900/70 border-white/10'
+                  }`}
+                >
+                  <div>
+                    <strong className="text-xs font-black text-white">Embreagem Original (Stock)</strong>
+                    <p className="text-[9px] text-zinc-400 mt-1">Disco orgânico convencional para uso diário civil</p>
                   </div>
-                  <p className="text-[9px] text-zinc-400 mt-1">Platô pesado de 6 pastilhas cerâmicas anti-patinamento para arrancadas fortes</p>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-amber-400">GRÁTIS</span>
+                    <button
+                      onClick={() => handlePurchaseAndEquip('clutchUpgrade', 'stock', 0, 'Embreagem Stock')}
+                      disabled={activeClutch === 'stock'}
+                      className="min-h-8 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase bg-zinc-800 text-zinc-400"
+                    >
+                      {activeClutch === 'stock' ? 'EQUIPADO' : 'INSTALAR'}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-amber-400">R$ 3.900</span>
-                  <button
-                    onClick={() => handlePurchaseAndEquip('clutchUpgrade', 'ceramic', 3900, 'Embreagem Cerâmica')}
-                    disabled={activeClutch === 'ceramic'}
-                    className="px-3 py-1 rounded-xl text-[9px] font-black uppercase bg-orange-600 hover:bg-orange-500 text-white cursor-pointer"
-                  >
-                    {activeClutch === 'ceramic' ? 'EQUIPADO' : 'INSTALAR'}
-                  </button>
+
+                <div
+                  className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
+                    activeClutch === 'ceramic' ? 'bg-orange-950/30 border-orange-500' : 'bg-zinc-900/70 border-white/10'
+                  }`}
+                >
+                  <div>
+                    <div className="flex justify-between items-center gap-2">
+                      <strong className="text-xs font-black text-white">Embreagem Multidisco Cerâmica</strong>
+                      <span className="text-[9px] text-orange-400 font-bold shrink-0">+75% Capacidade</span>
+                    </div>
+                    <p className="text-[9px] text-zinc-400 mt-1">Platô pesado de pastilhas cerâmicas anti-patinamento para arrancadas fortes</p>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-amber-400">R$ 3.900</span>
+                    <button
+                      onClick={() => handlePurchaseAndEquip('clutchUpgrade', 'ceramic', 3900, 'Embreagem Cerâmica')}
+                      disabled={activeClutch === 'ceramic'}
+                      className="min-h-8 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase bg-orange-600 hover:bg-orange-500 text-white cursor-pointer"
+                    >
+                      {activeClutch === 'ceramic' ? 'EQUIPADO' : 'INSTALAR'}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            )
           )}
 
           {/* 5. SUSPENSÃO */}
           {activeTab === 'suspensao' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {[
-                { height: 'stock' as SuspensionHeight, title: 'Suspensão Original (0mm)', desc: 'Altura e curso de fábrica para conforto de rua', price: 0 },
-                { height: 'sport' as SuspensionHeight, title: 'Molas Esportivas (-15mm)', desc: 'Centro de massa mais baixo, menos rolagem de carroceria', price: 2200 },
-                { height: 'track' as SuspensionHeight, title: 'Coilovers Competição (-30mm)', desc: 'Setup pista, transferência longitudinal de peso otimizada', price: 6500 },
-                { height: 'lift' as SuspensionHeight, title: 'Front Axle Lift (+30mm)', desc: 'Elevação pneumática dianteira para transposição de obstáculos', price: 8900 },
-              ].map((item) => {
-                const isEq = activeSuspension === item.height
-                return (
-                  <div
-                    key={item.height}
-                    className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
-                      isEq ? 'bg-amber-950/40 border-amber-500' : 'bg-zinc-900/70 border-white/10'
-                    }`}
-                  >
-                    <div>
-                      <strong className="text-xs font-black text-white">{item.title}</strong>
-                      <p className="text-[9px] text-zinc-400 mt-1">{item.desc}</p>
+            isMoto ? (
+              <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-950/20 flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🏍️</span>
+                  <strong className="text-xs font-black text-amber-300">SUSPENSÃO INVERTIDA SHOWA SFF-BP ORIGINAL</strong>
+                </div>
+                <p className="text-[9.5px] text-zinc-400">
+                  Molas esportivas automotivas, coilovers de carro e Front Axle Lift hidráulico não são compatíveis com motocicletas.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[
+                  { height: 'stock' as SuspensionHeight, title: 'Suspensão Original (0mm)', desc: 'Altura e curso de fábrica para conforto de rua', price: 0, compatible: true },
+                  { height: 'sport' as SuspensionHeight, title: 'Molas Esportivas (-15mm)', desc: 'Centro de massa mais baixo, menos rolagem de carroceria', price: 2200, compatible: true },
+                  { height: 'track' as SuspensionHeight, title: 'Coilovers Competição (-30mm)', desc: 'Setup pista, transferência longitudinal de peso otimizada', price: 6500, compatible: true },
+                  { height: 'lift' as SuspensionHeight, title: 'Front Axle Lift (+30mm)', desc: supportsFrontAxleLift ? 'Elevação pneumática dianteira Porsche para transposição de obstáculos' : 'INCOMPATÍVEL: Recurso exclusivo de superesportivos com sistema pneumático dianteiro', price: 8900, compatible: supportsFrontAxleLift },
+                ].map((item) => {
+                  const isEq = activeSuspension === item.height
+                  const isBlocked = !item.compatible
+                  return (
+                    <div
+                      key={item.height}
+                      className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
+                        isEq
+                          ? 'bg-amber-950/40 border-amber-500'
+                          : isBlocked
+                          ? 'bg-zinc-950/40 border-zinc-800 opacity-60'
+                          : 'bg-zinc-900/70 border-white/10'
+                      }`}
+                    >
+                      <div>
+                        <strong className="text-xs font-black text-white">{item.title}</strong>
+                        <p className={`text-[9px] mt-1 ${isBlocked ? 'text-rose-400 font-bold' : 'text-zinc-400'}`}>{item.desc}</p>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black text-amber-400">
+                          {item.price === 0 ? 'GRÁTIS' : `R$ ${item.price.toLocaleString()}`}
+                        </span>
+                        <button
+                          onClick={() => handlePurchaseAndEquip('suspensionHeight', item.height, item.price, item.title)}
+                          disabled={isEq || isBlocked}
+                          className={`min-h-8 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${
+                            isEq
+                              ? 'bg-zinc-800 text-zinc-500 cursor-default'
+                              : isBlocked
+                              ? 'bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed'
+                              : 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                          }`}
+                        >
+                          {isEq ? 'EQUIPADO' : isBlocked ? 'INCOMPATÍVEL' : 'INSTALAR'}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-black text-amber-400">
-                        {item.price === 0 ? 'GRÁTIS' : `R$ ${item.price.toLocaleString()}`}
-                      </span>
-                      <button
-                        onClick={() => handlePurchaseAndEquip('suspensionHeight', item.height, item.price, item.title)}
-                        disabled={isEq}
-                        className={`px-3 py-1 rounded-xl text-[9px] font-black uppercase transition-all ${
-                          isEq ? 'bg-zinc-800 text-zinc-500 cursor-default' : 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
-                        }`}
-                      >
-                        {isEq ? 'EQUIPADO' : 'INSTALAR'}
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            )
           )}
 
           {/* 6. FREIOS */}
@@ -1020,7 +1119,16 @@ export const TuningGarageModal = memo(function TuningGarageModal({
           {/* 8. AERODINÂMICA */}
           {activeTab === 'aerodinamica' && (
             <div className="flex flex-col gap-3">
-              {vehicle.id === 'porsche-gt3' ? (
+              {isMoto ? (
+                /* Motocicleta: Aerodinâmica de Carenagem sem Aerofólio Automotivo */
+                <div className="p-4 rounded-2xl border border-white/10 bg-zinc-900/60 flex flex-col items-center justify-center text-center gap-2">
+                  <span className="text-3xl">🏍️</span>
+                  <strong className="text-sm font-black text-white">AERODINÂMICA DE CARENAGEM ORIGINAL</strong>
+                  <p className="text-xs text-zinc-400 max-w-md">
+                    Veículo de duas rodas: arrasto e sustentação aerodinâmica são governados pela bolha de proteção, carenagem de fábrica e postura do piloto. Equipamentos de aerofólio traseiro automotivo não são aplicáveis.
+                  </p>
+                </div>
+              ) : vehicle.id === 'porsche-gt3' ? (
                 /* Porsche 911 GT3 RS: Aerodinâmica Ativa OEM Integrada */
                 <div className="flex flex-col gap-2.5">
                   <div className="p-3.5 rounded-2xl border border-red-500/40 bg-red-950/20 flex flex-col gap-2">
@@ -1028,9 +1136,9 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                       <div className="flex items-center gap-2">
                         <span className="text-xl">🪽</span>
                         <div>
-                          <strong className="text-xs font-black text-white">ASA TRASEIRA ATIVA SWAN-NECK PORSCHE MOTORSPORT</strong>
+                          <strong className="text-xs font-black text-white">PORSCHE ACTIVE AERODYNAMICS (PAA) — 911 TURBO S (992)</strong>
                           <p className="text-[9px] text-zinc-400 mt-0.5">
-                            Aerofólio com sustentação invertida swan-neck e acionamento hidráulico ativo controlado via PCM 6.0 no cockpit.
+                            Asa traseira ativa e spoiler dianteiro pneumático com função Airbrake em frenagens severas acima de 90 km/h, controlados via PCM 6.0.
                           </p>
                         </div>
                       </div>
@@ -1132,47 +1240,82 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                     </div>
                   </div>
 
-                  {/* Ângulo de Incidência Aerodinâmica */}
-                  <div>
-                    <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider mb-1.5 block px-0.5">
-                      Calibração do Ângulo Aerodinâmico da Asa
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {[
-                        { pos: 'low_drag' as RearWingPosition, title: 'Low Drag (Arrasto Baixo)', desc: 'Ângulo raso para atingir velocidade final máxima em retas longas', mult: 'Max V-Max' },
-                        { pos: 'balanced' as RearWingPosition, title: 'Balanced (Equilibrado)', desc: 'Equilíbrio aerodinâmico entre carga e resistência para circuitos mistos', mult: 'Setup Misto' },
-                        { pos: 'high_downforce' as RearWingPosition, title: 'High Downforce (Carga Máxima)', desc: 'Asa inclinada com carga quadrática máxima F = CL * v² para contorno de curvas', mult: 'Max Grip Curva' },
-                      ].map((item) => {
-                        const isEq = activeWing === item.pos
-                        return (
-                          <div
-                            key={item.pos}
-                            className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
-                              isEq ? 'bg-red-950/40 border-red-500' : 'bg-zinc-900/70 border-white/10'
-                            }`}
-                          >
-                            <div>
-                              <strong className="text-xs font-black text-white">{item.title}</strong>
-                              <span className="text-[8px] text-red-400 font-bold block mt-0.5">{item.mult}</span>
-                              <p className="text-[8.5px] text-zinc-400 mt-1">{item.desc}</p>
-                            </div>
-                            <div className="flex justify-between items-center mt-2">
-                              <span className="text-[10px] font-black text-amber-400">AJUSTE</span>
-                              <button
-                                onClick={() => handlePurchaseAndEquip('rearWingPosition', item.pos, 0, item.title)}
-                                disabled={isEq}
-                                className={`px-3 py-1 rounded-xl text-[9px] font-black uppercase transition-all ${
-                                  isEq ? 'bg-zinc-800 text-zinc-500 cursor-default' : 'bg-red-600 hover:bg-red-500 text-white cursor-pointer'
-                                }`}
-                              >
-                                {isEq ? 'ATIVO' : 'SELECIONAR'}
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      })}
+                  {/* Calibração de Ângulo / Incidência — Regras de compatibilidade estritas */}
+                  {activeWingType === 'none' ? (
+                    <div className="p-3.5 rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/40 flex items-center gap-3">
+                      <span className="text-2xl opacity-60">⚠️</span>
+                      <div>
+                        <strong className="text-xs font-black text-zinc-300">CALIBRAÇÃO DE DOWNFORCE INDISPONÍVEL</strong>
+                        <p className="text-[9px] text-zinc-500 mt-0.5">
+                          O veículo não possui aerofólio instalado. Instale uma <b className="text-zinc-300">Asa Alta Motorsport GT</b> para habilitar o ajuste mecânico de ângulo de incidência (Low Drag / High Downforce).
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  ) : activeWingType === 'oem' || activeWingType === 'aftermarket' ? (
+                    <div className="p-3.5 rounded-2xl border border-amber-500/30 bg-amber-950/20 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl text-amber-400">🔒</span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <strong className="text-xs font-black text-amber-300">AEROFÓLIO DE GEOMETRIA FIXA</strong>
+                            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[8px] font-black uppercase">
+                              OEM / DUCKTAIL
+                            </span>
+                          </div>
+                          <p className="text-[9px] text-zinc-400 mt-0.5">
+                            O aerofólio instalado possui sustentação fixa calibrada em túnel de vento (arrasto moderado). Para regulagem de ângulo de ataque ativo, equipe a <b className="text-white">Asa Alta Motorsport GT</b>.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Asa Alta Motorsport GT: Aerofólio Ajustável de Competição */
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5 px-0.5">
+                        <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">
+                          Calibração do Ângulo da Asa Ajustável Motorsport GT
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-red-500/20 text-red-400 border border-red-500/40 text-[8px] font-black uppercase">
+                          ASA AJUSTÁVEL
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {[
+                          { pos: 'low_drag' as RearWingPosition, title: 'Low Drag (Arrasto Baixo)', desc: 'Ângulo raso para atingir velocidade final máxima em retas longas', mult: 'Max V-Max' },
+                          { pos: 'balanced' as RearWingPosition, title: 'Balanced (Equilibrado)', desc: 'Equilíbrio aerodinâmico entre carga e resistência para circuitos mistos', mult: 'Setup Misto' },
+                          { pos: 'high_downforce' as RearWingPosition, title: 'High Downforce (Carga Máxima)', desc: 'Asa inclinada com carga quadrática máxima F = CL * v² para contorno de curvas', mult: 'Max Grip Curva' },
+                        ].map((item) => {
+                          const isEq = activeWing === item.pos
+                          return (
+                            <div
+                              key={item.pos}
+                              className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 ${
+                                isEq ? 'bg-red-950/40 border-red-500' : 'bg-zinc-900/70 border-white/10'
+                              }`}
+                            >
+                              <div>
+                                <strong className="text-xs font-black text-white">{item.title}</strong>
+                                <span className="text-[8px] text-red-400 font-bold block mt-0.5">{item.mult}</span>
+                                <p className="text-[8.5px] text-zinc-400 mt-1">{item.desc}</p>
+                              </div>
+                              <div className="flex justify-between items-center mt-2">
+                                <span className="text-[10px] font-black text-amber-400">AJUSTE</span>
+                                <button
+                                  onClick={() => handlePurchaseAndEquip('rearWingPosition', item.pos, 0, item.title)}
+                                  disabled={isEq}
+                                  className={`px-3 py-1 rounded-xl text-[9px] font-black uppercase transition-all ${
+                                    isEq ? 'bg-zinc-800 text-zinc-500 cursor-default' : 'bg-red-600 hover:bg-red-500 text-white cursor-pointer'
+                                  }`}
+                                >
+                                  {isEq ? 'ATIVO' : 'SELECIONAR'}
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1237,39 +1380,6 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                       ADQUIRIR MAPA (R$ 3.200)
                     </button>
                   )}
-                </div>
-              </div>
-
-              {/* Retrofit Multimídia e Manômetro de Turbo */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="p-3 rounded-2xl border bg-black/60 border-white/10 flex items-center justify-between">
-                  <div>
-                    <strong className="text-xs font-black text-white">Central Multimídia Retrofit</strong>
-                    <p className="text-[8.5px] text-zinc-400">Instala central com GPS, músicas e ar-condicionado digital</p>
-                  </div>
-                  <button
-                    onClick={() => handlePurchaseAndEquip('multimediaKit', !isMultimediaInstalled, 4500, 'Central Multimídia')}
-                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border transition-all cursor-pointer ${
-                      isMultimediaInstalled ? 'bg-sky-600 text-white border-sky-400' : 'bg-zinc-800 text-zinc-400 border-white/10'
-                    }`}
-                  >
-                    {isMultimediaInstalled ? 'INSTALADA' : 'INSTALAR (R$ 4.500)'}
-                  </button>
-                </div>
-
-                <div className="p-3 rounded-2xl border bg-black/60 border-white/10 flex items-center justify-between">
-                  <div>
-                    <strong className="text-xs font-black text-white">Manômetro de Turbo Analógico</strong>
-                    <p className="text-[8.5px] text-zinc-400">Relógio de pressão de turbo na coluna com ponteiro luminoso</p>
-                  </div>
-                  <button
-                    onClick={() => handlePurchaseAndEquip('boostGaugeKit', !isBoostGaugeInstalled, 1200, 'Manômetro de Pressão')}
-                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border transition-all cursor-pointer ${
-                      isBoostGaugeInstalled ? 'bg-amber-600 text-white border-amber-400' : 'bg-zinc-800 text-zinc-400 border-white/10'
-                    }`}
-                  >
-                    {isBoostGaugeInstalled ? 'INSTALADO' : 'INSTALAR (R$ 1.200)'}
-                  </button>
                 </div>
               </div>
 

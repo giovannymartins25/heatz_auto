@@ -68,8 +68,8 @@ test('Posições declaradas são coerentes com o tipo mecânico de cada transmis
 
   const porsche = loadConfig('porsche-gt3')
   assert(
-    JSON.stringify(porsche.transmission.supportedSelectorPositions) === JSON.stringify(['P', 'R', 'N', 'D', 'M']),
-    'Porsche 992 GT3 PDK suporta P, R, N, D, M (sem posição física S)'
+    JSON.stringify(porsche.transmission.supportedSelectorPositions) === JSON.stringify(['P', 'R', 'N', 'D', 'S', 'M']),
+    'Porsche 992 Turbo S PDK suporta P, R, N, D, S, M'
   )
 
   const yaris = loadConfig('yaris-2019')
@@ -108,12 +108,9 @@ test('Store aceita posições suportadas e rejeita posições não suportadas', 
   store.selectDrive()
   assert(useSimulationStore.getState().gearSelectorPosition === 'D', 'Porsche aceita D')
 
-  // Porsche NÃO suporta S -> deve rejeitar e manter D!
-  store.selectShifterMode('S')
-  assert(useSimulationStore.getState().gearSelectorPosition === 'D', 'Porsche rejeita chamada direta selectShifterMode("S")')
-
+  // Porsche suporta S
   store.selectSport()
-  assert(useSimulationStore.getState().gearSelectorPosition === 'D', 'Porsche rejeita selectSport() mantendo D')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'S', 'Porsche aceita S via selectSport()')
 
   // Porsche suporta M
   store.selectManual()
@@ -130,6 +127,19 @@ test('Store aceita posições suportadas e rejeita posições não suportadas', 
   // Porsche suporta P
   store.selectPark()
   assert(useSimulationStore.getState().gearSelectorPosition === 'P', 'Porsche aceita P')
+
+  // Toyota Yaris CVT NÃO suporta S -> deve rejeitar e manter D!
+  const yaris = loadConfig('yaris-2019')
+  store.init(yaris)
+  store.startEngine()
+  store.selectDrive()
+  assert(useSimulationStore.getState().gearSelectorPosition === 'D', 'Yaris inicia em D')
+
+  store.selectShifterMode('S')
+  assert(useSimulationStore.getState().gearSelectorPosition === 'D', 'Yaris rejeita selectShifterMode("S")')
+
+  store.selectSport()
+  assert(useSimulationStore.getState().gearSelectorPosition === 'D', 'Yaris rejeita selectSport() mantendo D')
 })
 
 test('Carros manuais rejeitam P, R, D, S, M e aceitam apenas N', () => {

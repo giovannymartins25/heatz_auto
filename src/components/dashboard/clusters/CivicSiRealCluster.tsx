@@ -63,7 +63,7 @@ export const CivicSiRealCluster = memo(function CivicSiRealCluster({
       })
     }
     return list
-  }, [])
+  }, [tachStartAngle, tachEndAngle])
 
   // Segmentos digitais de Temperatura (10 blocos)
   const tempBlocks = Math.round(clamp((auxGauges.coolantTemp - 50) / 70, 0, 1) * 10)
@@ -94,7 +94,7 @@ export const CivicSiRealCluster = memo(function CivicSiRealCluster({
                 />
               ))}
             </div>
-            <span className="text-[8px] text-zinc-600 font-bold">[C] 90°C</span>
+            <span className="text-[8px] text-zinc-500 font-bold">[C] {Math.round(auxGauges.coolantTemp)}°C</span>
           </div>
 
           {/* Centro: Grande Velocímetro Digital */}
@@ -122,7 +122,7 @@ export const CivicSiRealCluster = memo(function CivicSiRealCluster({
                 />
               ))}
             </div>
-            <span className="text-[8px] text-zinc-600 font-bold">[E] 100%</span>
+            <span className="text-[8px] text-zinc-500 font-bold">[E] {Math.round(auxGauges.fuelPercent)}%</span>
           </div>
         </div>
 
@@ -188,7 +188,7 @@ export const CivicSiRealCluster = memo(function CivicSiRealCluster({
         </div>
 
         <div className="relative flex flex-col items-center">
-          <svg width={tachSize} height={tachSize}>
+          <svg viewBox={`0 0 ${tachSize} ${tachSize}`} className="w-[230px] sm:w-[270px] h-auto max-w-full">
           {/* Aro Externo Alumínio Escovado */}
           <circle cx={tachCenter} cy={tachCenter} r={tachRadius + 22} fill="#141820" stroke="#2e3544" strokeWidth="4" />
           <circle cx={tachCenter} cy={tachCenter} r={tachRadius + 16} fill="#0b0e13" stroke="#1c202a" strokeWidth="2" />

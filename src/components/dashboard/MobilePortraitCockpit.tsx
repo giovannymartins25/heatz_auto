@@ -83,6 +83,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const { showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
   const mapViewportSize = useUIStore((s) => s.mapViewportSize)
   const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
+  const isMapOpen = useUIStore((s) => s.isMapOpen)
+  const toggleMap = useUIStore((s) => s.toggleMap)
   const vehicleHeader = formatVehicleHeaderInfo(vehicle)
   const caps = getVehicleCapabilities(vehicle)
   const isManualActive = telemetry.gear.transmissionMode === 'manual_simulated' || telemetry.gear.gearSelectorPosition === 'M'
@@ -119,6 +121,17 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             )}
           </button>
 
+          <button
+            type="button"
+            onClick={onBack}
+            className="h-9 sm:h-10 px-2.5 flex-shrink-0 rounded-xl bg-zinc-900 border border-white/15 hover:bg-zinc-800 text-zinc-200 font-mono text-[10px] font-black uppercase tracking-wide flex items-center justify-center gap-1 active:scale-95 cursor-pointer shadow"
+            aria-label="Voltar à garagem"
+            title="Voltar à Garagem"
+          >
+            <span>←</span>
+            <span>Garagem</span>
+          </button>
+
           <div className="min-w-0 flex-1 leading-tight" data-vehicle-id>
             <span
               className="block text-[10px] font-black font-mono tracking-wider text-zinc-400 truncate"
@@ -131,6 +144,20 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 
         {/* Lado direito do header */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            type="button"
+            onClick={toggleMap}
+            className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all active:scale-95 cursor-pointer shadow-sm ${
+              isMapOpen
+                ? 'bg-sky-500/20 text-sky-300 border-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.5)]'
+                : 'bg-zinc-900 border-white/15 text-zinc-400 hover:text-white'
+            }`}
+            title="Alternar Mapa 2D (M)"
+            aria-label="Mapa"
+          >
+            🗺️
+          </button>
+
           <button
             type="button"
             onPointerDown={() => setHorn(true)}
@@ -185,23 +212,25 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         {isDriveMode ? (
           <div className="flex flex-1 flex-col items-center justify-center w-full gap-1 min-h-0 self-stretch overflow-hidden">
             {/* 1. MAPA DE CONDUÇÃO */}
-            <div
-              className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 ${
-                mapViewportSize === 'compact'
-                  ? 'h-[30%] flex-shrink-0'
-                  : mapViewportSize === 'expanded'
-                  ? 'h-[56%] flex-shrink-0'
-                  : 'h-[43%] flex-shrink-0'
-              }`}
-            >
-              <DrivingMapViewport
-                size={mapViewportSize}
-                onSizeChange={setMapViewportSize}
-                compact
-                telemetry={telemetry}
-                vehicle={vehicle}
-              />
-            </div>
+            {isMapOpen && mapViewportSize !== 'hidden' && (
+              <div
+                className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 ${
+                  mapViewportSize === 'compact'
+                    ? 'h-[30%] flex-shrink-0'
+                    : mapViewportSize === 'expanded'
+                    ? 'h-[56%] flex-shrink-0'
+                    : 'h-[43%] flex-shrink-0'
+                }`}
+              >
+                <DrivingMapViewport
+                  size={mapViewportSize}
+                  onSizeChange={setMapViewportSize}
+                  compact
+                  telemetry={telemetry}
+                  vehicle={vehicle}
+                />
+              </div>
+            )}
 
             {/* 2. SLOT INFERIOR RESPONSIVO: PAINEL ORIGINAL (<VehicleDashboardCluster telemetry={telemetry} />) ↔ MULTIMÍDIA VIA SWIPE */}
             <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch relative">
@@ -235,22 +264,24 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
       </main>
 
       {/* ─── 3. Câmbio e Perfis de Condução ─── */}
-      <div className="w-full flex items-center justify-between gap-2 pt-1 pb-1 border-t border-white/5 px-1 flex-shrink-0">
-        <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
-          <GearShift size="compact" orientation="horizontal" showPaddles={false} />
-          {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
-            <VerticalGestureShifter size="compact" />
+      <div className="w-full flex flex-col gap-1 pt-1 pb-1 border-t border-white/5 px-1 flex-shrink-0">
+        <div className="w-full flex items-center justify-between gap-1.5 min-w-0">
+          <div className="flex items-center justify-center gap-1.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
+            <GearShift size="compact" orientation="horizontal" showPaddles={false} />
+            {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
+              <VerticalGestureShifter size="compact" orientation="horizontal" />
+            )}
+          </div>
+          {caps.supportedDrivingModes.length > 1 && (
+            <div className="flex-shrink-0 flex items-center">
+              <DrivingModesSelector
+                supportedModes={caps.supportedDrivingModes}
+                orientation="horizontal"
+                size="compact"
+              />
+            </div>
           )}
         </div>
-        {caps.supportedDrivingModes.length > 1 && (
-          <div className="flex-shrink-0 flex items-center pr-1">
-            <DrivingModesSelector
-              supportedModes={caps.supportedDrivingModes}
-              orientation="horizontal"
-              size="compact"
-            />
-          </div>
-        )}
       </div>
 
       {/* ─── 3.5. Telemetria e Calibração de Direção por Inclinação Mobile (Fase 1.6.2) ─── */}

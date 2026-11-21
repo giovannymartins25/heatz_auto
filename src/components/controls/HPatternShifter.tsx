@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useMemo } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 
 export interface HPatternShifterProps {
@@ -50,24 +50,28 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
   //     [2] [4] [6]
   const isSixSpeed = gearCount >= 6
 
-  const gearSlots = isSixSpeed
-    ? [
-        { label: 'R', gear: -1, row: 0, col: 0, color: 'text-rose-400 border-rose-500/60' },
-        { label: '1', gear: 1, row: 0, col: 1, color: 'text-amber-400 border-amber-500/60' },
-        { label: '3', gear: 3, row: 0, col: 2, color: 'text-cyan-400 border-cyan-500/60' },
-        { label: '5', gear: 5, row: 0, col: 3, color: 'text-emerald-400 border-emerald-500/60' },
-        { label: '2', gear: 2, row: 2, col: 1, color: 'text-amber-400 border-amber-500/60' },
-        { label: '4', gear: 4, row: 2, col: 2, color: 'text-cyan-400 border-cyan-500/60' },
-        { label: '6', gear: 6, row: 2, col: 3, color: 'text-emerald-400 border-emerald-500/60' },
-      ]
-    : [
-        { label: '1', gear: 1, row: 0, col: 0, color: 'text-amber-400 border-amber-500/60' },
-        { label: '3', gear: 3, row: 0, col: 1, color: 'text-cyan-400 border-cyan-500/60' },
-        { label: '5', gear: 5, row: 0, col: 2, color: 'text-emerald-400 border-emerald-500/60' },
-        { label: '2', gear: 2, row: 2, col: 0, color: 'text-amber-400 border-amber-500/60' },
-        { label: '4', gear: 4, row: 2, col: 1, color: 'text-cyan-400 border-cyan-500/60' },
-        { label: 'R', gear: -1, row: 2, col: 2, color: 'text-rose-400 border-rose-500/60' },
-      ]
+  const gearSlots = useMemo(
+    () =>
+      isSixSpeed
+        ? [
+            { label: 'R', gear: -1, row: 0, col: 0, color: 'text-rose-400 border-rose-500/60' },
+            { label: '1', gear: 1, row: 0, col: 1, color: 'text-amber-400 border-amber-500/60' },
+            { label: '3', gear: 3, row: 0, col: 2, color: 'text-cyan-400 border-cyan-500/60' },
+            { label: '5', gear: 5, row: 0, col: 3, color: 'text-emerald-400 border-emerald-500/60' },
+            { label: '2', gear: 2, row: 2, col: 1, color: 'text-amber-400 border-amber-500/60' },
+            { label: '4', gear: 4, row: 2, col: 2, color: 'text-cyan-400 border-cyan-500/60' },
+            { label: '6', gear: 6, row: 2, col: 3, color: 'text-emerald-400 border-emerald-500/60' },
+          ]
+        : [
+            { label: '1', gear: 1, row: 0, col: 0, color: 'text-amber-400 border-amber-500/60' },
+            { label: '3', gear: 3, row: 0, col: 1, color: 'text-cyan-400 border-cyan-500/60' },
+            { label: '5', gear: 5, row: 0, col: 2, color: 'text-emerald-400 border-emerald-500/60' },
+            { label: '2', gear: 2, row: 2, col: 0, color: 'text-amber-400 border-amber-500/60' },
+            { label: '4', gear: 4, row: 2, col: 1, color: 'text-cyan-400 border-cyan-500/60' },
+            { label: 'R', gear: -1, row: 2, col: 2, color: 'text-rose-400 border-rose-500/60' },
+          ],
+    [isSixSpeed],
+  )
 
   const handleSelectGear = useCallback(
     (targetGear: number) => {
@@ -145,23 +149,23 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
 
   return (
     <div
-      className={`relative flex flex-col items-center select-none font-mono transition-all ${
+      className={`relative flex flex-col items-center select-none font-mono transition-all min-w-0 ${
         isCompact
-          ? 'w-full max-w-[175px] p-2 rounded-2xl bg-zinc-950/95 border border-white/10 shadow-xl'
+          ? 'w-full max-w-[156px] p-1.5 rounded-2xl bg-zinc-950/95 border border-white/10 shadow-xl'
           : 'w-full max-w-[240px] p-3 rounded-3xl bg-zinc-950/95 border-2 border-white/15 shadow-2xl'
       } ${className}`}
     >
       {/* ── Cabeçalho do Câmbio: Status da Embreagem e Layout ── */}
-      <div className="w-full flex items-center justify-between mb-1.5 px-0.5 text-[9px]">
-        <div className="flex items-center gap-1">
-          <span className="text-zinc-500 font-bold uppercase">CÂMBIO</span>
-          <span className="text-amber-400 font-black tracking-wider">
-            {isSixSpeed ? '6M' : '5M'} H-GATE
+      <div className={`w-full flex items-center justify-between gap-1 mb-1 px-0.5 ${isCompact ? 'text-[7.5px]' : 'text-[9px]'}`}>
+        <div className="flex items-center gap-0.5 min-w-0 truncate">
+          <span className="text-zinc-500 font-bold uppercase">{isCompact ? 'H' : 'CÂMBIO'}</span>
+          <span className="text-amber-400 font-black tracking-wide truncate">
+            {isSixSpeed ? '6M' : '5M'}{isCompact ? '' : ' H-GATE'}
           </span>
         </div>
 
         {/* Shift Light Alerta de Troca Ideal */}
-        {isRevLimiting && (
+        {isRevLimiting && !isCompact && (
           <span className="px-1.5 py-0.5 rounded-full font-black text-[8px] bg-red-600 text-white animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.8)] border border-red-400">
             ▲ TROQUE AGORA!
           </span>
@@ -169,7 +173,7 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
 
         {/* Indicador Luminoso de Embreagem */}
         <span
-          className={`px-1.5 py-0.5 rounded-full font-bold text-[8px] transition-all flex items-center gap-1 ${
+          className={`px-1 py-0.5 rounded-full font-bold shrink-0 ${isCompact ? 'text-[7px]' : 'text-[8px]'} transition-all flex items-center gap-0.5 ${
             isClutchEngaged
               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
               : speed > 6
@@ -179,7 +183,7 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
           title={isClutchEngaged ? 'Embreagem livre para engate' : 'Pise na embreagem para não arranhar'}
         >
           <span className={`w-1.5 h-1.5 rounded-full ${isClutchEngaged ? 'bg-emerald-400' : 'bg-red-500'}`} />
-          <span>{isClutchEngaged ? 'EMBR. OK' : 'SOLTA'}</span>
+          <span>{isClutchEngaged ? 'EMBR' : 'SOLTA'}</span>
         </span>
       </div>
 
@@ -197,8 +201,8 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
-        className={`relative w-full rounded-2xl border-2 border-zinc-700/80 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black p-2 flex flex-col justify-between shadow-inner touch-none cursor-grab active:cursor-grabbing ${
-          isCompact ? 'h-32' : 'h-40'
+        className={`relative w-full rounded-2xl border-2 border-zinc-700/80 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black flex flex-col justify-between shadow-inner touch-none cursor-grab active:cursor-grabbing ${
+          isCompact ? 'h-28 p-1.5' : 'h-40 p-2'
         } ${isGearGrinding ? 'border-red-500 ring-2 ring-red-500/40 animate-pulse' : ''}`}
       >
         {/* Sulco de Metal Central (Trilho Horizontal do Ponto Morto) */}
@@ -243,7 +247,7 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
                   }}
                   style={{ touchAction: 'none' }}
                   className={`flex items-center justify-center rounded-xl font-mono font-black transition-all active:scale-95 cursor-pointer shadow-md border ${
-                    isCompact ? 'w-8 h-8 text-[11px]' : 'w-10 h-10 text-xs'
+                    isCompact ? (isSixSpeed ? 'w-7 h-7 text-[10px]' : 'w-8 h-8 text-[11px]') : 'w-10 h-10 text-xs'
                   } ${
                     isSelected
                       ? 'border-white bg-gradient-to-b from-white to-zinc-300 text-black shadow-lg shadow-white/40 scale-110 ring-2 ring-amber-400'
@@ -324,7 +328,7 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
                   }}
                   style={{ touchAction: 'none' }}
                   className={`flex items-center justify-center rounded-xl font-mono font-black transition-all active:scale-95 cursor-pointer shadow-md border ${
-                    isCompact ? 'w-8 h-8 text-[11px]' : 'w-10 h-10 text-xs'
+                    isCompact ? (isSixSpeed ? 'w-7 h-7 text-[10px]' : 'w-8 h-8 text-[11px]') : 'w-10 h-10 text-xs'
                   } ${
                     isSelected
                       ? 'border-white bg-gradient-to-b from-white to-zinc-300 text-black shadow-lg shadow-white/40 scale-110 ring-2 ring-amber-400'
@@ -347,15 +351,15 @@ export const HPatternShifter: React.FC<HPatternShifterProps> = ({
       </div>
 
       {/* ── Rodapé: Marcha Atual ── */}
-      <div className="w-full mt-1.5 flex items-center justify-between text-[9px] px-1 text-zinc-400">
-        <div>
-          ENGATADA:{' '}
-          <strong className="text-amber-400 text-xs font-black">
+      <div className={`w-full mt-1 flex items-center justify-between gap-1 px-0.5 text-zinc-400 ${isCompact ? 'text-[7.5px]' : 'text-[9px]'}`}>
+        <div className="truncate">
+          {isCompact ? 'M:' : 'ENGATADA:'}{' '}
+          <strong className={`text-amber-400 font-black ${isCompact ? 'text-[10px]' : 'text-xs'}`}>
             {currentGear === -1 ? 'RÉ' : currentGear === 0 ? 'NEUTRO' : `${currentGear}ª`}
           </strong>
         </div>
-        <div className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider">
-          GRADE H {gearCount}M
+        <div className="text-[7.5px] font-bold text-zinc-500 uppercase tracking-wider shrink-0">
+          {isCompact ? `H ${gearCount}M` : `GRADE H ${gearCount}M`}
         </div>
       </div>
     </div>

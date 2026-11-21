@@ -1,7 +1,7 @@
 import { memo, useState, useEffect } from 'react'
 import type { VehicleConfig } from '@/types/vehicle'
 import type { DashboardTelemetry } from '@/systems/dashboard'
-import { BoostGauge } from '@/components/gauges'
+import { BoostGauge, CircularProgressDial } from '@/components/gauges'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { clamp } from '@/utils/math'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
@@ -16,7 +16,7 @@ interface GolfGTIDiscoverProProps {
   className?: string
 }
 
-type GTIActiveTab = 'sport' | 'clima' | 'media' | 'ambient'
+type GTIActiveTab = 'sport' | 'nav' | 'clima' | 'media' | 'ambient'
 
 /**
  * GolfGTIDiscoverPro — Central Multimídia oficial Volkswagen Discover Pro / Sport HMI (Golf GTI Mk7).
@@ -52,6 +52,13 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
   const rpm = telemetry.tachometer.rpm
   const throttlePercent = telemetry.pedals.throttlePercent
   const coolantTemp = telemetry.auxGauges.coolantTemp || 90
+  const positionX = useSimulationStore((s) => s.positionX)
+  const positionY = useSimulationStore((s) => s.positionY)
+  const headingDeg = useSimulationStore((s) => s.headingDeg)
+  const zoneName = useSimulationStore((s) => s.zoneName)
+  const surfaceType = useSimulationStore((s) => s.surfaceType)
+  const isMapOpen = useSimulationStore((s) => s.isMapOpen)
+  const toggleMap = useSimulationStore((s) => s.toggleMap)
 
   useEffect(() => {
     const updateTime = () => {
@@ -124,95 +131,31 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
               </div>
 
               {/* Mostrador 2: Leistung (Potência em CV) */}
-              <div className="flex flex-col items-center">
-                <span className="text-[6.5px] sm:text-[7px] font-bold text-red-500 uppercase tracking-widest mb-0.5">
-                  LEISTUNG
-                </span>
-                <div
-                  className={`relative flex flex-col items-center justify-center rounded-full bg-zinc-900/90 border border-red-600/30 shadow-inner ${
-                    compact || fill ? 'w-[52px] h-[52px] sm:w-[68px] sm:h-[68px]' : 'w-[76px] h-[76px]'
-                  }`}
-                >
-                  <svg className="absolute inset-0 w-full h-full -rotate-90">
-                    <circle
-                      cx={compact || fill ? 26 : 38}
-                      cy={compact || fill ? 26 : 38}
-                      r={compact || fill ? 21 : 31}
-                      fill="none"
-                      stroke="#27272a"
-                      strokeWidth="3"
-                    />
-                    <circle
-                      cx={compact || fill ? 26 : 38}
-                      cy={compact || fill ? 26 : 38}
-                      r={compact || fill ? 21 : 31}
-                      fill="none"
-                      stroke="#ef4444"
-                      strokeWidth="3"
-                      strokeDasharray={compact || fill ? 132 : 195}
-                      strokeDashoffset={
-                        (compact || fill ? 132 : 195) * (1 - clamp(instantHp / maxPowerHp, 0, 1))
-                      }
-                      strokeLinecap="round"
-                      className="transition-all duration-75"
-                    />
-                  </svg>
-                  <span className={`${compact || fill ? 'text-sm sm:text-base' : 'text-base sm:text-lg'} font-black text-white leading-none z-10`}>
-                    {instantHp}
-                  </span>
-                  <span className="text-[6.5px] sm:text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
-                    CV
-                  </span>
-                </div>
-                <span className="text-[7px] sm:text-[8px] text-zinc-500 font-bold mt-0.5">
-                  MAX {maxPowerHp} CV
-                </span>
-              </div>
+              <CircularProgressDial
+                label="LEISTUNG"
+                value={instantHp}
+                max={maxPowerHp}
+                unit="CV"
+                color="#ef4444"
+                glowColor="#ef4444"
+                subLabel={`MAX ${maxPowerHp} CV`}
+                compact={compact}
+                fill={fill}
+              />
 
               {/* Mostrador 3: Öltemperatur */}
-              <div className="flex flex-col items-center">
-                <span className="text-[6.5px] sm:text-[7px] font-bold text-red-500 uppercase tracking-widest mb-0.5">
-                  ÖLTEMP
-                </span>
-                <div
-                  className={`relative flex flex-col items-center justify-center rounded-full bg-zinc-900/90 border border-red-600/30 shadow-inner ${
-                    compact || fill ? 'w-[52px] h-[52px] sm:w-[68px] sm:h-[68px]' : 'w-[76px] h-[76px]'
-                  }`}
-                >
-                  <svg className="absolute inset-0 w-full h-full -rotate-90">
-                    <circle
-                      cx={compact || fill ? 26 : 38}
-                      cy={compact || fill ? 26 : 38}
-                      r={compact || fill ? 21 : 31}
-                      fill="none"
-                      stroke="#27272a"
-                      strokeWidth="3"
-                    />
-                    <circle
-                      cx={compact || fill ? 26 : 38}
-                      cy={compact || fill ? 26 : 38}
-                      r={compact || fill ? 21 : 31}
-                      fill="none"
-                      stroke="#10b981"
-                      strokeWidth="3"
-                      strokeDasharray={compact || fill ? 132 : 195}
-                      strokeDashoffset={
-                        (compact || fill ? 132 : 195) * (1 - clamp((oilTemp - 50) / 80, 0, 1))
-                      }
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <span className={`${compact || fill ? 'text-sm sm:text-base' : 'text-base sm:text-lg'} font-black text-white leading-none z-10`}>
-                    {oilTemp}
-                  </span>
-                  <span className="text-[6.5px] sm:text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
-                    °C
-                  </span>
-                </div>
-                <span className="text-[7px] sm:text-[8px] text-emerald-400 font-bold mt-0.5">
-                  NORMAL
-                </span>
-              </div>
+              <CircularProgressDial
+                label="ÖLTEMP"
+                value={oilTemp}
+                min={50}
+                max={130}
+                unit="°C"
+                color="#10b981"
+                glowColor="#10b981"
+                subLabel="NORMAL"
+                compact={compact}
+                fill={fill}
+              />
             </div>
 
             {/* Barra de Spool da Turbina GTI */}
@@ -237,6 +180,94 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
               <span>CÂMBIO: <b className="text-white">DSG DQ250</b></span>
               <span>BOOST: <b className="text-amber-400">{boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : '0.00'} BAR</b></span>
             </div>
+          </div>
+        )}
+
+        {/* ABA: NAVEGAÇÃO VW DISCOVER PRO */}
+        {activeTab === 'nav' && (
+          <div className="w-full flex flex-col justify-between items-center gap-1 h-full p-1 text-center font-mono">
+            {/* Header da Navegação VW */}
+            <div className="w-full flex items-center justify-between px-2 py-0.5 rounded-lg bg-zinc-900/90 border border-red-500/30">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+                <span className="text-[7px] font-black text-red-400 uppercase tracking-widest">
+                  DISCOVER PRO GPS
+                </span>
+              </div>
+              <span className="text-[7px] text-zinc-300 font-bold uppercase truncate max-w-[130px]">
+                {zoneName || 'Circuito 2D'}
+              </span>
+            </div>
+
+            {/* Radar / Mapa Vetorial VW */}
+            <div className="relative w-full max-w-[260px] h-[90px] sm:h-[105px] rounded-xl bg-[#090b10] border border-red-500/20 overflow-hidden shadow-inner flex items-center justify-center">
+              <div
+                className="absolute inset-0 opacity-15 pointer-events-none"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(to right, #ef4444 1px, transparent 1px), linear-gradient(to bottom, #ef4444 1px, transparent 1px)',
+                  backgroundSize: '20px 20px',
+                }}
+              />
+              <div className="absolute inset-x-0 top-1/2 h-[1px] bg-red-500/20" />
+              <div className="absolute inset-y-0 left-1/2 w-[1px] bg-red-500/20" />
+
+              {/* Indicador do Veículo */}
+              <div
+                className="absolute w-4 h-4 -ml-2 -mt-2 flex items-center justify-center transition-all duration-75"
+                style={{
+                  left: `${Math.max(10, Math.min(90, 50 + (positionX / 300) * 40))}%`,
+                  top: `${Math.max(10, Math.min(90, 50 - (positionY / 300) * 40))}%`,
+                }}
+              >
+                <div
+                  className="text-red-500 text-xs drop-shadow-[0_0_6px_rgba(239,68,68,0.9)]"
+                  style={{ transform: `rotate(${headingDeg}deg)` }}
+                >
+                  ▲
+                </div>
+              </div>
+
+              {/* Rosa dos Ventos */}
+              <div className="absolute top-1 right-2 flex flex-col items-center text-[6px] text-zinc-400 font-bold">
+                <span className="text-red-400 font-black">N</span>
+                <span>{Math.round(headingDeg)}°</span>
+              </div>
+
+              {/* Badge de Superfície */}
+              <div className="absolute bottom-1 left-2 text-[6px] font-bold px-1.5 py-0.5 rounded bg-black/70 border border-white/10 text-zinc-300">
+                PISO: <span className="text-red-400">{surfaceType.toUpperCase()}</span>
+              </div>
+            </div>
+
+            {/* Leituras Numéricas de Coordenadas */}
+            <div className="w-full grid grid-cols-3 gap-1 text-[6.5px] font-bold">
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">COORD X</span>
+                <span className="text-white font-mono">{positionX >= 0 ? '+' : ''}{positionX.toFixed(1)}m</span>
+              </div>
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">COORD Y</span>
+                <span className="text-white font-mono">{positionY >= 0 ? '+' : ''}{positionY.toFixed(1)}m</span>
+              </div>
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">RUMO</span>
+                <span className="text-red-400 font-mono">{Math.round(headingDeg)}°</span>
+              </div>
+            </div>
+
+            {/* Ação: Alternar Mapa Dirigível no Cockpit */}
+            <button
+              onClick={toggleMap}
+              className={`w-full py-0.5 px-2 rounded-lg border text-[7px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow flex items-center justify-center gap-1 ${
+                isMapOpen
+                  ? 'bg-red-600 text-white border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.6)]'
+                  : 'bg-zinc-900 text-red-400 border-red-500/40 hover:bg-zinc-800'
+              }`}
+            >
+              <span>🗺️</span>
+              <span>{isMapOpen ? 'MAPA 2D ATIVO NO COCKPIT' : 'PROJETAR MAPA NO COCKPIT'}</span>
+            </button>
           </div>
         )}
 
@@ -317,6 +348,16 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
           }`}
         >
           SPORT HMI
+        </button>
+        <button
+          onClick={() => setActiveTab('nav')}
+          className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+            activeTab === 'nav'
+              ? 'bg-red-600 text-white font-black shadow-[0_0_8px_rgba(220,38,38,0.5)]'
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          GPS MAP
         </button>
         <button
           onClick={() => setActiveTab('clima')}

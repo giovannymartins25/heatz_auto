@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { clamp, mapRange } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
 
 interface Opala4100RealClusterProps {
   telemetry: DashboardTelemetry
@@ -25,11 +26,13 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
   const coolantTemp = useSimulationStore((s) => s.coolantTemp)
   const fuelLevelLiters = useSimulationStore((s) => s.fuelLevelLiters)
   const liveRpm = useSimulationStore((s) => s.rpm)
+  const isRunning = useSimulationStore((s) => s.isRunning)
   const isRevLimiting = useSimulationStore((s) => s.isRevLimiting)
   const speed = useSimulationStore((s) => s.speed)
   const hasNosKit = useSimulationStore((s) => s.hasNosKit)
   const nosActive = useSimulationStore((s) => s.nosActive)
   const nosPressurePercent = useSimulationStore((s) => s.nosPressurePercent)
+  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
 
   const currentRpm = Math.max(0, liveRpm || tachometer.rpm || 0)
   const currentSpeed = Math.max(0, speed || speedometer.speed || 0)
@@ -45,8 +48,8 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
   const rpmAngle = mapRange(clamp(currentRpm, 0, 6000), 0, 6000, startAngle, endAngle)
   const speedAngle = mapRange(clamp(currentSpeed, 0, 220), 0, 220, startAngle, endAngle)
 
-  // Pressão do Óleo dinâmica (relacionada ao RPM: 1.5 bar na lenta a 4.5 bar em giro alto)
-  const oilPressure = clamp(1.2 + (currentRpm / 6000) * 3.4, 0, 5)
+  // Pressão do Óleo dinâmica (0.0 com motor desligado; 1.2 a 4.6 bar em funcionamento)
+  const oilPressure = isRunning ? clamp(1.2 + (currentRpm / 6000) * 3.4, 0, 5) : 0.0
 
   // Marcas do Tacômetro (0 a 6.000 RPM)
   const tachMarks = useMemo(() => {
@@ -335,10 +338,10 @@ export const Opala4100RealCluster = memo(function Opala4100RealCluster({
               )
             })}
 
-            {/* Odômetro Mecânico de Rolete Retrô */}
+            {/* Odômetro Mecânico de Rolete Retrô (real da garagem) */}
             <rect x={center - 32} y={center + 24} width={64} height={18} fill="#0a0a0a" stroke="#444" rx={3} />
             <text x={center} y={center + 37} fill="#ffffff" fontSize={11} fontFamily="monospace" textAnchor="middle" fontWeight="bold">
-              048921
+              {String(Math.round(mileageKm)).padStart(6, '0')}
             </text>
 
             <text x={center} y={center - 30} fill="#737373" fontSize={9} textAnchor="middle" fontWeight="bold">

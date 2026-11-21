@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { mapRange } from '@/utils/math'
 import { ClusterIndicatorIcon } from '@/components/gauges'
+import { useGarageStore } from '@/stores/useGarageStore'
 
 interface GolG6RealClusterProps {
   telemetry: DashboardTelemetry
@@ -28,6 +29,7 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
     auxGauges,
     shiftLight,
   } = telemetry
+  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
 
   const size = 260
   const center = size / 2
@@ -346,11 +348,11 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-red-400/70">ODO TOTAL</span>
-                <span className="font-bold text-red-400">128.450 km</span>
+                <span className="font-bold text-red-400">{Math.round(mileageKm).toLocaleString('pt-BR')} km</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-red-400/70">EXTERNA</span>
-                <span className="font-bold text-red-400">26.5 °C</span>
+                <span className="text-red-400/70">MOTOR</span>
+                <span className="font-bold text-red-400">{Math.round(auxGauges.coolantTemp)} °C</span>
               </div>
             </div>
           </div>

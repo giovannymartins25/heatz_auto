@@ -12,7 +12,7 @@ export interface FiatToroUconnectVerticalProps {
   fill?: boolean
 }
 
-type RanchTab = 'media' | 'climate' | 'drive4x4' | 'settings'
+type RanchTab = 'media' | 'climate' | 'drive4x4' | 'nav' | 'settings'
 
 function fmtTime(sec: number) {
   const m = Math.floor(sec / 60)
@@ -57,6 +57,13 @@ export const FiatToroUconnectVertical = memo(function FiatToroUconnectVertical({
   const fourWheelDriveWarning = useSimulationStore((s) => s.fourWheelDriveWarning)
   const setFourWheelDriveMode = useSimulationStore((s) => s.setFourWheelDriveMode)
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
+  const positionX = useSimulationStore((s) => s.positionX)
+  const positionY = useSimulationStore((s) => s.positionY)
+  const headingDeg = useSimulationStore((s) => s.headingDeg)
+  const zoneName = useSimulationStore((s) => s.zoneName)
+  const surfaceType = useSimulationStore((s) => s.surfaceType)
+  const isMapOpen = useSimulationStore((s) => s.isMapOpen)
+  const toggleMap = useSimulationStore((s) => s.toggleMap)
 
   // Ajustes de volume e brilho
   const [volume, setVolume] = useState(70)
@@ -338,6 +345,94 @@ export const FiatToroUconnectVertical = memo(function FiatToroUconnectVertical({
           </div>
         )}
 
+        {/* ─── ABA: NAVEGAÇÃO GPS UCONNECT 10.1" ─── */}
+        {activeTab === 'nav' && (
+          <div className="flex flex-col justify-between items-center gap-1 h-full p-1 text-center font-mono">
+            {/* Header da Navegação Toro */}
+            <div className="w-full flex items-center justify-between px-2 py-0.5 rounded-lg bg-zinc-900/90 border border-amber-800/40">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                <span className="text-[7px] font-black text-amber-400 uppercase tracking-widest">
+                  UCONNECT NAV 10.1"
+                </span>
+              </div>
+              <span className="text-[7px] text-zinc-300 font-bold uppercase truncate max-w-[130px]">
+                {zoneName || 'Circuito 2D'}
+              </span>
+            </div>
+
+            {/* Radar / Mapa Vetorial Toro */}
+            <div className="relative w-full max-w-[260px] h-[115px] sm:h-[135px] rounded-xl bg-[#090b0e] border border-amber-800/30 overflow-hidden shadow-inner flex items-center justify-center">
+              <div
+                className="absolute inset-0 opacity-15 pointer-events-none"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(to right, #f59e0b 1px, transparent 1px), linear-gradient(to bottom, #f59e0b 1px, transparent 1px)',
+                  backgroundSize: '20px 20px',
+                }}
+              />
+              <div className="absolute inset-x-0 top-1/2 h-[1px] bg-amber-500/20" />
+              <div className="absolute inset-y-0 left-1/2 w-[1px] bg-amber-500/20" />
+
+              {/* Indicador do Veículo */}
+              <div
+                className="absolute w-4 h-4 -ml-2 -mt-2 flex items-center justify-center transition-all duration-75"
+                style={{
+                  left: `${Math.max(10, Math.min(90, 50 + (positionX / 300) * 40))}%`,
+                  top: `${Math.max(10, Math.min(90, 50 - (positionY / 300) * 40))}%`,
+                }}
+              >
+                <div
+                  className="text-amber-400 text-xs drop-shadow-[0_0_6px_rgba(245,158,11,0.9)]"
+                  style={{ transform: `rotate(${headingDeg}deg)` }}
+                >
+                  ▲
+                </div>
+              </div>
+
+              {/* Rosa dos Ventos */}
+              <div className="absolute top-1 right-2 flex flex-col items-center text-[6px] text-zinc-400 font-bold">
+                <span className="text-amber-400 font-black">N</span>
+                <span>{Math.round(headingDeg)}°</span>
+              </div>
+
+              {/* Badge de Superfície */}
+              <div className="absolute bottom-1 left-2 text-[6px] font-bold px-1.5 py-0.5 rounded bg-black/70 border border-white/10 text-zinc-300">
+                PISO: <span className="text-amber-400">{surfaceType.toUpperCase()}</span>
+              </div>
+            </div>
+
+            {/* Leituras Numéricas de Coordenadas */}
+            <div className="w-full grid grid-cols-3 gap-1 text-[6.5px] font-bold">
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">COORD X</span>
+                <span className="text-white font-mono">{positionX >= 0 ? '+' : ''}{positionX.toFixed(1)}m</span>
+              </div>
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">COORD Y</span>
+                <span className="text-white font-mono">{positionY >= 0 ? '+' : ''}{positionY.toFixed(1)}m</span>
+              </div>
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">RUMO</span>
+                <span className="text-amber-400 font-mono">{Math.round(headingDeg)}°</span>
+              </div>
+            </div>
+
+            {/* Ação: Alternar Mapa Dirigível no Cockpit */}
+            <button
+              onClick={toggleMap}
+              className={`w-full py-0.5 px-2 rounded-lg border text-[7px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow flex items-center justify-center gap-1 ${
+                isMapOpen
+                  ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.6)]'
+                  : 'bg-zinc-900 text-amber-300 border-amber-500/40 hover:bg-zinc-800'
+              }`}
+            >
+              <span>🗺️</span>
+              <span>{isMapOpen ? 'MAPA 2D ATIVO NO COCKPIT' : 'PROJETAR MAPA NO COCKPIT'}</span>
+            </button>
+          </div>
+        )}
+
         {/* ─── ABA 2: MÍDIA & ÁUDIO ─── */}
         {activeTab === 'media' && (
           <div className="flex flex-col gap-1.5 min-h-0">
@@ -571,8 +666,8 @@ export const FiatToroUconnectVertical = memo(function FiatToroUconnectVertical({
         )}
       </main>
 
-      {/* Barra de Navegação Inferior (4 abas compactas) */}
-      <nav className="grid h-9 shrink-0 grid-cols-4 border-t border-amber-800/40 bg-zinc-950/95 text-center font-sans font-bold text-[8px] tracking-wide">
+      {/* Barra de Navegação Inferior (5 abas compactas) */}
+      <nav className="grid h-9 shrink-0 grid-cols-5 border-t border-amber-800/40 bg-zinc-950/95 text-center font-sans font-bold text-[8px] tracking-wide">
         <button
           type="button"
           onClick={() => setActiveTab('drive4x4')}
@@ -584,6 +679,19 @@ export const FiatToroUconnectVertical = memo(function FiatToroUconnectVertical({
         >
           <span className="text-xs">🛞</span>
           <span>Tração 4x4</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('nav')}
+          className={`flex flex-col items-center justify-center gap-0.5 transition-colors cursor-pointer ${
+            activeTab === 'nav'
+              ? 'text-amber-400 border-t-2 border-amber-400 bg-amber-950/30'
+              : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          <span className="text-xs">🧭</span>
+          <span>GPS</span>
         </button>
 
         <button

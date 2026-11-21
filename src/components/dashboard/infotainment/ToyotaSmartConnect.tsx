@@ -2,6 +2,7 @@ import { memo, useState, useEffect } from 'react'
 import type { VehicleConfig } from '@/types/vehicle'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { clamp } from '@/utils/math'
+import { CircularProgressDial } from '@/components/gauges'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
 import { ClimateControlPanel } from './shared/ClimateControlPanel'
@@ -15,7 +16,7 @@ interface ToyotaSmartConnectProps {
   className?: string
 }
 
-type ToyotaActiveTab = 'eco' | 'clima' | 'media' | 'ambient'
+type ToyotaActiveTab = 'eco' | 'nav' | 'clima' | 'media' | 'ambient'
 
 /**
  * ToyotaSmartConnect — Central Multimídia oficial Toyota Play 7" / Smart Connect (Toyota Yaris 1.5 XLS).
@@ -45,6 +46,13 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
   const setAmbientLightColor = useSimulationStore((s) => s.setAmbientLightColor)
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.cyan
+  const positionX = useSimulationStore((s) => s.positionX)
+  const positionY = useSimulationStore((s) => s.positionY)
+  const headingDeg = useSimulationStore((s) => s.headingDeg)
+  const zoneName = useSimulationStore((s) => s.zoneName)
+  const surfaceType = useSimulationStore((s) => s.surfaceType)
+  const isMapOpen = useSimulationStore((s) => s.isMapOpen)
+  const toggleMap = useSimulationStore((s) => s.toggleMap)
 
   const maxPowerHp = vehicle.engine.maxPower || 110
   const redlineRpm = vehicle.engine.maxRpm || 6400
@@ -125,50 +133,17 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
               </div>
 
               {/* Potência Instantânea */}
-              <div className="flex flex-col items-center">
-                <span className="text-[6.5px] sm:text-[7px] font-bold text-zinc-400 uppercase mb-0.5">
-                  POTÊNCIA VVT-I
-                </span>
-                <div
-                  className={`relative flex flex-col items-center justify-center rounded-full bg-zinc-900/90 border border-white/10 shadow-inner ${
-                    compact || fill ? 'w-[52px] h-[52px] sm:w-[68px] sm:h-[68px]' : 'w-[76px] h-[76px]'
-                  }`}
-                >
-                  <svg className="absolute inset-0 w-full h-full -rotate-90">
-                    <circle
-                      cx={compact || fill ? 26 : 38}
-                      cy={compact || fill ? 26 : 38}
-                      r={compact || fill ? 21 : 31}
-                      fill="none"
-                      stroke="#27272a"
-                      strokeWidth="3"
-                    />
-                    <circle
-                      cx={compact || fill ? 26 : 38}
-                      cy={compact || fill ? 26 : 38}
-                      r={compact || fill ? 21 : 31}
-                      fill="none"
-                      stroke="#e11d48"
-                      strokeWidth="3"
-                      strokeDasharray={compact || fill ? 132 : 195}
-                      strokeDashoffset={
-                        (compact || fill ? 132 : 195) * (1 - clamp(instantHp / maxPowerHp, 0, 1))
-                      }
-                      strokeLinecap="round"
-                      className="transition-all duration-75"
-                    />
-                  </svg>
-                  <span className={`${compact || fill ? 'text-sm sm:text-base' : 'text-base sm:text-lg'} font-black text-white leading-none z-10`}>
-                    {instantHp}
-                  </span>
-                  <span className="text-[6.5px] sm:text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
-                    CV
-                  </span>
-                </div>
-                <span className="text-[7px] sm:text-[8px] text-zinc-500 font-bold mt-0.5">
-                  MAX {maxPowerHp} CV
-                </span>
-              </div>
+              <CircularProgressDial
+                label="POTÊNCIA VVT-I"
+                value={instantHp}
+                max={maxPowerHp}
+                unit="CV"
+                color="#e11d48"
+                glowColor="#e11d48"
+                subLabel={`MAX ${maxPowerHp} CV`}
+                compact={compact}
+                fill={fill}
+              />
 
               {/* Autonomia Estimada */}
               <div className="flex flex-col items-center">
@@ -200,6 +175,94 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
                 </span>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ABA: NAVEGAÇÃO TOYOTA SMART CONNECT */}
+        {activeTab === 'nav' && (
+          <div className="w-full flex flex-col justify-between items-center gap-1 h-full p-1 text-center font-mono">
+            {/* Header da Navegação Toyota */}
+            <div className="w-full flex items-center justify-between px-2 py-0.5 rounded-lg bg-zinc-900/90 border border-cyan-500/30">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                <span className="text-[7px] font-black text-cyan-400 uppercase tracking-widest">
+                  TOYOTA SMART NAV
+                </span>
+              </div>
+              <span className="text-[7px] text-zinc-300 font-bold uppercase truncate max-w-[130px]">
+                {zoneName || 'Circuito 2D'}
+              </span>
+            </div>
+
+            {/* Radar / Mapa Vetorial Toyota */}
+            <div className="relative w-full max-w-[260px] h-[90px] sm:h-[105px] rounded-xl bg-[#080d14] border border-cyan-500/20 overflow-hidden shadow-inner flex items-center justify-center">
+              <div
+                className="absolute inset-0 opacity-15 pointer-events-none"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(to right, #06b6d4 1px, transparent 1px), linear-gradient(to bottom, #06b6d4 1px, transparent 1px)',
+                  backgroundSize: '20px 20px',
+                }}
+              />
+              <div className="absolute inset-x-0 top-1/2 h-[1px] bg-cyan-500/20" />
+              <div className="absolute inset-y-0 left-1/2 w-[1px] bg-cyan-500/20" />
+
+              {/* Indicador do Veículo */}
+              <div
+                className="absolute w-4 h-4 -ml-2 -mt-2 flex items-center justify-center transition-all duration-75"
+                style={{
+                  left: `${Math.max(10, Math.min(90, 50 + (positionX / 300) * 40))}%`,
+                  top: `${Math.max(10, Math.min(90, 50 - (positionY / 300) * 40))}%`,
+                }}
+              >
+                <div
+                  className="text-cyan-400 text-xs drop-shadow-[0_0_6px_rgba(6,182,212,0.9)]"
+                  style={{ transform: `rotate(${headingDeg}deg)` }}
+                >
+                  ▲
+                </div>
+              </div>
+
+              {/* Rosa dos Ventos */}
+              <div className="absolute top-1 right-2 flex flex-col items-center text-[6px] text-zinc-400 font-bold">
+                <span className="text-cyan-400 font-black">N</span>
+                <span>{Math.round(headingDeg)}°</span>
+              </div>
+
+              {/* Badge de Superfície */}
+              <div className="absolute bottom-1 left-2 text-[6px] font-bold px-1.5 py-0.5 rounded bg-black/70 border border-white/10 text-zinc-300">
+                PISO: <span className="text-cyan-400">{surfaceType.toUpperCase()}</span>
+              </div>
+            </div>
+
+            {/* Leituras Numéricas de Coordenadas */}
+            <div className="w-full grid grid-cols-3 gap-1 text-[6.5px] font-bold">
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">COORD X</span>
+                <span className="text-white font-mono">{positionX >= 0 ? '+' : ''}{positionX.toFixed(1)}m</span>
+              </div>
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">COORD Y</span>
+                <span className="text-white font-mono">{positionY >= 0 ? '+' : ''}{positionY.toFixed(1)}m</span>
+              </div>
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">RUMO</span>
+                <span className="text-cyan-400 font-mono">{Math.round(headingDeg)}°</span>
+              </div>
+            </div>
+
+            {/* Ação: Alternar Mapa Dirigível no Cockpit */}
+            <button
+              onClick={toggleMap}
+              className={`w-full py-0.5 px-2 rounded-lg border text-[7px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow flex items-center justify-center gap-1 ${
+                isMapOpen
+                  ? 'bg-cyan-500 text-black border-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.6)]'
+                  : 'bg-zinc-900 text-cyan-400 border-cyan-500/40 hover:bg-zinc-800'
+              }`}
+            >
+              <span>🗺️</span>
+              <span>{isMapOpen ? 'MAPA 2D ATIVO NO COCKPIT' : 'PROJETAR MAPA NO COCKPIT'}</span>
+            </button>
           </div>
         )}
 
@@ -280,6 +343,16 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
           }`}
         >
           ECO MONITOR
+        </button>
+        <button
+          onClick={() => setActiveTab('nav')}
+          className={`px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
+            activeTab === 'nav'
+              ? 'bg-cyan-500 text-black font-black shadow-[0_0_8px_rgba(6,182,212,0.5)]'
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          GPS MAP
         </button>
         <button
           onClick={() => setActiveTab('clima')}

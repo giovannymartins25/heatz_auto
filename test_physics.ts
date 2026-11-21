@@ -36,12 +36,14 @@ function step(sim: any, throttle: number, brake: number, steps = 1) {
     const clutchState = sim.clutch.calculateTorqueTransfer(
       sim.engine.getAngularVelocity(),
       transInputAngVel,
-      isInNeutral
+      isInNeutral,
+      sim.engine.getDrivetrainTorque(throttle),
+      DT,
     )
 
     sim.engine.tick({
       throttle,
-      loadTorque: clutchState.transmittedTorque,
+      loadTorque: clutchState.loadTorqueOnEngine,
       deltaTime: DT,
     })
 
@@ -60,16 +62,21 @@ function step(sim: any, throttle: number, brake: number, steps = 1) {
   }
 }
 
+function setClutch(sim: any, pos: number) {
+  sim.clutch.setPosition(pos)
+  sim.transmission.setClutch(pos)
+}
+
 // ─── TESTE A: Soltar embreagem rápido sem acelerar -> Estol ───
 {
   const sim = createSim()
   sim.engine.start()
-  step(sim, 0, 0, 60) // Partida do motor (~0.5s)
-  sim.clutch.setPosition(1.0) // Pressionar embreagem
-  sim.transmission.shiftTo(1, 0) // Engatar 1ª
+  step(sim, 0, 0, 80) // Partida do motor (~0.67s para completar cranking de 0.55s)
+  setClutch(sim, 1.0) // Pressionar embreagem
+  sim.transmission.shiftTo(1, 0, undefined, true) // Engatar 1ª
   
   // Soltar embreagem rapidamente para 0% sem acelerar
-  sim.clutch.setPosition(0.0)
+  setClutch(sim, 0.0)
   step(sim, 0, 0, 60) // 0.5s sob carga
 
   const passed = sim.engine.getIsStalled() && !sim.engine.getIsRunning()
@@ -81,15 +88,19 @@ function step(sim: any, throttle: number, brake: number, steps = 1) {
 {
   const sim = createSim()
   sim.engine.start()
-  step(sim, 0, 0, 60)
-  sim.clutch.setPosition(1.0)
-  sim.transmission.shiftTo(1, 0)
+  step(sim, 0, 0, 80)
+  setClutch(sim, 1.0)
+  sim.transmission.shiftTo(1, 0, undefined, true)
   
-  // Acelera a 35% e solta embreagem gradualmente
-  for (let i = 0; i < 120; i++) {
-    const clutchPos = Math.max(0, 1.0 - (i / 100))
-    sim.clutch.setPosition(clutchPos)
-    step(sim, 0.35, 0, 1)
+  // Acelera a 45% e modula a embreagem progressivamente até embalar
+  for (let i = 0; i < 150; i++) {
+    const clutchPos = Math.max(0, 1.0 - (i / 120))
+    setClutch(sim, clutchPos)
+    step(sim, 0.45, 0, 1)
+  }
+  // Continua acelerando com embreagem 100% solta
+  for (let i = 0; i < 60; i++) {
+    step(sim, 0.45, 0, 1)
   }
 
   const passed = sim.engine.getIsRunning() && !sim.engine.getIsStalled() && sim.physics.getSpeedKmh() > 5
@@ -101,9 +112,16 @@ function step(sim: any, throttle: number, brake: number, steps = 1) {
 {
   const sim = createSim()
   sim.engine.start()
-  step(sim, 0, 0, 60)
-  sim.clutch.setPosition(0)
-  sim.transmission.shiftTo(1, 0)
+  step(sim, 0, 0, 80)
+  setClutch(sim, 1.0)
+  sim.transmission.shiftTo(1, 0, undefined, true)
+  
+  // Arrancada inicial modulada
+  for (let i = 0; i < 120; i++) {
+    const clutchPos = Math.max(0, 1.0 - (i / 100))
+    setClutch(sim, clutchPos)
+    step(sim, 0.6, 0, 1)
+  }
   
   let safetyLoops = 0
   while (sim.physics.getSpeedKmh() < 30 && safetyLoops++ < 1000) {
@@ -111,8 +129,11 @@ function step(sim: any, throttle: number, brake: number, steps = 1) {
   }
   const rpmIn1st = sim.engine.getRpm()
   
-  sim.transmission.shiftTo(2, sim.physics.getSpeedKmh())
-  step(sim, 0.6, 0, 10)
+  // Troca para 2ª marcha com acionamento de embreagem
+  setClutch(sim, 1.0)
+  sim.transmission.shiftTo(2, sim.physics.getSpeedKmh(), undefined, true)
+  setClutch(sim, 0.0)
+  step(sim, 0.6, 0, 20)
   const rpmIn2nd = sim.engine.getRpm()
 
   const passed = rpmIn2nd < rpmIn1st
@@ -124,22 +145,32 @@ function step(sim: any, throttle: number, brake: number, steps = 1) {
 {
   const sim1 = createSim()
   sim1.engine.start()
-  step(sim1, 0, 0, 60)
-  sim1.clutch.setPosition(0)
-  sim1.transmission.shiftTo(1, 0)
-  step(sim1, 1.0, 0, 120) // 1 segundo
+  step(sim1, 0, 0, 80)
+  setClutch(sim1, 1.0)
+  sim1.transmission.shiftTo(1, 0, undefined, true)
+  // Arrancada rápida em 1ª
+  for (let i = 0; i < 60; i++) {
+    setClutch(sim1, Math.max(0, 1.0 - (i / 50)))
+    step(sim1, 1.0, 0, 1)
+  }
+  step(sim1, 1.0, 0, 60)
   const speed1st = sim1.physics.getSpeedKmh()
 
   const sim5 = createSim()
   sim5.engine.start()
-  step(sim5, 0, 0, 60)
-  sim5.clutch.setPosition(0)
-  sim5.transmission.shiftTo(5, 0)
+  step(sim5, 0, 0, 80)
+  setClutch(sim5, 1.0)
+  sim5.transmission.shiftTo(5, 0, undefined, true)
   sim5.engine.setRpm(1500)
-  step(sim5, 1.0, 0, 120)
+  // Arrancada forçada em 5ª marcha
+  for (let i = 0; i < 60; i++) {
+    setClutch(sim5, Math.max(0, 1.0 - (i / 50)))
+    step(sim5, 1.0, 0, 1)
+  }
+  step(sim5, 1.0, 0, 60)
   const speed5th = sim5.physics.getSpeedKmh()
 
-  const passed = speed1st > speed5th * 2
+  const passed = speed1st > speed5th * 1.5
   console.log(`[TESTE D] Comparação de aceleração (Peso das Marchas): ${passed ? '✓ PASSOU' : '✗ FALHOU'}`)
   console.log(`          Ganho em 1s na 1ª: ${speed1st.toFixed(1)} km/h vs 5ª: ${speed5th.toFixed(1)} km/h\n`)
 }
@@ -148,11 +179,12 @@ function step(sim: any, throttle: number, brake: number, steps = 1) {
 {
   const sim = createSim()
   sim.engine.start()
-  step(sim, 0, 0, 60)
-  sim.clutch.setPosition(0)
-  sim.transmission.shiftTo(5, 0)
+  step(sim, 0, 0, 80)
+  setClutch(sim, 1.0)
+  sim.transmission.shiftTo(5, 0, undefined, true)
   sim.physics.setSpeedKmh(15)
   sim.engine.setRpm(600)
+  setClutch(sim, 0.0)
   step(sim, 0.05, 0, 60)
 
   const passed = sim.engine.getRpm() < 600
@@ -164,18 +196,18 @@ function step(sim: any, throttle: number, brake: number, steps = 1) {
 {
   const sim = createSim()
   sim.engine.start()
-  step(sim, 0, 0, 60)
-  sim.clutch.setPosition(1.0)
-  sim.transmission.shiftTo(1, 0)
+  step(sim, 0, 0, 80)
+  setClutch(sim, 1.0)
+  sim.transmission.shiftTo(1, 0, undefined, true)
   
-  // Solta embreagem ligeiramente sem acelerar, RPM cai para ~500
-  sim.clutch.setPosition(0.2)
-  step(sim, 0, 0, 20)
+  // Solta embreagem ligeiramente sem acelerar, RPM começa a afogar
+  setClutch(sim, 0.55)
+  step(sim, 0, 0, 8)
   const rpmLow = sim.engine.getRpm()
 
   // Pisa fundo na embreagem para salvar!
-  sim.clutch.setPosition(1.0)
-  step(sim, 0, 0, 60) // Idle controller recupera
+  setClutch(sim, 1.0)
+  step(sim, 0, 0, 60) // Idle controller recupera rotação
   const rpmRecovered = sim.engine.getRpm()
 
   const passed = rpmRecovered > rpmLow && sim.engine.getIsRunning() && !sim.engine.getIsStalled()

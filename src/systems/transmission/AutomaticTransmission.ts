@@ -10,6 +10,7 @@ export interface AutomaticTransmissionConfig {
   idleRpm: number
   revLimiter?: number
   isCvt?: boolean
+  type?: string
 }
 
 export interface AutoShiftInput {
@@ -52,10 +53,16 @@ export class AutomaticTransmission {
   private prevThrottle: number = 0
   private shiftCount: number = 0
   private coastingTimer: number = 0
+  private currentCvtRatio: number = 2.480
 
   constructor(config: AutomaticTransmissionConfig) {
     this.config = config
     this.wheelCircumference = Math.PI * config.wheelDiameter
+    this.currentCvtRatio = config.gearRatios[0]?.ratio ?? 2.480
+  }
+
+  getCurrentCvtRatio(): number {
+    return this.currentCvtRatio
   }
 
   private getGearRatio(gear: number): number {
@@ -216,16 +223,54 @@ export class AutomaticTransmission {
 
     // ─── 1. Acoplamento Automático (Embreagem Interna / Conversor de Torque do CVT) ───
     let targetClutchEngagement = 1.0
-    if (vehicleSpeedKmh < 3 && throttle < 0.05 && brake > 0.1) {
-      // Parado no semáforo com o pé no freio: desacopla para o motor não morrer
-      targetClutchEngagement = 0.0
-    } else if (vehicleSpeedKmh < 8 || currentRpm < this.config.idleRpm * 1.18) {
-      // Arrancada suave e proteção anti-estol ao parar; acima de 8 km/h mantém acoplado para freio motor
-      const { min: targetMinRpm } = this.getTargetRpmBand(drivingMode, selectorPosition, throttle, maxPowerRpm, cutoffRpm)
-      const targetLaunchRpm = Math.max(1850, Math.min(targetMinRpm, 2400))
-      const rpmRatio = clamp((currentRpm - this.config.idleRpm) / (targetLaunchRpm - this.config.idleRpm), 0, 1)
-      const speedRatio = clamp(vehicleSpeedKmh / 14, 0, 1)
-      targetClutchEngagement = clamp(Math.pow(rpmRatio, 2.2) * 0.60 + speedRatio * 0.40, 0.05, 0.98)
+    if (this.config.isCvt || this.config.type === 'cvt') {
+      if (vehicleSpeedKmh < 3 && throttle < 0.05 && brake > 0.1) {
+        targetClutchEngagement = 0.0
+      } else if (vehicleSpeedKmh < 12) {
+        // Conversor de torque com escorregamento suave abaixo de 12 km/h
+        const speedRatio = clamp(vehicleSpeedKmh / 12, 0, 1)
+        const rpmRatio = clamp((currentRpm - this.config.idleRpm) / (1800 - this.config.idleRpm), 0, 1)
+        targetClutchEngagement = clamp(Math.pow(rpmRatio, 1.8) * 0.50 + speedRatio * 0.50, 0.05, 0.95)
+      } else {
+        targetClutchEngagement = 1.0 // Lockup do conversor de torque
+      }
+
+      // Variação contínua da relação cônica lambda no modo D
+      if (selectorPosition === 'D') {
+        const idle = this.config.idleRpm
+        const maxTarget = maxPowerRpm || 5600
+        // Em alívio total do acelerador em movimento (coasting), o CVT mantém relação
+        // intermediária de freio-motor em vez de cair imediatamente para overdrive máximo (0.396)
+        const isCoastingEngineBrake = throttle < 0.08 && vehicleSpeedKmh > 12
+        const targetEngineRpm = isCoastingEngineBrake
+          ? clamp(idle + 1050 + vehicleSpeedKmh * 18, idle + 950, 3400)
+          : idle + 450 + Math.pow(throttle, 1.4) * (maxTarget - (idle + 450))
+
+        if (vehicleSpeedKmh > 1.0) {
+          const wheelRps = (vehicleSpeedKmh / 3.6) / this.wheelCircumference
+          const wheelRpm = wheelRps * 60
+          const transInputRpm = wheelRpm * this.config.finalDrive
+          const theoreticalRatio = transInputRpm > 0 ? targetEngineRpm / transInputRpm : 2.480
+          const minRatio = isCoastingEngineBrake ? 0.85 : 0.396
+          const targetCvtRatio = clamp(theoreticalRatio, minRatio, 2.480)
+          const slewRate = throttle > 0.60 ? 4.2 : isCoastingEngineBrake ? 3.5 : 2.5
+          this.currentCvtRatio += (targetCvtRatio - this.currentCvtRatio) * clamp(deltaTime * slewRate, 0, 1)
+        } else {
+          this.currentCvtRatio = 2.480
+        }
+      }
+    } else {
+      if (vehicleSpeedKmh < 3 && throttle < 0.05 && brake > 0.1) {
+        // Parado no semáforo com o pé no freio: desacopla para o motor não morrer
+        targetClutchEngagement = 0.0
+      } else if (vehicleSpeedKmh < 8 || currentRpm < this.config.idleRpm * 1.18) {
+        // Arrancada suave e proteção anti-estol ao parar; acima de 8 km/h mantém acoplado para freio motor
+        const { min: targetMinRpm } = this.getTargetRpmBand(drivingMode, selectorPosition, throttle, maxPowerRpm, cutoffRpm)
+        const targetLaunchRpm = Math.max(1850, Math.min(targetMinRpm, 2400))
+        const rpmRatio = clamp((currentRpm - this.config.idleRpm) / (targetLaunchRpm - this.config.idleRpm), 0, 1)
+        const speedRatio = clamp(vehicleSpeedKmh / 14, 0, 1)
+        targetClutchEngagement = clamp(Math.pow(rpmRatio, 2.2) * 0.60 + speedRatio * 0.40, 0.05, 0.98)
+      }
     }
 
     // Se estiver em Park (-2) ou ponto morto (0), não realiza trocas automáticas para frente
@@ -408,6 +453,7 @@ export class AutomaticTransmission {
     this.prevThrottle = 0
     this.shiftCount = 0
     this.coastingTimer = 0
+    this.currentCvtRatio = this.config.gearRatios[0]?.ratio ?? 2.480
   }
 
   /** Captura snapshot imutável para isolamento transacional */
@@ -418,6 +464,7 @@ export class AutomaticTransmission {
       prevThrottle: this.prevThrottle,
       shiftCount: this.shiftCount,
       coastingTimer: this.coastingTimer,
+      currentCvtRatio: this.currentCvtRatio,
     }
   }
 
@@ -428,6 +475,9 @@ export class AutomaticTransmission {
     this.prevThrottle = snapshot.prevThrottle
     this.shiftCount = snapshot.shiftCount
     this.coastingTimer = snapshot.coastingTimer
+    if (snapshot.currentCvtRatio !== undefined) {
+      this.currentCvtRatio = snapshot.currentCvtRatio
+    }
   }
 }
 
@@ -440,4 +490,5 @@ export interface AutoTransmissionSnapshot {
   prevThrottle: number
   shiftCount: number
   coastingTimer: number
+  currentCvtRatio?: number
 }

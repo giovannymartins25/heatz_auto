@@ -16,10 +16,15 @@ export interface OrientationInfo {
 export function useOrientation(): OrientationInfo {
   const getIsLandscape = () => {
     if (typeof window === 'undefined') return true
+    // Prioriza sempre a geometria real do viewport (innerWidth vs innerHeight) para funcionar
+    // corretamente em celulares, split-screen, dobráveis e emulação responsiva.
+    if (window.innerWidth > 0 && window.innerHeight > 0) {
+      return window.innerWidth > window.innerHeight
+    }
     if (window.screen?.orientation) {
       return window.screen.orientation.type.startsWith('landscape')
     }
-    return window.innerWidth > window.innerHeight
+    return true
   }
 
   const getIsMobile = () => {

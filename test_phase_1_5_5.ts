@@ -477,6 +477,12 @@ test('3.2 Golf GTI, Porsche GT3 e Yaris sem gear hunting em aceleração leve, m
 
         const ticks = Math.round(12 / DT_120)
         for (let i = 0; i < ticks; i++) {
+          // Mantém o veículo em reta aberta (sem colidir com a defensa norte de 285m do WorldMap 2D)
+          // para avaliar estritamente a estabilidade de trocas da transmissão em aceleração contínua.
+          const physInst = useSimulationStore.getState()._physics
+          if (physInst && physInst.getPosition().y > 240) {
+            physInst.setPosition(0, 25, 0)
+          }
           useSimulationStore.getState().update(DT_120)
           const g = useSimulationStore.getState()._phys.gear
           if (g !== prevGear) {
@@ -516,6 +522,10 @@ test('3.3 Golf GTI: estabilidade em cruzeiro quase constante, alívio do acelera
   let cruiseShifts = 0
   let prevGear = useSimulationStore.getState()._phys.gear
   for (let i = 0; i < Math.round(6.0 / DT_120); i++) {
+    const physInst = useSimulationStore.getState()._physics
+    if (physInst && physInst.getPosition().y > 240) {
+      physInst.setPosition(0, 25, 0)
+    }
     const wave = 0.20 + Math.sin(i * 0.05) * 0.04
     useSimulationStore.getState().setThrottle(wave)
     useSimulationStore.getState().update(DT_120)

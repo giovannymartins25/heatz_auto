@@ -97,6 +97,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const { showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
   const mapViewportSize = useUIStore((s) => s.mapViewportSize)
   const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
+  const isMapOpen = useUIStore((s) => s.isMapOpen)
+  const toggleMap = useUIStore((s) => s.toggleMap)
   const vehicleHeader = formatVehicleHeaderInfo(vehicle)
   const shortName = getShortVehicleName(vehicle)
   const caps = getVehicleCapabilities(vehicle)
@@ -127,7 +129,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 
         {/* ═══ 1. ESQUERDA: MENU + IDENTIFICAÇÃO CURTA (topo) · PEDAIS (base) ═══ */}
         <aside className="flex flex-col justify-between items-start h-full pt-0 pb-0.5 pr-1.5 border-r border-white/5 flex-shrink-0 gap-1">
-          <div className="flex items-center gap-1.5 min-w-0" data-vehicle-id>
+          <div className="flex items-center gap-1 min-w-0" data-vehicle-id>
             <button
               type="button"
               onClick={() => setIsMenuOpen(true)}
@@ -142,8 +144,18 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                 </span>
               )}
             </button>
+            <button
+              type="button"
+              onClick={onBack}
+              className="h-8 px-2 flex-shrink-0 rounded-lg bg-zinc-900 border border-white/15 hover:bg-zinc-800 text-zinc-200 font-mono text-[9px] font-black uppercase flex items-center justify-center gap-0.5 active:scale-95 cursor-pointer shadow"
+              aria-label="Voltar à garagem"
+              title="Voltar à Garagem"
+            >
+              <span>←</span>
+              <span className="hidden sm:inline">Garagem</span>
+            </button>
             <span
-              className="text-[9px] font-black font-mono tracking-wider text-zinc-400 whitespace-nowrap"
+              className="text-[9px] font-black font-mono tracking-wider text-zinc-400 truncate max-w-[76px]"
               title={`${vehicleHeader.title} · ${vehicleHeader.specsSummary}`}
             >
               {shortName}
@@ -222,28 +234,30 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           {isDriveMode ? (
             <div className="flex-1 flex min-h-0 w-full h-full flex-col gap-0.5 overflow-hidden self-stretch items-center">
               {/* 1. MAPA DE CONDUÇÃO — PARTE SUPERIOR DA REGIÃO CENTRAL */}
-              <div
-                className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 relative ${
-                  mapViewportSize === 'compact'
-                    ? 'h-[30%] flex-shrink-0'
-                    : mapViewportSize === 'expanded'
-                    ? 'h-[58%] flex-shrink-0'
-                    : 'h-[44%] flex-shrink-0'
-                }`}
-              >
-                <DrivingMapViewport
-                  size={mapViewportSize}
-                  onSizeChange={setMapViewportSize}
-                  telemetry={telemetry}
-                  vehicle={vehicle}
-                />
+              {isMapOpen && mapViewportSize !== 'hidden' && (
+                <div
+                  className={`w-full min-h-0 flex items-center justify-center transition-all duration-200 relative ${
+                    mapViewportSize === 'compact'
+                      ? 'h-[30%] flex-shrink-0'
+                      : mapViewportSize === 'expanded'
+                      ? 'h-[58%] flex-shrink-0'
+                      : 'h-[44%] flex-shrink-0'
+                  }`}
+                >
+                  <DrivingMapViewport
+                    size={mapViewportSize}
+                    onSizeChange={setMapViewportSize}
+                    telemetry={telemetry}
+                    vehicle={vehicle}
+                  />
 
-                {/* Telemetria e Calibração de Direção por Inclinação Mobile (Fase 1.6.2) */}
-                <SteeringControlZone
-                  vehicle={vehicle}
-                  className="absolute top-1.5 left-2 z-20"
-                />
-              </div>
+                  {/* Telemetria e Calibração de Direção por Inclinação Mobile (Fase 1.6.2) */}
+                  <SteeringControlZone
+                    vehicle={vehicle}
+                    className="absolute top-1.5 left-2 z-20"
+                  />
+                </div>
+              )}
 
               {/* 2. SLOT INFERIOR RESPONSIVO: PAINEL ORIGINAL (<VehicleDashboardCluster telemetry={telemetry} />) ↔ MULTIMÍDIA VIA SWIPE */}
               <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch relative">
@@ -277,10 +291,24 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
         </main>
 
         {/* ═══ 3. DIREITA: CONTROLES (BUZINA/TCS no topo alinhado ao mapa · CÂMBIO · START) ═══ */}
-        <aside className="flex flex-col items-stretch justify-between h-full pt-0 pb-0.5 pl-1.5 border-l border-white/5 flex-shrink-0 gap-1 w-[124px] sm:w-[140px]">
+        <aside className="flex flex-col items-stretch justify-between h-full pt-0 pb-0.5 px-1.5 border-l border-white/5 flex-shrink-0 gap-1 w-[162px] sm:w-[172px]">
         {/* Direita superior: [ 📢 ] [ TCS ] em cima, 0–100 no meio, e botão NOS abaixo */}
         <div className="flex flex-col items-end gap-0.5 flex-shrink-0 w-full">
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={toggleMap}
+              className={`w-7 h-7 rounded-full border flex items-center justify-center text-xs transition-all active:scale-95 cursor-pointer shadow-sm ${
+                isMapOpen
+                  ? 'bg-sky-500/20 text-sky-300 border-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.5)]'
+                  : 'bg-zinc-900 border-white/15 text-zinc-400 hover:text-white'
+              }`}
+              title="Alternar Mapa 2D (M)"
+              aria-label="Mapa"
+            >
+              🗺️
+            </button>
+
             <button
               type="button"
               onPointerDown={() => setHorn(true)}
@@ -377,7 +405,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               className="w-full"
             />
           )}
-          <div className="flex items-center justify-center gap-1.5">
+          <div className="flex items-center justify-center gap-1 w-full max-w-full overflow-hidden">
             <GearShift orientation="vertical" size="compact" showPaddles={false} />
             {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
               <VerticalGestureShifter size="compact" />

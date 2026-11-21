@@ -96,6 +96,13 @@ export const GearShift = memo(function GearShift({
     large: 'w-14 h-14 sm:w-16 sm:h-16 text-xl sm:text-2xl',
   }[size]
 
+  const selectorBtnSize =
+    size === 'compact'
+      ? 'w-7.5 h-7.5 sm:w-8 sm:h-8 text-[11px] sm:text-xs'
+      : size === 'large'
+      ? 'w-11 h-11 sm:w-12 sm:h-12 text-base'
+      : 'w-9 h-9 sm:w-10 sm:h-10 text-xs sm:text-sm'
+
   // Posições ativas do câmbio automático — exatamente UMA única ativa por vez
   const isP = gearSelectorPosition === 'P' || currentGear === -2
   const isR = !isP && (gearSelectorPosition === 'R' || currentGear === -1)
@@ -151,7 +158,7 @@ export const GearShift = memo(function GearShift({
                 onClick={(e) => { e.preventDefault(); selectPark(); }}
                 style={{ touchAction: 'none' }}
                 disabled={!isRunning}
-                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-black text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                className={`${selectorBtnSize} rounded-xl font-black transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isP
                     ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.8)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
@@ -170,7 +177,7 @@ export const GearShift = memo(function GearShift({
                 onClick={(e) => { e.preventDefault(); selectReverse(); }}
                 style={{ touchAction: 'none' }}
                 disabled={!isRunning}
-                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-black text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                className={`${selectorBtnSize} rounded-xl font-black transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isR
                     ? 'bg-red-600 text-white border-red-400 shadow-[0_0_12px_rgba(220,38,38,0.8)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
@@ -189,7 +196,7 @@ export const GearShift = memo(function GearShift({
                 onClick={(e) => { e.preventDefault(); selectNeutral(); }}
                 style={{ touchAction: 'none' }}
                 disabled={!isRunning}
-                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-black text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                className={`${selectorBtnSize} rounded-xl font-black transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isN
                     ? 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.8)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
@@ -208,7 +215,7 @@ export const GearShift = memo(function GearShift({
                 onClick={(e) => { e.preventDefault(); selectDrive(); }}
                 style={{ touchAction: 'none' }}
                 disabled={!isRunning}
-                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-black text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                className={`${selectorBtnSize} rounded-xl font-black transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isD
                     ? 'bg-sky-600 text-white border-sky-400 shadow-[0_0_12px_rgba(2,132,199,0.8)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
@@ -227,7 +234,7 @@ export const GearShift = memo(function GearShift({
                 onClick={(e) => { e.preventDefault(); selectSport(); }}
                 style={{ touchAction: 'none' }}
                 disabled={!isRunning}
-                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-black text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                className={`${selectorBtnSize} rounded-xl font-black transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isS
                     ? 'bg-rose-600 text-white border-rose-400 shadow-[0_0_12px_rgba(225,29,72,0.8)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'
@@ -246,7 +253,7 @@ export const GearShift = memo(function GearShift({
                 onClick={(e) => { e.preventDefault(); selectManual(); }}
                 style={{ touchAction: 'none' }}
                 disabled={!isRunning}
-                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-black text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
+                className={`${selectorBtnSize} rounded-xl font-black transition-all active:scale-95 cursor-pointer flex items-center justify-center border ${
                   isM
                     ? 'bg-amber-400 text-black border-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.8)]'
                     : 'bg-zinc-900 text-zinc-400 border-white/5 hover:text-white'

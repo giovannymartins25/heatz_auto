@@ -17,8 +17,12 @@ export interface DynoResult {
   dataPoints: DynoDataPoint[]
   maxEnginePowerHp: number
   maxWheelPowerHp: number
+  /** Alias retrocompatível para potência máxima no motor (BHP / cv) */
+  maxPowerHp: number
   maxPowerRpm: number
   maxEngineTorqueNm: number
+  /** Alias retrocompatível para torque máximo no motor (Nm) */
+  maxTorqueNm: number
   maxTorqueRpm: number
   drivetrainEfficiency: number
   drivetrainLossPercent: number
@@ -30,8 +34,12 @@ export interface DynoResult {
  * Determina a arquitetura de tração do veículo (FWD, RWD, AWD)
  */
 export function getDrivetrainType(config: VehicleConfig): 'fwd' | 'rwd' | 'awd' {
-  if (config.id.includes('toro-ranch') || config.id.includes('4x4')) return 'awd'
-  if (config.id.includes('porsche') || config.id.includes('opala') || config.info.category === 'motorcycle') return 'rwd'
+  if (config.id.includes('toro-ranch') || config.id.includes('4x4') || config.id === 'porsche-gt3') {
+    return 'awd'
+  }
+  if (config.id.includes('opala') || config.info.category === 'motorcycle') {
+    return 'rwd'
+  }
   return 'fwd'
 }
 
@@ -110,10 +118,26 @@ export function calculateDynoProfile(
   else if (exhaust === 'cat_back') exhaustMult = 1.05
   else if (exhaust === 'sport') exhaustMult = 1.03
 
-  const turboAftermarketMult = (!config.engine.turbo?.enabled && hasTurbo) ? 1.40 : 1.0
+  let turboAftermarketMult = 1.0
+  const turboLevel = upgrades?.turboLevel
+  if (!config.engine.turbo?.enabled && hasTurbo) {
+    turboAftermarketMult =
+      turboLevel === 'big_turbo' ? 1.95 : turboLevel === 'intermediate' ? 1.55 : 1.40
+  } else if (config.engine.turbo?.enabled) {
+    turboAftermarketMult =
+      turboLevel === 'big_turbo' ? 1.60 : turboLevel === 'intermediate' ? 1.25 : turboLevel === 'basic' ? 1.12 : 1.0
+  }
+
+  let fuelMult = 1.0
+  if (upgrades?.fuelType === 'ethanol_e100') {
+    fuelMult = 1.06
+  } else if (upgrades?.fuelType === 'premium_podium') {
+    fuelMult = config.id === 'porsche-gt3' ? 1.05 : config.id === 'golf-gti' || config.id === 'civic-si' ? 1.04 : 1.0
+  }
+
   const nosMult = upgrades?.hasNosKit ? 1.25 : 1.0
 
-  const totalMult = stageMult * intakeMult * exhaustMult * turboAftermarketMult * nosMult
+  const totalMult = stageMult * intakeMult * exhaustMult * turboAftermarketMult * fuelMult * nosMult
 
   const minRpm = 1000
   const maxRpm = config.engine.maxRpm || 6500
@@ -178,8 +202,10 @@ export function calculateDynoProfile(
     dataPoints,
     maxEnginePowerHp,
     maxWheelPowerHp,
+    maxPowerHp: maxEnginePowerHp,
     maxPowerRpm,
     maxEngineTorqueNm,
+    maxTorqueNm: maxEngineTorqueNm,
     maxTorqueRpm,
     drivetrainEfficiency: efficiency,
     drivetrainLossPercent: lossPercent,

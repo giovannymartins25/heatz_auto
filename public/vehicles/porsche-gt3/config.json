@@ -1,14 +1,14 @@
 {
   "id": "porsche-gt3",
   "info": {
-    "name": "Porsche 911 (992) Bi-Turbo",
+    "name": "Porsche 911 Turbo S (992)",
     "brand": "Porsche",
-    "model": "911 Bi-Turbo (992)",
+    "model": "911 Turbo S (992)",
     "year": 2023,
     "category": "car",
     "weight": 1500,
     "wheelDiameter": 0.68,
-    "description": "Superesportivo de alta performance com motor 3.8 Flat-6 Boxer Bi-Turbo de 650 cv e 81.6 kgfm de torque, câmbio PDK de 7 marchas com modos Automático (D/S) e Manual Tiptronic (M), Launch Control aos 4.500 RPM e manômetro de pressão de turbo integrado no cluster digital."
+    "description": "Superesportivo de alta performance com motor 3.8 Flat-6 Boxer Bi-Turbo de 650 cv e 800 Nm de torque, tração integral inteligente PTM (AWD), transmissão PDK de 8 marchas com relações oficiais, diferencial traseiro 3.020 e dianteiro 3.330, Launch Control aos 4.500 RPM, sistema PAA com aerodinâmica ativa e função Airbrake em frenagens severas."
   },
   "engine": {
     "maxPower": 650,
@@ -43,18 +43,21 @@
     "type": "automatic",
     "defaultMode": "automatic",
     "supportedSelectorPositions": ["P", "R", "N", "D", "S", "M"],
-    "gearCount": 7,
+    "gearCount": 8,
     "gearRatios": [
-      { "gear": 1, "ratio": 3.750 },
-      { "gear": 2, "ratio": 2.381 },
-      { "gear": 3, "ratio": 1.720 },
-      { "gear": 4, "ratio": 1.344 },
-      { "gear": 5, "ratio": 1.114 },
-      { "gear": 6, "ratio": 0.957 },
-      { "gear": 7, "ratio": 0.844 }
+      { "gear": 1, "ratio": 4.890 },
+      { "gear": 2, "ratio": 3.170 },
+      { "gear": 3, "ratio": 2.150 },
+      { "gear": 4, "ratio": 1.560 },
+      { "gear": 5, "ratio": 1.180 },
+      { "gear": 6, "ratio": 0.940 },
+      { "gear": 7, "ratio": 0.760 },
+      { "gear": 8, "ratio": 0.610 }
     ],
-    "reverseRatio": 3.420,
-    "finalDrive": 3.970,
+    "reverseRatio": 3.990,
+    "finalDrive": 3.020,
+    "frontFinalDrive": 3.330,
+    "drivetrain": "awd",
     "hasClutch": false,
     "hasManualMode": true,
     "defaultDrivingMode": "normal",
@@ -97,5 +100,17 @@
     "fuelCapacity": 67,
     "coolantTempTarget": 90,
     "hasInfotainment": true
+  },
+  "chassis": {
+    "totalMass": 1500,
+    "wheelbase": 2.457,
+    "centerOfMassHeight": 0.44,
+    "frontWeightRatio": 0.39,
+    "wheelRadius": 0.340,
+    "wheelInertia": 1.35,
+    "wheelCount": 4,
+    "gravity": 9.81,
+    "isProvisional": false,
+    "notes": "Porsche 911 Turbo S (992)"
   }
 }

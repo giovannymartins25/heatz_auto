@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 type Screen = 'home' | 'simulator'
-export type MapViewportSize = 'compact' | 'balanced' | 'expanded'
+export type MapViewportSize = 'hidden' | 'compact' | 'balanced' | 'expanded' | 'fullscreen'
 export type GraphicProfile = 'eco' | 'normal' | 'high'
 
 const STORAGE_SHOW_TILT_INDICATOR_KEY = 'heatz_show_tilt_indicator'
@@ -19,6 +19,8 @@ function getInitialShowTiltIndicator(): boolean {
 
 export interface ActiveKeysState {
   w: boolean
+  a: boolean
+  d: boolean
   e: boolean
   q: boolean
   s: boolean
@@ -26,6 +28,7 @@ export interface ActiveKeysState {
   down: boolean
   space: boolean
   horn: boolean
+  map: boolean
   nos: boolean
 }
 
@@ -42,6 +45,8 @@ interface UIStoreState {
   allowPortraitCockpit: boolean
   /** Tamanho do espaço reservado ao futuro mapa de direção. */
   mapViewportSize: MapViewportSize
+  /** Se o mapa 2D dirigível está visível no cockpit */
+  isMapOpen: boolean
   /** Perfil de desempenho visual e renderização mobile (ECO / NORMAL / ALTO) */
   graphicProfile: GraphicProfile
   /** Exibir HUD diagnóstico interno de desempenho (FPS, frame time, P95, física) */
@@ -59,6 +64,8 @@ interface UIStoreActions {
   setViewMode: (mode: 'cluster' | 'cockpit') => void
   setAllowPortraitCockpit: (allowed: boolean) => void
   setMapViewportSize: (size: MapViewportSize) => void
+  toggleMap: () => void
+  setMapOpen: (open: boolean) => void
   setGraphicProfile: (profile: GraphicProfile) => void
   togglePerformanceMonitor: () => void
   setShowTiltIndicator: (show: boolean) => void
@@ -74,11 +81,14 @@ export const useUIStore = create<UIStore>((set) => ({
   viewMode: 'cluster',
   allowPortraitCockpit: false,
   mapViewportSize: 'balanced',
+  isMapOpen: true,
   graphicProfile: 'normal',
   showPerformanceMonitor: false,
   showTiltIndicator: getInitialShowTiltIndicator(),
   activeKeys: {
     w: false,
+    a: false,
+    d: false,
     e: false,
     q: false,
     s: false,
@@ -86,6 +96,7 @@ export const useUIStore = create<UIStore>((set) => ({
     down: false,
     space: false,
     horn: false,
+    map: false,
     nos: false,
   },
 
@@ -94,7 +105,24 @@ export const useUIStore = create<UIStore>((set) => ({
   toggleVehicleInfo: () => set((s) => ({ showVehicleInfo: !s.showVehicleInfo })),
   setViewMode: (mode) => set({ viewMode: mode }),
   setAllowPortraitCockpit: (allowed) => set({ allowPortraitCockpit: allowed }),
-  setMapViewportSize: (size) => set({ mapViewportSize: size }),
+  setMapViewportSize: (size) => set({ mapViewportSize: size, isMapOpen: size !== 'hidden' }),
+  toggleMap: () =>
+    set((s) => {
+      const nextOpen = !s.isMapOpen
+      return {
+        isMapOpen: nextOpen,
+        mapViewportSize: nextOpen
+          ? (s.mapViewportSize === 'hidden' ? 'balanced' : s.mapViewportSize)
+          : 'hidden',
+      }
+    }),
+  setMapOpen: (open) =>
+    set((s) => ({
+      isMapOpen: open,
+      mapViewportSize: open
+        ? (s.mapViewportSize === 'hidden' ? 'balanced' : s.mapViewportSize)
+        : 'hidden',
+    })),
   setGraphicProfile: (profile) => set({ graphicProfile: profile }),
   togglePerformanceMonitor: () => set((s) => ({ showPerformanceMonitor: !s.showPerformanceMonitor })),
   setShowTiltIndicator: (show) => {

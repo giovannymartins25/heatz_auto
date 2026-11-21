@@ -6,6 +6,7 @@ import { EngineSimulator, type EngineSimulatorSnapshot } from '@/systems/engine'
 import { Transmission, AutomaticTransmission, type TransmissionSnapshot, type AutoTransmissionSnapshot } from '@/systems/transmission'
 import { ClutchSystem, type ClutchSnapshot } from '@/systems/clutch'
 import { VehiclePhysics, DeterministicIntegrator, type PhysicsIntegrityStatus, type VehiclePhysicsSnapshot, type FourWheelDriveMode } from '@/systems/physics'
+import { WorldMap } from '@/systems/world/WorldMap'
 import { TractionControlSystem } from '@/systems/tcs'
 import { PedalInputSystem, createInitialZeroToHundredState, stepZeroToHundredTimer, type ZeroToHundredState } from '@/systems/vehicle'
 import type { SensorPermissionState, SteeringMethod } from '@/systems/input'
@@ -14,7 +15,7 @@ import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 import { clamp } from '@/utils/math'
 import type { AmbientLightColor } from '@/utils/ambientLighting'
 import { useGarageStore, type CarUpgrades, type ExhaustType, type SuspensionHeight, type RearWingPosition, type RearWingType, type TurboLevel, type EngineInternals } from './useGarageStore'
-import { useUIStore } from './useUIStore'
+import { useUIStore, type MapViewportSize } from './useUIStore'
 import { performanceMonitor } from '@/utils/performanceMonitor'
 
 /**
@@ -25,6 +26,8 @@ import { performanceMonitor } from '@/utils/performanceMonitor'
 export interface PhysicsInternalState {
   boostPressureBar: number
   peakBoostBar: number
+  boostTorqueMultiplier: number
+  fuelPowerMultiplier: number
   brakeDiscTemp: number
   brakeFadeFactor: number
   isBrakeGlowing: boolean
@@ -65,6 +68,15 @@ export interface PhysicsInternalState {
   isLaunchControlArmed: boolean
   isLaunching: boolean
   topSpeedRecord: number
+  // ─── Navegação e Dinâmica 2D ───
+  positionX: number
+  positionY: number
+  headingDeg: number
+  surfaceType: string
+  zoneName: string
+  absEngaged: boolean
+  isAirbrakeActive: boolean
+  engineDamageRatio: number
 
   // Acumuladores determinísticos de tempo simulado e contadores de publicação
   elapsedSimMs: number
@@ -128,16 +140,21 @@ export interface SimulationSubstepContext {
   popsAndBangsEnabled: boolean
   suspensionHeight: SuspensionHeight
   rearWingPosition: RearWingPosition
+  rearWingType: RearWingType
   tires: 'street' | 'semi_slick'
   isRaining: boolean
   isAeroWingExtended: boolean
   hasLaunchControl: boolean
   hasBoostGaugeKit: boolean
   fuelType: FuelType
+  engineInternals?: EngineInternals
+  turboLevel?: TurboLevel
   now: number
   injectedSpeedFloor: number
   steeringAngle: number
   fourWheelDriveMode: FourWheelDriveMode
+  clutchUpgrade?: 'stock' | 'ceramic'
+  brakeUpgrade?: 'stock' | 'sport'
 }
 
 function cloneRuntimeCandidate(candidate: SimulationRuntimeCandidate): SimulationRuntimeCandidate {
@@ -179,6 +196,8 @@ function createInitialPhysicsInternalState(
   return {
     boostPressureBar,
     peakBoostBar,
+    boostTorqueMultiplier: 1.0,
+    fuelPowerMultiplier: 1.0,
     brakeDiscTemp,
     brakeFadeFactor,
     isBrakeGlowing: brakeDiscTemp >= 500,
@@ -219,6 +238,14 @@ function createInitialPhysicsInternalState(
     isLaunchControlArmed: false,
     isLaunching: false,
     topSpeedRecord,
+    positionX: overrides.positionX ?? WorldMap.SPAWN_X,
+    positionY: overrides.positionY ?? WorldMap.SPAWN_Y,
+    headingDeg: overrides.headingDeg ?? WorldMap.SPAWN_HEADING_DEG,
+    surfaceType: overrides.surfaceType ?? 'asphalt',
+    zoneName: overrides.zoneName ?? 'Rotatória Central',
+    absEngaged: false,
+    isAirbrakeActive: false,
+    engineDamageRatio: 0,
 
     elapsedSimMs: 0,
     lastVisualUpdateMs: 0,
@@ -369,6 +396,14 @@ interface SimulationActions {
   setSteeringDeadzone: (deadzone: number) => void
   /** Atualiza o estado da permissão de sensores mobile */
   setSensorPermission: (perm: SensorPermissionState) => void
+  /** Alterna visibilidade do mapa 2D dirigível */
+  toggleMap: () => void
+  /** Define estado aberto/fechado do mapa */
+  setMapOpen: (open: boolean) => void
+  /** Ajusta tamanho do mapa de condução */
+  setMapViewportSize: (size: MapViewportSize) => void
+  /** Reseta a posição do veículo para o centro da pista (0, 0) */
+  resetPosition: () => void
   /** Alterna o modo de tração 4x4 (AUTO, 4WD, 4WD LOW) com trava de segurança em velocidade */
   setFourWheelDriveMode: (mode: FourWheelDriveMode) => void
   /** Reseta dados de performance */
@@ -383,6 +418,8 @@ interface SimulationActions {
   resumeSimulation: () => void
   /** Alterna pausa/retomada */
   togglePauseSimulation: () => void
+  /** Define diretamente a velocidade linear do veículo (km/h) para testes e telemetria */
+  setSpeed: (speedKmh: number) => void
 }
 
 interface SimulationState {
@@ -393,6 +430,8 @@ interface SimulationState {
   isBogWarning: boolean       // Motor amarrando (pré-afogamento)
   status: EngineStatus
   isRevLimiting: boolean
+  boostTorqueMultiplier: number
+  fuelPowerMultiplier: number
 
   // Estado da transmissão
   isAutomaticVehicle: boolean
@@ -465,6 +504,8 @@ interface SimulationState {
   exhaustType: ExhaustType
   intakeType: 'stock' | 'cold_air'
   tires: 'street' | 'semi_slick'
+  clutchUpgrade: 'stock' | 'ceramic'
+  brakeUpgrade: 'stock' | 'sport'
   isAeroWingExtended: boolean
   hasPopsAndBangs: boolean
   popsAndBangsEnabled: boolean
@@ -479,6 +520,20 @@ interface SimulationState {
   steeringSensitivity: number
   steeringDeadzone: number
   sensorPermission: SensorPermissionState
+
+  // ─── Condução e Navegação no Mundo 2D ───
+  positionX: number
+  positionY: number
+  headingDeg: number
+  visualPositionX: number
+  visualPositionY: number
+  visualHeadingDeg: number
+  surfaceType: string
+  zoneName: string
+  absEngaged: boolean
+  isAirbrakeActive: boolean
+  isMapOpen: boolean
+  mapViewportSize: MapViewportSize
 
   // Tração 4x4 (Fiat Toro Ranch 2025 e futuros veículos integrais)
   fourWheelDriveMode: FourWheelDriveMode
@@ -563,6 +618,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isBogWarning: false,
   status: 'off',
   isRevLimiting: false,
+  boostTorqueMultiplier: 1.0,
+  fuelPowerMultiplier: 1.0,
   isAutomaticVehicle: true,
   ambientLightColor: 'red',
   currentGear: 0,
@@ -582,6 +639,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   exhaustType: 'stock',
   intakeType: 'stock',
   tires: 'street',
+  clutchUpgrade: 'stock',
+  brakeUpgrade: 'stock',
   isAeroWingExtended: false,
   hasPopsAndBangs: false,
   popsAndBangsEnabled: false,
@@ -629,6 +688,18 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   steeringSensitivity: 1.0,
   steeringDeadzone: 2.0,
   sensorPermission: 'prompt',
+  positionX: WorldMap.SPAWN_X,
+  positionY: WorldMap.SPAWN_Y,
+  headingDeg: WorldMap.SPAWN_HEADING_DEG,
+  visualPositionX: WorldMap.SPAWN_X,
+  visualPositionY: WorldMap.SPAWN_Y,
+  visualHeadingDeg: WorldMap.SPAWN_HEADING_DEG,
+  surfaceType: 'asphalt',
+  zoneName: 'Rotatória Central',
+  absEngaged: false,
+  isAirbrakeActive: false,
+  isMapOpen: true,
+  mapViewportSize: 'balanced',
   fourWheelDriveMode: 'auto',
   fourWheelDriveWarning: null,
   best0to100: null,
@@ -704,13 +775,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       config.transmission,
       config.info.wheelDiameter,
     )
+    const clutchUpgrade = initialUpgrades?.clutchUpgrade ?? 'stock'
+    const brakeUpgrade = initialUpgrades?.brakeUpgrade ?? 'stock'
     const clutch = new ClutchSystem(config.engine.maxTorque)
+    if (clutchUpgrade === 'ceramic') {
+      clutch.setCeramicClutch(true)
+    }
     const physics = new VehiclePhysics({
       weight: config.info.weight,
       wheelDiameter: config.info.wheelDiameter,
       isMotorcycle: config.info.category === 'motorcycle',
       vehicleId: config.id,
       chassis: config.chassis,
+      frontFinalDrive: config.transmission.frontFinalDrive,
+      brakeUpgrade,
     })
 
     let autoTransmission: AutomaticTransmission | null = null
@@ -770,7 +848,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     }
     const defaultWing = initialUpgrades?.rearWingPosition ?? (config.id === 'porsche-gt3' ? 'balanced' : 'low_drag')
     const initialWingType: RearWingType = initialUpgrades?.rearWingType ?? (config.id === 'porsche-gt3' || config.id === 'civic-si' ? 'oem' : 'none')
-    physics.setAerodynamics(defaultWing, config.id === 'porsche-gt3', initialWingType)
+    const initialAeroExtended = false
+    physics.setAerodynamics(defaultWing, initialAeroExtended, initialWingType)
+    physics.setTireCompound(initialUpgrades?.tires || 'street', false)
 
     const defaultAmbientColor: AmbientLightColor =
       config.id === 'golf-gti'
@@ -798,10 +878,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       visualRpm: 0,
       interpolationAlpha: 0,
       steeringAngle: 0,
+      positionX: WorldMap.SPAWN_X,
+      positionY: WorldMap.SPAWN_Y,
+      headingDeg: WorldMap.SPAWN_HEADING_DEG,
+      visualPositionX: WorldMap.SPAWN_X,
+      visualPositionY: WorldMap.SPAWN_Y,
+      visualHeadingDeg: WorldMap.SPAWN_HEADING_DEG,
+      surfaceType: 'asphalt',
+      zoneName: 'Rotatória Central',
+      absEngaged: false,
+      isAirbrakeActive: false,
       isAutomaticVehicle: isAutoOrCvt,
       ambientLightColor: defaultAmbientColor,
       hasTurbo,
-      turboLevel: initialUpgrades?.turboLevel ?? (initialUpgrades?.turboKit || hasTurbo ? 'basic' : 'none'),
+      turboLevel: initialUpgrades?.turboLevel ?? (config.engine.turbo?.enabled ? 'none' : initialUpgrades?.turboKit ? 'basic' : 'none'),
       engineInternals: initialUpgrades?.engineInternals ?? 'stock',
       rearWingType: initialWingType,
       hasLaunchControl,
@@ -816,7 +906,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       exhaustType: initialUpgrades?.exhaustType || (hasTurbo ? 'sport' : 'stock'),
       intakeType: initialUpgrades?.intakeType || 'stock',
       tires: initialUpgrades?.tires || 'street',
-      isAeroWingExtended: config.id === 'porsche-gt3',
+      clutchUpgrade,
+      brakeUpgrade,
+      isAeroWingExtended: initialAeroExtended,
       hasPopsAndBangs: initialUpgrades?.hasPopsAndBangs ?? false,
       popsAndBangsEnabled: initialUpgrades?.popsAndBangsEnabled ?? false,
       suspensionHeight: initialUpgrades?.suspensionHeight ?? 'stock',
@@ -867,6 +959,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isStalled: false,
       status: 'off',
       isRevLimiting: false,
+      boostTorqueMultiplier: 1.0,
+      fuelPowerMultiplier: 1.0,
       tcsEnabled: hasTcs,
       tcsIntervening: false,
       tcsInterventionLevel: 0,
@@ -886,6 +980,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isBurningOut: false,
       tireSmokeDensity: 0,
       windowsOpen: false,
+      isMapOpen: true,
+      mapViewportSize: 'balanced',
       shifterLayout: !isAutoOrCvt ? 'h_pattern' : 'sequential',
       isGearGrinding: false,
       gearGrindTrigger: 0,
@@ -1106,7 +1202,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setEquippedUpgrades: (upgrades: Partial<CarUpgrades>) => {
-    const { _config, _physics } = get()
+    const { _config, _physics, _clutch } = get()
     set((state) => {
       const hasTurbo = Boolean(_config?.engine.turbo?.enabled || (upgrades.turboKit !== undefined ? upgrades.turboKit : state.hasTurbo))
       const turboLevel = upgrades.turboLevel ?? state.turboLevel ?? (hasTurbo ? 'basic' : 'none')
@@ -1115,6 +1211,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       const exhaustType = upgrades.exhaustType ?? state.exhaustType
       const intakeType = upgrades.intakeType ?? state.intakeType
       const tires = upgrades.tires ?? state.tires
+      const clutchUpgrade = upgrades.clutchUpgrade ?? state.clutchUpgrade ?? 'stock'
+      const brakeUpgrade = upgrades.brakeUpgrade ?? state.brakeUpgrade ?? 'stock'
       const tuningStage = upgrades.tuningStage ?? state.tuningStage
       const hasRetrofitInfotainment =
         upgrades.multimediaKit !== undefined ? upgrades.multimediaKit : state.hasRetrofitInfotainment
@@ -1130,10 +1228,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       const suspensionHeight = upgrades.suspensionHeight ?? state.suspensionHeight
       const rearWingPosition = upgrades.rearWingPosition ?? state.rearWingPosition
 
+      if (_clutch) {
+        _clutch.setCeramicClutch(clutchUpgrade === 'ceramic')
+      }
+
       if (_physics) {
-        let baseFric = tires === 'semi_slick' ? 1.22 : 0.95
-        if (state.isRaining) baseFric = tires === 'semi_slick' ? 0.52 : 0.62
-        _physics.setSurfaceFriction(baseFric)
+        _physics.setBrakeUpgrade(brakeUpgrade)
+        _physics.setTireCompound(tires, state.isRaining)
         _physics.setSuspensionHeight(suspensionHeight)
         _physics.setAerodynamics(rearWingPosition, state.isAeroWingExtended, rearWingType)
       }
@@ -1146,6 +1247,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         exhaustType,
         intakeType,
         tires,
+        clutchUpgrade,
+        brakeUpgrade,
         tuningStage,
         hasRetrofitInfotainment,
         hasBoostGaugeKit,
@@ -1209,11 +1312,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   toggleRain: () => {
     const nextRain = !get().isRaining
-    const { _physics, tires, isAeroWingExtended } = get()
+    const { _physics, tires } = get()
     if (_physics) {
-      let baseFric = tires === 'semi_slick' ? (nextRain ? 0.52 : 1.22) : (nextRain ? 0.62 : 0.95)
-      if (isAeroWingExtended) baseFric += 0.14
-      _physics.setSurfaceFriction(baseFric)
+      _physics.setTireCompound(tires, nextRain)
     }
     set({ isRaining: nextRain, isWiperActive: nextRain ? true : get().isWiperActive })
     HapticFeedback.light()
@@ -1257,6 +1358,41 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (Number.isFinite(deadzone)) {
       set({ steeringDeadzone: clamp(deadzone, 0, 15) })
     }
+  },
+
+  toggleMap: () => {
+    const nextOpen = !get().isMapOpen
+    set({ isMapOpen: nextOpen })
+    useUIStore.getState().setMapOpen(nextOpen)
+    HapticFeedback.light()
+  },
+
+  setMapOpen: (open: boolean) => {
+    set({ isMapOpen: open })
+    useUIStore.getState().setMapOpen(open)
+  },
+
+  setMapViewportSize: (size: MapViewportSize) => {
+    set({ mapViewportSize: size })
+    useUIStore.getState().setMapViewportSize(size)
+  },
+
+  resetPosition: () => {
+    const { _physics } = get()
+    if (_physics) {
+      _physics.setPosition(0, 25, 0)
+    }
+    set({
+      positionX: 0,
+      positionY: 25,
+      headingDeg: 0,
+      visualPositionX: 0,
+      visualPositionY: 25,
+      visualHeadingDeg: 0,
+      surfaceType: 'asphalt',
+      zoneName: 'Rotatória Central',
+    })
+    HapticFeedback.medium()
   },
 
   setSensorPermission: (perm: SensorPermissionState) => {
@@ -1783,6 +1919,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     HapticFeedback.medium()
   },
 
+  setSpeed: (speedKmh: number) => {
+    const { _physics } = get()
+    if (_physics) {
+      _physics.setSpeedKmh(speedKmh)
+      set((s) => ({
+        speed: speedKmh,
+        _phys: {
+          ...s._phys,
+          speedKmh,
+        },
+      }))
+    }
+  },
+
   startDragRace: () => {
     const { _physics, _engine } = get()
     _physics?.reset()
@@ -2077,16 +2227,21 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       popsAndBangsEnabled: state.popsAndBangsEnabled,
       suspensionHeight: state.suspensionHeight,
       rearWingPosition: state.rearWingPosition,
+      rearWingType: state.rearWingType,
       tires: state.tires,
       isRaining: state.isRaining,
       isAeroWingExtended: state.isAeroWingExtended,
       hasLaunchControl: state.hasLaunchControl,
       hasBoostGaugeKit: state.hasBoostGaugeKit,
       fuelType: state.fuelType,
+      engineInternals: state.engineInternals,
+      turboLevel: state.turboLevel,
       now,
       injectedSpeedFloor,
       steeringAngle: state.steeringAngle,
       fourWheelDriveMode: state.fourWheelDriveMode,
+      clutchUpgrade: state.clutchUpgrade,
+      brakeUpgrade: state.brakeUpgrade,
     }
 
     // Sincroniza o estado mestre do integrador com eventuais injeções externas
@@ -2169,7 +2324,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             _clutch.setPosition(0.95)
             substepPhys.isKickdown = false
           } else if (substepPhys.isLaunching) {
-            _clutch.setPosition(0.0)
+            // Modulação progressiva da dupla embreagem úmida durante o Launch Control:
+            // mantém acoplamento alto sem travar abruptamente o virabrequim a 0 km/h (evita estol)
+            const launchEngagement = clamp(0.45 + (substepPhys.speedKmh / 28) * 0.55, 0.45, 1.0)
+            _clutch.setPosition(1.0 - launchEngagement)
             substepPhys.isKickdown = true
           } else {
             const autoDecision = _autoTransmission.decide({
@@ -2224,14 +2382,23 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
         const gear = _transmission.currentGear
         substepPhys.gear = gear
-        const gearRatio = _transmission.calculator.getGearRatio(gear)
+        const isCvtContinuous =
+          _config.transmission.type === 'cvt' &&
+          state.gearSelectorPosition !== 'M' &&
+          state.transmissionMode !== 'manual_simulated'
+        const gearRatio =
+          isCvtContinuous && _autoTransmission
+            ? _autoTransmission.getCurrentCvtRatio()
+            : _transmission.calculator.getGearRatio(gear)
         const finalDrive = _config.transmission.finalDrive
         const isInNeutral = gear === 0 || gear === -2
 
-        // 2. Velocidade angular das rodas e da entrada da transmissão
-        const speedMs = _physics.getSpeedMs()
+        // 2. Velocidade angular das rodas tracionadas e da entrada da transmissão
+        // Usa wheelSpeedMs (rotação real das rodas, incluindo patinação/wheelspin) para evitar
+        // reação impossível de torque travado no asfalto durante arrancadas fortes em carros manuais.
+        const wheelLinearMs = Math.max(_physics.getSpeedMs(), _physics.getWheelSpeedMs())
         const wheelRadius = _config.info.wheelDiameter / 2
-        const wheelAngVel = speedMs / wheelRadius
+        const wheelAngVel = wheelLinearMs / wheelRadius
         const transInputAngVel = isInNeutral
           ? _engine.getAngularVelocity()
           : wheelAngVel * (gearRatio * finalDrive)
@@ -2240,13 +2407,19 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           ? Math.min(ctx.throttle, 0.45)
           : ctx.throttle
 
-        // 3. ClutchSystem: torque de atrito transferido e carga sobre o motor
+        // 3. ClutchSystem: torque de atrito transferido e carga física refletida pelo solo/drivetrain
+        const totalGearRatioAbs = Math.abs(gearRatio * finalDrive)
+        const maxReflectedRoadTorque =
+          !isInNeutral && totalGearRatioAbs > 0.1
+            ? (_physics.getMaxGripTorque() / (totalGearRatioAbs * 0.90)) * 1.15 + 45
+            : 0
         const clutchState = _clutch.calculateTorqueTransfer(
           _engine.getAngularVelocity(),
           transInputAngVel,
           isInNeutral,
           _engine.getDrivetrainTorque(effectiveSubstepThrottle),
           dt,
+          maxReflectedRoadTorque,
         )
 
         // 4. EngineSimulator: processa o tick com o torque de CARGA da embreagem sobre o volante
@@ -2287,20 +2460,41 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           : ctx.exhaustType === 'cat_back' ? 1.05
           : ctx.exhaustType === 'sport' ? 1.04
           : 1.0
-        const turboKitMult = (!_config.engine.turbo?.enabled && ctx.hasTurbo) ? 1.45 : 1.0
+
+        // Ganho de torque físico da turbina baseado na pressão instantânea de boost
+        let turboKitMult = 1.0
+        if (!_config.engine.turbo?.enabled && ctx.hasTurbo) {
+          turboKitMult = 1.0 + Math.max(0, substepPhys.boostPressureBar) * 0.80
+        } else if (_config.engine.turbo?.enabled) {
+          const stockMaxBoost = _config.engine.turbo.maxBoostBar || 1.25
+          if (substepPhys.boostPressureBar > stockMaxBoost) {
+            turboKitMult = 1.0 + (substepPhys.boostPressureBar - stockMaxBoost) * 0.70
+          }
+        }
+
+        // Gasolina Podium 102: avanço de ignição (+4% a +5% torque) apenas em alta taxa/turbo OEM
+        let fuelTorqueMult = 1.0
+        if (ctx.fuelType === 'premium_podium') {
+          if (_config.id === 'porsche-gt3') {
+            fuelTorqueMult = 1.05
+          } else if (_config.id === 'golf-gti') {
+            fuelTorqueMult = 1.04
+          } else if (_config.id === 'civic-si' && substepPhys.rpm >= 5500) {
+            fuelTorqueMult = 1.04
+          }
+        }
+
         const driveModeMult = ctx.drivingMode === 'track' ? 1.10 : ctx.drivingMode === 'sport' ? 1.05 : 1.0
         const isNosInjecting = substepPhys.nosActive && ctx.hasNosKit && substepPhys.nosPressurePercent > 0 && ctx.throttle > 0.65 && substepPhys.isRunning
         const nosMult = isNosInjecting ? 1.55 : 1.0
-        const totalTorqueMult = stageMult * intakeMult * exhaustMult * turboKitMult * driveModeMult * nosMult
+        const totalTorqueMult = stageMult * intakeMult * exhaustMult * turboKitMult * driveModeMult * nosMult * fuelTorqueMult
+        substepPhys.fuelPowerMultiplier = fuelTorqueMult
+        substepPhys.boostTorqueMultiplier = turboKitMult
 
-        let targetFriction = ctx.tires === 'semi_slick' ? 1.22 : 0.95
-        if (ctx.isRaining) {
-          targetFriction = ctx.tires === 'semi_slick' ? 0.52 : 0.62
-        }
-        _physics.setSurfaceFriction(targetFriction)
+        _physics.setTireCompound(ctx.tires, ctx.isRaining)
         _physics.setFourWheelDriveMode(ctx.fourWheelDriveMode)
         _physics.setSuspensionHeight(ctx.suspensionHeight)
-        _physics.setAerodynamics(ctx.rearWingPosition, ctx.isAeroWingExtended)
+        _physics.setAerodynamics(ctx.rearWingPosition, ctx.isAeroWingExtended, ctx.rearWingType)
 
         const rawBrake = Math.max(ctx.brake, ctx.handbrake || gear === -2 ? 1 : 0)
         const effectiveBrake = rawBrake * substepPhys.brakeFadeFactor
@@ -2308,13 +2502,27 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           clutchState.transmittedTorque >= 0
             ? clutchState.transmittedTorque * totalTorqueMult
             : clutchState.transmittedTorque
+        const steeringAngleRad = (ctx.steeringAngle || 0) * 0.55
         const physicsTick = _physics.tick({
           driveTorqueAtTransmission,
           gearRatio,
           finalDrive,
+          frontFinalDrive: _config.transmission.frontFinalDrive,
           brake: effectiveBrake,
           deltaTime: dt,
+          steeringAngleRad,
+          gear,
+          isRaining: ctx.isRaining,
+          brakeUpgrade: ctx.brakeUpgrade,
         })
+
+        substepPhys.positionX = physicsTick.positionX
+        substepPhys.positionY = physicsTick.positionY
+        substepPhys.headingDeg = physicsTick.headingDeg
+        substepPhys.surfaceType = physicsTick.surfaceType
+        substepPhys.zoneName = physicsTick.zoneName
+        substepPhys.absEngaged = physicsTick.absEngaged
+        substepPhys.isAirbrakeActive = physicsTick.isAirbrakeActive
 
         const prevSubstepSpeed = substepPhys.speedKmh
         substepPhys.speedKmh = gear === -2 ? 0 : physicsTick.speedKmh
@@ -2360,10 +2568,14 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           }
         }
 
-        // 7. Quando 100% acoplado em movimento com rotação suficiente, sincroniza RPM
-        if (gear !== 0 && _clutch.getEngagement() > 0.95 && substepPhys.isRunning) {
+        // 7. Quando 100% acoplado em movimento com rotação suficiente acima do estol, sincroniza RPM
+        if (
+          gear !== 0 &&
+          _clutch.getEngagement() > 0.95 &&
+          substepPhys.isRunning
+        ) {
           const expectedRpm = _transmission.calculator.speedToRpm(substepPhys.speedKmh, gear)
-          if (expectedRpm >= _config.engine.idleRpm) {
+          if (expectedRpm >= _config.engine.idleRpm * 0.85) {
             _engine.setRpm(expectedRpm)
             substepPhys.rpm = expectedRpm
           }
@@ -2373,15 +2585,52 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
         // Turbo Boost Pressure Calculation
         if (ctx.hasTurbo) {
-          const turboCfg = _config.engine.turbo || {
-            maxBoostBar: 1.25,
-            spoolRpmStart: 1800,
-            fullBoostRpm: 2800,
+          const isOriginallyTurbo = !!_config.engine.turbo?.enabled
+          const turboLevel = ctx.turboLevel || (isOriginallyTurbo ? 'basic' : 'none')
+
+          let baseMaxBoost = 0
+          let spoolRpm = 1800
+          let fullRpm = 2800
+
+          if (isOriginallyTurbo) {
+            baseMaxBoost = _config.engine.turbo?.maxBoostBar ?? 1.25
+            spoolRpm = _config.engine.turbo?.spoolRpmStart ?? 1800
+            fullRpm = _config.engine.turbo?.fullBoostRpm ?? 2800
+
+            if (turboLevel === 'basic') {
+              baseMaxBoost += 0.30
+            } else if (turboLevel === 'intermediate') {
+              baseMaxBoost += 0.65
+              spoolRpm += 150
+              fullRpm += 200
+            } else if (turboLevel === 'big_turbo') {
+              baseMaxBoost += 1.20
+              spoolRpm += 400
+              fullRpm += 500
+            }
+          } else {
+            // Motores aspirados com kit turbo instalado
+            if (turboLevel === 'basic') {
+              baseMaxBoost = 0.45
+              spoolRpm = 2000
+              fullRpm = 3200
+            } else if (turboLevel === 'intermediate') {
+              baseMaxBoost = 0.85
+              spoolRpm = 2400
+              fullRpm = 3800
+            } else if (turboLevel === 'big_turbo') {
+              baseMaxBoost = 1.55
+              spoolRpm = 3200
+              fullRpm = 4800
+            } else {
+              baseMaxBoost = 0.40
+              spoolRpm = 2200
+              fullRpm = 3400
+            }
           }
-          const extraBoost = stage === 1 ? 0.35 : stage === 2 ? 0.65 : stage === 3 ? 1.15 : 0.0
-          const maxBoost = (turboCfg.maxBoostBar || 1.25) + extraBoost
-          const spoolRpm = turboCfg.spoolRpmStart || 1600
-          const fullRpm = turboCfg.fullBoostRpm || 2600
+
+          const stageExtraBoost = stage === 1 ? 0.20 : stage === 2 ? 0.40 : stage === 3 ? 0.70 : 0.0
+          const maxBoost = baseMaxBoost + stageExtraBoost
 
           let targetBoost = -0.7
           if (substepPhys.isRunning) {
@@ -2399,7 +2648,16 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             targetBoost = 0
           }
 
-          const boostSpeed = targetBoost > substepPhys.boostPressureBar ? 4.8 : 8.5
+          const spoolRate =
+            turboLevel === 'big_turbo'
+              ? 3.6
+              : turboLevel === 'intermediate'
+              ? 4.8
+              : isOriginallyTurbo && turboLevel === 'none'
+              ? 8.2
+              : 6.2
+          const dropRate = 8.5
+          const boostSpeed = targetBoost > substepPhys.boostPressureBar ? spoolRate : dropRate
           substepPhys.boostPressureBar += (targetBoost - substepPhys.boostPressureBar) * clamp(dt * boostSpeed, 0, 1)
           substepPhys.peakBoostBar = Math.max(substepPhys.peakBoostBar, substepPhys.boostPressureBar)
         } else if (ctx.hasBoostGaugeKit) {
@@ -2424,13 +2682,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           ? Math.max(substepPhys.speedKmh, ctx.injectedSpeedFloor)
           : substepPhys.speedKmh
         if (rawBrake > 0.05 && effectiveBrakeSpeed > 1) {
-          substepPhys.brakeDiscTemp += rawBrake * (effectiveBrakeSpeed / 75) * 80 * dt
+          substepPhys.brakeDiscTemp += rawBrake * (effectiveBrakeSpeed / 75) * 140 * dt
         }
-        const discCooling = ((substepPhys.speedKmh / 100) * 0.75 + 0.18) * Math.max(0, (substepPhys.brakeDiscTemp - 60) / 100) * 9.0 * dt
+        const discCoolingMult = ctx.brakeUpgrade === 'sport' ? 1.40 : 1.0
+        const discCooling = ((substepPhys.speedKmh / 100) * 0.75 + 0.18) * Math.max(0, (substepPhys.brakeDiscTemp - 60) / 100) * 9.0 * dt * discCoolingMult
         substepPhys.brakeDiscTemp = clamp(substepPhys.brakeDiscTemp - discCooling, 60, 950)
         substepPhys.isBrakeGlowing = substepPhys.brakeDiscTemp >= 500
-        substepPhys.brakeFadeFactor = substepPhys.brakeDiscTemp > 650
-          ? clamp(1.0 - ((substepPhys.brakeDiscTemp - 650) / 300) * 0.55, 0.45, 1.0)
+        const fadeThreshold = ctx.brakeUpgrade === 'sport' ? 820 : 650
+        substepPhys.brakeFadeFactor = substepPhys.brakeDiscTemp > fadeThreshold
+          ? clamp(1.0 - ((substepPhys.brakeDiscTemp - fadeThreshold) / 250) * 0.55, 0.45, 1.0)
           : 1.0
 
         // Sistema Real de Combustível & Consumo Dinâmico
@@ -2511,6 +2771,50 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           substepPhys.engineBlownTrigger = Date.now()
           _engine.stop()
           HapticFeedback.heavy()
+        }
+
+        // ─── MODELO FÍSICO DE DANO MECÂNICO ACUMULADO (ETAPA 2) ───
+        // P_ref = 1.00 bar (gauge) normaliza pressão de sobrealimentação prevenindo divisão por zero em motores aspirados
+        if (substepPhys.isRunning && !substepPhys.isEngineBlown) {
+          const internals = ctx.engineInternals ?? 'stock'
+          const internalsTorqueMult = internals === 'race' ? 2.0 : internals === 'forged' ? 1.6 : internals === 'reinforced' ? 1.3 : 1.0
+          const internalsBoostBonus = internals === 'race' ? 1.4 : internals === 'forged' ? 0.9 : internals === 'reinforced' ? 0.4 : 0.0
+
+          const maxRatedTorque = _config.engine.maxTorque
+          const torqueTolerance = maxRatedTorque * 1.35 * internalsTorqueMult
+
+          const maxAllowedBoostBar = (_config.engine.turbo?.maxBoostBar ?? 0) + internalsBoostBonus
+          const PREF_TURBO_BAR = 1.00
+
+          const k_tau = 0.015
+          const k_P = 0.020
+          const k_T = 0.005
+          const k_N = 0.100
+
+          const effectiveEngineTorque = _engine.getTorqueOutput() * totalTorqueMult
+          const torqueExcess = Math.max(0, (effectiveEngineTorque - torqueTolerance) / torqueTolerance)
+          const boostExcess = Math.max(0, (substepPhys.boostPressureBar - maxAllowedBoostBar) / PREF_TURBO_BAR)
+          const tempExcess = Math.max(0, (substepPhys.coolantTemp - 118) / 118)
+          const nosExcess = isNosInjecting && (substepPhys.rpm > _config.engine.revLimiter - 100 || substepPhys.rpm < 2400) ? 1.0 : 0.0
+
+          const damageRatePerSec = k_tau * torqueExcess + k_P * boostExcess + k_T * tempExcess + k_N * nosExcess
+          if (damageRatePerSec > 0) {
+            substepPhys.engineDamageRatio = (substepPhys.engineDamageRatio ?? 0) + damageRatePerSec * dt
+            if (substepPhys.engineDamageRatio >= 1.0) {
+              substepPhys.isEngineBlown = true
+              substepPhys.damageReason =
+                torqueExcess > 0 ? 'Sobrecarga de Torque: Biela Partida!'
+                : boostExcess > 0 ? 'Excesso de Pressão: Bloco Rompido!'
+                : nosExcess > 0 ? 'Detonação por Óxido Nitroso: Pistão Furado!'
+                : 'Fadiga Térmica Severa: Motor Fundido!'
+              substepPhys.isRunning = false
+              substepPhys.isStalled = true
+              substepPhys.status = 'stalled'
+              substepPhys.engineBlownTrigger = Date.now()
+              _engine.stop()
+              HapticFeedback.heavy()
+            }
+          }
         }
 
         // Burnout & Fumaça Densa de Pneus
@@ -2675,6 +2979,14 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const visualSpeed = prevPhys.speedKmh + (currPhys.speedKmh - prevPhys.speedKmh) * alpha
     const visualRpm = prevPhys.rpm + (currPhys.rpm - prevPhys.rpm) * alpha
 
+    const visualPositionX = (prevPhys.positionX ?? 0) + ((currPhys.positionX ?? 0) - (prevPhys.positionX ?? 0)) * alpha
+    const visualPositionY = (prevPhys.positionY ?? 0) + ((currPhys.positionY ?? 0) - (prevPhys.positionY ?? 0)) * alpha
+
+    let dHeading = (currPhys.headingDeg ?? 0) - (prevPhys.headingDeg ?? 0)
+    while (dHeading > 180) dHeading -= 360
+    while (dHeading < -180) dHeading += 360
+    const visualHeadingDeg = (((prevPhys.headingDeg ?? 0) + dHeading * alpha) + 360) % 360
+
     phys = currPhys
     const timer0to100State = stepResult.state.timer0to100State
 
@@ -2810,6 +3122,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isLaunching: phys.isLaunching,
       boostPressureBar: pubBoost,
       peakBoostBar: pubPeakBoost,
+      boostTorqueMultiplier: phys.boostTorqueMultiplier ?? 1.0,
+      fuelPowerMultiplier: phys.fuelPowerMultiplier ?? 1.0,
       tcsIntervening: phys.tcsIntervening,
       tcsInterventionLevel: phys.tcsInterventionLevel,
       clutchSlipRpm: phys.clutchSlipRpm,
@@ -2822,6 +3136,16 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       current0to100: timer0to100State.currentDisplay,
       isTiming0to100: timer0to100State.isTiming,
       topSpeedRecord: phys.topSpeedRecord,
+      positionX: phys.positionX,
+      positionY: phys.positionY,
+      headingDeg: phys.headingDeg,
+      visualPositionX,
+      visualPositionY,
+      visualHeadingDeg,
+      surfaceType: phys.surfaceType,
+      zoneName: phys.zoneName,
+      absEngaged: phys.absEngaged,
+      isAirbrakeActive: phys.isAirbrakeActive,
       _timer0to100State: timer0to100State,
       _accumulator: _integrator.getAccumulator(),
       _phys: phys,
@@ -2947,6 +3271,16 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       visualRpm: 0,
       interpolationAlpha: 0,
       steeringAngle: 0,
+      positionX: WorldMap.SPAWN_X,
+      positionY: WorldMap.SPAWN_Y,
+      headingDeg: WorldMap.SPAWN_HEADING_DEG,
+      visualPositionX: WorldMap.SPAWN_X,
+      visualPositionY: WorldMap.SPAWN_Y,
+      visualHeadingDeg: WorldMap.SPAWN_HEADING_DEG,
+      surfaceType: 'asphalt',
+      zoneName: 'Rotatória Central',
+      absEngaged: false,
+      isAirbrakeActive: false,
       _phys: createInitialPhysicsInternalState({
         gear: initialGear,
         nosPressurePercent: get().nosPressurePercent,

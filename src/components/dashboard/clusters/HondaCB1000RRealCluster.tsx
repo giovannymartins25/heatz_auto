@@ -1,5 +1,7 @@
 import { memo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
+import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
 
 interface HondaCB1000RRealClusterProps {
   telemetry: DashboardTelemetry
@@ -31,6 +33,8 @@ export const HondaCB1000RRealCluster = memo(function HondaCB1000RRealCluster({
     auxGauges,
     shiftLight,
   } = telemetry
+  const topSpeedRecord = useSimulationStore((s) => s.topSpeedRecord)
+  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
 
   const maxRpm = 12000
   const clampedRpm = Math.min(Math.max(tachometer.rpm, 0), maxRpm)
@@ -251,10 +255,10 @@ export const HondaCB1000RRealCluster = memo(function HondaCB1000RRealCluster({
             </div>
           </div>
 
-          {/* Odômetro / Trip */}
+          {/* Odômetro / VMax reais */}
           <div className="flex items-center gap-2 text-zinc-400 text-[9px]">
-            <span>TRIP A: <strong className="text-white">124.8 km</strong></span>
-            <span>TOTAL: <strong className="text-white">4.820 km</strong></span>
+            <span>VMAX: <strong className="text-white">{Math.round(topSpeedRecord)} km/h</strong></span>
+            <span>TOTAL: <strong className="text-white">{Math.round(mileageKm).toLocaleString('pt-BR')} km</strong></span>
           </div>
 
           {/* Temperatura da Água */}

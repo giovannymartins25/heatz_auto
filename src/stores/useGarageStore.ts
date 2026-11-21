@@ -94,9 +94,8 @@ export function createDefaultUpgrades(vehicleId: string): CarUpgrades {
       ? 'premium_podium'
       : 'common_gasoline'
 
-  const defaultTurboLevel: TurboLevel = isOriginallyTurbo
-    ? (vehicleId === 'gol-quadrado-turbo' ? 'intermediate' : 'basic')
-    : 'none'
+  const defaultTurboLevel: TurboLevel =
+    vehicleId === 'gol-quadrado-turbo' ? 'intermediate' : 'none'
 
   const defaultInternals: EngineInternals = vehicleId === 'gol-quadrado-turbo' ? 'forged' : 'stock'
   const defaultWingType: RearWingType = vehicleId === 'porsche-gt3' || vehicleId === 'civic-si' ? 'oem' : 'none'
@@ -128,8 +127,14 @@ export function createDefaultUpgrades(vehicleId: string): CarUpgrades {
 
 /** Garante que carros salvos em versões antigas recebam os novos campos de upgrade */
 function normalizeCar(car: GarageCarInstance): GarageCarInstance {
+  let customName = car.customName
+  // Migração de nomenclatura: instância padrão antiga do Porsche 992 Turbo S
+  if (car.vehicleId === 'porsche-gt3' && customName === 'Porsche 911 GT3 RS PDK') {
+    customName = 'Porsche 911 Turbo S (992) PDK'
+  }
   return {
     ...car,
+    customName,
     upgrades: { ...createDefaultUpgrades(car.vehicleId), ...(car.upgrades || {}) },
   }
 }
@@ -154,7 +159,7 @@ const DEFAULT_INITIAL_CARS: GarageCarInstance[] = [
   {
     instanceId: 'inst-porsche-gt3-default',
     vehicleId: 'porsche-gt3',
-    customName: 'Porsche 911 GT3 RS PDK',
+    customName: 'Porsche 911 Turbo S (992) PDK',
     upgrades: createDefaultUpgrades('porsche-gt3'),
     mileageKm: 3450,
     acquiredAt: Date.now() - 86400000 * 6,

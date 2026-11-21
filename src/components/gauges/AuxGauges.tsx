@@ -16,9 +16,16 @@ interface AuxGaugesProps {
  * Mantém valores neutros e realistas sem criar física artificial ou consumo falso.
  */
 export const AuxGauges = memo(function AuxGauges({
+  fuelLevel,
   fuelCapacity,
+  fuelPercent,
   coolantTemp,
 }: AuxGaugesProps) {
+  const clampedFuelPct = Math.max(0, Math.min(100, fuelPercent))
+  const tempPct = Math.max(4, Math.min(100, ((coolantTemp - 50) / 80) * 100))
+  const isTempHot = coolantTemp >= 105
+  const isFuelLow = clampedFuelPct <= 15
+
   return (
     <div className="flex items-center justify-between w-full max-w-[280px] px-2 py-1 select-none">
       {/* Marcador de Combustível */}
@@ -29,12 +36,14 @@ export const AuxGauges = memo(function AuxGauges({
         <div className="flex flex-col">
           <div className="flex justify-between w-16 text-[8px] font-mono text-zinc-500">
             <span>E</span>
-            <span>{fuelCapacity}L</span>
+            <span title={`${fuelLevel.toFixed(1)}L / ${fuelCapacity}L`}>{Math.round(clampedFuelPct)}%</span>
             <span>F</span>
           </div>
-          {/* Barra de combustível — nível inicial cheio/preparado */}
           <div className="w-16 h-1.5 rounded-full bg-zinc-900 border border-white/10 overflow-hidden">
-            <div className="w-full h-full bg-emerald-500/80 rounded-full" />
+            <div
+              className={`h-full rounded-full transition-all duration-150 ${isFuelLow ? 'bg-amber-500' : 'bg-emerald-500/80'}`}
+              style={{ width: `${clampedFuelPct}%` }}
+            />
           </div>
         </div>
       </div>
@@ -44,12 +53,14 @@ export const AuxGauges = memo(function AuxGauges({
         <div className="flex flex-col items-end">
           <div className="flex justify-between w-16 text-[8px] font-mono text-zinc-500">
             <span>C</span>
-            <span>{coolantTemp}°C</span>
+            <span className={isTempHot ? 'text-red-400 font-bold' : ''}>{Math.round(coolantTemp)}°C</span>
             <span>H</span>
           </div>
-          {/* Barra de temperatura — estado neutro ideal na zona de 90°C */}
           <div className="w-16 h-1.5 rounded-full bg-zinc-900 border border-white/10 overflow-hidden">
-            <div className="w-[50%] h-full bg-cyan-400/80 rounded-full" />
+            <div
+              className={`h-full rounded-full transition-all duration-150 ${isTempHot ? 'bg-red-500' : 'bg-cyan-400/80'}`}
+              style={{ width: `${tempPct}%` }}
+            />
           </div>
         </div>
         <svg className="w-3.5 h-3.5 fill-current opacity-70" viewBox="0 0 24 24">

@@ -27,6 +27,7 @@ export const CLUSTER_PROFILES: Record<DashboardTelemetry['theme'], ClusterProfil
 interface VehicleDashboardClusterProps {
   telemetry: DashboardTelemetry
   expanded?: boolean
+  maxScale?: number
 }
 
 /**
@@ -38,6 +39,7 @@ interface VehicleDashboardClusterProps {
 export const VehicleDashboardCluster = memo(function VehicleDashboardCluster({
   telemetry,
   expanded = false,
+  maxScale: maxScaleProp,
 }: VehicleDashboardClusterProps) {
   performanceMonitor.recordReactRender()
   const containerRef = useRef<HTMLElement>(null)
@@ -99,7 +101,7 @@ export const VehicleDashboardCluster = memo(function VehicleDashboardCluster({
   const effectiveHeight =
     bounds.height > 0 ? bounds.height : typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.4) : 260
 
-  const maxScale = expanded ? 1.6 : 1.35
+  const maxScale = maxScaleProp ?? (expanded ? 1.6 : 1.35)
   const rawScale = Math.min(maxScale, effectiveWidth / naturalWidth, effectiveHeight / naturalHeight)
   const scale = Math.floor(rawScale * 1000) / 1000
 

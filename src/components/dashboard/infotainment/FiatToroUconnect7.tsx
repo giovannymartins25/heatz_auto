@@ -11,7 +11,7 @@ export interface FiatToroUconnect7Props {
   fill?: boolean
 }
 
-type Uconnect7Tab = 'media' | 'climate' | 'vehicle' | 'settings'
+type Uconnect7Tab = 'media' | 'climate' | 'nav' | 'vehicle' | 'settings'
 
 function fmtTime(sec: number) {
   const m = Math.floor(sec / 60)
@@ -53,6 +53,13 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
   const [brightness, setBrightness] = useState(85)
 
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
+  const positionX = useSimulationStore((s) => s.positionX)
+  const positionY = useSimulationStore((s) => s.positionY)
+  const headingDeg = useSimulationStore((s) => s.headingDeg)
+  const zoneName = useSimulationStore((s) => s.zoneName)
+  const surfaceType = useSimulationStore((s) => s.surfaceType)
+  const isMapOpen = useSimulationStore((s) => s.isMapOpen)
+  const toggleMap = useSimulationStore((s) => s.toggleMap)
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 15000)
@@ -300,6 +307,93 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
           </div>
         )}
 
+        {activeTab === 'nav' && (
+          <div className="flex flex-col justify-between items-center gap-1 h-full p-1 text-center font-mono">
+            {/* Header da Navegação Toro */}
+            <div className="w-full flex items-center justify-between px-2 py-0.5 rounded-lg bg-zinc-900/90 border border-red-500/30">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+                <span className="text-[7px] font-black text-red-400 uppercase tracking-widest">
+                  UCONNECT NAV 7"
+                </span>
+              </div>
+              <span className="text-[7px] text-zinc-300 font-bold uppercase truncate max-w-[130px]">
+                {zoneName || 'Circuito 2D'}
+              </span>
+            </div>
+
+            {/* Radar / Mapa Vetorial Toro */}
+            <div className="relative w-full max-w-[260px] h-[90px] sm:h-[105px] rounded-xl bg-[#090b10] border border-red-500/20 overflow-hidden shadow-inner flex items-center justify-center">
+              <div
+                className="absolute inset-0 opacity-15 pointer-events-none"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(to right, #ef4444 1px, transparent 1px), linear-gradient(to bottom, #ef4444 1px, transparent 1px)',
+                  backgroundSize: '20px 20px',
+                }}
+              />
+              <div className="absolute inset-x-0 top-1/2 h-[1px] bg-red-500/20" />
+              <div className="absolute inset-y-0 left-1/2 w-[1px] bg-red-500/20" />
+
+              {/* Indicador do Veículo */}
+              <div
+                className="absolute w-4 h-4 -ml-2 -mt-2 flex items-center justify-center transition-all duration-75"
+                style={{
+                  left: `${Math.max(10, Math.min(90, 50 + (positionX / 300) * 40))}%`,
+                  top: `${Math.max(10, Math.min(90, 50 - (positionY / 300) * 40))}%`,
+                }}
+              >
+                <div
+                  className="text-red-500 text-xs drop-shadow-[0_0_6px_rgba(239,68,68,0.9)]"
+                  style={{ transform: `rotate(${headingDeg}deg)` }}
+                >
+                  ▲
+                </div>
+              </div>
+
+              {/* Rosa dos Ventos */}
+              <div className="absolute top-1 right-2 flex flex-col items-center text-[6px] text-zinc-400 font-bold">
+                <span className="text-red-400 font-black">N</span>
+                <span>{Math.round(headingDeg)}°</span>
+              </div>
+
+              {/* Badge de Superfície */}
+              <div className="absolute bottom-1 left-2 text-[6px] font-bold px-1.5 py-0.5 rounded bg-black/70 border border-white/10 text-zinc-300">
+                PISO: <span className="text-red-400">{surfaceType.toUpperCase()}</span>
+              </div>
+            </div>
+
+            {/* Leituras Numéricas de Coordenadas */}
+            <div className="w-full grid grid-cols-3 gap-1 text-[6.5px] font-bold">
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">COORD X</span>
+                <span className="text-white font-mono">{positionX >= 0 ? '+' : ''}{positionX.toFixed(1)}m</span>
+              </div>
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">COORD Y</span>
+                <span className="text-white font-mono">{positionY >= 0 ? '+' : ''}{positionY.toFixed(1)}m</span>
+              </div>
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">RUMO</span>
+                <span className="text-red-400 font-mono">{Math.round(headingDeg)}°</span>
+              </div>
+            </div>
+
+            {/* Ação: Alternar Mapa Dirigível no Cockpit */}
+            <button
+              onClick={toggleMap}
+              className={`w-full py-0.5 px-2 rounded-lg border text-[7px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow flex items-center justify-center gap-1 ${
+                isMapOpen
+                  ? 'bg-red-600 text-white border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.6)]'
+                  : 'bg-zinc-900 text-red-400 border-red-500/40 hover:bg-zinc-800'
+              }`}
+            >
+              <span>🗺️</span>
+              <span>{isMapOpen ? 'MAPA 2D ATIVO NO COCKPIT' : 'PROJETAR MAPA NO COCKPIT'}</span>
+            </button>
+          </div>
+        )}
+
         {activeTab === 'vehicle' && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 items-stretch my-auto">
             {/* Card 1: Velocidade e Marcha */}
@@ -376,8 +470,8 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
         )}
       </main>
 
-      {/* Barra de Navegação Inferior Uconnect 7" */}
-      <nav className="grid h-10 shrink-0 grid-cols-4 border-t border-zinc-800 bg-zinc-950/90 text-center font-sans font-bold text-[9px] tracking-wide">
+      {/* Barra de Navegação Inferior Uconnect 7" (5 abas) */}
+      <nav className="grid h-10 shrink-0 grid-cols-5 border-t border-zinc-800 bg-zinc-950/90 text-center font-sans font-bold text-[8px] sm:text-[9px] tracking-wide">
         <button
           type="button"
           onClick={() => setActiveTab('media')}
@@ -387,6 +481,17 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
         >
           <span className="text-xs">🎵</span>
           <span>Mídia</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('nav')}
+          className={`flex flex-col items-center justify-center gap-0.5 transition-colors cursor-pointer ${
+            activeTab === 'nav' ? 'text-red-500 border-t-2 border-red-500 bg-red-950/20 font-black' : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          <span className="text-xs">🧭</span>
+          <span>GPS</span>
         </button>
 
         <button

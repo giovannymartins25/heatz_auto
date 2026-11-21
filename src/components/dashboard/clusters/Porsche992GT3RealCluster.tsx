@@ -35,6 +35,12 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
 
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const isLaunching = useSimulationStore((s) => s.isLaunching)
+  const isRunning = useSimulationStore((s) => s.isRunning)
+  const drivingMode = useSimulationStore((s) => s.drivingMode)
+  const oilTemp = useSimulationStore((s) => s.oilTemp)
+  const throttle = useSimulationStore((s) => s.throttle)
+  const brake = useSimulationStore((s) => s.brake)
+  const steeringAngle = useSimulationStore((s) => s.steeringAngle)
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const peakBoostBar = useSimulationStore((s) => s.peakBoostBar)
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
@@ -103,9 +109,23 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
     return list
   }, [maxSpeed, startAngle, endAngle])
 
-  // 3. Acelerômetro G-Force
-  const gForceX = 0
-  const gForceY = Math.min(1.4, Math.max(-1.4, (speedometer.speed > 5 ? 0.6 : 0) * (tachometer.rpm > 5000 ? 1 : 0.4)))
+  // 3. Telemetria dinâmica real: Pressão de óleo (0.0 quando desligado) e G-Force estimado por dinâmica real
+  const oilPressureBar = isRunning
+    ? clamp(1.6 + (clampedRpm / maxRpm) * 4.2, 1.5, 5.8)
+    : 0.0
+  const speedMs = speedometer.speed / 3.6
+  const gForceX = speedMs > 1 ? clamp((steeringAngle * speedMs * 0.032), -1.3, 1.3) : 0
+  const gForceY =
+    speedMs < 0.5 && !isLaunching
+      ? 0
+      : brake > 0.05
+      ? -clamp(brake * 1.15, 0, 1.35)
+      : isRunning && currentGear > 0
+      ? clamp(throttle * (0.45 + Math.max(0, boostPressureBar) * 0.35), 0, 1.25)
+      : 0
+  const totalG = Math.hypot(gForceX, gForceY)
+  const porscheModeLabel =
+    drivingMode === 'sport' ? 'SPORT PLUS' : drivingMode === 'eco' ? 'WET / ECO' : 'NORMAL'
 
   return (
     <div className={`@container relative flex flex-col items-center w-full max-w-6xl p-1.5 rounded-2xl bg-gradient-to-b from-[#0a0b0e] via-zinc-950 to-black border-2 ${ambientTheme.borderClass} ${ambientTheme.shadowClass} select-none transition-colors duration-300`}>
@@ -444,49 +464,51 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* 3. TELA TFT DIREITA: G-FORCE, PRESSÃO DE PNEUS E TELEMETRIA PORSCHE */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="flex flex-col items-center justify-between w-full max-w-[280px] h-[260px] p-3 rounded-2xl bg-zinc-950/90 border border-white/10 shadow-[inset_0_2px_15px_rgba(0,0,0,0.8)]">
-          <div className="w-full flex justify-between items-center border-b border-white/10 pb-1 text-[9px] font-mono text-zinc-400">
+        <div className="flex flex-col items-center justify-between gap-1 w-full max-w-[280px] min-h-[260px] p-2.5 rounded-2xl bg-zinc-950/90 border border-white/10 shadow-[inset_0_2px_15px_rgba(0,0,0,0.8)]">
+          <div className="w-full flex justify-between items-center border-b border-white/10 pb-1 text-[8.5px] font-mono text-zinc-400">
             <span className="font-bold text-amber-400">CHASSIS & DYNAMICS</span>
-            <span>FRICTION CIRCLE</span>
+            <span>G-METER</span>
           </div>
 
           {/* Gráfico Duplo: Pneus TPMS + Friction Circle G-Force */}
-          <div className="w-full flex items-center justify-around my-auto py-1">
-            {/* Silhueta minimalista do 911 com TPMS */}
-            <div className="w-16 h-28 rounded-2xl border border-zinc-700/60 bg-zinc-900/60 flex flex-col justify-between items-center py-1.5 relative">
-              <span className="text-[6px] font-mono text-zinc-400 font-bold">FRONT</span>
-              <div className="w-8 h-0.5 bg-amber-500/40 rounded-full" />
-              <span className="text-[6px] font-mono text-zinc-400 font-bold">REAR</span>
+          <div className="w-full flex items-center justify-between px-2 py-0.5 gap-2">
+            {/* Silhueta minimalista do 911 com TPMS contido na área segura */}
+            <div className="px-6 py-0.5 flex items-center justify-center">
+              <div className="w-14 h-20 rounded-xl border border-zinc-700/60 bg-zinc-900/60 flex flex-col justify-between items-center py-1 relative">
+                <span className="text-[6px] font-mono text-zinc-400 font-bold">FRONT</span>
+                <div className="w-7 h-0.5 bg-amber-500/40 rounded-full" />
+                <span className="text-[6px] font-mono text-zinc-400 font-bold">REAR</span>
 
-              <div className="absolute -left-7 top-2 text-[7px] font-mono text-emerald-400 font-bold">
-                2.1
-              </div>
-              <div className="absolute -right-7 top-2 text-[7px] font-mono text-emerald-400 font-bold">
-                2.1
-              </div>
-              <div className="absolute -left-7 bottom-2 text-[7px] font-mono text-emerald-400 font-bold">
-                2.3
-              </div>
-              <div className="absolute -right-7 bottom-2 text-[7px] font-mono text-emerald-400 font-bold">
-                2.3
+                <div className="absolute -left-6 top-1.5 text-[7px] font-mono text-emerald-400 font-bold">
+                  2.1
+                </div>
+                <div className="absolute -right-6 top-1.5 text-[7px] font-mono text-emerald-400 font-bold">
+                  2.1
+                </div>
+                <div className="absolute -left-6 bottom-1.5 text-[7px] font-mono text-emerald-400 font-bold">
+                  2.3
+                </div>
+                <div className="absolute -right-6 bottom-1.5 text-[7px] font-mono text-emerald-400 font-bold">
+                  2.3
+                </div>
               </div>
             </div>
 
             {/* Medidor Friction Circle G-Force */}
-            <div className="relative w-24 h-24 rounded-full border border-white/20 bg-zinc-900/60 flex items-center justify-center">
-              <div className="w-16 h-16 rounded-full border border-white/10" />
-              <div className="w-8 h-8 rounded-full border border-white/10" />
+            <div className="relative w-20 h-20 rounded-full border border-white/20 bg-zinc-900/60 flex items-center justify-center flex-shrink-0">
+              <div className="w-14 h-14 rounded-full border border-white/10" />
+              <div className="w-7 h-7 rounded-full border border-white/10" />
               <div className="absolute inset-x-0 h-px bg-white/15" />
               <div className="absolute inset-y-0 w-px bg-white/15" />
 
               <div
                 className="absolute w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,1)] transition-transform duration-100"
                 style={{
-                  transform: `translate(${gForceX * 18}px, ${-gForceY * 18}px)`,
+                  transform: `translate(${gForceX * 15}px, ${-gForceY * 15}px)`,
                 }}
               />
-              <span className="absolute bottom-1 text-[7px] font-mono text-zinc-400">
-                {Math.abs(gForceY).toFixed(1)}G LAT
+              <span className="absolute bottom-1 text-[6.5px] font-mono text-zinc-300">
+                {totalG.toFixed(1)}G
               </span>
             </div>
           </div>
@@ -494,7 +516,7 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
           {/* ═════════════════════════════════════════════════════════════ */}
           {/* MANÔMETRO OFICIAL DE TURBO PORSCHE 992 (BOOST / LADEDRUCK)   */}
           {/* ═════════════════════════════════════════════════════════════ */}
-          <div className="w-full flex flex-col p-1.5 rounded-xl bg-zinc-900/90 border border-white/10 my-0.5">
+          <div className="w-full flex flex-col p-1.5 rounded-xl bg-zinc-900/90 border border-white/10">
             <div className="w-full flex justify-between items-center text-[8px] font-mono mb-0.5">
               <span className="font-bold text-amber-400 flex items-center gap-1">
                 <span>⚡</span>
@@ -525,14 +547,14 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
           </div>
 
           {/* Medidores de Fluido Porsche: Pressão e Temperatura de Óleo */}
-          <div className="w-full grid grid-cols-3 gap-1 border-t border-white/10 pt-1.5 text-center text-[8px] font-mono">
+          <div className="w-full grid grid-cols-3 gap-1 border-t border-white/10 pt-1 text-center text-[8px] font-mono">
             <div className="bg-zinc-900/80 p-1 rounded">
               <span className="text-zinc-500 block">ÓLEO BAR</span>
-              <strong className="text-white">5.4</strong>
+              <strong className="text-white">{oilPressureBar.toFixed(1)}</strong>
             </div>
             <div className="bg-zinc-900/80 p-1 rounded">
               <span className="text-zinc-500 block">ÓLEO °C</span>
-              <strong className="text-white">98°C</strong>
+              <strong className="text-white">{Math.round(oilTemp ?? auxGauges.oilTemp ?? auxGauges.coolantTemp)}°C</strong>
             </div>
             <div className="bg-zinc-900/80 p-1 rounded">
               <span className="text-zinc-500 block">ÁGUA °C</span>
@@ -541,16 +563,16 @@ export const Porsche992GT3RealCluster = memo(function Porsche992GT3RealCluster({
           </div>
 
           {/* Rodapé: Modos do Volante e TC */}
-          <div className="w-full flex justify-between items-center border-t border-white/10 pt-1.5 text-[8px] font-mono">
-            <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 font-black">
-              TRACK MODE
+          <div className="w-full flex justify-between items-center gap-1 border-t border-white/10 pt-1 text-[7.5px] font-mono">
+            <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 font-black whitespace-nowrap">
+              {porscheModeLabel}
             </span>
-            <div className="flex items-center gap-1">
-              <span className={`px-1 rounded font-bold ${telemetry.tcs.enabled ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/40' : 'bg-red-950 text-red-400 border border-red-500/40'}`}>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <span className={`px-1 py-0.5 rounded font-bold whitespace-nowrap ${telemetry.tcs.enabled ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/40' : 'bg-red-950 text-red-400 border border-red-500/40'}`}>
                 TC {telemetry.tcs.enabled ? 'ON' : 'OFF'}
               </span>
-              <span className="px-1 rounded font-bold bg-emerald-950 text-emerald-400 border border-emerald-500/40">
-                ESC ON
+              <span className="px-1 py-0.5 rounded font-bold whitespace-nowrap bg-emerald-950 text-emerald-400 border border-emerald-500/40">
+                PTM AWD
               </span>
             </div>
           </div>

@@ -7,3 +7,4 @@ export {
   type SensorPermissionState,
   type SteeringMethod,
 } from './TiltSteeringController'
+export { sharedTiltSteering, type SharedTiltSnapshot } from './sharedTiltSteering'

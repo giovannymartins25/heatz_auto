@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
 import { clamp } from '@/utils/math'
 import { ClusterIndicatorIcon } from '@/components/gauges'
 
@@ -39,7 +40,8 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
 
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
-  const mileageKm = 12450
+  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
+  const coolantSegments = Math.round(clamp((auxGauges.coolantTemp - 50) / 80, 0, 1) * 8)
 
   const maxRpm = telemetry.tachometer.maxRpm || 7000
   const redlineRpm = telemetry.tachometer.redlineStart || 6200
@@ -96,7 +98,7 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
 
   return (
     <div
-      className="relative flex items-center justify-between w-[750px] h-[268px] bg-gradient-to-b from-zinc-950 via-[#0a0a0f] to-zinc-950 border-2 border-zinc-800 rounded-3xl p-3 select-none overflow-hidden font-sans shadow-2xl text-zinc-100"
+      className="relative flex items-center justify-between w-full max-w-[750px] min-h-[268px] bg-gradient-to-b from-zinc-950 via-[#0a0a0f] to-zinc-950 border-2 border-zinc-800 rounded-3xl p-3 select-none overflow-hidden font-sans shadow-2xl text-zinc-100"
       style={{
         boxShadow: 'inset 0 0 50px rgba(0,0,0,0.9), 0 10px 30px rgba(0,0,0,0.8)',
       }}
@@ -369,7 +371,7 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
           </div>
           <div className="w-full h-2.5 bg-zinc-950 rounded-lg p-0.5 border border-zinc-800 flex gap-0.5">
             {[...Array(8)].map((_, i) => {
-              const active = i <= 4 // faixa nominal normal
+              const active = i < coolantSegments
               return (
                 <div
                   key={i}

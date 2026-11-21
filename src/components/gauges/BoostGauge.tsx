@@ -69,7 +69,7 @@ export const BoostGauge = memo(function BoostGauge({
 
   return (
     <div className={`relative flex flex-col items-center select-none ${className}`} style={{ width: size, height: size }}>
-      <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-sm overflow-visible">
+      <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-sm overflow-hidden rounded-full">
         <defs>
           <radialGradient id="boostDialBgNorm" cx="50%" cy="50%" r="50%">
             <stop offset="65%" stopColor="#090a0f" />

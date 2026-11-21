@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { clamp, mapRange } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
 
 interface GolQuadradoRealClusterProps {
   telemetry: DashboardTelemetry
@@ -29,6 +30,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
   const isLaunching = useSimulationStore((s) => s.isLaunching)
   const liveRpm = useSimulationStore((s) => s.rpm)
   const isRevLimiting = useSimulationStore((s) => s.isRevLimiting)
+  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
 
   // ── AutoMeter Monster Tachometer Geometry (0 a 10.000 RPM) ──
   const tachSize = 280
@@ -59,7 +61,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
       })
     }
     return list
-  }, [])
+  }, [tachStartAngle, tachEndAngle])
 
   // ── Velocímetro Clássico (0 a 240 km/h) ──
   const speedSize = 220
@@ -82,7 +84,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
       })
     }
     return list
-  }, [])
+  }, [speedStartAngle, speedEndAngle])
 
   // ── Manômetro de Turbo Analógico 52mm (-1.0 a +3.0 bar) ──
   const boostSize = 160
@@ -175,11 +177,11 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
               km/h
             </text>
 
-            {/* Odômetro Mecânico de Rolete Retrô */}
+            {/* Odômetro Mecânico de Rolete Retrô (real da garagem) */}
             <g transform={`translate(${speedCenter - 34}, ${speedCenter + 26})`}>
               <rect width="68" height="18" rx="2" fill="#000" stroke="#3f3f46" strokeWidth="1" />
               <text x="34" y="13" textAnchor="middle" fill="#f4f4f5" fontSize="10" fontWeight="black" letterSpacing="2">
-                {String(Math.round(clampedSpeed * 12.8 + 142850)).padStart(6, '0')}
+                {String(Math.round(mileageKm)).padStart(6, '0')}
               </text>
             </g>
 
@@ -214,22 +216,22 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
         {/* 2. CENTRO: CONTA-GIROS AUTOMETER MONSTER 5" COM SHIFT LIGHT EXTERNA */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="relative flex flex-col items-center">
-          {/* Canhão de Shift Light Externa Montada no Topo Direito */}
+          {/* Canhão de Shift Light Externa Montada no Topo Direito (contida dentro da borda sem corte) */}
           <div
-            className={`absolute -top-3 -right-4 z-20 flex items-center justify-center transition-all ${
-              isShiftLightActive ? 'scale-110' : 'scale-100 opacity-90'
+            className={`absolute top-0.5 right-0.5 z-20 flex items-center justify-center transition-all ${
+              isShiftLightActive ? 'scale-105' : 'scale-100 opacity-90'
             }`}
           >
             {/* Tubo de alumínio com lente estroboscópica */}
             <div
-              className={`w-12 h-12 rounded-full border-2 border-zinc-600 flex items-center justify-center transition-all shadow-xl ${
+              className={`w-11 h-11 rounded-full border-2 border-zinc-600 flex items-center justify-center transition-all shadow-xl ${
                 isShiftLightActive
-                  ? 'bg-amber-400 border-amber-300 shadow-[0_0_35px_rgba(251,191,36,1)] animate-pulse'
+                  ? 'bg-amber-400 border-amber-300 shadow-[0_0_24px_rgba(251,191,36,0.95)] animate-pulse'
                   : 'bg-zinc-900 border-zinc-700'
               }`}
             >
               <div
-                className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-[9px] ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-[8px] ${
                   isShiftLightActive
                     ? 'bg-amber-300 text-black shadow-[inset_0_0_10px_rgba(255,255,255,0.8)]'
                     : 'bg-zinc-800 text-zinc-600'
@@ -240,7 +242,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
             </div>
           </div>
 
-          <svg width={tachSize} height={tachSize}>
+          <svg viewBox={`0 0 ${tachSize} ${tachSize}`} className="w-[235px] sm:w-[270px] h-auto max-w-full">
             {/* Moldura de Aço Escovado AutoMeter Monster */}
             <circle cx={tachCenter} cy={tachCenter} r={tachRadius + 24} fill="#272a33" stroke="#4a4f5c" strokeWidth="4" />
             <circle cx={tachCenter} cy={tachCenter} r={tachRadius + 18} fill="#12141a" stroke="#1f222a" strokeWidth="2" />
@@ -357,7 +359,7 @@ export const GolQuadradoRealCluster = memo(function GolQuadradoRealCluster({
         <div className="flex flex-col items-center gap-3">
           {/* Manômetro de Turbo 52mm Cronomac (-1.0 a +3.0 bar) */}
           <div className="relative flex flex-col items-center">
-            <svg width={boostSize} height={boostSize}>
+            <svg viewBox={`0 0 ${boostSize} ${boostSize}`} className="w-[144px] sm:w-[160px] h-auto max-w-full">
               <circle cx={boostCenter} cy={boostCenter} r={boostRadius + 14} fill="#1c1f26" stroke="#373c49" strokeWidth="3" />
               <circle cx={boostCenter} cy={boostCenter} r={boostRadius + 9} fill="#0d0f14" stroke="#171920" strokeWidth="1.5" />
 

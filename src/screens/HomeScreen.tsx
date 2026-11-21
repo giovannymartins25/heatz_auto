@@ -27,7 +27,7 @@ export const VEHICLE_PRICES: Record<string, { price: number; badge: string; desc
   'golf-gti': { price: 145000, badge: 'HOT HATCH', description: '2.0 TSI EA888 · Câmbio DSG Dupla Embreagem · Launch Control' },
   'yaris-2019': { price: 78000, badge: 'SEDAN CONFORT', description: '1.5 Dual VVT-i · Multidrive CVT 7M · Direção Elétrica' },
   'cb1000r': { price: 72000, badge: 'SUPER NAKED', description: '1.000cc 4 Cilindros · 142 cv · 12.000 RPM · Quickshifter' },
-  'porsche-gt3': { price: 1850000, badge: 'MOTORSPORT', description: '4.0 Flat-6 Boxer · 9.000 RPM · Câmbio PDK 7M · Asa Ativa' },
+  'porsche-gt3': { price: 1850000, badge: 'SUPERCAR AWD', description: '3.7 Flat-6 Bi-Turbo · 650 cv · Câmbio PDK 8M · PTM AWD · PAA Ativa' },
   'opala-4100': { price: 68000, badge: '6 CILINDROS RWD', description: '4.1L 250-S · Tração Traseira · Câmbio 5M · Ronco Cavernoso' },
   'fiat-toro-endurance-2025': { price: 152000, badge: 'SUP TURBO FLEX', description: '1.3 GSE T270 Flex · Câmbio AT6 Aisin · Tração Dianteira FWD' },
   'fiat-toro-ranch-2025': { price: 219000, badge: 'SUP 4X4 DIESEL', description: '2.2 MultiJet II Turbodiesel · Câmbio ZF 9HP · Tração 4x4 com Reduzida' },
@@ -51,8 +51,8 @@ export function getVehicleSpecs(manifest?: any, vehicleId?: string) {
     engine = '1.9 8V AP Forjado Turbo'
     drivetrain = 'FWD (Dianteira)'
   } else if (id.includes('porsche')) {
-    engine = '4.0 Boxer-6 9000 RPM'
-    drivetrain = 'RWD (Traseira)'
+    engine = '3.7 Flat-6 Bi-Turbo (992)'
+    drivetrain = 'AWD (PTM Integral)'
   } else if (id.includes('opala')) {
     engine = '4.1 6 Cilindros (250-S)'
     drivetrain = 'RWD (Traseira)'

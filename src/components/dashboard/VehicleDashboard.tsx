@@ -9,17 +9,17 @@ import { useKeyboardControls } from '@/hooks/useKeyboardControls'
 import { useOrientation } from '@/hooks/useOrientation'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { DashboardSystem } from '@/systems/dashboard'
-import { ClusterView } from './ClusterView'
 import { CockpitView } from './CockpitView'
+import { VehicleDashboardCluster } from './VehicleDashboardCluster'
 import { MobileLandscapeCockpit } from './MobileLandscapeCockpit'
 import { MobilePortraitCockpit } from './MobilePortraitCockpit'
 import { RotateDeviceOverlay } from './RotateDeviceOverlay'
 import { PerformanceBox } from './PerformanceBox'
 import { KeyboardHUD } from './KeyboardHUD'
+import { DrivingMapViewport } from './DrivingMapViewport'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { PedalTelemetry, AftermarketPillarGaugePod } from '@/components/gauges'
 import { Pedals, GearShift, EngineButton } from '@/components/controls'
-import { HPatternShifter } from '@/components/controls/HPatternShifter'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
 import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
@@ -113,14 +113,24 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const setViewMode = useUIStore((s) => s.setViewMode)
   const allowPortraitCockpit = useUIStore((s) => s.allowPortraitCockpit)
   const setAllowPortraitCockpit = useUIStore((s) => s.setAllowPortraitCockpit)
+  const isMapOpen = useUIStore((s) => s.isMapOpen)
+  const toggleMap = useUIStore((s) => s.toggleMap)
+  const mapViewportSize = useUIStore((s) => s.mapViewportSize)
+  const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
 
   // Inicializar a física com as especificações do veículo e peças equipadas da unidade exata da garagem
   useEffect(() => {
     init(vehicle, activeCar?.upgrades, activeCar?.instanceId)
+    // No modo DIRIGIR, garante a abertura automática do mundo 2D dirigível
+    if (entryMode === 'drive') {
+      useUIStore.getState().setMapOpen(true)
+    } else if (entryMode === 'cluster') {
+      useUIStore.getState().setMapOpen(false)
+    }
     return () => {
       reset()
     }
-  }, [vehicle, activeCar, init, reset])
+  }, [vehicle, activeCar, init, reset, entryMode])
 
   // Disparar loop de física (120Hz)
   useSimulationLoop()
@@ -575,6 +585,26 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
         {/* HUD Interativo de Teclas Físicas do PC */}
         <KeyboardHUD hasClutch={vehicle.transmission.hasClutch} />
 
+        {/* ── Viewport do Mapa 2D Dirigível (Desktop) ── */}
+        {isMapOpen && (
+          <div
+            className={`w-full max-w-4xl px-2 animate-in fade-in zoom-in-95 duration-200 transition-all ${
+              mapViewportSize === 'compact'
+                ? 'h-[220px] sm:h-[240px] lg:h-[260px]'
+                : mapViewportSize === 'expanded'
+                ? 'h-[380px] sm:h-[440px] lg:h-[500px]'
+                : 'h-[260px] sm:h-[300px] lg:h-[320px]'
+            }`}
+          >
+            <DrivingMapViewport
+              size={mapViewportSize === 'hidden' ? 'balanced' : mapViewportSize}
+              onSizeChange={setMapViewportSize}
+              telemetry={telemetry}
+              vehicle={vehicle}
+            />
+          </div>
+        )}
+
         {/* ── Banner de Launch Control ── */}
         {isLaunchControlArmed && (
           <div className="w-full max-w-xl py-2 px-4 rounded-xl bg-amber-500/20 border-2 border-amber-400 text-amber-300 font-mono font-black text-center text-xs sm:text-sm tracking-wide animate-pulse shadow-[0_0_20px_rgba(245,158,11,0.4)] flex items-center justify-center gap-2">
@@ -591,26 +621,26 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           </div>
         )}
 
-        {/* ── Painel de Instrumentos Modular (ClusterView) ou Visão de Cabine (CockpitView) ── */}
-        <div className="relative w-full flex flex-col xl:flex-row items-center justify-center gap-4">
-          <div className="w-full max-w-5xl flex items-center justify-center relative">
+        {/* ── Painel de Instrumentos Modular (escalonado responsivamente) + Multimídia ── */}
+        <div className="relative w-full max-w-[1440px] flex flex-col lg:flex-row items-center justify-center gap-3 px-2">
+          <div className="w-full min-w-0 flex-1 flex items-center justify-center relative h-[220px] xl:h-[260px]">
             {/* Manômetro Esportivo de Coluna Aftermarket (visível quando equipado em carros sem manômetro original) */}
             {showAftermarketBoostGauge && viewMode === 'cluster' && (
               <div className="hidden sm:flex absolute left-2 lg:left-4 top-1/2 -translate-y-1/2 z-20 animate-in zoom-in-95 duration-200">
-                <AftermarketPillarGaugePod size={88} />
+                <AftermarketPillarGaugePod size={80} />
               </div>
             )}
 
             {viewMode === 'cluster' ? (
-              <ClusterView telemetry={telemetry} />
+              <VehicleDashboardCluster telemetry={telemetry} maxScale={1.0} />
             ) : (
               <CockpitView telemetry={telemetry} vehicle={vehicle} />
             )}
           </div>
 
-          {/* Central Multimídia Automotiva ao lado (Console Central com Sport HMI / Turbo / Yaris / Porsche) */}
+          {/* Central Multimídia Automotiva ao lado (Console Central) */}
           {hasInfotainment && (
-            <div className="flex flex-col items-center justify-center shrink-0 w-[380px] lg:w-[440px] xl:w-[480px] self-stretch">
+            <div className="flex flex-col items-center justify-center shrink-0 w-full max-w-[420px] lg:w-[340px] xl:w-[400px] h-[220px] xl:h-[260px]">
               <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} fill />
             </div>
           )}
@@ -626,9 +656,9 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
       </main>
 
       {/* Seção Inferior: Controles de Pilotagem (Start, Alavanca, Freio de Mão, Pedais) */}
-      <footer className="w-full flex flex-col items-center gap-3 sm:gap-4 mt-auto">
+      <footer className="w-full max-w-[1440px] flex flex-wrap items-center justify-center gap-3 sm:gap-5 px-2 mt-auto">
         {/* Controles: Start Engine, Freio de Mão, Buzina & Shifter */}
-        <div className="flex items-center justify-between w-full max-w-md px-2">
+        <div className="flex flex-wrap items-center justify-center gap-3">
           <div className="flex items-center gap-2">
             <EngineButton />
 
@@ -641,6 +671,19 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
               title="Buzina (H)"
             >
               📢
+            </button>
+
+            {/* Mapa 2D Desktop */}
+            <button
+              onClick={toggleMap}
+              className={`w-10 h-10 rounded-xl border flex items-center justify-center text-sm transition-all active:scale-95 cursor-pointer ${
+                isMapOpen
+                  ? 'bg-sky-500/20 text-sky-300 border-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.45)]'
+                  : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
+              }`}
+              title="Alternar Mapa 2D Dirigível (M)"
+            >
+              🗺️
             </button>
 
             {/* Freio de mão Desktop */}
@@ -671,7 +714,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
                       ? 'bg-zinc-900/50 text-zinc-600 border-zinc-800'
                       : 'bg-cyan-950/70 text-cyan-300 border-cyan-500/50 hover:bg-cyan-900/80'
                   }`}
-                  title="Segure tecla B ou Shift para disparar Nitro (NOS)"
+                  title="Segure tecla B para disparar Nitro (NOS)"
                 >
                   <span>⚡</span>
                   <span>NOS {Math.round(nosPressurePercent)}%</span>
@@ -688,18 +731,11 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             )}
           </div>
 
-          {/* Seletor de Câmbio Padrão Fixo (Sem alternância/inversão de padrão) */}
+          {/* Seletor de Câmbio único (automático PRNDSM ou HPatternShifter/Sequencial em manuais — sem duplicação!) */}
           <div className="flex items-center gap-1.5">
-            <GearShift />
+            <GearShift size="compact" />
           </div>
         </div>
-
-        {/* Câmbio H-Pattern Interativo na Tela para veículos manuais */}
-        {vehicle.transmission.hasClutch && (
-          <div className="w-full max-w-xs animate-in zoom-in-95 duration-150">
-            <HPatternShifter gearCount={vehicle.transmission.gearCount} showModeToggle={false} />
-          </div>
-        )}
 
         {/* Pedais interativos com Pointer Capture */}
         <Pedals vehicle={vehicle} />

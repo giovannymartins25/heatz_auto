@@ -1,6 +1,8 @@
 import { clamp } from '@/utils/math'
 import { RAD_S_TO_RPM } from '../engine/constants'
 
+export type ClutchMechanicalState = 'OPEN' | 'SLIPPING' | 'LOCKED'
+
 export interface ClutchState {
   position: number            // 0 = pedal solto / acoplada, 1 = pedal pressionado / desacoplada
   engagement: number          // 0 = livre/desacoplada, 1 = 100% acoplada
@@ -9,26 +11,69 @@ export interface ClutchState {
   loadTorqueOnEngine: number  // Nm de carga resistiva imposta ao volante do motor
   slipRpm: number             // diferença de rotação (RPM) entre motor e transmissão
   slipRatio: number           // razão relativa de patinamento (0 a 1)
-  heat: number                // energia térmica acumulada (preparada para futuro desgaste)
+  heat: number                // energia térmica acumulada em kJ
+  mechanicalState: ClutchMechanicalState // OPEN | SLIPPING | LOCKED
 }
 
 /**
- * ClutchSystem — Modela fisicamente o disco de embreagem por fricção.
+ * ClutchSystem — Modelo físico de acoplamento mecânico por atrito de Coulomb em 3 estados (OPEN, SLIPPING, LOCKED).
  *
- * Conecta o volante do motor (virabrequim) ao eixo primário da transmissão.
- * - 0% (pedal solto): 100% acoplada (transmissão direta de torque).
- * - 100% (pedal pressionado): 0% acoplada (motor gira livre, 0 torque às rodas).
- * - Zona de atrito (15% a 85%): transferência progressiva com deslizamento (slip),
- *   produção de carga sobre o motor e dissipação térmica.
+ * Características físicas rigorosas:
+ * 1. Estado OPEN: Desacoplamento total, tau = 0.
+ * 2. Estado SLIPPING: Deslizamento com atrito cinético regularizado a 120 Hz, dissipação térmica irreversível.
+ * 3. Estado LOCKED: Vínculo cinemático rígido com Delta_omega = 0, transmitindo torque
+ *    bidirecional (aceleração positiva e freio-motor negativo) sem perdas numéricas.
+ * 4. Conservação de Momento Angular na sincronização com conversão de energia residual em calor.
+ * 5. Histerese de descolamento estático (Breakaway) para estabilidade temporal a 120 Hz.
  */
 export class ClutchSystem {
   private position: number = 0 // 0 a 1 (0 = solta/acoplada, 1 = pressionada/desacoplada)
-  private readonly maxTorqueCapacity: number
-  private heat: number = 0 // Calor acumulado em kJ (aproximado)
+  private maxTorqueCapacity: number
+  private heat: number = 0 // Calor acumulado em kJ
+  private mechanicalState: ClutchMechanicalState = 'LOCKED'
 
-  constructor(maxEngineTorque: number) {
-    // Capacidade máxima de atrito do disco (~1.4x o torque máximo do motor)
+  // Parâmetros de inércia rotacional para acoplamento dinâmico
+  private engineInertia: number = 0.22 // kg·m² (volante + virabrequim)
+  private shaftInertia: number = 0.08  // kg·m² (árvore primária + engrenagens)
+  private readonly baseTorqueCapacity: number
+  private coolingRate: number = 0.035
+  private isCeramic: boolean = false
+
+  constructor(maxEngineTorque: number, engineInertia?: number, shaftInertia?: number) {
+    // Capacidade de atrito do disco (~1.4x o torque máximo do motor para margem estática segura)
     this.maxTorqueCapacity = Math.max(50, maxEngineTorque * 1.4)
+    this.baseTorqueCapacity = this.maxTorqueCapacity
+    if (engineInertia) this.engineInertia = engineInertia
+    if (shaftInertia) this.shaftInertia = shaftInertia
+  }
+
+  /** Atualiza capacidades para upgrades (ex: embreagem de alta performance / cerâmica) */
+  setTorqueCapacityMultiplier(multiplier: number): void {
+    this.maxTorqueCapacity = this.baseTorqueCapacity * Math.max(1.0, multiplier)
+  }
+
+  /** Configura se a embreagem é cerâmica de alta performance (+75% capacidade de torque e +50% dissipação térmica) */
+  setCeramicClutch(isCeramic: boolean): void {
+    this.isCeramic = isCeramic
+    if (isCeramic) {
+      this.maxTorqueCapacity = this.baseTorqueCapacity * 1.75
+      this.coolingRate = 0.055
+    } else {
+      this.maxTorqueCapacity = this.baseTorqueCapacity
+      this.coolingRate = 0.035
+    }
+  }
+
+  getMaxTorqueCapacity(): number {
+    return this.maxTorqueCapacity
+  }
+
+  getBaseTorqueCapacity(): number {
+    return this.baseTorqueCapacity
+  }
+
+  isCeramicClutch(): boolean {
+    return this.isCeramic
   }
 
   /** Define a posição do pedal/manete de embreagem (0 a 1) */
@@ -40,22 +85,20 @@ export class ClutchSystem {
     return this.position
   }
 
+  getMechanicalState(): ClutchMechanicalState {
+    return this.mechanicalState
+  }
+
   /**
    * Retorna o fator de acoplamento mecânico (1 = 100% acoplada, 0 = desacoplada).
-   *
-   * Curva progressiva realista:
-   * - 0.00 a 0.15: Folga inicial / 100% acoplada
-   * - 0.15 a 0.85: Zona de atrito/patinação progressiva (curva não-linear)
-   * - 0.85 a 1.00: Desacoplamento total
+   * Curva progressiva não-linear realista com folga inicial e zona de atrito (0.15 a 0.85).
    */
   getEngagement(): number {
     if (this.position <= 0.15) return 1.0
     if (this.position >= 0.85) return 0.0
 
-    // Curva não-linear na zona de patinação (0.15 a 0.85)
-    // 0.15 -> 1.0 (acoplada); 0.85 -> 0.0 (desacoplada)
     const normalized = (0.85 - this.position) / 0.70
-    return Math.pow(normalized, 1.35)
+    return Math.pow(normalized, 1.4)
   }
 
   getHeat(): number {
@@ -63,13 +106,7 @@ export class ClutchSystem {
   }
 
   /**
-   * Calcula o torque transferido e a carga sobre o motor neste tick.
-   *
-   * @param engineAngularVelocity Velocidade angular do motor (rad/s)
-   * @param transmissionAngularVelocity Velocidade angular do eixo primário (rad/s)
-   * @param isInNeutral Se o câmbio está em ponto morto
-   * @param engineTorque Torque gerado pela combustão neste frame (Nm)
-   * @param deltaTime Intervalo de tempo do tick (segundos)
+   * Calcula a transferência física de torque entre motor e transmissão a 120 Hz.
    */
   calculateTorqueTransfer(
     engineAngularVelocity: number,
@@ -77,15 +114,18 @@ export class ClutchSystem {
     isInNeutral: boolean,
     engineTorque: number = 0,
     deltaTime: number = 1 / 120,
+    resistiveLoadTorque: number = 0,
   ): ClutchState {
     const engagement = this.getEngagement()
     const engineRpm = Math.max(0, engineAngularVelocity * RAD_S_TO_RPM)
     const transRpm = Math.max(0, transmissionAngularVelocity * RAD_S_TO_RPM)
+    const deltaOmega = engineAngularVelocity - transmissionAngularVelocity
     const slipRpm = isInNeutral ? 0 : Math.abs(engineRpm - transRpm)
+    const slipRatio = clamp(slipRpm / Math.max(engineRpm, transRpm, 150), 0, 1)
 
-    // 1. Desacoplamento total ou Ponto Morto
-    if (isInNeutral || engagement <= 0.001) {
-      // Resfriamento gradual da embreagem
+    // 1. ESTADO OPEN: Desacoplamento ou Ponto Morto
+    if (isInNeutral || engagement <= 0.01) {
+      this.mechanicalState = 'OPEN'
       this.coolDown(deltaTime)
       return {
         position: this.position,
@@ -96,66 +136,78 @@ export class ClutchSystem {
         slipRpm: 0,
         slipRatio: 0,
         heat: this.heat,
+        mechanicalState: 'OPEN',
       }
     }
 
-    // 2. Diferença de velocidade angular entre motor e transmissão (rad/s)
-    const deltaOmega = engineAngularVelocity - transmissionAngularVelocity
-    const slipRatio = clamp(slipRpm / Math.max(engineRpm, transRpm, 200), 0, 1)
+    // Capacidades de torque: estática (com folga de histerese 15%) e cinética
+    const kineticCapacity = this.maxTorqueCapacity * engagement
+    const staticCapacity = kineticCapacity * 1.15
 
-    // Capacidade instantânea de atrito com base na pressão da placa de pressão
-    const frictionCapacity = this.maxTorqueCapacity * engagement
+    const deltaOmegaLockThreshold = 12.0 // rad/s (~115 RPM)
 
-    // 3. Torque Dinâmico de Deslizamento (Slip Torque)
-    // Modulado pela rigidez de atrito do composto do disco
-    const K_friction = 3.2
-    let dynamicFrictionTorque = deltaOmega * K_friction * engagement
-    dynamicFrictionTorque = clamp(dynamicFrictionTorque, -frictionCapacity, frictionCapacity)
+    // 2. MÁQUINA DE ESTADOS DO ACOPLAMENTO: OPEN, SLIPPING, LOCKED
+    if (this.mechanicalState === 'LOCKED') {
+      // Verifica condição de descolamento estático (Breakaway)
+      if (Math.abs(engineTorque) > staticCapacity || engagement < 0.75) {
+        this.mechanicalState = 'SLIPPING'
+      }
+    } else {
+      // De OPEN ou SLIPPING: verifica transição para LOCKED
+      if (Math.abs(deltaOmega) <= deltaOmegaLockThreshold && engagement >= 0.80 && Math.abs(engineTorque) <= staticCapacity) {
+        this.mechanicalState = 'LOCKED'
 
-    // 4. Regime Estático / Acoplamento Rígido:
-    // Quando a embreagem está bem acoplada (engagement > 0.85) e a diferença de rotação é baixa (< 12 rad/s ≈ 115 RPM),
-    // o conjunto entra em aderência estática (lock-up), transmitindo diretamente o torque do motor
+        // Conservação de Momento Angular e dissipação de energia residual da sincronização
+        const I_e = this.engineInertia
+        const I_s = this.shaftInertia
+        const totalInertia = I_e + I_s
+        const dissipatedKineticEnergyJ =
+          0.5 * ((I_e * I_s) / totalInertia) * (deltaOmega * deltaOmega)
+        this.heat += dissipatedKineticEnergyJ / 1000 // Converte para kJ
+      }
+    }
+
     let transmittedTorque: number
     let loadTorqueOnEngine: number
+    let isSlipping = false
 
-    const isNearLock = Math.abs(deltaOmega) < 12.0 && engagement > 0.85
-    const isCoastingEngineBrake =
-      engineTorque < 0 && transmissionAngularVelocity > 1.0 && (isNearLock || deltaOmega < 25.0)
-
-    if (isCoastingEngineBrake) {
-      // Freio motor em movimento: torque negativo retém a transmissão e desacelera o veículo
-      transmittedTorque = clamp(engineTorque * engagement, -frictionCapacity, 0)
-      // Quando há diferença negativa de rotação (ex: redução de marcha), as rodas ajudam a subir o giro do motor
-      loadTorqueOnEngine = isNearLock ? 0 : Math.min(0, dynamicFrictionTorque)
-    } else if (isNearLock) {
-      // Regime acoplado rígido: transfere o torque de acionamento do motor
+    if (this.mechanicalState === 'LOCKED') {
+      // Estado LOCKED: Vínculo cinemático rígido bidirecional (tração e freio motor)
       transmittedTorque = engineTorque
       loadTorqueOnEngine = engineTorque
+      isSlipping = false
     } else {
-      // Regime de patinação (Slip):
-      // O torque transmitido às rodas é a força de atrito dinâmico que o disco consegue passar
-      transmittedTorque = Math.max(0, dynamicFrictionTorque)
+      // Estado SLIPPING: Atrito dinâmico de Coulomb regularizado a 120 Hz
+      this.mechanicalState = 'SLIPPING'
+      isSlipping = slipRpm > 30
 
-      // A carga resistiva sobre o volante do motor é igual à reação do atrito dinâmico
-      // Se deltaOmega > 0 (motor mais rápido que a transmissão parada), a embreagem desacelera o motor
-      loadTorqueOnEngine = dynamicFrictionTorque
+      // Regularização física viscosa-Coulomb contínua a 120 Hz (evita degrau rígido em baixa rotação)
+      const K_friction = 3.2
+      const dynamicFrictionTorque = clamp(deltaOmega * K_friction * engagement, -kineticCapacity, kineticCapacity)
+
+      // Em aceleração normal ou freio motor com escorregamento
+      if (engineTorque < 0 && transmissionAngularVelocity > 1.0) {
+        // Freio motor sob desaceleração
+        transmittedTorque = clamp(engineTorque * engagement, -kineticCapacity, 0)
+        loadTorqueOnEngine = Math.min(0, dynamicFrictionTorque)
+      } else {
+        // 3ª Lei de Newton no trem de força: quando o limite de aderência refletido pelo
+        // câmbio (resistiveLoadTorque > 0) é menor que a capacidade do disco, as rodas patinam
+        // e não conseguem reagir com torque superior ao limite de tração + inércia rotacional.
+        const effectiveFrictionTorque =
+          resistiveLoadTorque > 0 && dynamicFrictionTorque > 0
+            ? Math.min(dynamicFrictionTorque, resistiveLoadTorque)
+            : dynamicFrictionTorque
+        transmittedTorque = Math.max(0, effectiveFrictionTorque)
+        loadTorqueOnEngine = effectiveFrictionTorque
+      }
+
+      // Potência térmica dissipada por atrito contínuo: P = tau * |deltaOmega|
+      const frictionPowerWatts = Math.abs(dynamicFrictionTorque * deltaOmega)
+      const heatIncrementKj = (frictionPowerWatts * 0.00008) * deltaTime
+      this.heat = Math.min(600, this.heat + heatIncrementKj)
     }
 
-    // Limita o torque transmitido à capacidade máxima instantânea (permite freio motor negativo)
-    transmittedTorque = isCoastingEngineBrake
-      ? clamp(transmittedTorque, -frictionCapacity, 0)
-      : clamp(transmittedTorque, 0, frictionCapacity)
-
-    // 5. Patinação Ativa
-    const isSlipping = slipRpm > 45 && engagement > 0.05 && engagement < 0.98
-
-    // 6. Dissipação Térmica (Calor)
-    // Potência dissipada no disco: P = Torque * |deltaOmega| (Watts)
-    if (isSlipping || (engagement > 0.05 && Math.abs(deltaOmega) > 5)) {
-      const frictionPower = Math.abs(dynamicFrictionTorque * deltaOmega) // Watts
-      const heatIncrement = (frictionPower * 0.00008) * deltaTime // kJ
-      this.heat = Math.min(500, this.heat + heatIncrement)
-    }
     this.coolDown(deltaTime)
 
     return {
@@ -167,41 +219,41 @@ export class ClutchSystem {
       slipRpm,
       slipRatio,
       heat: this.heat,
+      mechanicalState: this.mechanicalState,
     }
   }
 
   private coolDown(deltaTime: number): void {
     if (this.heat > 0) {
-      // Resfriamento exponencial em direção ao ambiente (0)
-      const coolingRate = 0.035 // taxa de perda térmica por segundo
-      this.heat = Math.max(0, this.heat - (this.heat * coolingRate + 0.01) * deltaTime)
+      this.heat = Math.max(0, this.heat - (this.heat * this.coolingRate + 0.01) * deltaTime)
     }
   }
 
   reset(): void {
     this.position = 0
     this.heat = 0
+    this.mechanicalState = 'LOCKED'
   }
 
-  /** Captura snapshot imutável para isolamento transacional */
   getStateSnapshot(): ClutchSnapshot {
     return {
       position: this.position,
       heat: this.heat,
+      mechanicalState: this.mechanicalState,
     }
   }
 
-  /** Restaura estado da embreagem a partir do snapshot */
   restoreSnapshot(snapshot: ClutchSnapshot): void {
     this.position = snapshot.position
     this.heat = snapshot.heat
+    if (snapshot.mechanicalState) {
+      this.mechanicalState = snapshot.mechanicalState
+    }
   }
 }
 
-/**
- * Snapshot isolado do estado da embreagem.
- */
 export interface ClutchSnapshot {
   position: number
   heat: number
+  mechanicalState?: ClutchMechanicalState
 }

@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { mapRange, clamp } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
 import { ClusterIndicatorIcon } from '@/components/gauges'
 import { formatZeroToHundredSeconds } from '@/systems/vehicle'
@@ -47,7 +48,9 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
   const gearSelectorPosition = useSimulationStore((s) => s.gearSelectorPosition)
   const currentGear = useSimulationStore((s) => s.currentGear)
   const last0to100 = useSimulationStore((s) => s.last0to100)
+  const oilTemp = useSimulationStore((s) => s.oilTemp)
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
+  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.red
 
   const dialSize = 250
@@ -292,11 +295,11 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
         {/* 2. CENTRO: TELA MAXI-DOT / MFD COLORIDA COM TURBO BOOST GTI REAL    */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="flex flex-col items-center justify-between w-56 sm:w-60 h-[242px] p-2.5 rounded-2xl bg-black/95 border-2 border-zinc-700/60 shadow-[inset_0_2px_20px_rgba(0,0,0,0.9)]">
-          {/* Topo do MFD: Hora, Temp Externa e Rótulo GTI */}
+          {/* Topo do MFD: Telemetria real (RPM, Rótulo GTI e Água) */}
           <div className="w-full flex justify-between items-center border-b border-white/10 pb-1 text-[9px] font-mono text-zinc-400">
-            <span>12:45</span>
+            <span>{Math.round(tachometer.rpm)} RPM</span>
             <span className="font-black text-red-500">SPORT HMI</span>
-            <span>22.0 °C</span>
+            <span>{Math.round(coolantTemp)}°C</span>
           </div>
 
           {/* Seletor DSG: P R N D S / M com marcha ativa em destaque */}
@@ -359,10 +362,10 @@ export const GolfGTIRealCluster = memo(function GolfGTIRealCluster({
             </div>
           </div>
 
-          {/* Rodapé MFD: Temperatura do Óleo e Odômetro */}
+          {/* Rodapé MFD: Temperatura Real do Óleo e Odômetro Real */}
           <div className="w-full flex justify-between items-center border-t border-white/10 pt-1 text-[8px] font-mono text-zinc-400">
-            <span>ÖLTEMP: <strong className="text-white">92°C</strong></span>
-            <span className="text-zinc-500">TRIP 142.8</span>
+            <span>ÖL: <strong className="text-white">{Math.round(oilTemp)}°C</strong></span>
+            <span className="text-zinc-400">ODO {Math.round(mileageKm).toLocaleString('pt-BR')}</span>
             <span>0-100: <strong className="text-amber-400">{formatZeroToHundredSeconds(last0to100)}</strong></span>
           </div>
         </div>

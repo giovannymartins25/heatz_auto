@@ -119,6 +119,7 @@ export interface TransmissionConfig {
   gearRatios: GearRatio[]
   reverseRatio: number
   finalDrive: number         // Relação do diferencial
+  frontFinalDrive?: number    // Relação do diferencial dianteiro (ex: Porsche 992 3.330)
   hasClutch: boolean
   isSimulatedGears?: boolean // Ex: relações virtuais no CVT
   hasManualMode?: boolean    // Permite trocar manualmente (borboletas / alavanca)

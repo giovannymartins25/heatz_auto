@@ -42,17 +42,18 @@ export const SteeringControlZone = memo(function SteeringControlZone({
   const steerDirection = steeringAngle < -0.02 ? 'ESQ' : steeringAngle > 0.02 ? 'DIR' : 'CENTRO'
 
   return (
-    <div className={`flex items-center gap-1.5 p-1 rounded-xl bg-zinc-950/85 border border-white/10 backdrop-blur-md select-none shadow-lg z-20 ${className}`}>
+    <div className={`flex flex-wrap items-center justify-center gap-1 max-w-full p-1 rounded-xl bg-zinc-950/85 border border-white/10 backdrop-blur-md select-none shadow-lg z-20 ${className}`}>
       {/* Badge identificador do modo inclinação física */}
-      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-zinc-900 border border-white/10 text-cyan-400 font-mono text-[7.5px] font-black uppercase tracking-wider">
+      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-zinc-900 border border-white/10 text-cyan-400 font-mono text-[7.5px] font-black uppercase tracking-wider shrink-0">
         <span>📱</span>
-        <span>INCLINAÇÃO</span>
+        <span className="hidden sm:inline">INCLINAÇÃO</span>
+        <span className="sm:hidden">TILT</span>
       </div>
 
       {/* Balanço visual de inclinação de horizonte */}
-      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-zinc-900/90 border border-white/10 text-[7px] font-mono">
+      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-zinc-900/90 border border-white/10 text-[7px] font-mono shrink-0">
         <span className={`text-[8px] ${steeringAngle < -0.02 ? 'text-cyan-400 font-bold' : 'text-zinc-600'}`}>◄</span>
-        <div className="relative w-12 h-1.5 rounded-full bg-zinc-800 overflow-hidden border border-white/5">
+        <div className="relative w-10 sm:w-12 h-1.5 rounded-full bg-zinc-800 overflow-hidden border border-white/5">
           {/* Linha do centro neutro */}
           <div className="absolute left-1/2 top-0 bottom-0 w-0.5 -translate-x-1/2 bg-zinc-500" />
           {/* Ponto indicador de esterço */}
@@ -62,7 +63,7 @@ export const SteeringControlZone = memo(function SteeringControlZone({
           />
         </div>
         <span className={`text-[8px] ${steeringAngle > 0.02 ? 'text-cyan-400 font-bold' : 'text-zinc-600'}`}>►</span>
-        <span className="font-bold text-cyan-300 ml-0.5 min-w-[34px] text-right">
+        <span className="font-bold text-cyan-300 ml-0.5 min-w-[26px] text-right">
           {steerDirection === 'CENTRO' ? '0°' : `${steerPercent}%`}
         </span>
       </div>
@@ -71,7 +72,7 @@ export const SteeringControlZone = memo(function SteeringControlZone({
       <button
         type="button"
         onClick={calibrateNeutral}
-        className={`h-6 px-2 rounded-lg border font-mono text-[7px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow-sm flex items-center gap-1 ${
+        className={`h-6 px-1.5 sm:px-2 rounded-lg border font-mono text-[7px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow-sm flex items-center gap-1 shrink-0 ${
           isCalibrated
             ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400'
             : 'bg-amber-500/20 text-amber-300 border-amber-400 animate-pulse'
@@ -87,13 +88,13 @@ export const SteeringControlZone = memo(function SteeringControlZone({
         <span className="text-[7px] font-mono text-red-400 px-1">⚠️ Sem sensor</span>
       )}
       {isSupported && permission === 'denied' && (
-        <span className="text-[7px] font-mono text-amber-400 px-1">⚠️ Permissão negada</span>
+        <span className="text-[7px] font-mono text-amber-400 px-1">⚠️ Negado</span>
       )}
       {isSupported && permission === 'prompt' && (
         <button
           type="button"
           onClick={requestPermission}
-          className="h-6 px-1.5 rounded-lg border border-cyan-400/60 bg-cyan-500/20 text-cyan-200 font-mono text-[7px] font-black uppercase active:scale-95 cursor-pointer"
+          className="h-6 px-1.5 rounded-lg border border-cyan-400/60 bg-cyan-500/20 text-cyan-200 font-mono text-[7px] font-black uppercase active:scale-95 cursor-pointer shrink-0"
           title="Permitir acesso aos sensores no Safari/iOS"
         >
           🔒 ATIVAR

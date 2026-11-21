@@ -2,6 +2,7 @@ import { memo, useState, useEffect } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import type { VehicleConfig } from '@/types/vehicle'
 import { clamp } from '@/utils/math'
+import { CircularProgressDial } from '@/components/gauges'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
 import { ClimateControlPanel, InternetMediaCenter } from './shared'
@@ -14,7 +15,7 @@ export interface CivicSiInfotainmentProps {
   className?: string
 }
 
-type CivicActiveTab = 'vtec' | 'clima' | 'media' | 'ambient'
+type CivicActiveTab = 'vtec' | 'nav' | 'clima' | 'media' | 'ambient'
 
 /**
  * CivicSiInfotainment — Central Multimídia oficial Honda Civic Si (H-Audio / Pioneer 2-DIN).
@@ -40,6 +41,13 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
   const setAmbientLightColor = useSimulationStore((s) => s.setAmbientLightColor)
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.red
+  const positionX = useSimulationStore((s) => s.positionX)
+  const positionY = useSimulationStore((s) => s.positionY)
+  const headingDeg = useSimulationStore((s) => s.headingDeg)
+  const zoneName = useSimulationStore((s) => s.zoneName)
+  const surfaceType = useSimulationStore((s) => s.surfaceType)
+  const isMapOpen = useSimulationStore((s) => s.isMapOpen)
+  const toggleMap = useSimulationStore((s) => s.toggleMap)
 
   const maxPowerHp = vehicle.engine.maxPower || 192
   const redlineRpm = vehicle.engine.maxRpm || 8400
@@ -102,74 +110,47 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
           <div className="w-full flex flex-col items-center gap-1 my-auto">
             <div className="w-full flex items-center justify-around">
               {/* Mostrador 1: i-VTEC Status */}
-              <div className="flex flex-col items-center">
-                <span className="text-[6.5px] sm:text-[7px] font-bold text-red-500 uppercase tracking-widest mb-0.5">
-                  i-VTEC STATUS
-                </span>
-                <div
-                  className={`relative flex flex-col items-center justify-center rounded-full bg-zinc-900/90 border transition-all ${
-                    compact || fill ? 'w-[52px] h-[52px] sm:w-[68px] sm:h-[68px]' : 'w-[76px] h-[76px]'
-                  } ${
-                    isVtecActive
-                      ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.6)]'
-                      : 'border-zinc-700'
-                  }`}
-                >
-                  <span className={`${compact || fill ? 'text-sm sm:text-base' : 'text-base sm:text-lg'} font-black leading-none z-10 ${isVtecActive ? 'text-red-400' : 'text-white'}`}>
-                    {isVtecActive ? 'ENGAGED' : '5.8K'}
-                  </span>
-                  <span className="text-[6.5px] sm:text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
-                    {isVtecActive ? 'CAM 2' : 'CAM 1'}
-                  </span>
-                </div>
-                <span className="text-[7px] sm:text-[8px] text-zinc-500 font-bold mt-0.5">
-                  {isVtecActive ? '8.300 MAX' : 'VTEC @ 5.8K'}
-                </span>
-              </div>
+              <CircularProgressDial
+                label="i-VTEC STATUS"
+                value={rpm}
+                min={0}
+                max={8300}
+                unit={isVtecActive ? 'CAM 2' : 'CAM 1'}
+                color={isVtecActive ? '#ef4444' : '#71717a'}
+                glowColor={isVtecActive ? '#ef4444' : undefined}
+                formatValue={() => (isVtecActive ? 'ENGAGED' : '5.8K')}
+                subLabel={isVtecActive ? '8.300 MAX' : 'VTEC @ 5.8K'}
+                active={isVtecActive}
+                compact={compact}
+                fill={fill}
+              />
 
               {/* Mostrador 2: Potência Instantânea */}
-              <div className="flex flex-col items-center">
-                <span className="text-[6.5px] sm:text-[7px] font-bold text-red-500 uppercase tracking-widest mb-0.5">
-                  POTÊNCIA
-                </span>
-                <div
-                  className={`relative flex flex-col items-center justify-center rounded-full bg-zinc-900/90 border border-zinc-700 ${
-                    compact || fill ? 'w-[52px] h-[52px] sm:w-[68px] sm:h-[68px]' : 'w-[76px] h-[76px]'
-                  }`}
-                >
-                  <span className={`${compact || fill ? 'text-sm sm:text-base' : 'text-base sm:text-lg'} font-black text-white leading-none z-10`}>
-                    {instantHp}
-                  </span>
-                  <span className="text-[6.5px] sm:text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
-                    CV
-                  </span>
-                </div>
-                <span className="text-[7px] sm:text-[8px] text-zinc-500 font-bold mt-0.5">
-                  MAX {maxPowerHp} CV
-                </span>
-              </div>
+              <CircularProgressDial
+                label="POTÊNCIA"
+                value={instantHp}
+                max={maxPowerHp}
+                unit="CV"
+                color={isVtecActive ? '#ef4444' : '#f87171'}
+                glowColor={isVtecActive ? '#ef4444' : undefined}
+                subLabel={`MAX ${maxPowerHp} CV`}
+                compact={compact}
+                fill={fill}
+              />
 
               {/* Mostrador 3: Temperatura Óleo */}
-              <div className="flex flex-col items-center">
-                <span className="text-[6.5px] sm:text-[7px] font-bold text-red-500 uppercase tracking-widest mb-0.5">
-                  ÓLEO
-                </span>
-                <div
-                  className={`relative flex flex-col items-center justify-center rounded-full bg-zinc-900/90 border border-zinc-700 ${
-                    compact || fill ? 'w-[52px] h-[52px] sm:w-[68px] sm:h-[68px]' : 'w-[76px] h-[76px]'
-                  }`}
-                >
-                  <span className={`${compact || fill ? 'text-sm sm:text-base' : 'text-base sm:text-lg'} font-black text-white leading-none z-10`}>
-                    {oilTemp}
-                  </span>
-                  <span className="text-[6.5px] sm:text-[7px] font-bold text-zinc-400 tracking-wider mt-0.5 z-10">
-                    °C
-                  </span>
-                </div>
-                <span className="text-[7px] sm:text-[8px] text-emerald-400 font-bold mt-0.5">
-                  NORMAL
-                </span>
-              </div>
+              <CircularProgressDial
+                label="ÓLEO"
+                value={oilTemp}
+                min={50}
+                max={130}
+                unit="°C"
+                color={oilTemp > 115 ? '#ef4444' : '#10b981'}
+                glowColor={oilTemp > 115 ? '#ef4444' : '#10b981'}
+                subLabel={oilTemp > 115 ? 'ALERTA' : 'NORMAL'}
+                compact={compact}
+                fill={fill}
+              />
             </div>
 
             {/* Barra de Engate do i-VTEC */}
@@ -198,6 +179,94 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
               <span>LSD: <b className="text-white">HELICAL</b></span>
               <span>CORTE: <b className="text-amber-400">8.300 RPM</b></span>
             </div>
+          </div>
+        )}
+
+        {/* ABA: NAVEGAÇÃO GPS HONDA Si */}
+        {activeTab === 'nav' && (
+          <div className="w-full flex flex-col justify-between items-center gap-1 h-full p-1 text-center font-mono">
+            {/* Header da Navegação Honda */}
+            <div className="w-full flex items-center justify-between px-2 py-0.5 rounded-lg bg-zinc-900/90 border border-red-500/30">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+                <span className="text-[7px] font-black text-red-400 uppercase tracking-widest">
+                  HONDA GPS NAVI
+                </span>
+              </div>
+              <span className="text-[7px] text-zinc-300 font-bold uppercase truncate max-w-[130px]">
+                {zoneName || 'Circuito 2D'}
+              </span>
+            </div>
+
+            {/* Radar / Mapa Vetorial Honda */}
+            <div className="relative w-full max-w-[260px] h-[90px] sm:h-[105px] rounded-xl bg-[#090b10] border border-red-500/20 overflow-hidden shadow-inner flex items-center justify-center">
+              <div
+                className="absolute inset-0 opacity-15 pointer-events-none"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(to right, #ef4444 1px, transparent 1px), linear-gradient(to bottom, #ef4444 1px, transparent 1px)',
+                  backgroundSize: '20px 20px',
+                }}
+              />
+              <div className="absolute inset-x-0 top-1/2 h-[1px] bg-red-500/20" />
+              <div className="absolute inset-y-0 left-1/2 w-[1px] bg-red-500/20" />
+
+              {/* Indicador do Veículo */}
+              <div
+                className="absolute w-4 h-4 -ml-2 -mt-2 flex items-center justify-center transition-all duration-75"
+                style={{
+                  left: `${Math.max(10, Math.min(90, 50 + (positionX / 300) * 40))}%`,
+                  top: `${Math.max(10, Math.min(90, 50 - (positionY / 300) * 40))}%`,
+                }}
+              >
+                <div
+                  className="text-red-500 text-xs drop-shadow-[0_0_6px_rgba(239,68,68,0.9)]"
+                  style={{ transform: `rotate(${headingDeg}deg)` }}
+                >
+                  ▲
+                </div>
+              </div>
+
+              {/* Rosa dos Ventos */}
+              <div className="absolute top-1 right-2 flex flex-col items-center text-[6px] text-zinc-400 font-bold">
+                <span className="text-red-400 font-black">N</span>
+                <span>{Math.round(headingDeg)}°</span>
+              </div>
+
+              {/* Badge de Superfície */}
+              <div className="absolute bottom-1 left-2 text-[6px] font-bold px-1.5 py-0.5 rounded bg-black/70 border border-white/10 text-zinc-300">
+                PISO: <span className="text-red-400">{surfaceType.toUpperCase()}</span>
+              </div>
+            </div>
+
+            {/* Leituras Numéricas de Coordenadas */}
+            <div className="w-full grid grid-cols-3 gap-1 text-[6.5px] font-bold">
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">COORD X</span>
+                <span className="text-white font-mono">{positionX >= 0 ? '+' : ''}{positionX.toFixed(1)}m</span>
+              </div>
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">COORD Y</span>
+                <span className="text-white font-mono">{positionY >= 0 ? '+' : ''}{positionY.toFixed(1)}m</span>
+              </div>
+              <div className="p-0.5 rounded bg-zinc-900/80 border border-white/5 flex flex-col items-center">
+                <span className="text-zinc-500 text-[5.5px]">RUMO</span>
+                <span className="text-red-400 font-mono">{Math.round(headingDeg)}°</span>
+              </div>
+            </div>
+
+            {/* Ação: Alternar Mapa Dirigível no Cockpit */}
+            <button
+              onClick={toggleMap}
+              className={`w-full py-0.5 px-2 rounded-lg border text-[7px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow flex items-center justify-center gap-1 ${
+                isMapOpen
+                  ? 'bg-red-600 text-white border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.6)]'
+                  : 'bg-zinc-900 text-red-400 border-red-500/40 hover:bg-zinc-800'
+              }`}
+            >
+              <span>🗺️</span>
+              <span>{isMapOpen ? 'MAPA 2D ATIVO NO COCKPIT' : 'PROJETAR MAPA NO COCKPIT'}</span>
+            </button>
           </div>
         )}
 
@@ -263,6 +332,16 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
           }`}
         >
           VTEC HMI
+        </button>
+        <button
+          onClick={() => setActiveTab('nav')}
+          className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+            activeTab === 'nav'
+              ? 'bg-red-600 text-white font-black shadow-[0_0_8px_rgba(220,38,38,0.5)]'
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          GPS MAP
         </button>
         <button
           onClick={() => setActiveTab('clima')}

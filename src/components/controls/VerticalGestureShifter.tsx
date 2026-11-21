@@ -5,6 +5,7 @@ import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 export interface VerticalGestureShifterProps {
   className?: string
   size?: 'compact' | 'normal'
+  orientation?: 'vertical' | 'horizontal'
 }
 
 /**
@@ -21,6 +22,7 @@ export interface VerticalGestureShifterProps {
 export const VerticalGestureShifter = memo(function VerticalGestureShifter({
   className = '',
   size = 'normal',
+  orientation = 'vertical',
 }: VerticalGestureShifterProps) {
   const isRunning = useSimulationStore((s) => s.isRunning)
   const shiftUp = useSimulationStore((s) => s.shiftUp)
@@ -96,8 +98,52 @@ export const VerticalGestureShifter = memo(function VerticalGestureShifter({
     }
   }
 
-  const widthClass = size === 'compact' ? 'w-10' : 'w-11 sm:w-12'
-  const heightClass = size === 'compact' ? 'h-28' : 'h-32 sm:h-36'
+  if (orientation === 'horizontal') {
+    return (
+      <div
+        aria-label="Controle de Câmbio Sequencial (+ / -)"
+        title="Toque em - ou + para trocar de marcha no modo manual"
+        style={{ touchAction: 'none' }}
+        className={`flex items-center gap-1 p-1 rounded-2xl bg-zinc-950/95 border border-amber-400/35 shadow-lg shrink-0 ${className}`}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            triggerDown()
+          }}
+          disabled={!isRunning}
+          className={`w-9 h-9 rounded-xl border font-mono font-black text-base flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
+            activeZone === 'down'
+              ? 'bg-sky-500/30 border-sky-400 text-sky-200'
+              : 'bg-zinc-900 border-white/10 text-zinc-200'
+          }`}
+          aria-label="Reduzir marcha"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            triggerUp()
+          }}
+          disabled={!isRunning}
+          className={`w-9 h-9 rounded-xl border font-mono font-black text-base flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
+            activeZone === 'up'
+              ? 'bg-amber-500/30 border-amber-400 text-amber-200'
+              : 'bg-zinc-900 border-amber-500/30 text-amber-300'
+          }`}
+          aria-label="Subir marcha"
+        >
+          +
+        </button>
+      </div>
+    )
+  }
+
+  const widthClass = size === 'compact' ? 'w-9 sm:w-10' : 'w-11 sm:w-12'
+  const heightClass = size === 'compact' ? 'h-24 sm:h-28' : 'h-32 sm:h-36'
 
   return (
     <div
@@ -108,7 +154,7 @@ export const VerticalGestureShifter = memo(function VerticalGestureShifter({
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       style={{ touchAction: 'none' }}
-      className={`relative select-none flex flex-col items-center justify-between p-1 rounded-2xl bg-zinc-950/95 border border-white/15 shadow-[0_4px_16px_rgba(0,0,0,0.8),inset_0_1px_4px_rgba(255,255,255,0.06)] cursor-grab active:cursor-grabbing ${widthClass} ${heightClass} ${className}`}
+      className={`relative select-none flex flex-col items-center justify-between p-0.5 sm:p-1 rounded-2xl bg-zinc-950/95 border border-white/15 shadow-[0_4px_16px_rgba(0,0,0,0.8),inset_0_1px_4px_rgba(255,255,255,0.06)] cursor-grab active:cursor-grabbing shrink-0 ${widthClass} ${heightClass} ${className}`}
     >
       {/* ── Polo Superior: (+) ── */}
       <button

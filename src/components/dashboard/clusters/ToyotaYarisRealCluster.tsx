@@ -2,6 +2,7 @@ import { memo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { mapRange } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { useGarageStore } from '@/stores/useGarageStore'
 import { useUIStore, type GraphicProfile } from '@/stores/useUIStore'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
 import { ClusterIndicatorIcon } from '@/components/gauges'
@@ -356,6 +357,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
   // Posição do Câmbio Automático Multidrive Toyota
   const isManualSimulated = gear.transmissionMode === 'manual_simulated'
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
+  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
   const storeGraphicProfile = useUIStore((s) => s.graphicProfile)
   const graphicProfile = graphicProfileProp ?? storeGraphicProfile
   const isEcoGraphic = graphicProfile === 'eco'
@@ -486,7 +488,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
               </text>
 
               <text x="0" y="11" textAnchor="middle" className="fill-zinc-400 font-mono text-[7px]">
-                EXT 27°C · 14:35
+                ODO {Math.round(mileageKm).toLocaleString('pt-BR')} km
               </text>
             </g>
 
@@ -589,10 +591,10 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
               </div>
             </div>
 
-            {/* Consumo Instantâneo Toyota (km/L) */}
+            {/* Rotação real no rodapé TFT */}
             <div className="flex justify-between items-center border-t border-sky-800/40 pt-1 text-[9px] font-mono">
-              <span className="text-zinc-400">Consumo médio:</span>
-              <span className="font-bold text-sky-200">14.6 km/L</span>
+              <span className="text-zinc-400">Rotação:</span>
+              <span className="font-bold text-sky-200">{Math.round(clampedRpm)} RPM</span>
             </div>
           </div>
         </div>
