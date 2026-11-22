@@ -166,7 +166,15 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
                       : 'bg-zinc-900 text-zinc-400 border-white/10'
                   }`}
                 >
-                  {mode}
+                  {caps.isMotorcycle
+                    ? mode === 'eco'
+                      ? 'RAIN'
+                      : mode === 'normal'
+                      ? 'STANDARD'
+                      : mode === 'sport'
+                      ? 'SPORT'
+                      : mode
+                    : mode}
                 </button>
               ))}
             </div>

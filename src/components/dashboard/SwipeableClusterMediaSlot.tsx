@@ -5,6 +5,7 @@ import { VehicleDashboardCluster } from './VehicleDashboardCluster'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { AutomaticShiftButton } from '@/components/controls'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
+import { useSecondaryTouchTapBridge } from '@/utils/multitouchBridge'
 
 export interface SwipeableClusterMediaSlotProps {
   telemetry: DashboardTelemetry
@@ -53,6 +54,7 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
   const lastDxRef = useRef(0)
   const lockedRef = useRef(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const secondaryTouchHandlers = useSecondaryTouchTapBridge()
 
   const setView = useCallback(
     (view: 'cluster' | 'multimedia') => {
@@ -82,9 +84,11 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
   }
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // Apenas botão primário (toque ou botão esquerdo do mouse)
-    if (!e.isPrimary) return
-    if (e.button !== undefined && e.button !== 0) return
+    // Em multitouch (ex.: dedo 1 no acelerador, dedo 2 no swipe), permite que um ponteiro
+    // de toque secundário inicie o swipe se nenhum gesto já estiver em andamento.
+    if (e.pointerType !== 'touch' && !e.isPrimary) return
+    if (e.pointerType === 'mouse' && e.button !== undefined && e.button !== 0) return
+    if (startRef.current !== null) return
 
     const target = e.target as HTMLElement
     // Não sequestrar toques de botões, links, inputs, selects, textareas e elementos marcados
@@ -102,7 +106,7 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const s = startRef.current
-    if (!s) return
+    if (!s || e.pointerId !== s.id) return
 
     const dx = e.clientX - s.x
     const dy = e.clientY - s.y
@@ -146,7 +150,7 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
 
   const endGesture = (e: React.PointerEvent<HTMLDivElement>, cancelled = false) => {
     const s = startRef.current
-    if (!s) return
+    if (!s || e.pointerId !== s.id) return
 
     const wasLocked = lockedRef.current
     const currentX =
@@ -188,6 +192,7 @@ export const SwipeableClusterMediaSlot = memo(function SwipeableClusterMediaSlot
       onPointerMove={handlePointerMove}
       onPointerUp={(e) => endGesture(e)}
       onPointerCancel={(e) => endGesture(e, true)}
+      {...secondaryTouchHandlers}
       style={{ touchAction: 'pan-y' }}
       aria-label="Slot inferior de instrumentos e multimídia"
       data-swipe-slot

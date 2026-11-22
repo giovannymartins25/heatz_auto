@@ -1,7 +1,8 @@
 import { memo } from 'react'
-import type { VehicleConfig } from '@/types/vehicle'
 import type { DashboardTelemetry } from '@/systems/dashboard'
+import type { VehicleConfig } from '@/types/vehicle'
 import { VehicleMultimedia } from './infotainment/VehicleMultimedia'
+import { useSecondaryTouchTapBridge } from '@/utils/multitouchBridge'
 
 interface InfotainmentScreenProps {
   vehicle: VehicleConfig
@@ -15,8 +16,8 @@ interface InfotainmentScreenProps {
 
 /**
  * InfotainmentScreen — central multimídia única que ocupa integralmente o retângulo do painel.
- * (Fase 1.5.1) Substitui os quadrados com dimensões próprias por um layout fluido:
- * barra de status + conteúdo da aba ativa + barra de navegação inferior.
+ * Inclui ponte de multitouch secundário para que todos os botões da multimídia respondam
+ * simultaneamente enquanto o motorista mantém o acelerador ou freio pressionado.
  */
 export const InfotainmentScreen = memo(function InfotainmentScreen({
   vehicle,
@@ -24,5 +25,14 @@ export const InfotainmentScreen = memo(function InfotainmentScreen({
   fill = false,
   className = '',
 }: InfotainmentScreenProps) {
-  return <VehicleMultimedia vehicle={vehicle} telemetry={telemetry} fill={fill} className={className} />
+  const secondaryTouchHandlers = useSecondaryTouchTapBridge()
+  return (
+    <div
+      className={fill ? 'w-full h-full flex items-center justify-center' : 'contents'}
+      style={{ touchAction: 'manipulation' }}
+      {...secondaryTouchHandlers}
+    >
+      <VehicleMultimedia vehicle={vehicle} telemetry={telemetry} fill={fill} className={className} />
+    </div>
+  )
 })

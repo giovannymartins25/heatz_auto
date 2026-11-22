@@ -1,3 +1,11 @@
+import {
+  WORLD_GEOMETRY,
+  checkCircleVsBoxCollision,
+  distanceToSegment,
+  evaluateRoadArc,
+  type WorldGeography,
+} from './WorldGeometry'
+
 export type SurfaceType = 'asphalt' | 'wet_asphalt' | 'grass' | 'gravel' | 'curb'
 
 export interface SurfaceProperties {
@@ -20,265 +28,364 @@ export interface WorldMapQuery {
   surface: SurfaceProperties
   collision: CollisionResult
   zoneName: string
+  roadId?: string
 }
 
 /**
  * WorldMap — Mapa 2D métrico contínuo e determinístico do HEATZ AUTO.
  *
- * Dimensões: 600m x 600m (X: [-300, 300], Y: [-300, 300]).
- * O ponto central (0, 0) é a Rotatória Central com a Praça da Matriz.
+ * Consumidor físico oficial de WORLD_GEOMETRY (fonte única da verdade compartilhada
+ * com DrivingWorldCanvas, WorldMapModal e futuras multimídias).
  *
- * Setores:
- * 1. Avenidas Principais (Norte-Sul e Leste-Oeste) com asfalto de alta aderência (mu = 0.95).
- * 2. Rotatória Central (R_ext = 42m, Ilha = 18m).
- * 3. Pista de Arrancada 402m (Drag Strip Oficial) no Setor Leste (Y: [40, 64], X: [40, 480]).
- * 4. Pista de Handling / Circuito Sinuoso no Setor Noroeste (X < -30, Y > 30).
- * 5. Skidpad de Baixa Aderência (Asfalto Molhado) no Setor Sudoeste (X < -30, Y < -30).
- * 6. Setor Off-Road / Terra e Cascalho no Setor Sudeste (X > 30, Y < -30).
- * 7. Áreas verdes / gramado nos quarteirões intermediários.
- * 8. Barreiras de contenção perimetrais com colisão elástica e amortecimento.
+ * Dimensões: 600m x 600m (X: [-300, 300], Y: [-300, 300]) + corredor oficial 402m.
  */
 export class WorldMap {
-  public static readonly MAP_HALF_WIDTH = 300  // metros (-300 a +300)
-  public static readonly MAP_HALF_HEIGHT = 300 // metros (-300 a +300)
-  public static readonly BOUNDARY_LIMIT = 285   // metros (limite das defensas de concreto)
+  public static readonly MAP_HALF_WIDTH = WORLD_GEOMETRY.bounds.halfWidth
+  public static readonly MAP_HALF_HEIGHT = WORLD_GEOMETRY.bounds.halfHeight
+  public static readonly BOUNDARY_LIMIT = WORLD_GEOMETRY.bounds.boundaryLimit
 
   // Ponto de spawn seguro na saída norte da Rotatória Central (fora da ilha de raio 16m)
-  public static readonly SPAWN_X = 0
-  public static readonly SPAWN_Y = 25
-  public static readonly SPAWN_HEADING_DEG = 0
+  public static readonly SPAWN_X = WORLD_GEOMETRY.spawn.x
+  public static readonly SPAWN_Y = WORLD_GEOMETRY.spawn.y
+  public static readonly SPAWN_HEADING_DEG = WORLD_GEOMETRY.spawn.headingDeg
 
   // Drag Strip Markers (em metros globais)
-  public static readonly DRAG_STRIP_START_X = 50
-  public static readonly DRAG_STRIP_60FT_X = 50 + 18.288  // 60 pés = 18.29m
-  public static readonly DRAG_STRIP_201M_X = 50 + 201.168 // 1/8 milha = 201.17m
-  public static readonly DRAG_STRIP_402M_X = 50 + 402.336 // 1/4 milha = 402.34m
-  public static readonly DRAG_STRIP_Y_CENTER = 52
-  public static readonly DRAG_STRIP_HALF_WIDTH = 12
+  public static readonly DRAG_STRIP_START_X = WORLD_GEOMETRY.dragStrip.startX
+  public static readonly DRAG_STRIP_60FT_X = WORLD_GEOMETRY.dragStrip.mark60ftX
+  public static readonly DRAG_STRIP_201M_X = WORLD_GEOMETRY.dragStrip.mark201mX
+  public static readonly DRAG_STRIP_402M_X = WORLD_GEOMETRY.dragStrip.mark402mX
+  public static readonly DRAG_STRIP_Y_CENTER = WORLD_GEOMETRY.dragStrip.yCenter
+  public static readonly DRAG_STRIP_HALF_WIDTH = WORLD_GEOMETRY.dragStrip.halfWidth
+
+  /**
+   * Retorna a definição geográfica única do mundo 2D (vias, curvas, cruzamentos, setores e obstáculos).
+   */
+  public static getGeometry(): WorldGeography {
+    return WORLD_GEOMETRY
+  }
 
   /**
    * Consulta a superfície e colisões em qualquer coordenada métrica (x, y) do mundo.
    */
-  public static query(x: number, y: number, isRaining = false): WorldMapQuery {
-    const collision = this.checkCollision(x, y)
-    const { surface, zoneName } = this.determineSurface(x, y, isRaining)
+  public static query(x: number, y: number, isRaining = false, vehicleRadius = 1.2): WorldMapQuery {
+    const collision = this.checkCollision(x, y, vehicleRadius)
+    const { surface, zoneName, roadId } = this.determineSurface(x, y, isRaining)
 
     return {
       surface,
       collision,
       zoneName,
+      roadId,
     }
   }
 
   /**
-   * Verifica colisões contra defensas e limites perimetrais.
+   * Verifica colisões contra defensas perimetrais e todos os obstáculos sólidos de WORLD_GEOMETRY.
    */
   public static checkCollision(x: number, y: number, vehicleRadius = 1.2): CollisionResult {
     const limit = this.BOUNDARY_LIMIT - vehicleRadius
 
-    // Limites externos da cidade (com extensão do corredor oficial da Reta de Arrancada 402m)
+    // 1. Limites externos da cidade (com extensão do corredor oficial da Reta de Arrancada 402m)
     const inDragCorridor =
       x > 0 && Math.abs(y - this.DRAG_STRIP_Y_CENTER) <= this.DRAG_STRIP_HALF_WIDTH + 4
-    const eastLimit = inDragCorridor ? this.DRAG_STRIP_402M_X + 70 - vehicleRadius : limit
+    const eastLimit = inDragCorridor
+      ? WORLD_GEOMETRY.dragStrip.eastBoundaryX - vehicleRadius
+      : limit
 
-    if (x > eastLimit) {
-      return {
-        isColliding: true,
-        penetrationDepth: x - eastLimit,
-        normalX: -1,
-        normalY: 0,
-        boundaryName: inDragCorridor ? 'Barreira Final da Drag Strip' : 'Defensa Leste',
-      }
-    }
-    if (x < -limit) {
-      return {
-        isColliding: true,
-        penetrationDepth: -limit - x,
-        normalX: 1,
-        normalY: 0,
-        boundaryName: 'Defensa Oeste',
-      }
-    }
-    if (y > limit) {
-      return {
-        isColliding: true,
-        penetrationDepth: y - limit,
-        normalX: 0,
-        normalY: -1,
-        boundaryName: 'Defensa Norte',
-      }
-    }
-    if (y < -limit) {
-      return {
-        isColliding: true,
-        penetrationDepth: -limit - y,
-        normalX: 0,
-        normalY: 1,
-        boundaryName: 'Defensa Sul',
-      }
-    }
-
-    // Ilha central da Rotatória (obstáculo circular com monumento central)
-    const distToCenter = Math.hypot(x, y)
-    const islandRadius = 16.0
-    if (distToCenter < islandRadius + vehicleRadius) {
-      const normalX = distToCenter > 0.01 ? x / distToCenter : 0
-      const normalY = distToCenter > 0.01 ? y / distToCenter : 1
-      return {
-        isColliding: true,
-        penetrationDepth: islandRadius + vehicleRadius - distToCenter,
-        normalX,
-        normalY,
-        boundaryName: 'Ilha da Rotatória',
-      }
-    }
-
-    return {
+    let deepest: CollisionResult = {
       isColliding: false,
       penetrationDepth: 0,
       normalX: 0,
       normalY: 0,
     }
+
+    const consider = (candidate: CollisionResult) => {
+      if (candidate.isColliding && candidate.penetrationDepth > deepest.penetrationDepth) {
+        deepest = candidate
+      }
+    }
+
+    if (x > eastLimit) {
+      consider({
+        isColliding: true,
+        penetrationDepth: x - eastLimit,
+        normalX: -1,
+        normalY: 0,
+        boundaryName: inDragCorridor ? 'Barreira Final da Drag Strip' : 'Defensa Leste',
+      })
+    }
+    if (x < -limit) {
+      consider({
+        isColliding: true,
+        penetrationDepth: -limit - x,
+        normalX: 1,
+        normalY: 0,
+        boundaryName: 'Defensa Oeste',
+      })
+    }
+    if (y > limit) {
+      consider({
+        isColliding: true,
+        penetrationDepth: y - limit,
+        normalX: 0,
+        normalY: -1,
+        boundaryName: 'Defensa Norte',
+      })
+    }
+    if (y < -limit) {
+      consider({
+        isColliding: true,
+        penetrationDepth: -limit - y,
+        normalX: 0,
+        normalY: 1,
+        boundaryName: 'Defensa Sul',
+      })
+    }
+
+    // Limites laterais do corredor da Drag Strip além do perímetro leste (x > 285)
+    if (x > limit && inDragCorridor) {
+      const corridorHalf = this.DRAG_STRIP_HALF_WIDTH + 3.5 - vehicleRadius
+      const dyDrag = y - this.DRAG_STRIP_Y_CENTER
+      if (dyDrag > corridorHalf) {
+        consider({
+          isColliding: true,
+          penetrationDepth: dyDrag - corridorHalf,
+          normalX: 0,
+          normalY: -1,
+          boundaryName: 'Muro Norte da Drag Strip',
+        })
+      } else if (dyDrag < -corridorHalf) {
+        consider({
+          isColliding: true,
+          penetrationDepth: -corridorHalf - dyDrag,
+          normalX: 0,
+          normalY: 1,
+          boundaryName: 'Muro Sul da Drag Strip',
+        })
+      }
+    }
+
+    // 2. Obstáculos físicos de WORLD_GEOMETRY (Ilha da Rotatória, blocos urbanos, paddock, boxes)
+    for (const obs of WORLD_GEOMETRY.obstacles) {
+      if (obs.shape === 'circle' && obs.cx !== undefined && obs.cy !== undefined && obs.radius !== undefined) {
+        const dx = x - obs.cx
+        const dy = y - obs.cy
+        const dist = Math.hypot(dx, dy)
+        const minDist = obs.radius + vehicleRadius
+        if (dist < minDist) {
+          const normalX = dist > 0.01 ? dx / dist : 0
+          const normalY = dist > 0.01 ? dy / dist : 1
+          consider({
+            isColliding: true,
+            penetrationDepth: minDist - dist,
+            normalX,
+            normalY,
+            boundaryName: obs.name,
+          })
+        }
+      } else if (
+        obs.shape === 'box' &&
+        obs.minX !== undefined &&
+        obs.maxX !== undefined &&
+        obs.minY !== undefined &&
+        obs.maxY !== undefined
+      ) {
+        const hit = checkCircleVsBoxCollision(
+          x,
+          y,
+          vehicleRadius,
+          obs.minX,
+          obs.maxX,
+          obs.minY,
+          obs.maxY,
+        )
+        if (hit.isColliding) {
+          consider({
+            isColliding: true,
+            penetrationDepth: hit.penetrationDepth,
+            normalX: hit.normalX,
+            normalY: hit.normalY,
+            boundaryName: obs.name,
+          })
+        }
+      }
+    }
+
+    return deepest
   }
 
   /**
-   * Identifica o tipo de superfície e propriedades físicas sob as rodas.
+   * Identifica o tipo de superfície e propriedades físicas sob as rodas a partir de WORLD_GEOMETRY.
    */
   private static determineSurface(
     x: number,
     y: number,
     isRaining: boolean,
-  ): { surface: SurfaceProperties; zoneName: string } {
+  ): { surface: SurfaceProperties; zoneName: string; roadId?: string } {
+    // 1. Rotatória Central (prioridade no núcleo central r <= 42m)
     const distFromOrigin = Math.hypot(x, y)
-
-    // 1. Rotatória Central
     if (distFromOrigin <= 42.0) {
       if (distFromOrigin >= 16.0 && distFromOrigin <= 18.0) {
         return {
           surface: {
             type: 'curb',
-            friction: 0.85,
+            friction: isRaining ? 0.52 : 0.85,
             rollingResistance: 0.025,
-            name: 'Zebra da Rotatória',
+            name: isRaining ? 'Zebra da Rotatória (Molhada)' : 'Zebra da Rotatória',
             color: '#dc2626',
           },
           zoneName: 'Rotatória Central',
+          roadId: 'rotatoria-central',
         }
       }
       return {
         surface: this.getAsphalt(isRaining),
         zoneName: 'Rotatória Central',
+        roadId: 'rotatoria-central',
       }
     }
 
-    // 2. Avenidas Principais (Cruciforme 24m de largura)
-    const isMainAvenueEW = Math.abs(y) <= 12.0 && Math.abs(x) <= 280
-    const isMainAvenueNS = Math.abs(x) <= 12.0 && Math.abs(y) <= 280
-
-    if (isMainAvenueEW || isMainAvenueNS) {
-      // Zebras / guias nas bordas
-      const nearCurbEW = isMainAvenueEW && Math.abs(y) >= 10.5
-      const nearCurbNS = isMainAvenueNS && Math.abs(x) >= 10.5
-      if (nearCurbEW || nearCurbNS) {
+    // 2. Reta Oficial de Arrancada 402m (VHT Prep)
+    const dragSeg = WORLD_GEOMETRY.segments.find((s) => s.surfaceKind === 'drag_vht')
+    if (dragSeg) {
+      const { dist } = distanceToSegment(x, y, dragSeg.x1, dragSeg.y1, dragSeg.x2, dragSeg.y2)
+      if (dist <= dragSeg.width / 2) {
+        const dragFriction = isRaining ? 0.70 : 1.18
         return {
           surface: {
-            type: 'curb',
-            friction: 0.85,
-            rollingResistance: 0.022,
-            name: 'Guia / Meio-fio',
-            color: '#e2e8f0',
+            type: 'asphalt',
+            friction: dragFriction,
+            rollingResistance: 0.012,
+            name: 'Drag Strip 402m (VHT Prep)',
+            color: '#1e293b',
           },
-          zoneName: isMainAvenueEW ? 'Av. Transversal Leste-Oeste' : 'Av. Central Norte-Sul',
+          zoneName: dragSeg.zoneName,
+          roadId: dragSeg.id,
         }
       }
-
-      return {
-        surface: this.getAsphalt(isRaining),
-        zoneName: isMainAvenueEW ? 'Av. Transversal Leste-Oeste' : 'Av. Central Norte-Sul',
-      }
     }
 
-    // 3. Pista de Arrancada Oficial (Drag Strip 402m)
-    if (
-      x >= this.DRAG_STRIP_START_X - 10 &&
-      x <= this.DRAG_STRIP_402M_X + 60 &&
-      Math.abs(y - this.DRAG_STRIP_Y_CENTER) <= this.DRAG_STRIP_HALF_WIDTH
-    ) {
-      // Asfalto emborrachado com VHT de altíssima aderência em arrancada
-      const dragFriction = isRaining ? 0.70 : 1.18
-      return {
-        surface: {
-          type: 'asphalt',
-          friction: dragFriction,
-          rollingResistance: 0.012,
-          name: 'Drag Strip 402m (VHT Prep)',
-          color: '#1e293b',
-        },
-        zoneName: 'Reta Oficial de Arrancada',
-      }
-    }
+    // 3. Pista útil (asfalto interior) de TODOS os segmentos retos e arcos curvos
+    // Avalia o interior asfaltado primeiro para que cruzamentos não tenham guias fantasma.
+    let curbMatch: { zoneName: string; roadId: string; isSidewalk: boolean } | null = null
 
-    // 4. Skidpad Molhado (Setor Sudoeste: X < -40, Y < -40)
-    const skidCenter = { x: -140, y: -140 }
-    const distToSkid = Math.hypot(x - skidCenter.x, y - skidCenter.y)
-    if (distToSkid <= 65) {
-      return {
-        surface: {
-          type: 'wet_asphalt',
-          friction: 0.50,
-          rollingResistance: 0.018,
-          name: 'Asfalto Molhado / Skidpad',
-          color: '#0f172a',
-        },
-        zoneName: 'Área de Teste de Derrapagem (Skidpad)',
-      }
-    }
+    for (const seg of WORLD_GEOMETRY.segments) {
+      if (seg.surfaceKind === 'drag_vht') continue
+      const { dist } = distanceToSegment(x, y, seg.x1, seg.y1, seg.x2, seg.y2)
+      const halfW = seg.width / 2
+      const innerHalfW = Math.max(0, halfW - seg.curbWidth)
 
-    // 5. Setor Off-Road / Cascalho e Terra (Setor Sudeste: X > 40, Y < -40)
-    const offroadCenter = { x: 140, y: -140 }
-    const distToOffroad = Math.hypot(x - offroadCenter.x, y - offroadCenter.y)
-    if (distToOffroad <= 75) {
-      return {
-        surface: {
-          type: 'gravel',
-          friction: 0.48,
-          rollingResistance: 0.045,
-          name: 'Pista de Cascalho / Terra',
-          color: '#78350f',
-        },
-        zoneName: 'Circuito Off-Road 4x4',
-      }
-    }
-
-    // 6. Circuito de Handling Sinuoso (Setor Noroeste: X < -30, Y > 30)
-    // Curva oval e chicane
-    const inHandlingArea = x >= -250 && x <= -30 && y >= 30 && y <= 250
-    if (inHandlingArea) {
-      // Traçado do anel sinuoso
-      const rOuter = 95
-      const rInner = 65
-      const handlingCenter = { x: -140, y: 140 }
-      const d = Math.hypot(x - handlingCenter.x, y - handlingCenter.y)
-      if (d >= rInner && d <= rOuter) {
+      if (dist <= innerHalfW) {
         return {
           surface: this.getAsphalt(isRaining),
-          zoneName: 'Circuito de Handling (Curva Rápida)',
+          zoneName: seg.zoneName,
+          roadId: seg.id,
+        }
+      }
+      if (!curbMatch && dist <= halfW) {
+        curbMatch = { zoneName: seg.zoneName, roadId: seg.id, isSidewalk: false }
+      } else if (!curbMatch && seg.sidewalkWidth > 0 && dist <= halfW + seg.sidewalkWidth) {
+        curbMatch = { zoneName: seg.zoneName, roadId: seg.id, isSidewalk: true }
+      }
+    }
+
+    for (const arc of WORLD_GEOMETRY.arcs) {
+      if (arc.id === 'rotatoria-central') continue
+      const evalArc = evaluateRoadArc(x, y, arc)
+      if (!evalArc.insideAngle) continue
+      const halfW = arc.width / 2
+      const innerHalfW = Math.max(0, halfW - arc.curbWidth)
+
+      if (evalArc.radialOffset <= innerHalfW) {
+        return {
+          surface: this.getAsphalt(isRaining),
+          zoneName: arc.zoneName,
+          roadId: arc.id,
+        }
+      }
+      if (evalArc.radialOffset <= halfW) {
+        curbMatch = { zoneName: arc.zoneName, roadId: arc.id, isSidewalk: false }
+      }
+    }
+
+    // 4. Zonas Especiais (Skidpad Molhado e Circuito Off-Road 4x4)
+    for (const zone of WORLD_GEOMETRY.zones) {
+      const dist = Math.hypot(x - zone.cx, y - zone.cy)
+      if (dist <= zone.radius) {
+        return {
+          surface: {
+            type: zone.surfaceKind,
+            friction: zone.friction,
+            rollingResistance: zone.rollingResistance,
+            name: zone.surfaceKind === 'wet_asphalt' ? 'Asfalto Molhado / Skidpad' : 'Pista de Cascalho / Terra',
+            color: zone.fillColor,
+          },
+          zoneName: zone.zoneName,
+          roadId: zone.id,
         }
       }
     }
 
-    // 7. Vias Secundárias Perimetrais (Ruas de ligação)
-    const isPerimeterRing =
-      (Math.abs(x) >= 220 && Math.abs(x) <= 240 && Math.abs(y) <= 240) ||
-      (Math.abs(y) >= 220 && Math.abs(y) <= 240 && Math.abs(x) <= 240)
-    if (isPerimeterRing) {
+    // 5. Guias / Zebras / Calçadas das vias
+    if (curbMatch) {
       return {
-        surface: this.getAsphalt(isRaining),
-        zoneName: 'Anel Viário Perimetral',
+        surface: {
+          type: 'curb',
+          friction: isRaining
+            ? curbMatch.isSidewalk ? 0.54 : 0.52
+            : curbMatch.isSidewalk ? 0.80 : 0.85,
+          rollingResistance: curbMatch.isSidewalk ? 0.028 : 0.022,
+          name: curbMatch.isSidewalk ? 'Calçada / Passeio' : 'Guia / Meio-fio',
+          color: curbMatch.isSidewalk ? '#64748b' : '#e2e8f0',
+        },
+        zoneName: curbMatch.zoneName,
+        roadId: curbMatch.roadId,
       }
     }
 
-    // 8. Grama / Terreno Natural nos demais espaços
+    // 6. Calçadas ao redor dos blocos urbanos não dirigíveis
+    for (const obs of WORLD_GEOMETRY.obstacles) {
+      if (obs.sidewalkMargin <= 0) continue
+      if (obs.shape === 'circle' && obs.cx !== undefined && obs.cy !== undefined && obs.radius !== undefined) {
+        const dist = Math.hypot(x - obs.cx, y - obs.cy)
+        if (dist <= obs.radius + obs.sidewalkMargin) {
+          return {
+            surface: {
+              type: 'curb',
+              friction: isRaining ? 0.54 : 0.80,
+              rollingResistance: 0.028,
+              name: 'Calçada / Passeio',
+              color: '#64748b',
+            },
+            zoneName: `Calçada — ${obs.name}`,
+            roadId: obs.id,
+          }
+        }
+      } else if (
+        obs.shape === 'box' &&
+        obs.minX !== undefined &&
+        obs.maxX !== undefined &&
+        obs.minY !== undefined &&
+        obs.maxY !== undefined
+      ) {
+        const m = obs.sidewalkMargin
+        if (x >= obs.minX - m && x <= obs.maxX + m && y >= obs.minY - m && y <= obs.maxY + m) {
+          return {
+            surface: {
+              type: 'curb',
+              friction: isRaining ? 0.54 : 0.80,
+              rollingResistance: 0.028,
+              name: 'Calçada / Passeio',
+              color: '#64748b',
+            },
+            zoneName: `Calçada — ${obs.name}`,
+            roadId: obs.id,
+          }
+        }
+      }
+    }
+
+    // 7. Grama / Terreno Natural nos demais espaços
     return {
       surface: {
         type: 'grass',

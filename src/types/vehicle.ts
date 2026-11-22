@@ -4,6 +4,15 @@
  * Esses tipos são a base para todo o sistema — motor, transmissão, áudio e painel.
  */
 
+import type { ChassisConfig } from '@/systems/physics/Chassis'
+import type { AmbientLightColor } from '@/utils/ambientLighting'
+import {
+  resolveVehicleAero,
+  resolveVehicleDrivetrain,
+  resolveVehicleMultimediaSpec,
+} from '@/systems/vehicle/vehicleResolvers'
+export type { ChassisConfig }
+
 export type VehicleCategory = 'car' | 'motorcycle' | 'truck' | 'bus' | 'tractor' | 'custom'
 
 export type TransmissionType = 'manual' | 'automatic' | 'sequential' | 'cvt' | 'dct'
@@ -11,6 +20,99 @@ export type TransmissionType = 'manual' | 'automatic' | 'sequential' | 'cvt' | '
 export type DrivingMode = 'eco' | 'normal' | 'sport' | 'track'
 
 export type GearSelectorPosition = SelectorPosition
+
+/**
+ * Arquitetura canônica de tração do veículo (localização única: `transmission.drivetrain`).
+ * `'awd'` é aceito como alias legado para retrocompatibilidade com configs existentes.
+ */
+export type DrivetrainLayout = 'fwd' | 'rwd' | 'awd_ptm' | 'awd_ondemand' | '4x4_selectable'
+export type DrivetrainConfigValue = DrivetrainLayout | 'awd'
+
+/** Tipo de sistema de ignição/partida do veículo */
+export type IgnitionType = 'key' | 'push_button'
+
+export interface VehicleIgnitionSpec {
+  type: IgnitionType
+  requiresPedalForStart?: boolean
+  supportsAccessoryMode: boolean
+}
+
+/** Arquitetura de climatização da cabine */
+export type ClimateSystemType =
+  | 'none'
+  | 'manual_vent'
+  | 'manual_ac'
+  | 'auto_single'
+  | 'auto_dual'
+  | 'auto_tri'
+
+export interface VehicleCabinSpec {
+  climateType: ClimateSystemType
+  hasAcCompressor: boolean
+  hasHeater: boolean
+  hasSeatHeating?: boolean
+  hasRecirculation: boolean
+  hasDefroster: boolean
+  windowCount: 0 | 2 | 4
+  windowControlType: 'none' | 'manual_crank' | 'electric'
+  hasFogLights?: boolean
+  hasAmbientLighting?: boolean
+  defaultAmbientColor?: AmbientLightColor
+}
+
+/** Identificador canônico de unidade multimídia no MULTIMEDIA_REGISTRY */
+export type MultimediaUnitId =
+  | 'toro_uconnect_7'
+  | 'toro_uconnect_10_vertical'
+  | 'porsche_pcm6'
+  | 'vw_discover_pro'
+  | 'toyota_smart_connect'
+  | 'honda_haudio'
+  | 'retrofit_2din'
+  | 'classic_radio_1din'
+  | 'classic_blank_console'
+  | 'generic_multimedia'
+  | 'none'
+
+export interface VehicleMultimediaSpec {
+  unitId: MultimediaUnitId
+  type: MultimediaType
+  layout: MultimediaLayout
+  screenSize?: number
+  name: string
+  era?: '1990s' | '2000s' | '2010s' | '2020s'
+  features: string[]
+  supportsAftermarketUpgrade: boolean
+}
+
+export type VehicleVisual2DSilhouette =
+  | 'hatch'
+  | 'hatch_square'
+  | 'sedan'
+  | 'coupe'
+  | 'pickup_compact'
+  | 'pickup_mid'
+  | 'motorcycle'
+
+export interface VehicleVisual2DSpec {
+  bodyColor: string
+  accentColor?: string
+  lengthM: number
+  widthM: number
+  silhouette: VehicleVisual2DSilhouette
+  hasFrontRedStripe?: boolean
+}
+
+export interface VehicleAeroSpec {
+  hasActiveRearWing?: boolean
+  hasAdjustableRideHeight?: boolean
+  hasAirbrake?: boolean
+  defaultWingType?: 'none' | 'oem' | 'sport_gt'
+  defaultWingPosition?: 'low_drag' | 'balanced' | 'high_downforce'
+  baseDownforceCoeff?: number
+}
+
+export type VehicleFuelType = 'common_gasoline' | 'premium_podium' | 'ethanol_e100'
 
 /** Ponto na curva de torque: RPM → torque em Nm */
 export interface TorqueCurvePoint {
@@ -25,6 +127,7 @@ export interface TurboConfig {
   spoolRpmStart: number     // RPM onde a turbina começa a encher (ex: 1600)
   fullBoostRpm: number      // RPM onde atinge pressão máxima (ex: 2800)
   hasBlowOff: boolean       // Válvula de alívio com som característico
+  defaultUpgradeLevel?: 'none' | 'basic' | 'intermediate' | 'big_turbo'
 }
 
 /** Configuração do motor */
@@ -40,6 +143,10 @@ export interface EngineConfig {
   engineBrakeFactor: number  // Fator de freio motor (0-1)
   throttleProgressionExponent?: number // Expoente de progressividade do acelerador (ex: 1.45 para carros, 1.15 para motos)
   engineType?: string        // Tipo acústico / mecânico (ex: 'i4_turbo_flex', 'i4_diesel', 'boxer6')
+  defaultFuelType?: VehicleFuelType
+  podiumGainMultiplier?: number
+  podiumGainMinRpm?: number
+  defaultInternals?: 'stock' | 'forged'
   torqueCurve: TorqueCurvePoint[]
   turbo?: TurboConfig
 }
@@ -113,6 +220,8 @@ export interface VehicleCapabilities {
 /** Configuração da transmissão */
 export interface TransmissionConfig {
   type: TransmissionType
+  /** Arquitetura canônica de tração (localização única — não duplicar na raiz de VehicleConfig) */
+  drivetrain?: DrivetrainConfigValue
   /** Posições físicas/operacionais realmente disponíveis no seletor deste veículo. */
   supportedSelectorPositions: SelectorPosition[]
   gearCount: number
@@ -211,9 +320,6 @@ export interface VehicleInfo {
   torqueKgfm?: number        // Ex: 14.3
 }
 
-import type { ChassisConfig } from '@/systems/physics/Chassis'
-export type { ChassisConfig }
-
 /** Configuração completa de um veículo */
 export interface VehicleConfig {
   id: string
@@ -223,6 +329,11 @@ export interface VehicleConfig {
   audio: AudioConfig
   dashboard: DashboardConfig
   chassis?: ChassisConfig
+  ignition?: VehicleIgnitionSpec
+  cabin?: VehicleCabinSpec
+  multimedia?: VehicleMultimediaSpec
+  visual2d?: VehicleVisual2DSpec
+  aerodynamics?: VehicleAeroSpec
 }
 
 /** Manifest de veículos disponíveis (índice) */
@@ -269,8 +380,11 @@ export function getVehicleCapabilities(
   // Modos de condução suportados (ECO / NORMAL / SPORT / TRACK de chassi/acelerador)
   let supportedDrivingModes: DrivingMode[] = transmission.supportedModes ?? []
   if (isMoto) {
-    // Motocicletas: sem modos fictícios de condução de carros
-    supportedDrivingModes = []
+    // Motocicletas: respeita apenas os modos reais declarados no config.json (ex.: CB1000R: RAIN/STANDARD/SPORT)
+    supportedDrivingModes =
+      transmission.supportedModes && transmission.supportedModes.length > 0
+        ? [...transmission.supportedModes]
+        : []
   } else if (vehicle.id.includes('toro-endurance')) {
     // Toro Endurance: possui modos de condução Eco, Normal e Sport
     supportedDrivingModes =
@@ -352,166 +466,30 @@ export function getVehicleCapabilities(
   // Suporte a nitro (NOS): motos não possuem por padrão, carros suportam via oficina
   const supportsNos = transmission.supportsNos ?? !isMoto
 
-  // Capacidade de multimídia e unidade de áudio individual
-  const hasAftermarketMedia = Boolean(upgrades?.multimediaKit)
-  let multimedia: VehicleMultimediaCapability
-
-  if (isMoto) {
-    // CB1000R e motocicletas: sem central multimídia ou rádio
-    multimedia = {
-      type: 'none',
-      layout: 'none',
-      name: 'Painel TFT 5" Integrado (Sem Multimídia)',
-      features: ['Computador de bordo TFT', 'Indicador de marcha', 'Conta-giros digital'],
-      supportsAftermarketUpgrade: false,
-    }
-  } else if (vehicle.id.includes('porsche-gt3')) {
-    multimedia = {
-      type: 'factory',
-      layout: 'horizontal',
-      screenSize: 10.9,
-      name: 'Porsche Communication Management (PCM 6.0)',
-      features: [
-        'Track Precision App',
-        'Aerodinâmica Ativa',
-        'Front Axle Lift',
-        'Sport Chrono',
-        'Climatronic Dual',
-      ],
-      supportsAftermarketUpgrade: false,
-    }
-  } else if (vehicle.id.includes('golf-gti')) {
-    multimedia = {
-      type: 'factory',
-      layout: 'horizontal',
-      screenSize: 8.0,
-      name: 'VW Discover Pro 8" com Sport HMI',
-      features: [
-        'Sport HMI (Pressão Turbo / G-Force / Temp Óleo)',
-        'Climatronic Dual Zone',
-        'Modos de Condução VW',
-        'Media Player',
-      ],
-      supportsAftermarketUpgrade: false,
-    }
-  } else if (vehicle.id.includes('toro-ranch')) {
-    multimedia = {
-      type: 'factory',
-      layout: 'vertical',
-      screenSize: 10.1,
-      name: 'Uconnect 10.1" Vertical HD',
-      features: [
-        'Monitor de Tração 4x4 Off-Road',
-        'Climatização Dual Zone Touch',
-        'Telemetria Turbodiesel',
-        'Android Auto / Apple CarPlay',
-      ],
-      supportsAftermarketUpgrade: false,
-    }
-  } else if (vehicle.id.includes('toro-endurance')) {
-    multimedia = {
-      type: 'factory',
-      layout: 'horizontal',
-      screenSize: 7.0,
-      name: 'Uconnect 7" Touchscreen',
-      features: [
-        'Controles de Áudio e Rádio',
-        'Status T270 Flex',
-        'Climatização Analógica/Digital',
-        'Bluetooth / Espelhamento',
-      ],
-      supportsAftermarketUpgrade: false,
-    }
-  } else if (vehicle.id === 'yaris-2019' || vehicle.id.includes('yaris')) {
-    multimedia = {
-      type: 'factory',
-      layout: 'horizontal',
-      screenSize: 7.0,
-      name: 'Toyota Play 7" Smart Connect',
-      features: [
-        'Eco & Drive Monitor',
-        'Consumo Médio e Autonomia',
-        'Climatização Digital',
-        'YouTube / Media Center',
-      ],
-      supportsAftermarketUpgrade: false,
-    }
-  } else if (hasAftermarketMedia) {
-    // Veículos analógicos com kit multimídia aftermarket instalado na oficina
-    multimedia = {
-      type: 'aftermarket',
-      layout: 'horizontal',
-      screenSize: 7.0,
-      name: 'Central 2-DIN Heatz Performance',
-      features: [
-        'Apple CarPlay / Android Auto',
-        'Media Player Digital',
-        'Telemetria OBD-II',
-        'Streaming de Música',
-      ],
-      supportsAftermarketUpgrade: true,
-    }
-  } else if (vehicle.id.includes('gol-quadrado')) {
-    // Gol Quadrado de fábrica: console analógico original sem rádio nem multimídia
-    multimedia = {
-      type: 'none',
-      layout: 'compact',
-      name: 'Console Original VW GL (Sem Rádio)',
-      features: [
-        'Tampa cega 1-DIN',
-        'Relógio de quartzo digital',
-        'Difusores de ar mecânicos',
-      ],
-      supportsAftermarketUpgrade: true,
-    }
-  } else if (vehicle.id.includes('opala-4100')) {
-    multimedia = {
-      type: 'radio',
-      layout: 'compact',
-      name: 'Toca-Fitas / Rádio Albatroz 1-DIN Vintage',
-      features: ['Receptor AM/FM Clássico', 'Equalizador Analógico', 'Visor LCD Verde Vintage'],
-      supportsAftermarketUpgrade: true,
-    }
-  } else if (vehicle.id.includes('civic-si')) {
-    multimedia = {
-      type: 'factory',
-      layout: 'horizontal',
-      screenSize: 6.5,
-      name: 'Honda H-Audio 2-DIN OEM',
-      features: ['Telemetria i-VTEC', 'Controle de Áudio Integrado', 'Computador de bordo'],
-      supportsAftermarketUpgrade: true,
-    }
-  } else if (vehicle.id.includes('gol-g6')) {
-    multimedia = {
-      type: 'radio',
-      layout: 'compact',
-      name: 'Rádio VW RCD 320G 1-DIN',
-      features: ['Receptor FM/AM', 'Entrada USB / Bluetooth', 'Display Dot-Matrix'],
-      supportsAftermarketUpgrade: true,
-    }
-  } else {
-    const isFactory = Boolean(vehicle.dashboard.hasInfotainment)
-    multimedia = {
-      type: isFactory ? 'factory' : 'none',
-      layout: isFactory ? 'horizontal' : 'none',
-      screenSize: isFactory ? 7.0 : undefined,
-      name: isFactory ? 'Central Multimídia' : 'Sem Multimídia',
-      features: isFactory ? ['Media Player', 'Status do Veículo'] : [],
-      supportsAftermarketUpgrade: !isFactory,
-    }
+  // Capacidade de multimídia e unidade de áudio individual (delegado ao resolver declarativo)
+  const resolvedMedia = resolveVehicleMultimediaSpec(vehicle, upgrades)
+  const multimedia: VehicleMultimediaCapability = {
+    type: resolvedMedia.type,
+    layout: resolvedMedia.layout,
+    screenSize: resolvedMedia.screenSize,
+    name: resolvedMedia.name,
+    features: resolvedMedia.features,
+    supportsAftermarketUpgrade: resolvedMedia.supportsAftermarketUpgrade,
   }
 
-  // Aerodinâmica ativa (Porsche 911 GT3 / 992)
-  let activeAero: VehicleActiveAeroCapability | undefined = undefined
-  if (vehicle.id.includes('porsche-gt3')) {
-    activeAero = {
-      hasActiveRearWing: true,
-      hasAdjustableRideHeight: true,
-    }
-  }
+  // Aerodinâmica ativa (delegada ao resolver declarativo)
+  const resolvedAero = resolveVehicleAero(vehicle)
+  const activeAero: VehicleActiveAeroCapability | undefined =
+    resolvedAero.hasActiveRearWing || resolvedAero.hasAdjustableRideHeight
+      ? {
+          hasActiveRearWing: resolvedAero.hasActiveRearWing,
+          hasAdjustableRideHeight: resolvedAero.hasAdjustableRideHeight,
+        }
+      : undefined
 
-  // Recursos de tração 4x4 e multimídia
-  const has4x4Selector = vehicle.id.includes('toro-ranch') || Boolean(vehicle.id.includes('4x4'))
+  // Recursos de tração 4x4 e multimídia (derivados da arquitetura canônica de tração)
+  const resolvedDrivetrain = resolveVehicleDrivetrain(vehicle)
+  const has4x4Selector = resolvedDrivetrain === '4x4_selectable'
   const hasInfotainment =
     multimedia.type === 'factory' ||
     multimedia.type === 'aftermarket' ||

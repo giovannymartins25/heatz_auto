@@ -1,27 +1,24 @@
 import { memo, useLayoutEffect, useRef, useState } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { ClusterView } from './ClusterView'
+import { CLUSTER_REGISTRY, resolveClusterEntry, type ClusterProfile } from './clusters/clusterRegistry'
 import { performanceMonitor } from '@/utils/performanceMonitor'
 
-type ClusterProfile = { width: number; height: number }
-
 /**
- * Perfis de referência (largura natural fixa de cada cluster + altura estimada).
- * A LARGURA é a referência real de layout; a ALTURA é apenas um valor inicial
- * (antes da primeira medição): a altura verdadeira é medida no DOM.
+ * Perfis de referência derivados do `CLUSTER_REGISTRY` (fonte única da verdade).
  */
 export const CLUSTER_PROFILES: Record<DashboardTelemetry['theme'], ClusterProfile> = {
-  civic_si: { width: 640, height: 335 },
-  gti: { width: 790, height: 260 },
-  classic: { width: 710, height: 265 },
-  square_turbo: { width: 700, height: 270 },
-  supercar: { width: 770, height: 268 },
-  opala_classic: { width: 730, height: 248 },
-  modern: { width: 750, height: 268 },
-  motorcycle: { width: 500, height: 228 },
-  toro_endurance: { width: 750, height: 268 },
-  toro_ranch: { width: 750, height: 268 },
-  default: { width: 750, height: 268 },
+  civic_si: CLUSTER_REGISTRY.civic_si.profile,
+  gti: CLUSTER_REGISTRY.gti.profile,
+  classic: CLUSTER_REGISTRY.classic.profile,
+  square_turbo: CLUSTER_REGISTRY.square_turbo.profile,
+  supercar: CLUSTER_REGISTRY.supercar.profile,
+  opala_classic: CLUSTER_REGISTRY.opala_classic.profile,
+  modern: CLUSTER_REGISTRY.modern.profile,
+  motorcycle: CLUSTER_REGISTRY.motorcycle.profile,
+  toro_endurance: CLUSTER_REGISTRY.toro_endurance.profile,
+  toro_ranch: CLUSTER_REGISTRY.toro_ranch.profile,
+  default: CLUSTER_REGISTRY.default.profile,
 }
 
 interface VehicleDashboardClusterProps {
@@ -45,7 +42,7 @@ export const VehicleDashboardCluster = memo(function VehicleDashboardCluster({
   const containerRef = useRef<HTMLElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [bounds, setBounds] = useState({ width: 0, height: 0 })
-  const profile = CLUSTER_PROFILES[telemetry.theme] ?? CLUSTER_PROFILES.default
+  const profile = resolveClusterEntry(telemetry.theme).profile
   const [natural, setNatural] = useState<{ theme: string; height: number } | null>(null)
 
   // 1) Área realmente disponível (container visível)

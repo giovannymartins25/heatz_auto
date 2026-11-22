@@ -72,6 +72,7 @@ export const AnalogPedal = memo(function AnalogPedal({
     if (disabled) return
     // Se outro ponteiro já estiver interagindo com este pedal, ignora novo ponteiro
     if (activePointerIdRef.current !== null && activePointerIdRef.current !== e.pointerId) return
+    e.stopPropagation()
 
     activePointerIdRef.current = e.pointerId
     isPointerDownRef.current = true
@@ -92,6 +93,7 @@ export const AnalogPedal = memo(function AnalogPedal({
     if (!isPointerDownRef.current || disabled) return
     // Apenas responde ao ponteiro que iniciou a interação neste pedal
     if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return
+    e.stopPropagation()
 
     const newVal = calculatePedalValue(e.clientY)
     setInternalValue(newVal)
@@ -102,6 +104,7 @@ export const AnalogPedal = memo(function AnalogPedal({
     if (!isPointerDownRef.current) return
     // Se o evento for de outro dedo levantado na tela, não cancela este pedal
     if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return
+    e.stopPropagation()
 
     activePointerIdRef.current = null
     isPointerDownRef.current = false
@@ -190,6 +193,7 @@ export const AnalogPedal = memo(function AnalogPedal({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onLostPointerCapture={handlePointerUp}
         className={`${widthClass} ${heightClass} relative rounded-xl border-2 cursor-grab active:cursor-grabbing flex flex-col justify-end p-1.5 transition-colors overflow-hidden ${
           internalValue > 0.05
             ? `${themeStyles.borderActive} bg-zinc-900/80 ${themeStyles.glow}`

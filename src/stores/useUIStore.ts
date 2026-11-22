@@ -45,8 +45,10 @@ interface UIStoreState {
   allowPortraitCockpit: boolean
   /** Tamanho do espaço reservado ao futuro mapa de direção. */
   mapViewportSize: MapViewportSize
-  /** Se o mapa 2D dirigível está visível no cockpit */
+  /** Se o minimapa 2D dirigível está visível no cockpit */
   isMapOpen: boolean
+  /** Se o Mapa do Mundo em visão ampla (overlay dedicado) está aberto */
+  isWorldMapOpen: boolean
   /** Perfil de desempenho visual e renderização mobile (ECO / NORMAL / ALTO) */
   graphicProfile: GraphicProfile
   /** Exibir HUD diagnóstico interno de desempenho (FPS, frame time, P95, física) */
@@ -66,6 +68,9 @@ interface UIStoreActions {
   setMapViewportSize: (size: MapViewportSize) => void
   toggleMap: () => void
   setMapOpen: (open: boolean) => void
+  openWorldMap: () => void
+  closeWorldMap: () => void
+  toggleWorldMap: () => void
   setGraphicProfile: (profile: GraphicProfile) => void
   togglePerformanceMonitor: () => void
   setShowTiltIndicator: (show: boolean) => void
@@ -82,6 +87,7 @@ export const useUIStore = create<UIStore>((set) => ({
   allowPortraitCockpit: false,
   mapViewportSize: 'balanced',
   isMapOpen: true,
+  isWorldMapOpen: false,
   graphicProfile: 'normal',
   showPerformanceMonitor: false,
   showTiltIndicator: getInitialShowTiltIndicator(),
@@ -123,6 +129,9 @@ export const useUIStore = create<UIStore>((set) => ({
         ? (s.mapViewportSize === 'hidden' ? 'balanced' : s.mapViewportSize)
         : 'hidden',
     })),
+  openWorldMap: () => set({ isWorldMapOpen: true }),
+  closeWorldMap: () => set({ isWorldMapOpen: false }),
+  toggleWorldMap: () => set((s) => ({ isWorldMapOpen: !s.isWorldMapOpen })),
   setGraphicProfile: (profile) => set({ graphicProfile: profile }),
   togglePerformanceMonitor: () => set((s) => ({ showPerformanceMonitor: !s.showPerformanceMonitor })),
   setShowTiltIndicator: (show) => {

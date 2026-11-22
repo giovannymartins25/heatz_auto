@@ -10,6 +10,7 @@ import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
 import { DrivingMapViewport } from './DrivingMapViewport'
+import { WorldMapModal } from './WorldMapModal'
 import { useUIStore } from '@/stores/useUIStore'
 import { SwipeableClusterMediaSlot } from './SwipeableClusterMediaSlot'
 import { MobileQuickMenu } from './MobileQuickMenu'
@@ -84,7 +85,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const mapViewportSize = useUIStore((s) => s.mapViewportSize)
   const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
   const isMapOpen = useUIStore((s) => s.isMapOpen)
-  const toggleMap = useUIStore((s) => s.toggleMap)
+  const isWorldMapOpen = useUIStore((s) => s.isWorldMapOpen)
+  const toggleWorldMap = useUIStore((s) => s.toggleWorldMap)
   const vehicleHeader = formatVehicleHeaderInfo(vehicle)
   const caps = getVehicleCapabilities(vehicle)
   const isManualActive = telemetry.gear.transmissionMode === 'manual_simulated' || telemetry.gear.gearSelectorPosition === 'M'
@@ -146,14 +148,15 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <button
             type="button"
-            onClick={toggleMap}
+            onClick={toggleWorldMap}
+            data-testid="btn-world-map"
             className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all active:scale-95 cursor-pointer shadow-sm ${
-              isMapOpen
-                ? 'bg-sky-500/20 text-sky-300 border-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.5)]'
-                : 'bg-zinc-900 border-white/15 text-zinc-400 hover:text-white'
+              isWorldMapOpen
+                ? 'bg-sky-500/25 text-sky-200 border-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.6)]'
+                : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:text-white'
             }`}
-            title="Alternar Mapa 2D (M)"
-            aria-label="Mapa"
+            title="Abrir Mapa do Mundo 2D"
+            aria-label="Abrir mapa do mundo"
           >
             🗺️
           </button>
@@ -278,6 +281,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
                 supportedModes={caps.supportedDrivingModes}
                 orientation="horizontal"
                 size="compact"
+                isMotorcycle={isMotorcycle}
               />
             </div>
           )}
@@ -429,6 +433,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
       />
 
       {isDragStripOpen && <DragStripTree onClose={() => setIsDragStripOpen(false)} />}
+      <WorldMapModal vehicle={vehicle} />
       {isDynoOpen && (
         <DynoTestModal config={vehicle} upgrades={activeCar?.upgrades} onClose={() => setIsDynoOpen(false)} />
       )}

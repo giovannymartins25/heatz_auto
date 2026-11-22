@@ -9,6 +9,12 @@ import { VehiclePhysics, DeterministicIntegrator, type PhysicsIntegrityStatus, t
 import { WorldMap } from '@/systems/world/WorldMap'
 import { TractionControlSystem } from '@/systems/tcs'
 import { PedalInputSystem, createInitialZeroToHundredState, stepZeroToHundredTimer, type ZeroToHundredState } from '@/systems/vehicle'
+import {
+  resolveDefaultAmbientColor,
+  resolveVehicleAero,
+  resolveVehicleDrivetrain,
+  resolveVehicleFuelDefaults,
+} from '@/systems/vehicle/vehicleResolvers'
 import type { SensorPermissionState, SteeringMethod } from '@/systems/input'
 import { MAX_SUBSTEPS } from '@/systems/engine/constants'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
@@ -72,6 +78,12 @@ export interface PhysicsInternalState {
   positionX: number
   positionY: number
   headingDeg: number
+  lateralSpeedMs: number
+  slipAngleDeg: number
+  lateralAccelG: number
+  leanAngleDeg: number
+  isColliding: boolean
+  collisionBoundaryName: string | null
   surfaceType: string
   zoneName: string
   absEngaged: boolean
@@ -241,6 +253,12 @@ function createInitialPhysicsInternalState(
     positionX: overrides.positionX ?? WorldMap.SPAWN_X,
     positionY: overrides.positionY ?? WorldMap.SPAWN_Y,
     headingDeg: overrides.headingDeg ?? WorldMap.SPAWN_HEADING_DEG,
+    lateralSpeedMs: 0,
+    slipAngleDeg: 0,
+    lateralAccelG: 0,
+    leanAngleDeg: 0,
+    isColliding: false,
+    collisionBoundaryName: null,
     surfaceType: overrides.surfaceType ?? 'asphalt',
     zoneName: overrides.zoneName ?? 'Rotatória Central',
     absEngaged: false,
@@ -528,6 +546,12 @@ interface SimulationState {
   visualPositionX: number
   visualPositionY: number
   visualHeadingDeg: number
+  lateralSpeedMs: number
+  slipAngleDeg: number
+  lateralAccelG: number
+  leanAngleDeg: number
+  isColliding: boolean
+  collisionBoundaryName: string | null
   surfaceType: string
   zoneName: string
   absEngaged: boolean
@@ -694,6 +718,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   visualPositionX: WorldMap.SPAWN_X,
   visualPositionY: WorldMap.SPAWN_Y,
   visualHeadingDeg: WorldMap.SPAWN_HEADING_DEG,
+  lateralSpeedMs: 0,
+  slipAngleDeg: 0,
+  lateralAccelG: 0,
+  leanAngleDeg: 0,
+  isColliding: false,
+  collisionBoundaryName: null,
   surfaceType: 'asphalt',
   zoneName: 'Rotatória Central',
   absEngaged: false,
@@ -781,11 +811,18 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (clutchUpgrade === 'ceramic') {
       clutch.setCeramicClutch(true)
     }
+    const resolvedDrivetrain = resolveVehicleDrivetrain(config)
+    const resolvedAero = resolveVehicleAero(config)
+    const resolvedFuel = resolveVehicleFuelDefaults(config)
+
     const physics = new VehiclePhysics({
       weight: config.info.weight,
       wheelDiameter: config.info.wheelDiameter,
       isMotorcycle: config.info.category === 'motorcycle',
       vehicleId: config.id,
+      drivetrain: resolvedDrivetrain,
+      hasAirbrake: resolvedAero.hasAirbrake,
+      baseDownforceCoeff: resolvedAero.baseDownforceCoeff,
       chassis: config.chassis,
       frontFinalDrive: config.transmission.frontFinalDrive,
       brakeUpgrade,
@@ -815,8 +852,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const hasTurbo = Boolean(config.engine.turbo?.enabled || initialUpgrades?.turboKit)
     const hasLaunchControl = Boolean(
       config.transmission.launchControl?.enabled ||
-      config.id === 'porsche-gt3' ||
-      config.id === 'golf-gti' ||
       config.engine.turbo?.enabled ||
       initialUpgrades?.turboKit
     )
@@ -846,20 +881,13 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (initialUpgrades?.suspensionHeight) {
       physics.setSuspensionHeight(initialUpgrades.suspensionHeight)
     }
-    const defaultWing = initialUpgrades?.rearWingPosition ?? (config.id === 'porsche-gt3' ? 'balanced' : 'low_drag')
-    const initialWingType: RearWingType = initialUpgrades?.rearWingType ?? (config.id === 'porsche-gt3' || config.id === 'civic-si' ? 'oem' : 'none')
+    const defaultWing = initialUpgrades?.rearWingPosition ?? resolvedAero.defaultWingPosition
+    const initialWingType: RearWingType = initialUpgrades?.rearWingType ?? resolvedAero.defaultWingType
     const initialAeroExtended = false
     physics.setAerodynamics(defaultWing, initialAeroExtended, initialWingType)
     physics.setTireCompound(initialUpgrades?.tires || 'street', false)
 
-    const defaultAmbientColor: AmbientLightColor =
-      config.id === 'golf-gti'
-        ? 'red'
-        : config.id === 'porsche-gt3'
-          ? 'amber'
-          : config.id?.includes('yaris')
-            ? 'cyan'
-            : 'red'
+    const defaultAmbientColor: AmbientLightColor = resolveDefaultAmbientColor(config)
 
     set({
       _engine: engine,
@@ -884,6 +912,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       visualPositionX: WorldMap.SPAWN_X,
       visualPositionY: WorldMap.SPAWN_Y,
       visualHeadingDeg: WorldMap.SPAWN_HEADING_DEG,
+      lateralSpeedMs: 0,
+      slipAngleDeg: 0,
+      lateralAccelG: 0,
+      leanAngleDeg: 0,
+      isColliding: false,
+      collisionBoundaryName: null,
       surfaceType: 'asphalt',
       zoneName: 'Rotatória Central',
       absEngaged: false,
@@ -912,7 +946,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       hasPopsAndBangs: initialUpgrades?.hasPopsAndBangs ?? false,
       popsAndBangsEnabled: initialUpgrades?.popsAndBangsEnabled ?? false,
       suspensionHeight: initialUpgrades?.suspensionHeight ?? 'stock',
-      rearWingPosition: initialUpgrades?.rearWingPosition ?? (config.id === 'porsche-gt3' ? 'balanced' : 'low_drag'),
+      rearWingPosition: initialUpgrades?.rearWingPosition ?? resolvedAero.defaultWingPosition,
       downforceN: 0,
       isLaunchControlArmed: false,
       isLaunching: false,
@@ -964,7 +998,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       tcsEnabled: hasTcs,
       tcsIntervening: false,
       tcsInterventionLevel: 0,
-      fuelType: initialUpgrades?.fuelType || ((config.id === 'gol-quadrado' || config.id === 'gol-quadrado-turbo') ? 'ethanol_e100' : 'common_gasoline'),
+      fuelType: initialUpgrades?.fuelType || resolvedFuel.defaultFuelType,
       fuelLevelLiters: 45,
       fuelCapacityLiters: 50,
       isOutOfFuel: false,
@@ -2437,7 +2471,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         substepPhys.status = engineTick.status
 
         if (substepPhys.isLaunchControlArmed) {
-          const launchRpm = _config.transmission.launchControl?.launchRpm || (_config.id === 'porsche-gt3' ? 4500 : 3800)
+          const launchRpm =
+            _config.transmission.launchControl?.launchRpm ||
+            (resolveVehicleDrivetrain(_config) === 'awd_ptm' ? 4500 : 3800)
           if (_engine.getRpm() > launchRpm) {
             _engine.setRpm(launchRpm)
             substepPhys.rpm = launchRpm
@@ -2472,19 +2508,23 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           }
         }
 
-        // Gasolina Podium 102: avanço de ignição (+4% a +5% torque) apenas em alta taxa/turbo OEM
+        // Gasolina Podium 102: avanço de ignição (+4% a +5% torque) conforme resolver declarativo
         let fuelTorqueMult = 1.0
         if (ctx.fuelType === 'premium_podium') {
-          if (_config.id === 'porsche-gt3') {
-            fuelTorqueMult = 1.05
-          } else if (_config.id === 'golf-gti') {
-            fuelTorqueMult = 1.04
-          } else if (_config.id === 'civic-si' && substepPhys.rpm >= 5500) {
-            fuelTorqueMult = 1.04
+          const fuelDefaults = resolveVehicleFuelDefaults(_config)
+          if (fuelDefaults.podiumGainMultiplier > 1.0 && substepPhys.rpm >= fuelDefaults.podiumGainMinRpm) {
+            fuelTorqueMult = fuelDefaults.podiumGainMultiplier
           }
         }
 
-        const driveModeMult = ctx.drivingMode === 'track' ? 1.10 : ctx.drivingMode === 'sport' ? 1.05 : 1.0
+        const driveModeMult =
+          ctx.drivingMode === 'track'
+            ? 1.10
+            : ctx.drivingMode === 'sport'
+            ? 1.05
+            : ctx.drivingMode === 'eco'
+            ? 0.85
+            : 1.0
         const isNosInjecting = substepPhys.nosActive && ctx.hasNosKit && substepPhys.nosPressurePercent > 0 && ctx.throttle > 0.65 && substepPhys.isRunning
         const nosMult = isNosInjecting ? 1.55 : 1.0
         const totalTorqueMult = stageMult * intakeMult * exhaustMult * turboKitMult * driveModeMult * nosMult * fuelTorqueMult
@@ -2509,6 +2549,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           finalDrive,
           frontFinalDrive: _config.transmission.frontFinalDrive,
           brake: effectiveBrake,
+          handbrake: ctx.handbrake,
           deltaTime: dt,
           steeringAngleRad,
           gear,
@@ -2519,6 +2560,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         substepPhys.positionX = physicsTick.positionX
         substepPhys.positionY = physicsTick.positionY
         substepPhys.headingDeg = physicsTick.headingDeg
+        substepPhys.lateralSpeedMs = physicsTick.lateralSpeedMs
+        substepPhys.slipAngleDeg = physicsTick.slipAngleDeg
+        substepPhys.lateralAccelG = physicsTick.lateralAccelG
+        substepPhys.leanAngleDeg = physicsTick.leanAngleDeg
+        substepPhys.isColliding = physicsTick.isColliding
+        substepPhys.collisionBoundaryName = physicsTick.collisionBoundaryName
         substepPhys.surfaceType = physicsTick.surfaceType
         substepPhys.zoneName = physicsTick.zoneName
         substepPhys.absEngaged = physicsTick.absEngaged
@@ -3142,6 +3189,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       visualPositionX,
       visualPositionY,
       visualHeadingDeg,
+      lateralSpeedMs: phys.lateralSpeedMs,
+      slipAngleDeg: phys.slipAngleDeg,
+      lateralAccelG: phys.lateralAccelG,
+      leanAngleDeg: phys.leanAngleDeg,
+      isColliding: phys.isColliding,
+      collisionBoundaryName: phys.collisionBoundaryName,
       surfaceType: phys.surfaceType,
       zoneName: phys.zoneName,
       absEngaged: phys.absEngaged,
@@ -3277,6 +3330,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       visualPositionX: WorldMap.SPAWN_X,
       visualPositionY: WorldMap.SPAWN_Y,
       visualHeadingDeg: WorldMap.SPAWN_HEADING_DEG,
+      lateralSpeedMs: 0,
+      slipAngleDeg: 0,
+      lateralAccelG: 0,
+      leanAngleDeg: 0,
+      isColliding: false,
+      collisionBoundaryName: null,
       surfaceType: 'asphalt',
       zoneName: 'Rotatória Central',
       absEngaged: false,

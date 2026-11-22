@@ -8,6 +8,7 @@ export interface DrivingModesSelectorProps {
   orientation?: 'horizontal' | 'vertical' | 'grid'
   size?: 'compact' | 'normal'
   showTitle?: boolean
+  isMotorcycle?: boolean
   className?: string
 }
 
@@ -18,6 +19,39 @@ interface ModeVisualConfig {
   inactiveClass: string
   dotClass: string
   title: string
+}
+
+const MOTORCYCLE_MODE_CONFIGS: Partial<Record<DrivingMode, ModeVisualConfig>> = {
+  eco: {
+    label: 'RAIN',
+    compactLabel: 'RAIN',
+    activeClass:
+      'bg-cyan-500 text-black border-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.85)] font-black',
+    inactiveClass:
+      'bg-zinc-900/90 text-cyan-400 border border-cyan-500/30 hover:border-cyan-500/60 font-bold',
+    dotClass: 'bg-cyan-400',
+    title: 'Modo RAIN — Entrega suave (P1), freio-motor alto (EB3) e HSTC máximo (T3)',
+  },
+  normal: {
+    label: 'STANDARD',
+    compactLabel: 'STD',
+    activeClass:
+      'bg-sky-500 text-white border-sky-300 shadow-[0_0_12px_rgba(14,165,233,0.85)] font-black',
+    inactiveClass:
+      'bg-zinc-900/90 text-sky-400 border border-sky-500/30 hover:border-sky-500/60 font-bold',
+    dotClass: 'bg-sky-400',
+    title: 'Modo STANDARD — Equilíbrio de potência (P2), freio-motor (EB2) e HSTC (T2)',
+  },
+  sport: {
+    label: 'SPORT',
+    compactLabel: 'SPORT',
+    activeClass:
+      'bg-rose-600 text-white border-rose-300 shadow-[0_0_14px_rgba(225,29,72,0.9)] font-black',
+    inactiveClass:
+      'bg-zinc-900/90 text-rose-400 border border-rose-500/30 hover:border-rose-500/60 font-bold',
+    dotClass: 'bg-rose-500',
+    title: 'Modo SPORT — Potência máxima (P3), freio-motor reduzido (EB1) e HSTC esportivo (T1)',
+  },
 }
 
 const MODE_CONFIGS: Record<DrivingMode, ModeVisualConfig> = {
@@ -83,6 +117,7 @@ export const DrivingModesSelector = memo(function DrivingModesSelector({
   orientation = 'horizontal',
   size = 'compact',
   showTitle = false,
+  isMotorcycle = false,
   className = '',
 }: DrivingModesSelectorProps) {
   const drivingMode = useSimulationStore((s) => s.drivingMode)
@@ -90,6 +125,22 @@ export const DrivingModesSelector = memo(function DrivingModesSelector({
 
   if (!supportedModes || supportedModes.length === 0) {
     return null
+  }
+
+  const getModeConfig = (mode: DrivingMode): ModeVisualConfig => {
+    if (isMotorcycle && MOTORCYCLE_MODE_CONFIGS[mode]) {
+      return MOTORCYCLE_MODE_CONFIGS[mode]!
+    }
+    return (
+      MODE_CONFIGS[mode] || {
+        label: mode.toUpperCase(),
+        compactLabel: mode.slice(0, 4).toUpperCase(),
+        activeClass: 'bg-white text-black border-white shadow font-black',
+        inactiveClass: 'bg-zinc-900 text-zinc-400 border-white/10 font-bold',
+        dotClass: 'bg-white',
+        title: `Modo ${mode}`,
+      }
+    )
   }
 
   const handleSelectMode = (mode: DrivingMode, e: React.SyntheticEvent) => {
@@ -109,7 +160,7 @@ export const DrivingModesSelector = memo(function DrivingModesSelector({
       : 'flex items-center gap-1'
 
   const buttonClasses = (mode: DrivingMode, isActive: boolean) => {
-    const config = MODE_CONFIGS[mode] || MODE_CONFIGS.normal
+    const config = getModeConfig(mode)
     const heightClass = isCompact ? 'h-8' : 'h-9'
     const paddingClass = isCompact ? 'px-2' : 'px-3'
     const fontClass = isCompact ? 'text-[9px]' : 'text-[10px]'
@@ -129,21 +180,14 @@ export const DrivingModesSelector = memo(function DrivingModesSelector({
         <div className="flex items-center justify-between px-1 text-[7.5px] font-bold text-zinc-400">
           <span className="text-zinc-500 uppercase tracking-widest">MODO</span>
           <span className="uppercase font-black text-white">
-            {MODE_CONFIGS[drivingMode]?.label || drivingMode}
+            {getModeConfig(drivingMode).label}
           </span>
         </div>
       )}
 
       <div className={containerClasses} role="group" aria-label="Perfis de Condução">
         {supportedModes.map((mode) => {
-          const config = MODE_CONFIGS[mode] || {
-            label: mode.toUpperCase(),
-            compactLabel: mode.slice(0, 4).toUpperCase(),
-            activeClass: 'bg-white text-black border-white shadow font-black',
-            inactiveClass: 'bg-zinc-900 text-zinc-400 border-white/10 font-bold',
-            dotClass: 'bg-white',
-            title: `Modo ${mode}`,
-          }
+          const config = getModeConfig(mode)
           const isActive = drivingMode === mode
           const displayLabel = isCompact ? config.compactLabel : config.label
 

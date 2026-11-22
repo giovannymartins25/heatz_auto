@@ -5,15 +5,8 @@ import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useGarageStore } from '@/stores/useGarageStore'
 import { AMBIENT_COLOR_MAP, type AmbientLightColor } from '@/utils/ambientLighting'
 import { getShortVehicleName } from '@/utils/vehicleSpecs'
-import { FiatToroUconnect7 } from './FiatToroUconnect7'
-import { FiatToroUconnectVertical } from './FiatToroUconnectVertical'
-import { PorschePCM6 } from './PorschePCM6'
-import { GolfGTIDiscoverPro } from './GolfGTIDiscoverPro'
-import { CivicSiInfotainment } from './CivicSiInfotainment'
-import { ToyotaSmartConnect } from './ToyotaSmartConnect'
-import { Retrofit2DinInfotainment } from './Retrofit2DinInfotainment'
-import { ClassicRadioAudioUnit } from './ClassicRadioAudioUnit'
-import { ClassicDashboardBlankUnit } from './ClassicDashboardBlankUnit'
+import { resolveVehicleMultimediaSpec } from '@/systems/vehicle/vehicleResolvers'
+import { resolveMultimediaEntry } from './multimediaRegistry'
 
 export interface VehicleMultimediaProps {
   vehicle: VehicleConfig
@@ -78,62 +71,19 @@ export const VehicleMultimedia = memo(function VehicleMultimedia({
   fill = false,
 }: VehicleMultimediaProps) {
   const activeCar = useGarageStore((s) => s.resolveInstanceForVehicle(vehicle.id))
+  const spec = resolveVehicleMultimediaSpec(vehicle, activeCar?.upgrades)
+  const entry = resolveMultimediaEntry(spec.unitId)
 
-  // 1. Motocicletas (CB1000R): sem multimídia automotiva
-  if (vehicle.info.category === 'motorcycle' || vehicle.id === 'cb1000r') {
+  if (!entry) {
     return null
   }
 
-  // 2. Centrais Multimídia Originais de Fábrica Dedicadas (NUNCA substituídas por aftermarket de outro carro)
-  if (vehicle.id === 'fiat-toro-endurance-2025') {
-    return <FiatToroUconnect7 vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
+  if (entry.component === 'generic') {
+    return <GenericVehicleMultimedia vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
   }
 
-  if (vehicle.id === 'fiat-toro-ranch-2025') {
-    return <FiatToroUconnectVertical vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
-  }
-
-  if (vehicle.id.includes('porsche-gt3')) {
-    return <PorschePCM6 vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
-  }
-
-  if (vehicle.id.includes('golf-gti')) {
-    return <GolfGTIDiscoverPro vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
-  }
-
-  if (vehicle.id === 'yaris-2019' || vehicle.id.includes('yaris')) {
-    return <ToyotaSmartConnect vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
-  }
-
-  if (vehicle.id.includes('civic-si')) {
-    return <CivicSiInfotainment vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
-  }
-
-  // 3. Central Aftermarket Instalada via Oficina (EXCLUSIVA para veículos analógicos compatíveis: Gol Quadrado, Gol G6, Opala)
-  // Checa estritamente se ESTA instância do veículo na garagem possui o kit multimídia instalado
-  const isAnalogVehicle =
-    vehicle.id.includes('gol') || vehicle.id.includes('opala') || !vehicle.dashboard.hasInfotainment
-  const hasVehicleAftermarketMedia = isAnalogVehicle && Boolean(activeCar?.upgrades?.multimediaKit)
-
-  if (hasVehicleAftermarketMedia) {
-    return <Retrofit2DinInfotainment vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
-  }
-
-  // 4. Veículos Analógicos com Equipamento Original (Rádio 1-DIN ou Console)
-  if (vehicle.id.includes('opala-4100') || vehicle.id.includes('gol-g6')) {
-    return <ClassicRadioAudioUnit vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
-  }
-
-  if (vehicle.id.includes('gol-quadrado')) {
-    return <ClassicDashboardBlankUnit vehicle={vehicle} className={className} fill={fill} />
-  }
-
-  // Veículo customizado ou futuro sem central original e sem upgrade
-  if (!vehicle.dashboard.hasInfotainment) {
-    return <ClassicDashboardBlankUnit vehicle={vehicle} className={className} fill={fill} />
-  }
-
-  return <GenericVehicleMultimedia vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
+  const UnitComponent = entry.component
+  return <UnitComponent vehicle={vehicle} telemetry={telemetry} className={className} fill={fill} />
 })
 
 function GenericVehicleMultimedia({

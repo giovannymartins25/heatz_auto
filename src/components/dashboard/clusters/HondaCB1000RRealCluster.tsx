@@ -206,19 +206,23 @@ export const HondaCB1000RRealCluster = memo(function HondaCB1000RRealCluster({
               {gear.drivingMode === 'sport' ? 'SPORT' : gear.drivingMode === 'eco' ? 'RAIN' : 'STANDARD'}
             </span>
 
-            {/* P (Power) */}
+            {/* P (Power: 1=RAIN, 2=STANDARD, 3=SPORT) */}
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-900 border border-white/10 text-[10px] font-mono">
               <span className="text-zinc-400 font-bold">P</span>
-              <span className="text-white font-black">{gear.drivingMode === 'sport' ? '3' : '2'}</span>
+              <span className="text-white font-black">
+                {gear.drivingMode === 'sport' ? '3' : gear.drivingMode === 'eco' ? '1' : '2'}
+              </span>
             </div>
 
-            {/* EB (Engine Brake) */}
+            {/* EB (Engine Brake: 3=RAIN, 2=STANDARD, 1=SPORT) */}
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-900 border border-white/10 text-[10px] font-mono">
               <span className="text-zinc-400 font-bold">EB</span>
-              <span className="text-white font-black">{gear.drivingMode === 'sport' ? '1' : '2'}</span>
+              <span className="text-white font-black">
+                {gear.drivingMode === 'sport' ? '1' : gear.drivingMode === 'eco' ? '3' : '2'}
+              </span>
             </div>
 
-            {/* T (HSTC Traction Control) */}
+            {/* T (HSTC Traction Control: 3=RAIN, 2=STANDARD, 1=SPORT, OFF se desativado) */}
             <div
               className={`flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] font-mono transition-all ${
                 warningLights.tcsFlash
@@ -227,7 +231,15 @@ export const HondaCB1000RRealCluster = memo(function HondaCB1000RRealCluster({
               }`}
             >
               <span className="text-zinc-400 font-bold">T</span>
-              <span className="font-black">{telemetry.tcs.enabled ? '1' : 'OFF'}</span>
+              <span className="font-black">
+                {!telemetry.tcs.enabled
+                  ? 'OFF'
+                  : gear.drivingMode === 'sport'
+                  ? '1'
+                  : gear.drivingMode === 'eco'
+                  ? '3'
+                  : '2'}
+              </span>
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import type { VehicleConfig } from '@/types'
 import type { CarUpgrades } from '@/stores/useGarageStore'
+import { resolveVehicleDrivetrain, toSimpleDrivetrain } from '@/systems/vehicle/vehicleResolvers'
 
 export interface DynoDataPoint {
   rpm: number
@@ -34,13 +35,7 @@ export interface DynoResult {
  * Determina a arquitetura de tração do veículo (FWD, RWD, AWD)
  */
 export function getDrivetrainType(config: VehicleConfig): 'fwd' | 'rwd' | 'awd' {
-  if (config.id.includes('toro-ranch') || config.id.includes('4x4') || config.id === 'porsche-gt3') {
-    return 'awd'
-  }
-  if (config.id.includes('opala') || config.info.category === 'motorcycle') {
-    return 'rwd'
-  }
-  return 'fwd'
+  return toSimpleDrivetrain(resolveVehicleDrivetrain(config))
 }
 
 /**

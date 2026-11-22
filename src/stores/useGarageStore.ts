@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import type { FuelType } from '@/types/simulation'
+import type { VehicleConfig } from '@/types/vehicle'
+import { resolveDefaultUpgradesForVehicle } from '@/systems/vehicle/vehicleResolvers'
 
 export type ExhaustType = 'stock' | 'sport' | 'cat_back' | 'downpipe' | 'straight_pipe'
 export type SuspensionHeight = 'stock' | 'sport' | 'track' | 'lift'
@@ -71,58 +73,8 @@ type GarageStore = GarageStoreState & GarageStoreActions
 const STORAGE_KEY = 'heatz_garage_v2'
 const POPS_DEFAULT_MIGRATION_KEY = 'heatz_pops_default_off_v1'
 
-export function createDefaultUpgrades(vehicleId: string): CarUpgrades {
-  const isOriginallyTurbo =
-    vehicleId === 'golf-gti' ||
-    vehicleId === 'porsche-gt3' ||
-    vehicleId === 'gol-quadrado-turbo' ||
-    vehicleId === 'fiat-toro-endurance-2025' ||
-    vehicleId === 'fiat-toro-ranch-2025'
-
-  const hasDefaultMultimedia =
-    vehicleId === 'golf-gti' ||
-    vehicleId === 'porsche-gt3' ||
-    vehicleId === 'yaris-2019' ||
-    vehicleId === 'civic-si' ||
-    vehicleId === 'fiat-toro-endurance-2025' ||
-    vehicleId === 'fiat-toro-ranch-2025'
-
-  const defaultFuel: FuelType =
-    vehicleId === 'gol-quadrado-turbo'
-      ? 'ethanol_e100'
-      : vehicleId === 'porsche-gt3' || vehicleId === 'golf-gti'
-      ? 'premium_podium'
-      : 'common_gasoline'
-
-  const defaultTurboLevel: TurboLevel =
-    vehicleId === 'gol-quadrado-turbo' ? 'intermediate' : 'none'
-
-  const defaultInternals: EngineInternals = vehicleId === 'gol-quadrado-turbo' ? 'forged' : 'stock'
-  const defaultWingType: RearWingType = vehicleId === 'porsche-gt3' || vehicleId === 'civic-si' ? 'oem' : 'none'
-
-  return {
-    turboKit: isOriginallyTurbo,
-    turboLevel: defaultTurboLevel,
-    engineInternals: defaultInternals,
-    rearWingType: defaultWingType,
-    multimediaKit: hasDefaultMultimedia,
-    boostGaugeKit: false,
-    exhaustType: isOriginallyTurbo ? 'sport' : 'stock',
-    intakeType: 'stock',
-    tires: 'street',
-    tuningStage: 0,
-    exhaustValveOpen: false,
-    fuelType: defaultFuel,
-    hasNosKit: false,
-    hasPopsAndBangs: false,
-    popsAndBangsEnabled: false,
-    suspensionHeight: 'stock',
-    rearWingPosition: vehicleId === 'porsche-gt3' ? 'balanced' : 'low_drag',
-    clutchUpgrade: 'stock',
-    brakeUpgrade: 'stock',
-    paintColor: undefined,
-    brakeCaliperColor: undefined,
-  }
+export function createDefaultUpgrades(vehicleId: string, config?: VehicleConfig): CarUpgrades {
+  return resolveDefaultUpgradesForVehicle(vehicleId, config)
 }
 
 /** Garante que carros salvos em versões antigas recebam os novos campos de upgrade */

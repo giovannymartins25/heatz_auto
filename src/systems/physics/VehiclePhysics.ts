@@ -2,6 +2,8 @@ import { clamp } from '@/utils/math'
 import { VehicleChassis, type ChassisConfig, type DynamicLoadResult, type AxleLoads, createVehicleChassis } from './Chassis'
 import { WorldMap, type SurfaceType } from '../world/WorldMap'
 import type { SuspensionHeight, RearWingPosition, RearWingType } from '@/stores/useGarageStore'
+import type { DrivetrainConfigValue, DrivetrainLayout } from '@/types/vehicle'
+import { resolveVehicleDrivetrain } from '@/systems/vehicle/vehicleResolvers'
 
 export type FourWheelDriveMode = 'auto' | '4wd' | '4wd_low'
 export type ABSChannelState = 'PASSIVE' | 'APPLY' | 'HOLD' | 'DUMP' | 'LATCH'
@@ -11,6 +13,9 @@ export interface VehiclePhysicsConfig {
   wheelDiameter: number // metros
   isMotorcycle?: boolean
   vehicleId?: string
+  drivetrain?: DrivetrainConfigValue
+  hasAirbrake?: boolean
+  baseDownforceCoeff?: number
   chassis?: VehicleChassis | ChassisConfig
   fourWheelDriveMode?: FourWheelDriveMode
   roadGradePercent?: number
@@ -27,24 +32,45 @@ export interface PhysicsTickInput {
   finalDrive: number                // relação do diferencial
   frontFinalDrive?: number          // relação do diferencial dianteiro (ex: Porsche 992 3.330)
   brake: number                     // 0-1 posição do freio
+  handbrake?: boolean               // freio de mão traseiro acionado
   deltaTime: number                 // segundos
   steeringAngleRad?: number         // ângulo de esterçamento das rodas dianteiras (radianos)
   gear?: number                     // marcha engatada (-1 para ré)
   isRaining?: boolean               // condição climática de chuva
   brakeUpgrade?: 'stock' | 'sport'  // upgrade de freios esportivos (Brembo)
+  /** Override opcional de atrito por eixo (split-mu) para testes controlados de aderência assimétrica */
+  frontSurfaceFrictionOverride?: number
+  rearSurfaceFrictionOverride?: number
 }
 
 export interface PhysicsTickResult {
   speedKmh: number                  // km/h
   speedMs: number                   // m/s
+  lateralSpeedMs: number            // velocidade lateral no referencial do veículo (m/s)
+  slipAngleDeg: number              // ângulo de deriva/escorregamento lateral do chassi (graus)
+  lateralAccelG: number             // aceleração lateral efetiva (G)
+  leanAngleDeg: number              // ângulo de inclinação (roll) para motocicletas (graus, 0 para carros)
   acceleration: number              // m/s²
   transmissionAngularVelocity: number // rad/s na entrada do câmbio
   wheelRpm: number
   wheelSpeedKmh: number             // velocidade periférica da roda (km/h)
   tractionForce: number             // Newtons
   resistiveForce: number            // Newtons
+  brakeForceN: number               // Newtons (força de frenagem efetiva aplicada)
+  rollingResistanceN: number        // Newtons
+  aeroResistanceN: number           // Newtons
+  scrubForceN: number               // Newtons (arrasto induzido de deriva)
+  yawInertiaKgM2: number            // kg·m² (momento de inércia de guinada efetivo)
+  lateralWorkJ: number              // Joules (trabalho das forças laterais dos pneus no passo)
   wheelTorque: number               // torque bruto aplicado nas rodas (Nm)
   maxGripTorque: number             // torque máximo suportado pela aderência do solo (Nm)
+  frontAxleTorqueNm: number         // torque motriz entregue ao eixo dianteiro (Nm)
+  rearAxleTorqueNm: number          // torque motriz entregue ao eixo traseiro (Nm)
+  frontTractionForceN: number       // força de tração efetiva no eixo dianteiro (N)
+  rearTractionForceN: number        // força de tração efetiva no eixo traseiro (N)
+  frontAxleSlip: boolean            // patinamento detectado no eixo dianteiro
+  rearAxleSlip: boolean             // patinamento detectado no eixo traseiro
+  awdRearCoupling: number           // grau de acoplamento do eixo traseiro [0..1] (Toro 4x4 / AWD)
   isWheelSlipping: boolean
   slipRatio: number
   // Dinâmica e Navegação no Mundo 2D
@@ -56,6 +82,8 @@ export interface PhysicsTickResult {
   yawRate: number
   surfaceType: SurfaceType
   zoneName: string
+  isColliding: boolean
+  collisionBoundaryName: string | null
   absEngaged: boolean
   isAirbrakeActive: boolean
   wheelAngularVelocities?: [number, number, number, number]
@@ -81,7 +109,8 @@ export class VehiclePhysics {
   private driveAxleWeightRatio: number
   private fourWheelDriveMode: FourWheelDriveMode = 'auto'
   private readonly isMotorcycle: boolean
-  private readonly vehicleId?: string
+  private readonly drivetrain: DrivetrainLayout
+  private readonly hasAirbrake: boolean
   private readonly chassis: VehicleChassis
 
   // Propriedades Aerodinâmicas e de Suspensão Dinâmicas
@@ -105,12 +134,19 @@ export class VehiclePhysics {
   private roadGradePercent: number = 0 // Inclinação em % (+ = subida, - = descida)
   private wheelSpeedMs: number = 0
 
-  // ─── Estado de Navegação e Cinemática no Mundo 2D ───
+  // ─── Estado de Navegação e Dinâmica Planar 2D ───
   private positionX: number = 0        // metros no grid global
   private positionY: number = 0        // metros no grid global
   private headingRad: number = 0       // rumo em radianos (0 = Norte / +Y, pi/2 = Leste / +X)
   private steeringAngleRad: number = 0 // ângulo atual de esterçamento das rodas dianteiras
   private yawRate: number = 0          // rad/s (velocidade angular de guinada)
+  private lateralSpeedMs: number = 0   // velocidade lateral no eixo do veículo (+ = direita)
+  private slipAngleRad: number = 0     // ângulo de deriva do chassi (rad)
+  private lateralAccelMs2: number = 0  // aceleração lateral real (m/s²)
+  private leanAngleRad: number = 0     // ângulo de inclinação (roll) de motocicleta (+ = direita, rad)
+  private awdRearCoupling: number = 0  // acoplamento contínuo sob demanda do eixo traseiro [0..1] (Toro 4x4 AUTO)
+  private isColliding: boolean = false
+  private collisionBoundaryName: string | null = null
   private currentSurface: SurfaceType = 'asphalt'
   private currentZoneName: string = 'Rotatória Central'
 
@@ -131,8 +167,14 @@ export class VehiclePhysics {
 
   constructor(config: VehiclePhysicsConfig) {
     this.isMotorcycle = config.isMotorcycle ?? false
-    this.vehicleId = config.vehicleId
-    this.frontFinalDrive = config.frontFinalDrive ?? (config.vehicleId === 'porsche-gt3' ? 3.330 : undefined)
+    this.drivetrain = resolveVehicleDrivetrain({
+      id: config.vehicleId,
+      drivetrain: config.drivetrain,
+      isMotorcycle: this.isMotorcycle,
+      frontFinalDrive: config.frontFinalDrive,
+    })
+    this.hasAirbrake = config.hasAirbrake ?? (this.drivetrain === 'awd_ptm')
+    this.frontFinalDrive = config.frontFinalDrive ?? (this.drivetrain === 'awd_ptm' ? 3.330 : undefined)
     this.brakeUpgrade = config.brakeUpgrade ?? 'stock'
     this.fourWheelDriveMode = config.fourWheelDriveMode ?? 'auto'
     this.roadGradePercent = config.roadGradePercent ?? 0
@@ -173,7 +215,7 @@ export class VehiclePhysics {
     // Constante aerodinâmica 0.5 * rho * Cd * A
     this.baseAeroConstant = this.isMotorcycle ? 0.25 : 0.40
     this.currentAeroConstant = this.baseAeroConstant
-    this.downforceCoeff = this.vehicleId === 'porsche-gt3' ? 0.35 : 0.08
+    this.downforceCoeff = config.baseDownforceCoeff ?? (this.drivetrain === 'awd_ptm' ? 0.35 : 0.08)
     this.rollingCoeff = 0.015
   }
 
@@ -208,8 +250,8 @@ export class VehiclePhysics {
     this.isAeroWingExtended = isExtended
     this.rearWingType = wingType
 
-    const isPorsche = this.vehicleId === 'porsche-gt3'
-    if (isPorsche) {
+    const hasActiveAeroProfile = this.hasAirbrake
+    if (hasActiveAeroProfile) {
       if (this.isAirbrakeActive) {
         // Airbrake ativo em frenagem severa
         this.currentAeroConstant = this.baseAeroConstant * 1.55
@@ -275,21 +317,25 @@ export class VehiclePhysics {
     return this.driveAxleWeightRatio
   }
 
+  getDrivetrain(): DrivetrainLayout {
+    return this.drivetrain
+  }
+
   private calculateDriveAxleWeightRatio(): number {
-    if (this.vehicleId === 'fiat-toro-ranch-2025') {
+    if (this.drivetrain === '4x4_selectable') {
       if (this.fourWheelDriveMode === '4wd' || this.fourWheelDriveMode === '4wd_low') {
         return 1.0
       }
       return 0.85
     }
-    if (this.vehicleId === 'porsche-gt3') {
-      // Porsche 911 Turbo S PTM (AWD): sob demanda de tração mobiliza ambos os eixos
+    if (this.drivetrain === 'awd_ondemand') {
+      return 0.85
+    }
+    if (this.drivetrain === 'awd_ptm') {
+      // Tração AWD PTM (ex.: Porsche 911 Turbo S): sob demanda de tração mobiliza ambos os eixos
       return 0.95
     }
-    if (this.vehicleId === 'fiat-toro-endurance-2025') {
-      return this.chassis.frontWeightRatio
-    }
-    if (this.vehicleId === 'opala-4100' || this.isMotorcycle) {
+    if (this.drivetrain === 'rwd' || this.isMotorcycle) {
       return this.chassis.rearWeightRatio
     }
     return this.chassis.frontWeightRatio
@@ -350,21 +396,37 @@ export class VehiclePhysics {
     totalWeight: number
   } {
     const axleLoads = this.getAxleLoads()
+    const halfFront = axleLoads.frontAxleLoad / 2
+    const halfRear = axleLoads.rearAxleLoad / 2
+
+    // Motocicletas possuem 2 rodas em tandem (bitola = 0): equilíbrio lateral ocorre via inclinação (roll),
+    // sem transferência de carga entre roda esquerda e direita.
+    if (this.isMotorcycle) {
+      return {
+        frontAxleLoad: axleLoads.frontAxleLoad,
+        rearAxleLoad: axleLoads.rearAxleLoad,
+        fl: halfFront,
+        fr: halfFront,
+        rl: halfRear,
+        rr: halfRear,
+        totalWeight: axleLoads.totalWeight,
+      }
+    }
+
     const trackWidth = 1.60
     const h = Math.max(0.20, this.chassis.centerOfMassHeight + this.suspensionHeightOffset)
+    // Curva à direita (ay > 0) transfere carga para as rodas externas à ESQUERDA (fl, rl)
     const lateralTransfer = (this.mass * h / trackWidth) * ay
 
     const latFront = lateralTransfer * this.chassis.frontWeightRatio
     const latRear = lateralTransfer * this.chassis.rearWeightRatio
 
-    const halfFront = axleLoads.frontAxleLoad / 2
-    const halfRear = axleLoads.rearAxleLoad / 2
     const minWheelLoad = this.chassis.minAxleLoad / 2
 
-    const fl = clamp(halfFront - latFront, minWheelLoad, axleLoads.frontAxleLoad - minWheelLoad)
-    const fr = clamp(halfFront + latFront, minWheelLoad, axleLoads.frontAxleLoad - minWheelLoad)
-    const rl = clamp(halfRear - latRear, minWheelLoad, axleLoads.rearAxleLoad - minWheelLoad)
-    const rr = clamp(halfRear + latRear, minWheelLoad, axleLoads.rearAxleLoad - minWheelLoad)
+    const fl = clamp(halfFront + latFront, minWheelLoad, axleLoads.frontAxleLoad - minWheelLoad)
+    const fr = clamp(halfFront - latFront, minWheelLoad, axleLoads.frontAxleLoad - minWheelLoad)
+    const rl = clamp(halfRear + latRear, minWheelLoad, axleLoads.rearAxleLoad - minWheelLoad)
+    const rr = clamp(halfRear - latRear, minWheelLoad, axleLoads.rearAxleLoad - minWheelLoad)
 
     return {
       frontAxleLoad: axleLoads.frontAxleLoad,
@@ -477,6 +539,26 @@ export class VehiclePhysics {
     return this.yawRate
   }
 
+  getLateralSpeedMs(): number {
+    return this.lateralSpeedMs
+  }
+
+  getSlipAngleDeg(): number {
+    return (this.slipAngleRad * 180) / Math.PI
+  }
+
+  getLateralAccelG(): number {
+    return this.lateralAccelMs2 / this.chassis.gravity
+  }
+
+  getLeanAngleDeg(): number {
+    return (this.leanAngleRad * 180) / Math.PI
+  }
+
+  private getCollisionRadius(): number {
+    return this.isMotorcycle ? 0.65 : 1.15
+  }
+
   getSteeringAngleRad(): number {
     return this.steeringAngleRad
   }
@@ -509,7 +591,7 @@ export class VehiclePhysics {
     const axleLoads = this.getAxleLoads()
     let normalForceOnDrivenWheels = 0
 
-    if (this.vehicleId === 'fiat-toro-ranch-2025') {
+    if (this.drivetrain === '4x4_selectable') {
       if (this.fourWheelDriveMode === '4wd' || this.fourWheelDriveMode === '4wd_low') {
         normalForceOnDrivenWheels = axleLoads.frontAxleLoad + axleLoads.rearAxleLoad
       } else {
@@ -517,16 +599,18 @@ export class VehiclePhysics {
         const rearShare = isSlipDetected ? 1.0 : 0.65
         normalForceOnDrivenWheels = axleLoads.frontAxleLoad + axleLoads.rearAxleLoad * rearShare
       }
-    } else if (this.vehicleId === 'porsche-gt3') {
+    } else if (this.drivetrain === 'awd_ondemand') {
+      const isSlipDetected = Math.abs(this.wheelSpeedMs - this.speedMs) > 0.1
+      const rearShare = isSlipDetected ? 1.0 : 0.65
+      normalForceOnDrivenWheels = axleLoads.frontAxleLoad + axleLoads.rearAxleLoad * rearShare
+    } else if (this.drivetrain === 'awd_ptm') {
       // Tração PTM AWD inteligente:
       // O eixo traseiro é a base de tração; sob aceleração ou deslizamento o PTM
       // acopla o eixo dianteiro proporcionalmente à carga normal dianteira disponível
       const isSlipDetected = Math.abs(this.wheelSpeedMs - this.speedMs) > 0.05
       const ptmFrontShare = isSlipDetected ? 1.0 : clamp(Math.abs(this.accelerationMs2) / 3.5, 0.30, 1.0)
       normalForceOnDrivenWheels = axleLoads.rearAxleLoad + axleLoads.frontAxleLoad * ptmFrontShare
-    } else if (this.vehicleId === 'fiat-toro-endurance-2025') {
-      normalForceOnDrivenWheels = axleLoads.frontAxleLoad
-    } else if (this.vehicleId === 'opala-4100' || this.isMotorcycle) {
+    } else if (this.drivetrain === 'rwd' || this.isMotorcycle) {
       normalForceOnDrivenWheels = axleLoads.rearAxleLoad
     } else {
       normalForceOnDrivenWheels = axleLoads.frontAxleLoad
@@ -570,7 +654,7 @@ export class VehiclePhysics {
     }
 
     const wheelRadius = this.wheelRadius
-    const trackWidth = 1.60
+    const trackWidth = this.isMotorcycle ? 0 : 1.60
     const halfTrack = trackWidth / 2
     const cosDelta = Math.cos(this.steeringAngleRad)
 
@@ -685,7 +769,8 @@ export class VehiclePhysics {
     }
 
     // Atualiza superfície e coeficiente de atrito composto (superfície × composto de pneu) no início do passo
-    const mapQueryStart = WorldMap.query(this.positionX, this.positionY, isRaining)
+    const vehicleRadius = this.getCollisionRadius()
+    const mapQueryStart = WorldMap.query(this.positionX, this.positionY, Boolean(isRaining), vehicleRadius)
     this.currentSurface = mapQueryStart.surface.type
     this.currentZoneName = mapQueryStart.zoneName
     this.baseSurfaceFriction = mapQueryStart.surface.friction
@@ -693,13 +778,14 @@ export class VehiclePhysics {
       this.manualFrictionOverride !== null
         ? this.manualFrictionOverride
         : this.computeCompositeFriction(this.baseSurfaceFriction, this.currentSurface, Boolean(isRaining))
+    this.rollingCoeff = mapQueryStart.surface.rollingResistance
 
     const thetaRad = Math.atan(this.roadGradePercent / 100)
     const cosTheta = Math.cos(thetaRad)
     const sinTheta = Math.sin(thetaRad)
 
-    // Detecção de ativação de Airbrake no Porsche 911 Turbo S 992
-    if (this.vehicleId === 'porsche-gt3') {
+    // Detecção de ativação de Airbrake (aerodinâmica ativa com airbrake)
+    if (this.hasAirbrake) {
       const isSevereBraking = brake > 0.55 && this.speedMs > 25.0 // > 90 km/h
       if (isSevereBraking !== this.isAirbrakeActive) {
         this.isAirbrakeActive = isSevereBraking
@@ -711,8 +797,8 @@ export class VehiclePhysics {
     this.effectiveDownforceN = this.downforceCoeff * this.speedMs * this.speedMs
     const normalWeight = this.mass * this.chassis.gravity * cosTheta + this.effectiveDownforceN
 
-    // Cargas normais dinâmicas por roda (transferência longitudinal + lateral)
-    const ay = this.speedMs * this.yawRate
+    // Cargas normais dinâmicas por roda (transferência longitudinal + lateral real limitada pela aderência)
+    const ay = Math.abs(this.lateralAccelMs2) > 0.01 ? this.lateralAccelMs2 : this.speedMs * this.yawRate
     const dynamicWheelLoads = this.getDynamicWheelLoads(ay)
 
     // 1. Torque e Força de Tração teórica nos Eixos e Rodas
@@ -721,12 +807,24 @@ export class VehiclePhysics {
     let isWheelSlipping = false
     let slipRatio = 0
 
-    const isPorschePTM = this.vehicleId === 'porsche-gt3'
+    const isPorschePTM = this.drivetrain === 'awd_ptm'
+    const isFrontBiasedAwd = this.drivetrain === '4x4_selectable' || this.drivetrain === 'awd_ondemand'
     const frontFinalDriveRatio = input.frontFinalDrive ?? this.frontFinalDrive ?? (isPorschePTM ? 3.330 : finalDrive)
     const rearFinalDriveRatio = finalDrive // 3.020 no Porsche
 
+    const frontSurfaceMu = input.frontSurfaceFrictionOverride ?? this.surfaceFriction
+    const rearSurfaceMu = input.rearSurfaceFrictionOverride ?? this.surfaceFriction
+
     const maxGripTorque = this.getMaxGripTorque()
     const maxGripForce = maxGripTorque / this.wheelRadius
+
+    // Telemetria explícita por eixo
+    let frontAxleTorqueNm = 0
+    let rearAxleTorqueNm = 0
+    let frontTractionForceN = 0
+    let rearTractionForceN = 0
+    let frontAxleSlip = false
+    let rearAxleSlip = false
 
     // Vetores de torque motriz por roda [FL, FR, RL, RR]
     const driveTorquePerWheel: [number, number, number, number] = [0, 0, 0, 0]
@@ -748,6 +846,7 @@ export class VehiclePhysics {
           0.15,
           1.0,
         )
+        this.awdRearCoupling = 1 - 0.50 * ptmCoupling
 
         // Divisão de torque: T_front + T_rear = T_box (CONSERVAÇÃO ESTRITA)
         const frontTorqueShare = 0.50 * ptmCoupling
@@ -757,34 +856,35 @@ export class VehiclePhysics {
         // Torque nas rodas via relações dianteira (3.330) e traseira (3.020)
         const frontWheelTorque = torqueFront * frontFinalDriveRatio
         const rearWheelTorque = torqueRear * rearFinalDriveRatio
+        frontAxleTorqueNm = frontWheelTorque
+        rearAxleTorqueNm = rearWheelTorque
         wheelTorque = frontWheelTorque + rearWheelTorque
 
         // Limites de aderência por eixo baseados nas cargas dinâmicas
-        const frontAxleGripForce = this.surfaceFriction * (dynamicWheelLoads.frontAxleLoad + this.effectiveDownforceN * 0.35)
-        const rearAxleGripForce = this.surfaceFriction * (dynamicWheelLoads.rearAxleLoad + this.effectiveDownforceN * 0.65)
+        const frontAxleGripForce = frontSurfaceMu * (dynamicWheelLoads.frontAxleLoad + this.effectiveDownforceN * 0.35)
+        const rearAxleGripForce = rearSurfaceMu * (dynamicWheelLoads.rearAxleLoad + this.effectiveDownforceN * 0.65)
         const frontMaxGripTorque = frontAxleGripForce * this.wheelRadius
         const rearMaxGripTorque = rearAxleGripForce * this.wheelRadius
-
-        let frontTractionForce = 0
-        let rearTractionForce = 0
 
         // Eixo Dianteiro
         if (frontWheelTorque > frontMaxGripTorque && brake < 0.1) {
           isWheelSlipping = true
-          frontTractionForce = frontAxleGripForce * 0.85
+          frontAxleSlip = true
+          frontTractionForceN = frontAxleGripForce * 0.85
         } else {
-          frontTractionForce = frontWheelTorque / this.wheelRadius
+          frontTractionForceN = frontWheelTorque / this.wheelRadius
         }
 
         // Eixo Traseiro
         if (rearWheelTorque > rearMaxGripTorque && brake < 0.1) {
           isWheelSlipping = true
-          rearTractionForce = rearAxleGripForce * 0.85
+          rearAxleSlip = true
+          rearTractionForceN = rearAxleGripForce * 0.85
         } else {
-          rearTractionForce = rearWheelTorque / this.wheelRadius
+          rearTractionForceN = rearWheelTorque / this.wheelRadius
         }
 
-        tractionForce = frontTractionForce + rearTractionForce
+        tractionForce = frontTractionForceN + rearTractionForceN
         const totalMaxGripTorque = frontMaxGripTorque + rearMaxGripTorque
 
         if (isWheelSlipping) {
@@ -802,16 +902,103 @@ export class VehiclePhysics {
         driveTorquePerWheel[1] = frontWheelTorque / 2
         driveTorquePerWheel[2] = rearWheelTorque / 2
         driveTorquePerWheel[3] = rearWheelTorque / 2
-      } else {
-        // Modelo 2WD convencional ou 4x4 Toro
+      } else if (isFrontBiasedAwd) {
+        // Arquitetura AWD sob demanda / 4x4 selecionável (PTU + RDM em AUTO vs bloqueio 50/50 em 4WD / 4WD LOW)
+        // Nota de calibração: a divisão numérica exata de acoplamento é parâmetro calibrado de simulação,
+        // refletindo a arquitetura física conhecida: AUTO/awd_ondemand prioriza eixo dianteiro e acopla o traseiro
+        // sob demanda após detecção de patinamento/carga; 4WD e 4WD LOW travam acoplamento integral preventivo 50/50.
         wheelTorque = driveTorqueAtTransmission * effectiveTotalRatio * this.efficiency
 
-        if (wheelTorque > maxGripTorque && brake < 0.1) {
-          isWheelSlipping = true
-          const kineticFrictionFactor = 0.82
-          tractionForce = maxGripForce * kineticFrictionFactor
+        const frontAxleGripForce = frontSurfaceMu * (dynamicWheelLoads.frontAxleLoad + this.effectiveDownforceN * 0.50)
+        const rearAxleGripForce = rearSurfaceMu * (dynamicWheelLoads.rearAxleLoad + this.effectiveDownforceN * 0.50)
+        const frontMaxGripTorque = frontAxleGripForce * this.wheelRadius
+        const rearMaxGripTorque = rearAxleGripForce * this.wheelRadius
 
-          const excessTorqueRatio = (wheelTorque - maxGripTorque) / Math.max(100, maxGripTorque)
+        const isLocked4wd =
+          this.drivetrain === '4x4_selectable' &&
+          (this.fourWheelDriveMode === '4wd' || this.fourWheelDriveMode === '4wd_low')
+        if (isLocked4wd) {
+          this.awdRearCoupling = 1.0
+        } else {
+          // Modo AUTO: acoplamento reativo sob demanda com constante de tempo finita (tau ~0.28s)
+          const frontDemandRatio = wheelTorque / Math.max(100, frontMaxGripTorque)
+          const targetCoupling = frontDemandRatio > 0.85 ? clamp((frontDemandRatio - 0.80) * 1.15, 0.12, 0.85) : 0.08
+          const tau = targetCoupling > this.awdRearCoupling ? 0.28 : 0.45
+          this.awdRearCoupling += (targetCoupling - this.awdRearCoupling) * Math.min(1, deltaTime / tau)
+        }
+
+        // Fração de torque no eixo traseiro: 50% em 4WD/4WD LOW; em AUTO varia de 4% (cruzeiro) até ~42% sob demanda
+        const rearTorqueShare = isLocked4wd ? 0.50 : clamp(this.awdRearCoupling * 0.50, 0.04, 0.44)
+        frontAxleTorqueNm = wheelTorque * (1 - rearTorqueShare)
+        rearAxleTorqueNm = wheelTorque * rearTorqueShare
+
+        // Em 4WD / 4WD LOW (eixo central bloqueado), se um eixo exceder sua aderência mas o outro ainda tiver margem,
+        // o acoplamento mecânico transfere torque adicional ao eixo com maior aderência (efeito split-mu real!)
+        if (isLocked4wd) {
+          if (frontAxleTorqueNm > frontMaxGripTorque && rearAxleTorqueNm < rearMaxGripTorque) {
+            const transferable = Math.min(frontAxleTorqueNm - frontMaxGripTorque, rearMaxGripTorque - rearAxleTorqueNm)
+            frontAxleTorqueNm -= transferable
+            rearAxleTorqueNm += transferable
+          } else if (rearAxleTorqueNm > rearMaxGripTorque && frontAxleTorqueNm < frontMaxGripTorque) {
+            const transferable = Math.min(rearAxleTorqueNm - rearMaxGripTorque, frontMaxGripTorque - frontAxleTorqueNm)
+            rearAxleTorqueNm -= transferable
+            frontAxleTorqueNm += transferable
+          }
+        }
+
+        if (frontAxleTorqueNm > frontMaxGripTorque && brake < 0.1) {
+          isWheelSlipping = true
+          frontAxleSlip = true
+          frontTractionForceN = frontAxleGripForce * 0.84
+        } else {
+          frontTractionForceN = frontAxleTorqueNm / this.wheelRadius
+        }
+
+        if (rearAxleTorqueNm > rearMaxGripTorque && brake < 0.1) {
+          isWheelSlipping = true
+          rearAxleSlip = true
+          rearTractionForceN = rearAxleGripForce * 0.84
+        } else {
+          rearTractionForceN = rearAxleTorqueNm / this.wheelRadius
+        }
+
+        tractionForce = frontTractionForceN + rearTractionForceN
+
+        if (isWheelSlipping) {
+          const excessFront = Math.max(0, frontAxleTorqueNm - frontMaxGripTorque)
+          const excessRear = Math.max(0, rearAxleTorqueNm - rearMaxGripTorque)
+          const excessRatio = (excessFront + excessRear) / Math.max(100, frontMaxGripTorque + rearMaxGripTorque)
+          const slipSpeedMs = excessRatio * 3.4
+          this.wheelSpeedMs = this.speedMs + slipSpeedMs
+          slipRatio = slipSpeedMs / Math.max(2.5, this.wheelSpeedMs)
+        } else {
+          this.wheelSpeedMs = this.speedMs
+          slipRatio = 0
+        }
+
+        driveTorquePerWheel[0] = frontAxleTorqueNm / 2
+        driveTorquePerWheel[1] = frontAxleTorqueNm / 2
+        driveTorquePerWheel[2] = rearAxleTorqueNm / 2
+        driveTorquePerWheel[3] = rearAxleTorqueNm / 2
+      } else {
+        // Modelo 2WD convencional (FWD ou RWD / Motocicleta)
+        wheelTorque = driveTorqueAtTransmission * effectiveTotalRatio * this.efficiency
+        const isRwd = this.drivetrain === 'rwd' || this.isMotorcycle
+        const drivenSurfaceMu = isRwd ? rearSurfaceMu : frontSurfaceMu
+        const effectiveMaxGripForce =
+          drivenSurfaceMu !== this.surfaceFriction
+            ? (maxGripForce / Math.max(0.05, this.surfaceFriction)) * drivenSurfaceMu
+            : maxGripForce
+        const effectiveMaxGripTorque = effectiveMaxGripForce * this.wheelRadius
+
+        if (wheelTorque > effectiveMaxGripTorque && brake < 0.1) {
+          isWheelSlipping = true
+          if (isRwd) rearAxleSlip = true
+          else frontAxleSlip = true
+          const kineticFrictionFactor = 0.82
+          tractionForce = effectiveMaxGripForce * kineticFrictionFactor
+
+          const excessTorqueRatio = (wheelTorque - effectiveMaxGripTorque) / Math.max(100, effectiveMaxGripTorque)
           const slipSpeedMs = excessTorqueRatio * 3.8
           this.wheelSpeedMs = this.speedMs + slipSpeedMs
           slipRatio = slipSpeedMs / Math.max(2.5, this.wheelSpeedMs)
@@ -821,11 +1008,14 @@ export class VehiclePhysics {
           slipRatio = 0
         }
 
-        const isRwd = this.vehicleId === 'opala-4100' || this.isMotorcycle
         if (isRwd) {
+          rearAxleTorqueNm = wheelTorque
+          rearTractionForceN = tractionForce
           driveTorquePerWheel[2] = wheelTorque / 2
           driveTorquePerWheel[3] = wheelTorque / 2
         } else {
+          frontAxleTorqueNm = wheelTorque
+          frontTractionForceN = tractionForce
           driveTorquePerWheel[0] = wheelTorque / 2
           driveTorquePerWheel[1] = wheelTorque / 2
         }
@@ -867,7 +1057,7 @@ export class VehiclePhysics {
 
     // Integração da velocidade angular de cada uma das 4 rodas a 120 Hz
     const wheelInertia = this.chassis.wheelInertia || 1.25
-    const trackWidth = 1.60
+    const trackWidth = this.isMotorcycle ? 0 : 1.60
     const halfTrack = trackWidth / 2
     const cosDelta = Math.cos(this.steeringAngleRad)
     const localSpeeds = [
@@ -928,32 +1118,369 @@ export class VehiclePhysics {
       this.wheelSpeedMs = 0
     }
 
-    // 9. Cinemática de Direção e Movimentação 2D (Bicycle Model a 120 Hz)
+    // 9. Dinâmica Planar 2D Acoplada (Carros: Bicicleta Dinâmica + Círculo de Atrito | Motocicletas: Roll/Lean + Camber Thrust)
     const isReverse = gear === -1
-    const vDirectional = isReverse ? -this.speedMs : this.speedMs
     const wheelbase = this.chassis.wheelbase
+    const aDist = this.chassis.distanceCgToFrontAxle
+    const bDist = this.chassis.distanceCgToRearAxle
+    const delta = this.steeringAngleRad
+    const isHandbrake = Boolean(input.handbrake)
+    let headingDelta = 0
+    let scrubForceN = 0
+    let lateralWorkJ = 0
+    const yawInertiaKgM2 = this.isMotorcycle
+      ? Math.max(28, this.mass * (aDist * bDist * 0.55 + 0.045 * wheelbase * wheelbase))
+      : Math.max(180, this.mass * (aDist * bDist + 0.16 * wheelbase * wheelbase))
 
-    // Velocidade angular de guinada r = (v / L) * tan(delta)
-    if (Math.abs(vDirectional) > 0.05 && Math.abs(this.steeringAngleRad) > 0.001) {
-      this.yawRate = (vDirectional / wheelbase) * Math.tan(this.steeringAngleRad)
-    } else {
+    if (
+      Math.abs(delta) < 0.0005 &&
+      Math.abs(this.lateralSpeedMs) < 0.001 &&
+      Math.abs(this.yawRate) < 0.001 &&
+      Math.abs(this.leanAngleRad) < 0.001
+    ) {
+      // Invariante estrito em linha reta: zero deriva lateral, zero inclinação e zero impacto na física longitudinal pura
+      this.lateralSpeedMs = 0
       this.yawRate = 0
+      this.lateralAccelMs2 = 0
+      this.slipAngleRad = 0
+      this.leanAngleRad = 0
+    } else if (this.speedMs < 0.05) {
+      // Veículo parado: amortecimento completo de guinada, deriva e retorno vertical da motocicleta
+      this.lateralSpeedMs = 0
+      this.yawRate = 0
+      this.lateralAccelMs2 = 0
+      this.slipAngleRad = 0
+      this.leanAngleRad *= Math.exp(-10 * deltaTime)
+      if (Math.abs(this.leanAngleRad) < 0.001) this.leanAngleRad = 0
+    } else if (isReverse || this.speedMs < 2.0) {
+      // Regime de baixa velocidade / marcha ré: modelo cinemático Ackermann estável sem singularidade em v -> 0
+      const vDir = isReverse ? -this.speedMs : this.speedMs
+      this.yawRate = Math.abs(delta) > 0.001 ? (vDir / wheelbase) * Math.tan(delta) : 0
+      this.lateralSpeedMs *= Math.exp(-14 * deltaTime)
+      if (Math.abs(this.lateralSpeedMs) < 0.001) this.lateralSpeedMs = 0
+      this.lateralAccelMs2 = vDir * this.yawRate
+      this.slipAngleRad = 0
+      if (this.isMotorcycle) {
+        // Em baixa velocidade (< 7.2 km/h), a moto esterça primariamente pelo guidão com inclinação mínima
+        const lowSpeedTargetLean = clamp(Math.atan((vDir * this.yawRate) / this.chassis.gravity), -0.22, 0.22)
+        this.leanAngleRad += (lowSpeedTargetLean - this.leanAngleRad) * Math.min(1, deltaTime * 8)
+      } else {
+        this.leanAngleRad = 0
+      }
+      headingDelta = this.yawRate * deltaTime
+    } else if (this.isMotorcycle) {
+      // ── MODELO ESPECÍFICO DE MOTOCICLETA (Roll / Inclinação + Empuxo de Cambagem + Deriva Residual) ──
+      // Diferente de carros de 4 rodas, a motocicleta inclina (phi) para equilibrar a força centrífuga (ay = g * tan(phi)),
+      // gera empuxo lateral majoritariamente por cambagem (camber thrust) com pequeno ângulo de deriva,
+      // e tem inércia de guinada real proporcional à sua massa compacta (~70 kg·m², não 180 kg·m² de carro).
+      const vx = this.speedMs
+      const g = this.chassis.gravity
+      const dynWeight = clamp((vx - 2.0) / 3.0, 0, 1) // transição suave guidão -> inclinação entre 7.2 e 18 km/h
+
+      const fzFront = Math.max(80, dynamicWheelLoads.frontAxleLoad + this.effectiveDownforceN * 0.45)
+      const fzRear = Math.max(80, dynamicWheelLoads.rearAxleLoad + this.effectiveDownforceN * 0.55)
+
+      // Orçamento de aderência longitudinal vs lateral (círculo de atrito em 2 rodas: tração na traseira, freio 75/25)
+      const fxFront = -brakeForce * 0.75
+      const fxRear = tractionForce - brakeForce * 0.25
+      const maxFrontForce = Math.max(80, this.surfaceFriction * fzFront)
+      const maxRearForce = Math.max(80, this.surfaceFriction * fzRear)
+
+      const frontUsage = clamp(Math.abs(fxFront) / maxFrontForce, 0, 0.85)
+      let rearUsage = clamp(Math.abs(fxRear) / maxRearForce, 0, 0.85)
+      if (isWheelSlipping) {
+        rearUsage = Math.max(rearUsage, 0.82)
+      }
+
+      const fyMaxFront = maxFrontForce * Math.sqrt(Math.max(0.20, 1 - frontUsage * frontUsage))
+      const fyMaxRear = maxRearForce * Math.sqrt(Math.max(0.18, 1 - rearUsage * rearUsage))
+      const totalLateralGripAccel = (fyMaxFront + fyMaxRear) / this.mass
+
+      // Ângulo máximo físico de inclinação: menor entre limite mecânico das pedaleiras (48°) e limite de atrito (atan(ay_max/g))
+      const maxMechanicalLeanRad = (48 * Math.PI) / 180
+      const maxGripLeanRad = Math.atan(Math.max(0.15, totalLateralGripAccel / g) * 0.96)
+      const maxLeanRad = Math.min(maxMechanicalLeanRad, maxGripLeanRad)
+
+      // Demanda progressiva de inclinação a partir do comando de esterço (contra-esterço estabilizado)
+      const steerNorm = clamp(delta / 0.58, -1, 1)
+      const speedLeanFactor = clamp((vx - 1.5) / 14.0, 0.15, 1.0)
+      const targetLeanRad = clamp(steerNorm * maxLeanRad * speedLeanFactor, -maxLeanRad, maxLeanRad)
+
+      // Dinâmica de rolagem amortecida (taxa máxima ~115°/s, tau = 0.15s — evita salto instantâneo de inclinação)
+      const maxRollRate = (115 * Math.PI) / 180
+      const rollRate = clamp((targetLeanRad - this.leanAngleRad) / 0.15, -maxRollRate, maxRollRate)
+      this.leanAngleRad = clamp(this.leanAngleRad + rollRate * deltaTime, -maxMechanicalLeanRad, maxMechanicalLeanRad)
+
+      // Inércia real de guinada de motocicleta (CB1000R ~72-82 kg·m²)
+      const yawInertia = yawInertiaKgM2
+
+      // Empuxo de cambagem (camber thrust) em equilíbrio de rolagem (F_y,camber = F_z * tan(phi))
+      // + rigidez de deriva amortecedora (mantém ay/g ≈ tan(phi) sem momento de tombamento espúrio)
+      const camberThrustFront = fzFront * Math.tan(this.leanAngleRad)
+      const camberThrustRear = fzRear * Math.tan(this.leanAngleRad)
+      const cAlphaBike = this.tireCompound === 'semi_slick' ? 4.2 : 3.5
+
+      const subDt = deltaTime / 2
+      let vy = this.lateralSpeedMs
+      let r = this.yawRate
+      let lastAy = 0
+
+      // Equilíbrio de guinada guiado pela inclinação (r_eq = g * tan(phi) / vx)
+      const leanEqYaw = (g * Math.tan(this.leanAngleRad)) / Math.max(2.0, vx)
+
+      for (let s = 0; s < 2; s++) {
+        // No regime dinâmico (dynWeight -> 1), o comando do piloto define o ângulo de inclinação (targetLeanRad)
+        // e o ângulo geométrico do guidão alinha-se ao equilíbrio cinemático da curva (atan(L * r_eq / vx)).
+        const kinSteerEq = Math.atan((wheelbase * leanEqYaw) / Math.max(2.0, vx))
+        const effectiveFrontSteer = delta * (1 - dynWeight) + kinSteerEq * dynWeight
+        const alphaFront = effectiveFrontSteer - Math.atan2(vy + aDist * r, vx)
+        const alphaRear = -Math.atan2(vy - bDist * r, vx)
+
+        const rawFyFront = camberThrustFront + cAlphaBike * fzFront * alphaFront
+        const rawFyRear = camberThrustRear + cAlphaBike * fzRear * alphaRear
+
+        const fyFront = fyMaxFront * Math.tanh(rawFyFront / Math.max(80, fyMaxFront))
+        const fyRear = fyMaxRear * Math.tanh(rawFyRear / Math.max(80, fyMaxRear))
+
+        const ayBody = (fyFront + fyRear) / this.mass
+        const vyDot = ayBody - vx * r
+        // Amortecimento giroscópico natural + momento de guinada dos pneus
+        const rDot = (aDist * fyFront - bDist * fyRear) / yawInertia + (leanEqYaw - r) * 8.0
+
+        vy += vyDot * subDt
+        r += rDot * subDt
+
+        vy = clamp(vy, -vx * 0.65, vx * 0.65)
+        r = clamp(r, -3.8, 3.8)
+        headingDelta += r * subDt
+        lastAy = ayBody
+      }
+
+      // Mistura C0 contínua entre regime de guidão (< 2 m/s) e regime de inclinação (>= 5 m/s)
+      if (dynWeight < 1.0) {
+        const kinYaw = (vx / wheelbase) * Math.tan(delta)
+        r = kinYaw * (1 - dynWeight) + r * dynWeight
+        vy *= dynWeight
+        lastAy = (vx * kinYaw) * (1 - dynWeight) + lastAy * dynWeight
+        headingDelta = r * deltaTime
+      }
+
+      this.lateralSpeedMs = Math.abs(vy) < 0.0005 ? 0 : vy
+      this.yawRate = Math.abs(r) < 0.0005 ? 0 : r
+      this.lateralAccelMs2 = lastAy
+      this.slipAngleRad = Math.atan2(this.lateralSpeedMs, Math.max(0.5, this.speedMs))
+    } else {
+      // ── MODELO PLANAR 2D PARA AUTOMÓVEIS / PICAPES (4 RODAS) ──
+      // Bicicleta dinâmica com saturação não-linear, transferência de carga por eixo,
+      // círculo de atrito acoplado à tração (FWD / RWD / AWD / 4x4) e conservação de Coriolis.
+      this.leanAngleRad = 0
+      const vx = this.speedMs
+      const dynWeight = clamp((vx - 2.0) / 4.0, 0, 1)
+
+      // Força normal por eixo (incluindo downforce aerodinâmico)
+      const frontDownforceShare = this.chassis.frontWeightRatio < 0.5 ? 0.35 : 0.45
+      const fzFront = Math.max(200, dynamicWheelLoads.frontAxleLoad + this.effectiveDownforceN * frontDownforceShare)
+      const fzRear = Math.max(200, dynamicWheelLoads.rearAxleLoad + this.effectiveDownforceN * (1 - frontDownforceShare))
+
+      // Distribuição de força longitudinal por eixo conforme arquitetura de tração (FWD / RWD / AWD / 4x4)
+      const isRwd = this.drivetrain === 'rwd'
+      const isFrontBiasedAwdLat = this.drivetrain === '4x4_selectable' || this.drivetrain === 'awd_ondemand'
+      const isPtmAwdLat = this.drivetrain === 'awd_ptm'
+      const isAwd = isPtmAwdLat || isFrontBiasedAwdLat
+
+      let frontDriveForce = 0
+      let rearDriveForce = 0
+      if (isPtmAwdLat) {
+        // PTM reduz acoplamento dianteiro sob esterçamento para preservar aderência lateral na frente
+        frontDriveForce = tractionForce * 0.25
+        rearDriveForce = tractionForce * 0.75
+      } else if (isFrontBiasedAwdLat) {
+        // AWD sob demanda / 4x4: utiliza diretamente as forças de tração reais calculadas por eixo
+        frontDriveForce = frontTractionForceN
+        rearDriveForce = rearTractionForceN
+      } else if (isRwd) {
+        rearDriveForce = tractionForce
+      } else {
+        // FWD
+        frontDriveForce = tractionForce
+      }
+
+      const fxFront = frontDriveForce - brakeForce * 0.65
+      const fxRear = rearDriveForce - brakeForce * 0.35
+
+      // Círculo de atrito elíptico por eixo: patinamento longitudinal reduz aderência lateral disponível
+      // -> FWD sob aceleração forte tende ao subesterço (alarga a frente)
+      // -> RWD sob aceleração forte tende ao sobresterço (solta a traseira)
+      // -> AWD / 4x4 distribui o esforço conforme o modo ativo (AUTO reativo vs 4WD/LOW bloqueado 50/50)
+      const maxFrontForce = Math.max(100, frontSurfaceMu * fzFront)
+      const maxRearForce = Math.max(100, rearSurfaceMu * fzRear)
+
+      let frontUsage = clamp((Math.abs(fxFront) / maxFrontForce) * 0.85, 0, 0.72)
+      let rearUsage = clamp((Math.abs(fxRear) / maxRearForce) * 0.85, 0, 0.72)
+      if (isWheelSlipping) {
+        if (isFrontBiasedAwdLat) {
+          if (frontAxleSlip) frontUsage = Math.max(frontUsage, 0.90)
+          if (rearAxleSlip) rearUsage = Math.max(rearUsage, 0.86)
+        } else if (!isRwd && !isAwd) {
+          frontUsage = Math.max(frontUsage, 0.88)
+        } else if (isRwd) {
+          rearUsage = Math.max(rearUsage, 0.88)
+        } else {
+          frontUsage = Math.max(frontUsage, 0.58)
+          rearUsage = Math.max(rearUsage, 0.70)
+        }
+      }
+      if (isHandbrake) {
+        rearUsage = 0.94
+      }
+
+      const fyMaxFront = maxFrontForce * Math.sqrt(Math.max(0.24, 1 - frontUsage * frontUsage))
+      const fyMaxRear = maxRearForce * Math.sqrt(Math.max(0.18, 1 - rearUsage * rearUsage))
+
+      // Rigidez de deriva (cornering stiffness) proporcional à carga e ao composto de pneu
+      const stiffnessMult = this.tireCompound === 'semi_slick' ? 12.8 : 10.4
+      const cAlphaFront = stiffnessMult * fzFront
+      const cAlphaRear = stiffnessMult * fzRear * (isHandbrake ? 0.45 : 1.04)
+
+      // Momento de inércia de guinada Iz = m * (a*b + 0.16*L^2)
+      const yawInertia = yawInertiaKgM2
+
+      // 2 micropassos internos (240 Hz efetivo) garantem estabilidade numérica incondicional
+      const subDt = deltaTime / 2
+      let vy = this.lateralSpeedMs
+      let r = this.yawRate
+      let lastFyFront = 0
+      let lastAlphaFront = 0
+      let lastAy = 0
+      let coriolisVxDelta = 0
+
+      for (let s = 0; s < 2; s++) {
+        const prevVy = vy
+        const prevR = r
+        const alphaFront = delta - Math.atan2(vy + aDist * r, vx)
+        const alphaRear = -Math.atan2(vy - bDist * r, vx)
+
+        const fyFront = fyMaxFront * Math.tanh((cAlphaFront * alphaFront) / Math.max(100, fyMaxFront))
+        const fyRear = fyMaxRear * Math.tanh((cAlphaRear * alphaRear) / Math.max(100, fyMaxRear))
+
+        const totalFy = fyFront * Math.cos(delta) + fyRear
+        const yawTorque = aDist * fyFront * Math.cos(delta) - bDist * fyRear
+        const ayBody = totalFy / this.mass
+        const vyDot = ayBody - vx * r
+        const rDot = yawTorque / yawInertia
+
+        vy += vyDot * subDt
+        r += rDot * subDt
+
+        // Proteção física de teto de guinada/deriva contra extremos numéricos
+        vy = clamp(vy, -vx * 1.15, vx * 1.15)
+        r = clamp(r, -4.5, 4.5)
+
+        const midVy = 0.5 * (prevVy + vy)
+        const midR = 0.5 * (prevR + r)
+        headingDelta += midR * subDt
+        // Acoplamento de Coriolis (+vy * r) usando ponto médio para conservação de energia cinética
+        coriolisVxDelta += midVy * midR * subDt
+        lateralWorkJ += (totalFy * midVy + yawTorque * midR) * subDt
+
+        lastFyFront = fyFront
+        lastAlphaFront = alphaFront
+        lastAy = ayBody
+      }
+
+      // Mistura C0 contínua cinemática -> dinâmica entre 2.0 m/s e 6.0 m/s
+      if (dynWeight < 1.0) {
+        const kinYaw = (vx / wheelbase) * Math.tan(delta)
+        r = kinYaw * (1 - dynWeight) + r * dynWeight
+        vy *= dynWeight
+        lastAy = (vx * kinYaw) * (1 - dynWeight) + lastAy * dynWeight
+        headingDelta = r * deltaTime
+        coriolisVxDelta *= dynWeight
+        lateralWorkJ *= dynWeight
+      }
+
+      this.lateralSpeedMs = Math.abs(vy) < 0.0005 ? 0 : vy
+      this.yawRate = Math.abs(r) < 0.0005 ? 0 : r
+      this.lateralAccelMs2 = lastAy
+
+      // Arrasto induzido de deriva (scrub drag) + conservação de Coriolis
+      scrubForceN = Math.abs(lastFyFront * Math.sin(lastAlphaFront)) * 0.45 * dynWeight
+      const totalVxAdjustment = coriolisVxDelta - (scrubForceN / this.mass) * deltaTime
+      if (Math.abs(totalVxAdjustment) > 1e-5 && this.speedMs > 0.2) {
+        this.speedMs = Math.max(0, this.speedMs + totalVxAdjustment)
+        if (!isWheelSlipping) {
+          this.wheelSpeedMs = this.speedMs
+        }
+      }
+
+      this.slipAngleRad = Math.atan2(this.lateralSpeedMs, Math.max(0.5, this.speedMs))
     }
 
-    this.headingRad += this.yawRate * deltaTime
+    this.headingRad += headingDelta
     // Normaliza heading no intervalo [-pi, pi]
     while (this.headingRad > Math.PI) this.headingRad -= 2 * Math.PI
     while (this.headingRad < -Math.PI) this.headingRad += 2 * Math.PI
 
-    // Deslocamento no plano cartesiano métrico do mundo
-    // Rumo 0 = Norte (+Y), pi/2 = Leste (+X)
-    const dx = vDirectional * Math.sin(this.headingRad) * deltaTime
-    const dy = vDirectional * Math.cos(this.headingRad) * deltaTime
-    this.positionX += dx
-    this.positionY += dy
+    // Velocidade vetorial no referencial do mundo (Norte = +Y, Leste = +X)
+    const vDirectional = isReverse ? -this.speedMs : this.speedMs
+    const sinH = Math.sin(this.headingRad)
+    const cosH = Math.cos(this.headingRad)
+    let vWorldX = vDirectional * sinH + this.lateralSpeedMs * cosH
+    let vWorldY = vDirectional * cosH - this.lateralSpeedMs * sinH
 
-    // 10. Consulta de Superfície e Colisão com Barreiras do WorldMap
-    const mapQuery = WorldMap.query(this.positionX, this.positionY, Boolean(isRaining))
+    this.positionX += vWorldX * deltaTime
+    this.positionY += vWorldY * deltaTime
+
+    // 10. Consulta de Superfície e Colisão Vetorial com Barreiras e Obstáculos do WorldMap
+    let mapQuery = WorldMap.query(this.positionX, this.positionY, Boolean(isRaining), vehicleRadius)
+    this.isColliding = false
+    this.collisionBoundaryName = null
+
+    // Até 2 passes de resolução para cantos entre barreiras/blocos
+    for (let pass = 0; pass < 2 && mapQuery.collision.isColliding; pass++) {
+      const col = mapQuery.collision
+      this.isColliding = true
+      this.collisionBoundaryName = col.boundaryName ?? 'Barreira'
+
+      // Afasta o veículo da barreira pelo vetor normal de penetração
+      this.positionX += col.normalX * (col.penetrationDepth + 0.01)
+      this.positionY += col.normalY * (col.penetrationDepth + 0.01)
+
+      // Projeção da velocidade do mundo sobre a normal da barreira
+      const vDotN = vWorldX * col.normalX + vWorldY * col.normalY
+      if (vDotN < 0) {
+        // Impacto inelástico com leve restituição (0.12) e amortecimento tangencial por atrito no muro
+        const restitution = 0.12
+        const wallFrictionDamping = 0.72
+        vWorldX = (vWorldX - (1 + restitution) * vDotN * col.normalX) * wallFrictionDamping
+        vWorldY = (vWorldY - (1 + restitution) * vDotN * col.normalY) * wallFrictionDamping
+
+        // Reprojeção para o referencial do chassi (longitudinal + lateral)
+        const nextVx = vWorldX * sinH + vWorldY * cosH
+        const nextVy = vWorldX * cosH - vWorldY * sinH
+
+        this.speedMs = isReverse ? Math.max(0, -nextVx) : Math.max(0, nextVx)
+        if (this.speedMs < 0.25) this.speedMs = 0
+        this.lateralSpeedMs = nextVy * 0.45
+        if (Math.abs(this.lateralSpeedMs) < 0.05) this.lateralSpeedMs = 0
+        this.yawRate *= 0.35
+        this.wheelSpeedMs = this.speedMs
+      }
+
+      mapQuery = WorldMap.query(this.positionX, this.positionY, Boolean(isRaining), vehicleRadius)
+    }
+
+    // Guarda de integridade numérica (garante zero NaN/Infinity no estado 2D)
+    if (!Number.isFinite(this.positionX)) this.positionX = WorldMap.SPAWN_X
+    if (!Number.isFinite(this.positionY)) this.positionY = WorldMap.SPAWN_Y
+    if (!Number.isFinite(this.headingRad)) this.headingRad = 0
+    if (!Number.isFinite(this.speedMs)) this.speedMs = 0
+    if (!Number.isFinite(this.lateralSpeedMs)) this.lateralSpeedMs = 0
+    if (!Number.isFinite(this.yawRate)) this.yawRate = 0
+    if (!Number.isFinite(this.lateralAccelMs2)) this.lateralAccelMs2 = 0
+    if (!Number.isFinite(this.slipAngleRad)) this.slipAngleRad = 0
+    if (!Number.isFinite(this.leanAngleRad)) this.leanAngleRad = 0
+
     this.currentSurface = mapQuery.surface.type
     this.currentZoneName = mapQuery.zoneName
     this.baseSurfaceFriction = mapQuery.surface.friction
@@ -963,22 +1490,10 @@ export class VehiclePhysics {
         : this.computeCompositeFriction(this.baseSurfaceFriction, this.currentSurface, Boolean(isRaining))
     this.rollingCoeff = mapQuery.surface.rollingResistance
 
-    // Resposta à colisão com barreira
-    if (mapQuery.collision.isColliding) {
-      const col = mapQuery.collision
-      // Afasta o veículo da barreira pelo vetor normal de penetração
-      this.positionX += col.normalX * col.penetrationDepth
-      this.positionY += col.normalY * col.penetrationDepth
-
-      // Amortece e rebate a velocidade linear
-      this.speedMs = Math.max(0, this.speedMs * 0.40 - 0.5)
-      this.wheelSpeedMs = this.speedMs
-    }
-
     // 11. Calcular rotação do eixo primário da transmissão
     const wheelAngularVelocity = this.wheelSpeedMs / this.wheelRadius
     const wheelRpm = (wheelAngularVelocity * 60) / (2 * Math.PI)
-    
+
     const transmissionAngularVelocity = gearRatio !== 0
       ? wheelAngularVelocity * effectiveTotalRatio
       : 0
@@ -986,14 +1501,31 @@ export class VehiclePhysics {
     return {
       speedKmh: this.getSpeedKmh(),
       speedMs: this.speedMs,
+      lateralSpeedMs: this.lateralSpeedMs,
+      slipAngleDeg: this.getSlipAngleDeg(),
+      lateralAccelG: this.getLateralAccelG(),
+      leanAngleDeg: this.getLeanAngleDeg(),
       acceleration: this.accelerationMs2,
       transmissionAngularVelocity,
       wheelRpm,
       wheelSpeedKmh: this.getWheelSpeedKmh(),
       tractionForce,
       resistiveForce: rollingResistance + aeroResistance + brakeForce + Math.max(0, slopeForce),
+      brakeForceN: brakeForce,
+      rollingResistanceN: rollingResistance,
+      aeroResistanceN: aeroResistance,
+      scrubForceN,
+      yawInertiaKgM2,
+      lateralWorkJ,
       wheelTorque,
       maxGripTorque,
+      frontAxleTorqueNm,
+      rearAxleTorqueNm,
+      frontTractionForceN,
+      rearTractionForceN,
+      frontAxleSlip,
+      rearAxleSlip,
+      awdRearCoupling: this.awdRearCoupling,
       isWheelSlipping,
       slipRatio,
       positionX: this.positionX,
@@ -1004,6 +1536,8 @@ export class VehiclePhysics {
       yawRate: this.yawRate,
       surfaceType: this.currentSurface,
       zoneName: this.currentZoneName,
+      isColliding: this.isColliding,
+      collisionBoundaryName: this.collisionBoundaryName,
       absEngaged,
       isAirbrakeActive: this.isAirbrakeActive,
       wheelAngularVelocities: [...this.wheelAngularVel],
@@ -1036,6 +1570,13 @@ export class VehiclePhysics {
     this.headingRad = (WorldMap.SPAWN_HEADING_DEG * Math.PI) / 180
     this.steeringAngleRad = 0
     this.yawRate = 0
+    this.lateralSpeedMs = 0
+    this.slipAngleRad = 0
+    this.lateralAccelMs2 = 0
+    this.leanAngleRad = 0
+    this.awdRearCoupling = 0
+    this.isColliding = false
+    this.collisionBoundaryName = null
     this.absChannelStates = ['PASSIVE', 'PASSIVE', 'PASSIVE', 'PASSIVE']
     this.wheelAngularVel = [0, 0, 0, 0]
     this.prevWheelAngularVel = [0, 0, 0, 0]
@@ -1061,6 +1602,11 @@ export class VehiclePhysics {
       headingRad: this.headingRad,
       steeringAngleRad: this.steeringAngleRad,
       yawRate: this.yawRate,
+      lateralSpeedMs: this.lateralSpeedMs,
+      slipAngleRad: this.slipAngleRad,
+      lateralAccelMs2: this.lateralAccelMs2,
+      leanAngleRad: this.leanAngleRad,
+      awdRearCoupling: this.awdRearCoupling,
       currentSurface: this.currentSurface,
     }
   }
@@ -1087,6 +1633,11 @@ export class VehiclePhysics {
     if (snapshot.headingRad !== undefined) this.headingRad = snapshot.headingRad
     if (snapshot.steeringAngleRad !== undefined) this.steeringAngleRad = snapshot.steeringAngleRad
     if (snapshot.yawRate !== undefined) this.yawRate = snapshot.yawRate
+    if (snapshot.lateralSpeedMs !== undefined) this.lateralSpeedMs = snapshot.lateralSpeedMs
+    if (snapshot.slipAngleRad !== undefined) this.slipAngleRad = snapshot.slipAngleRad
+    if (snapshot.lateralAccelMs2 !== undefined) this.lateralAccelMs2 = snapshot.lateralAccelMs2
+    if (snapshot.leanAngleRad !== undefined) this.leanAngleRad = snapshot.leanAngleRad
+    if (snapshot.awdRearCoupling !== undefined) this.awdRearCoupling = snapshot.awdRearCoupling
     if (snapshot.currentSurface !== undefined) this.currentSurface = snapshot.currentSurface
   }
 }
@@ -1106,5 +1657,10 @@ export interface VehiclePhysicsSnapshot {
   headingRad?: number
   steeringAngleRad?: number
   yawRate?: number
+  lateralSpeedMs?: number
+  slipAngleRad?: number
+  lateralAccelMs2?: number
+  leanAngleRad?: number
+  awdRearCoupling?: number
   currentSurface?: SurfaceType
 }

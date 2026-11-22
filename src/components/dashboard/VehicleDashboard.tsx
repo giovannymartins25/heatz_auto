@@ -17,6 +17,7 @@ import { RotateDeviceOverlay } from './RotateDeviceOverlay'
 import { PerformanceBox } from './PerformanceBox'
 import { KeyboardHUD } from './KeyboardHUD'
 import { DrivingMapViewport } from './DrivingMapViewport'
+import { WorldMapModal } from './WorldMapModal'
 import { InfotainmentScreen } from './InfotainmentScreen'
 import { PedalTelemetry, AftermarketPillarGaugePod } from '@/components/gauges'
 import { Pedals, GearShift, EngineButton } from '@/components/controls'
@@ -114,7 +115,8 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const allowPortraitCockpit = useUIStore((s) => s.allowPortraitCockpit)
   const setAllowPortraitCockpit = useUIStore((s) => s.setAllowPortraitCockpit)
   const isMapOpen = useUIStore((s) => s.isMapOpen)
-  const toggleMap = useUIStore((s) => s.toggleMap)
+  const isWorldMapOpen = useUIStore((s) => s.isWorldMapOpen)
+  const toggleWorldMap = useUIStore((s) => s.toggleWorldMap)
   const mapViewportSize = useUIStore((s) => s.mapViewportSize)
   const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
 
@@ -128,6 +130,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
       useUIStore.getState().setMapOpen(false)
     }
     return () => {
+      useUIStore.getState().closeWorldMap()
       reset()
     }
   }, [vehicle, activeCar, init, reset, entryMode])
@@ -318,6 +321,23 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             <span>402M DRAG</span>
           </button>
 
+          {/* Botão Mapa do Mundo (visão ampla do mundo 2D e posição real do veículo) */}
+          <button
+            type="button"
+            onClick={toggleWorldMap}
+            aria-label="Abrir mapa do mundo"
+            data-testid="btn-world-map"
+            className={`px-2.5 py-1 text-xs rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
+              isWorldMapOpen
+                ? 'bg-sky-500/25 border-sky-400 text-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.45)]'
+                : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:bg-sky-500/15 hover:border-sky-400'
+            }`}
+            title="Abrir Mapa do Mundo 2D com sua posição atual"
+          >
+            <span>🗺️</span>
+            <span>MAPA</span>
+          </button>
+
           {/* Botão Vidros Elétricos & Acústica */}
           {vehicle.info.category !== 'motorcycle' && (
             <button
@@ -407,13 +427,24 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
                     : 'text-zinc-500 border-transparent hover:text-zinc-300',
                 }[mode]
 
+                const isMoto = vehicle.info.category === 'motorcycle'
+                const modeLabel = isMoto
+                  ? mode === 'eco'
+                    ? 'RAIN'
+                    : mode === 'normal'
+                    ? 'STANDARD'
+                    : mode === 'sport'
+                    ? 'SPORT'
+                    : mode.toUpperCase()
+                  : mode.toUpperCase()
+
                 return (
                   <button
                     key={mode}
                     onClick={() => setDrivingMode(mode as DrivingMode)}
                     className={`px-2.5 py-0.5 text-[10px] font-mono font-black uppercase rounded-full border transition-all active:scale-95 cursor-pointer ${styles}`}
                   >
-                    {mode}
+                    {modeLabel}
                   </button>
                 )
               })}
@@ -673,15 +704,17 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
               📢
             </button>
 
-            {/* Mapa 2D Desktop */}
+            {/* Mapa do Mundo Desktop */}
             <button
-              onClick={toggleMap}
+              type="button"
+              onClick={toggleWorldMap}
               className={`w-10 h-10 rounded-xl border flex items-center justify-center text-sm transition-all active:scale-95 cursor-pointer ${
-                isMapOpen
-                  ? 'bg-sky-500/20 text-sky-300 border-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.45)]'
-                  : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
+                isWorldMapOpen
+                  ? 'bg-sky-500/25 text-sky-200 border-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.55)]'
+                  : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:text-white'
               }`}
-              title="Alternar Mapa 2D Dirigível (M)"
+              title="Abrir Mapa do Mundo 2D"
+              aria-label="Abrir mapa do mundo (atalho rodapé)"
             >
               🗺️
             </button>
@@ -749,6 +782,9 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
 
       {/* Pista de Arrancada 402m (Drag Strip Modal) */}
       {isDragStripOpen && <DragStripTree onClose={() => setIsDragStripOpen(false)} />}
+
+      {/* Mapa do Mundo 2D (Visão ampla sincronizada com a simulação) */}
+      <WorldMapModal vehicle={vehicle} />
 
       {/* Modal da Oficina de Peças & Preparação */}
       {isTuningOpen && (
