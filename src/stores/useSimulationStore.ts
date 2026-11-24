@@ -35,6 +35,13 @@ import {
 } from '@/systems/cabin'
 import type { IgnitionPosition, IgnitionStartInterlock, IgnitionType } from '@/types/vehicle'
 import type { SensorPermissionState, SteeringMethod } from '@/systems/input'
+import {
+  TILT_SENSITIVITY_PRESETS,
+  loadTiltPreferences,
+  saveTiltPreferencesPatch,
+  resolveTiltSensitivityPresetFromValue,
+  type TiltSensitivityPreset,
+} from '@/systems/input/tiltPreferences'
 import { MAX_SUBSTEPS } from '@/systems/engine/constants'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
 import { clamp } from '@/utils/math'
@@ -352,11 +359,15 @@ interface SimulationActions {
   /** Alterna ativação de Pops & Bangs */
   togglePopsAndBangs: () => void
   /** Liga o motor (ou aciona arranque se parado/estolado) */
-  startEngine: (options?: { enforceInterlock?: boolean }) => void
+  startEngine: (options?: { enforceInterlock?: boolean; alreadyAuthorizedCrank?: boolean }) => void
   /** Solicita partida do motor respeitando estritamente o contrato `startInterlock` da ignição */
   requestEngineStart: (enforceInterlock?: boolean) => boolean
+  /** Aciona o botão Start/Stop (`push_button`) respeitando `IgnitionSystem` e `startInterlock` */
+  pressPushButtonIgnition: (enforceInterlock?: boolean) => boolean
   /** Define posição da chave/comutador de ignição (OFF, ACC, ON, CRANK) */
   setIgnitionPosition: (pos: IgnitionPosition, enforceInterlock?: boolean) => boolean
+  /** Solta a chave física da posição de arranque (`CRANK -> ON`), abortando giro incompleto se solta antes de pegar */
+  releaseIgnitionKey: () => IgnitionPosition
   /** Avança um estágio na chave física (OFF -> ACC -> ON -> CRANK) ou botão Start/Stop */
   advanceIgnition: (enforceInterlock?: boolean) => boolean
   /** Retorna um estágio na chave física (ON -> ACC -> OFF) */
@@ -478,8 +489,16 @@ interface SimulationActions {
   setTiltSteeringEnabled: (enabled: boolean) => void
   /** Ajusta sensibilidade da direção por inclinação */
   setSteeringSensitivity: (sens: number) => void
+  /** Define nível discreto de sensibilidade da direção mobile ('low' | 'medium' | 'high') */
+  setSteeringSensitivityPreset: (preset: TiltSensitivityPreset) => void
+  /** Define inversão do sinal final da direção mobile */
+  setSteeringInvertDirection: (invert: boolean) => void
+  /** Alterna inversão do sinal final da direção mobile */
+  toggleSteeringInvertDirection: () => void
   /** Ajusta a zona morta (deadzone) da direção em graus */
   setSteeringDeadzone: (deadzone: number) => void
+  /** Recarrega preferências persistidas do sensor de inclinação do localStorage */
+  reloadTiltPreferencesFromStorage: () => void
   /** Atualiza o estado da permissão de sensores mobile */
   setSensorPermission: (perm: SensorPermissionState) => void
   /** Alterna visibilidade do mapa 2D dirigível */
@@ -604,6 +623,8 @@ interface SimulationState {
   steeringMethod: SteeringMethod
   tiltSteeringEnabled: boolean
   steeringSensitivity: number
+  steeringSensitivityPreset: TiltSensitivityPreset
+  steeringInvertDirection: boolean
   steeringDeadzone: number
   sensorPermission: SensorPermissionState
 
@@ -746,6 +767,8 @@ interface SimulationState {
 
 type SimulationStore = SimulationState & SimulationActions
 
+const initialTiltPrefs = loadTiltPreferences()
+
 export const useSimulationStore = create<SimulationStore>((set, get) => ({
   // Estado inicial
   rpm: 0,
@@ -821,8 +844,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   steeringAngle: 0,
   steeringMethod: 'tilt',
   tiltSteeringEnabled: true,
-  steeringSensitivity: 1.0,
-  steeringDeadzone: 2.0,
+  steeringSensitivity: TILT_SENSITIVITY_PRESETS[initialTiltPrefs.sensitivityPreset].sensitivity,
+  steeringSensitivityPreset: initialTiltPrefs.sensitivityPreset,
+  steeringInvertDirection: initialTiltPrefs.invertDirection,
+  steeringDeadzone: initialTiltPrefs.deadzoneDeg,
   sensorPermission: 'prompt',
   positionX: WorldMap.SPAWN_X,
   positionY: WorldMap.SPAWN_Y,
@@ -1136,9 +1161,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isWiperActive: false,
       steeringMethod: 'tilt',
       tiltSteeringEnabled: true,
-      steeringSensitivity: 1.0,
-      steeringDeadzone: 2.0,
-      sensorPermission: 'prompt',
+      steeringSensitivity: get().steeringSensitivity,
+      steeringSensitivityPreset: get().steeringSensitivityPreset,
+      steeringInvertDirection: get().steeringInvertDirection,
+      steeringDeadzone: get().steeringDeadzone,
+      sensorPermission: get().sensorPermission,
       fourWheelDriveMode: 'auto',
       fourWheelDriveWarning: null,
       rpm: 0,
@@ -1239,7 +1266,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     })
   },
 
-  startEngine: (options?: { enforceInterlock?: boolean }) => {
+  startEngine: (options?: { enforceInterlock?: boolean; alreadyAuthorizedCrank?: boolean }) => {
     const {
       _engine,
       _ignition,
@@ -1258,7 +1285,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (_engine.getStatus() === 'starting') return
 
     const enforceInterlock = options?.enforceInterlock ?? false
-    if (_ignition) {
+    if (_ignition && !options?.alreadyAuthorizedCrank) {
       const attempt = _ignition.attemptCrank({
         brake,
         clutch: clutchPosition,
@@ -1369,6 +1396,77 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     return st.status === 'starting' || st.isRunning || st.ignitionFailedAttempts === prevAttempts
   },
 
+  pressPushButtonIgnition: (enforceInterlock = true) => {
+    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel } = get()
+    if (!_ignition) {
+      if (_engine?.getIsRunning()) {
+        get().stopEngine()
+        return true
+      }
+      get().startEngine({ enforceInterlock })
+      return true
+    }
+
+    const result = _ignition.pressPushButton({
+      brake,
+      clutch: clutchPosition,
+      engineStatus: _engine?.getStatus() ?? 'off',
+      isEngineBlown,
+      isOutOfFuel,
+      enforceInterlock,
+    })
+
+    if (result.shouldStopEngine) {
+      get().stopEngine()
+      return true
+    }
+
+    if (result.shouldStartEngine) {
+      get().startEngine({ enforceInterlock: false, alreadyAuthorizedCrank: true })
+      return true
+    }
+
+    const snap = _ignition.getStateSnapshot()
+    set({
+      ignitionPosition: snap.position,
+      batteryVoltageV: snap.batteryVoltageV,
+      isBatteryDischarged: snap.isBatteryDischarged,
+      ignitionStartAttempts: snap.startAttempts,
+      ignitionFailedAttempts: snap.failedAttempts,
+      ignitionFailureReason: snap.lastFailureReason,
+    })
+    HapticFeedback.light()
+    return result.failureReason === null
+  },
+
+  releaseIgnitionKey: () => {
+    const { _ignition, _engine, ignitionType, _phys } = get()
+    if (!_ignition) return get().ignitionPosition
+
+    const wasCranking = _ignition.getPosition() === 'CRANK'
+    const nextPos = _ignition.releaseKeyFromCrank()
+
+    // Em chave física, soltar a chave de CRANK antes do motor pegar desacopla o arranque e mantém a chave em ON
+    if (wasCranking && ignitionType === 'key' && _engine && _engine.getStatus() === 'starting') {
+      _engine.stop()
+      _phys.isRunning = false
+      _phys.status = 'off'
+      _phys.rpm = _engine.getRpm()
+      const snap = _ignition.getStateSnapshot()
+      set({
+        isRunning: false,
+        status: 'off',
+        rpm: _engine.getRpm(),
+        ignitionPosition: snap.position,
+        batteryVoltageV: snap.batteryVoltageV,
+      })
+      return nextPos
+    }
+
+    set({ ignitionPosition: nextPos })
+    return nextPos
+  },
+
   setIgnitionPosition: (pos: IgnitionPosition, enforceInterlock = true) => {
     const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel } = get()
     if (!_ignition) return false
@@ -1418,7 +1516,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     if (result.shouldStartEngine) {
       // Executa partida mecânica (interlock já validado acima)
-      get().startEngine({ enforceInterlock: false })
+      get().startEngine({ enforceInterlock: false, alreadyAuthorizedCrank: true })
       return true
     }
 
@@ -2049,14 +2147,53 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setSteeringSensitivity: (sens: number) => {
     if (Number.isFinite(sens)) {
-      set({ steeringSensitivity: clamp(sens, 0.2, 3.5) })
+      const clamped = clamp(sens, 0.2, 3.5)
+      const preset = resolveTiltSensitivityPresetFromValue(clamped)
+      saveTiltPreferencesPatch({ sensitivityPreset: preset })
+      set({ steeringSensitivity: clamped, steeringSensitivityPreset: preset })
     }
+  },
+
+  setSteeringSensitivityPreset: (preset: TiltSensitivityPreset) => {
+    const spec = TILT_SENSITIVITY_PRESETS[preset] ?? TILT_SENSITIVITY_PRESETS.medium
+    saveTiltPreferencesPatch({ sensitivityPreset: spec.id })
+    set({
+      steeringSensitivityPreset: spec.id,
+      steeringSensitivity: spec.sensitivity,
+    })
+    HapticFeedback.light()
+  },
+
+  setSteeringInvertDirection: (invert: boolean) => {
+    const flag = Boolean(invert)
+    saveTiltPreferencesPatch({ invertDirection: flag })
+    set({ steeringInvertDirection: flag })
+    HapticFeedback.light()
+  },
+
+  toggleSteeringInvertDirection: () => {
+    const next = !get().steeringInvertDirection
+    saveTiltPreferencesPatch({ invertDirection: next })
+    set({ steeringInvertDirection: next })
+    HapticFeedback.light()
   },
 
   setSteeringDeadzone: (deadzone: number) => {
     if (Number.isFinite(deadzone)) {
-      set({ steeringDeadzone: clamp(deadzone, 0, 15) })
+      const clamped = clamp(deadzone, 0, 15)
+      saveTiltPreferencesPatch({ deadzoneDeg: clamped })
+      set({ steeringDeadzone: clamped })
     }
+  },
+
+  reloadTiltPreferencesFromStorage: () => {
+    const prefs = loadTiltPreferences()
+    set({
+      steeringSensitivityPreset: prefs.sensitivityPreset,
+      steeringSensitivity: TILT_SENSITIVITY_PRESETS[prefs.sensitivityPreset].sensitivity,
+      steeringInvertDirection: prefs.invertDirection,
+      steeringDeadzone: prefs.deadzoneDeg,
+    })
   },
 
   toggleMap: () => {

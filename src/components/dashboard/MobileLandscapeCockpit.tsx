@@ -9,7 +9,8 @@ import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { useDeviceTilt } from '@/hooks/useDeviceTilt'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
+import { QuickClutchButton, HudIgnitionControl, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
+import { resolveVehicleIgnition } from '@/systems/vehicle/vehicleResolvers'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { WorldMapModal } from './WorldMapModal'
 import { CockpitPanelCarousel } from '@/components/cockpit'
@@ -417,8 +418,14 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           </div>
         </div>
 
-        {/* Base: Freio de mão + START — alturas compactas anti-corte */}
-        <div className="grid grid-cols-2 gap-1.5 flex-shrink-0">
+        {/* Base (canto inferior direito do HUD): Freio de mão + Ignição real do veículo (Start/Stop ou Chave Física) */}
+        <div
+          className={`grid gap-1 flex-shrink-0 ${
+            resolveVehicleIgnition(vehicle).type === 'key'
+              ? 'grid-cols-[44px_1fr]'
+              : 'grid-cols-2 gap-1.5'
+          }`}
+        >
           <button
             type="button"
             onClick={toggleHandbrake}
@@ -429,10 +436,10 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             }`}
             aria-label="Freio de mão"
           >
-            <span className="text-[11px] sm:text-xs">(P)</span>
-            <span className="text-[6.5px] sm:text-[7px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
+            <span className="text-[10.5px] sm:text-xs">(P)</span>
+            <span className="text-[6px] sm:text-[6.5px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
           </button>
-          <MobileStartButton variant="square" className="h-11 w-full rounded-xl" />
+          <HudIgnitionControl vehicle={vehicle} variant="mobile_landscape" />
         </div>
       </aside>
       </div>

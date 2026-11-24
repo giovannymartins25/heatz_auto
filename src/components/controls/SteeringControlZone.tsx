@@ -12,19 +12,22 @@ export interface SteeringControlZoneProps {
 
 /**
  * SteeringControlZone — Indicador discreto de direção por inclinação física (Mobile Tilt Steering).
- * 
+ *
  * No HEATZ AUTO, o smartphone funciona como o próprio volante físico:
  * - Não exibe volante virtual na interface mobile.
- * - Fornece telemetria luminosa e sutil de horizonte, ângulo calibrado, porcentagem e calibração de centro neutro.
+ * - Ocultar o indicador visual (`showTiltIndicator = false`) NÃO desativa o listener do sensor,
+ *   pois `useDeviceTilt()` é mantido montado antes do retorno visual nulo.
  */
 export const SteeringControlZone = memo(function SteeringControlZone({
   className = '',
 }: SteeringControlZoneProps) {
   const showTiltIndicator = useUIStore((s) => s.showTiltIndicator)
   const steeringAngle = useSimulationStore((s) => s.steeringAngle)
+  const steeringInvertDirection = useSimulationStore((s) => s.steeringInvertDirection)
 
   const {
     isSupported,
+    requiresPermissionPrompt,
     permission,
     requestPermission,
     calibrateNeutral,
@@ -42,17 +45,28 @@ export const SteeringControlZone = memo(function SteeringControlZone({
   const steerDirection = steeringAngle < -0.02 ? 'ESQ' : steeringAngle > 0.02 ? 'DIR' : 'CENTRO'
 
   return (
-    <div className={`flex flex-wrap items-center justify-center gap-1 max-w-full p-1 rounded-xl bg-zinc-950/85 border border-white/10 backdrop-blur-md select-none shadow-lg z-20 ${className}`}>
+    <div
+      data-testid="steering-control-zone"
+      className={`flex flex-wrap items-center justify-center gap-1 max-w-full p-1 rounded-xl bg-zinc-950/85 border border-white/10 backdrop-blur-md select-none shadow-lg z-20 ${className}`}
+    >
       {/* Badge identificador do modo inclinação física */}
       <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-zinc-900 border border-white/10 text-cyan-400 font-mono text-[7.5px] font-black uppercase tracking-wider shrink-0">
         <span>📱</span>
         <span className="hidden sm:inline">INCLINAÇÃO</span>
         <span className="sm:hidden">TILT</span>
+        {steeringInvertDirection && (
+          <span className="rounded bg-amber-500/25 px-1 text-[6.5px] text-amber-300">INV</span>
+        )}
       </div>
 
       {/* Balanço visual de inclinação de horizonte */}
       <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-zinc-900/90 border border-white/10 text-[7px] font-mono shrink-0">
-        <span className={`text-[8px] ${steeringAngle < -0.02 ? 'text-cyan-400 font-bold' : 'text-zinc-600'}`}>◄</span>
+        <span
+          data-testid="tilt-arrow-left"
+          className={`text-[8px] ${steeringAngle < -0.02 ? 'text-cyan-400 font-bold' : 'text-zinc-600'}`}
+        >
+          ◄
+        </span>
         <div className="relative w-10 sm:w-12 h-1.5 rounded-full bg-zinc-800 overflow-hidden border border-white/5">
           {/* Linha do centro neutro */}
           <div className="absolute left-1/2 top-0 bottom-0 w-0.5 -translate-x-1/2 bg-zinc-500" />
@@ -62,7 +76,12 @@ export const SteeringControlZone = memo(function SteeringControlZone({
             style={{ left: `${Math.max(5, Math.min(95, 50 + steeringAngle * 45))}%` }}
           />
         </div>
-        <span className={`text-[8px] ${steeringAngle > 0.02 ? 'text-cyan-400 font-bold' : 'text-zinc-600'}`}>►</span>
+        <span
+          data-testid="tilt-arrow-right"
+          className={`text-[8px] ${steeringAngle > 0.02 ? 'text-cyan-400 font-bold' : 'text-zinc-600'}`}
+        >
+          ►
+        </span>
         <span className="font-bold text-cyan-300 ml-0.5 min-w-[26px] text-right">
           {steerDirection === 'CENTRO' ? '0°' : `${steerPercent}%`}
         </span>
@@ -83,14 +102,14 @@ export const SteeringControlZone = memo(function SteeringControlZone({
         <span>{isCalibrated ? `${calibratedAngleDeg}° OK` : 'CALIBRAR'}</span>
       </button>
 
-      {/* Feedback caso permissão ou sensor requeiram atenção */}
+      {/* Feedback caso permissão ou sensor requeiram atenção (botão iOS exclusivo para WebKit c/ requestPermission) */}
       {!isSupported && (
         <span className="text-[7px] font-mono text-red-400 px-1">⚠️ Sem sensor</span>
       )}
       {isSupported && permission === 'denied' && (
         <span className="text-[7px] font-mono text-amber-400 px-1">⚠️ Negado</span>
       )}
-      {isSupported && permission === 'prompt' && (
+      {isSupported && requiresPermissionPrompt && permission === 'prompt' && (
         <button
           type="button"
           onClick={requestPermission}

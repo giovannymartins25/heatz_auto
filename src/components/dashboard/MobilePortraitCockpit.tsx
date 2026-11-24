@@ -8,7 +8,7 @@ import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { useDeviceTilt } from '@/hooks/useDeviceTilt'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
+import { QuickClutchButton, HudIgnitionControl, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { WorldMapModal } from './WorldMapModal'
 import { CockpitPanelCarousel } from '@/components/cockpit'
@@ -293,9 +293,9 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         <SteeringControlZone vehicle={vehicle} />
       </div>
 
-      {/* ─── 4. Zona dos polegares: botões laterais + pedais ─── */}
-      <footer className="w-full grid grid-cols-[68px_1fr_68px] sm:grid-cols-[76px_1fr_76px] items-end gap-1.5 px-1 pb-0.5 flex-shrink-0">
-          {/* Coluna esquerda: Freio de mão · START · QuickClutch */}
+      {/* ─── 4. Zona dos polegares: botões laterais + pedais + ignição no canto inferior direito ─── */}
+      <footer className="w-full grid grid-cols-[62px_1fr_86px] sm:grid-cols-[72px_1fr_94px] items-end gap-1.5 px-1 pb-0.5 flex-shrink-0">
+          {/* Coluna esquerda: Freio de mão · QuickClutch */}
           <div className="flex flex-col gap-1">
             <button
               type="button"
@@ -310,7 +310,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
               <span className="text-[11px]">(P)</span>
               <span className="text-[6px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
             </button>
-            <MobileStartButton variant="square" className="h-11 w-full rounded-xl" />
             {hasClutch && (
               <QuickClutchButton
                 layout="stack"
@@ -378,8 +377,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             </div>
           </div>
 
-          {/* Coluna direita: Moto freio dianteiro ou NOS */}
-          <div className="flex flex-col gap-1 items-stretch">
+          {/* Coluna direita (canto inferior direito do HUD): Moto freio dianteiro / NOS + Ignição real do veículo */}
+          <div className="flex flex-col gap-1 items-stretch justify-end">
             {isMotorcycle && (
               <button
                 type="button"
@@ -387,7 +386,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
                 onPointerUp={() => setBrake(0)}
                 onPointerLeave={() => setBrake(0)}
                 onPointerCancel={() => setBrake(0)}
-                className="h-10 rounded-xl border border-red-400/50 bg-red-950/50 font-mono text-[8px] font-black text-red-200 active:bg-red-500/40"
+                className="h-9 rounded-xl border border-red-400/50 bg-red-950/50 font-mono text-[8px] font-black text-red-200 active:bg-red-500/40"
               >
                 F. DIANT.
               </button>
@@ -401,7 +400,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
                 onPointerCancel={() => setNosActive(false)}
                 disabled={nosPressurePercent <= 0 || !isRunning}
                 aria-label="Disparar Nitro NOS"
-                className={`h-11 rounded-xl border font-mono text-[8px] font-black uppercase flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer shadow-sm ${
+                className={`h-10 rounded-xl border font-mono text-[8px] font-black uppercase flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer shadow-sm ${
                   nosActive
                     ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.9)] animate-pulse'
                     : nosPressurePercent <= 0
@@ -413,6 +412,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
                 <span>{Math.round(nosPressurePercent)}%</span>
               </button>
             )}
+            <HudIgnitionControl vehicle={vehicle} variant="mobile_portrait" />
           </div>
         </footer>
 

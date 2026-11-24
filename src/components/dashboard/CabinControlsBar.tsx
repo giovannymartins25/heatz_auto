@@ -1,20 +1,23 @@
 /**
- * CabinControlsBar.tsx — Painel funcional de controles de cabine, ignição, climatização,
- * vidros individuais e sinalização (Fase 4.2).
+ * CabinControlsBar.tsx — Painel funcional de controles de cabine, climatização,
+ * vidros individuais, válvula de escapamento e sinalização (Fases 4.2 e 4.4.1).
  *
  * Projetado para:
- * - Respeitar estritamente os contratos declarativos `VehicleCabinSpec` e `VehicleIgnitionSpec`
+ * - Respeitar estritamente os contratos declarativos `VehicleCabinSpec`
  *   (ex.: CB1000R não exibe climatização nem vidros; Gol Quadrado e Opala não exibem botão A/C
- *   nem recirculação; Porsche e Gol Quadrado exibem apenas 2 vidros; veículos sem farol de neblina
- *   não exibem o botão de neblina).
- * - Funcionar em multitouch simultâneo com o pedal do acelerador pressionado em dispositivos móveis
- *   (`onPointerDown` com `stopPropagation` sem capturar ponteiros globais).
+ *   nem recirculação; Porsche, Pampa e Gol Quadrado exibem apenas 2 vidros; veículos sem farol
+ *   de neblina não exibem o botão de neblina).
+ * - Na Fase 4.4.1 (`variant === 'panel'`, Painel 3):
+ *   - Os controles de ignição foram removidos do Painel 3 (a ignição permanece exclusivamente
+ *     no canto inferior direito do HUD principal via `HudIgnitionControl`).
+ *   - O controle de válvula/difusor de escapamento (`exhaustValveOpen` / `toggleExhaustValve`)
+ *     está integrado ao Painel 3 reutilizando a `useSimulationStore` sem duplicação de estado.
  */
 
 import { memo, useState } from 'react'
-import type { IgnitionPosition, VehicleConfig } from '@/types/vehicle'
+import type { VehicleConfig } from '@/types/vehicle'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { resolveVehicleCabin, resolveVehicleIgnition } from '@/systems/vehicle/vehicleResolvers'
+import { resolveVehicleCabin } from '@/systems/vehicle/vehicleResolvers'
 import type { FanLevel, WindowId } from '@/systems/cabin'
 
 export interface CabinControlsBarProps {
@@ -37,20 +40,15 @@ export const CabinControlsBar = memo(function CabinControlsBar({
   className = '',
 }: CabinControlsBarProps) {
   const cabinSpec = resolveVehicleCabin(vehicle)
-  const ignitionSpec = resolveVehicleIgnition(vehicle)
 
-  const [activeDrawer, setActiveDrawer] = useState<'none' | 'all' | 'ignition' | 'climate' | 'windows'>('none')
+  const [activeDrawer, setActiveDrawer] = useState<'none' | 'all' | 'climate' | 'windows'>('none')
 
-  // Ignição
-  const ignitionPosition = useSimulationStore((s) => s.ignitionPosition)
+  // Bateria / Telemetria Elétrica (somente leitura informativa na cabine)
   const batteryVoltageV = useSimulationStore((s) => s.batteryVoltageV)
-  const ignitionFailureReason = useSimulationStore((s) => s.ignitionFailureReason)
-  const isRunning = useSimulationStore((s) => s.isRunning)
-  const status = useSimulationStore((s) => s.status)
-  const setIgnitionPosition = useSimulationStore((s) => s.setIgnitionPosition)
-  const advanceIgnition = useSimulationStore((s) => s.advanceIgnition)
-  const startEngine = useSimulationStore((s) => s.startEngine)
-  const stopEngine = useSimulationStore((s) => s.stopEngine)
+
+  // Escapamento / Difusor (reutiliza estado único da useSimulationStore)
+  const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
+  const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
 
   // Iluminação e Sinalização
   const headlightsMode = useSimulationStore((s) => s.headlightsMode)
@@ -108,17 +106,13 @@ export const CabinControlsBar = memo(function CabinControlsBar({
         ? ['front_left', 'front_right']
         : []
 
-  const ignitionStages: IgnitionPosition[] = ignitionSpec.supportsAccessoryMode
-    ? ['OFF', 'ACC', 'ON', 'CRANK']
-    : ['OFF', 'ON', 'CRANK']
-
   const stopProp = (e: React.SyntheticEvent) => {
     if (variant !== 'panel') {
       e.stopPropagation()
     }
   }
 
-  const toggleDrawer = (drawer: 'all' | 'ignition' | 'climate' | 'windows') => {
+  const toggleDrawer = (drawer: 'all' | 'climate' | 'windows') => {
     setActiveDrawer((prev) => (prev === drawer ? 'none' : drawer))
   }
 
@@ -136,84 +130,7 @@ export const CabinControlsBar = memo(function CabinControlsBar({
       style={{ touchAction: isCompactPanel ? 'pan-y' : 'manipulation' }}
       data-testid="cabin-controls-panel"
     >
-      {/* 1. IGNIÇÃO E PARTIDA */}
-      <div className={`rounded-lg border border-white/10 bg-zinc-900/70 ${isCompactPanel ? 'px-1.5 py-0.5' : 'rounded-xl p-2'}`}>
-        <div className={`${isCompactPanel ? 'mb-0.5 text-[8px]' : 'mb-1.5 text-[9px]'} flex items-center justify-between font-mono`}>
-          <span className="font-black uppercase tracking-wider text-zinc-300">
-            {ignitionSpec.type === 'push_button' ? '🔘 Ignição Start/Stop' : '🔑 Ignição (Chave)'}
-          </span>
-          <span className="text-zinc-400">
-            <b className="text-emerald-400">{batteryVoltageV.toFixed(1)}V</b>
-            {ignitionSpec.startInterlock !== 'none' && (
-              <span className="ml-1 rounded bg-zinc-800 px-1 py-px text-[7.5px] text-amber-300">
-                {ignitionSpec.startInterlock === 'brake' ? 'FREIO' : 'EMBR.'}
-              </span>
-            )}
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1">
-          {ignitionStages.map((stage) => {
-            const isCurrent = ignitionPosition === stage
-            return (
-              <button
-                key={stage}
-                type="button"
-                data-testid={`btn-ignition-${stage.toLowerCase()}`}
-                onClick={() => setIgnitionPosition(stage, true)}
-                className={`${isCompactPanel ? 'h-5 px-1.5 text-[8px]' : 'h-7 px-2 text-[9px]'} flex-1 rounded-md border font-mono font-black uppercase transition-all active:scale-95 cursor-pointer ${
-                  isCurrent
-                    ? stage === 'CRANK'
-                      ? 'border-cyan-400 bg-cyan-500/25 text-cyan-200'
-                      : stage === 'ON'
-                        ? 'border-emerald-400 bg-emerald-500/25 text-emerald-200'
-                        : stage === 'ACC'
-                          ? 'border-amber-400 bg-amber-500/25 text-amber-200'
-                          : 'border-zinc-400 bg-zinc-700 text-white'
-                    : 'border-white/10 bg-zinc-950 text-zinc-400 hover:text-white'
-                }`}
-              >
-                {stage}
-              </button>
-            )
-          })}
-
-          <button
-            type="button"
-            data-testid="btn-ignition-advance"
-            onClick={() => advanceIgnition(true)}
-            className={`${isCompactPanel ? 'h-5 px-1.5 text-[8px]' : 'h-7 px-2.5 text-[9px]'} rounded-md border border-amber-400/50 bg-amber-500/15 font-mono font-black uppercase text-amber-200 active:scale-95 cursor-pointer`}
-            title="Avançar estágio da ignição respeitando intertravamento"
-          >
-            {ignitionSpec.type === 'push_button' ? 'Botão' : 'Chave ↻'}
-          </button>
-
-          <button
-            type="button"
-            data-testid="btn-ignition-direct-start"
-            onClick={() => (isRunning ? stopEngine() : startEngine({ enforceInterlock: false }))}
-            className={`${isCompactPanel ? 'h-5 px-1.5 text-[8px]' : 'h-7 px-2.5 text-[9px]'} rounded-md border font-mono font-black uppercase active:scale-95 cursor-pointer ${
-              isRunning
-                ? 'border-red-500/60 bg-red-500/20 text-red-300'
-                : 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300'
-            }`}
-            title="Partida assistida (pisa no pedal requerido e aciona arranque)"
-          >
-            {isRunning ? 'Desligar' : status === 'starting' ? '...' : 'Partida'}
-          </button>
-        </div>
-
-        {ignitionFailureReason && (
-          <div
-            data-testid="ignition-failure-banner"
-            className="mt-1 rounded border border-amber-500/40 bg-amber-950/50 px-1.5 py-0.5 font-mono text-[8px] text-amber-200"
-          >
-            ⚠️ {ignitionFailureReason}
-          </div>
-        )}
-      </div>
-
-      {/* 2. CLIMATIZAÇÃO (somente veículos com cabine climatizada/ventilada) */}
+      {/* 1. CLIMATIZAÇÃO (somente veículos com cabine climatizada/ventilada) */}
       {hasClimate && (
         <div
           className={`rounded-lg border border-white/10 bg-zinc-900/70 ${isCompactPanel ? 'px-1.5 py-0.5' : 'rounded-xl p-2'}`}
@@ -386,7 +303,7 @@ export const CabinControlsBar = memo(function CabinControlsBar({
         </div>
       )}
 
-      {/* 3. VIDROS INDIVIDUAIS (somente veículos com windowCount > 0) */}
+      {/* 2. VIDROS INDIVIDUAIS (somente veículos com windowCount > 0) */}
       {availableWindowIds.length > 0 && (
         <div
           className={`rounded-lg border border-white/10 bg-zinc-900/70 ${isCompactPanel ? 'px-1.5 py-0.5' : 'rounded-xl p-2'}`}
@@ -420,7 +337,13 @@ export const CabinControlsBar = memo(function CabinControlsBar({
                 >
                   <div className="leading-none">
                     <span className={`block font-mono font-bold text-zinc-300 ${isCompactPanel ? 'text-[7.5px]' : 'text-[8.5px]'}`}>
-                      {isCompactPanel ? winId.replace('front_left', 'DE').replace('front_right', 'DD').replace('rear_left', 'TE').replace('rear_right', 'TD') : WINDOW_SHORT_LABELS[winId]}
+                      {isCompactPanel
+                        ? winId
+                            .replace('front_left', 'DE')
+                            .replace('front_right', 'DD')
+                            .replace('rear_left', 'TE')
+                            .replace('rear_right', 'TD')
+                        : WINDOW_SHORT_LABELS[winId]}
                     </span>
                     <span
                       className={`font-mono text-sky-400 ${isCompactPanel ? 'text-[7.5px]' : 'text-[8px]'}`}
@@ -455,6 +378,39 @@ export const CabinControlsBar = memo(function CabinControlsBar({
           </div>
         </div>
       )}
+
+      {/* 3. VÁLVULA / DIFUSOR DE ESCAPAMENTO E REDE 12V (reutiliza useSimulationStore sem estado paralelo) */}
+      <div
+        className={`flex items-center justify-between rounded-lg border border-white/10 bg-zinc-900/70 ${
+          isCompactPanel ? 'px-1.5 py-0.5' : 'rounded-xl p-2'
+        }`}
+        data-testid="cabin-exhaust-section"
+      >
+        <div className="flex items-center gap-1.5 font-mono leading-none">
+          <span className={`${isCompactPanel ? 'text-[8px]' : 'text-[9px]'} font-black uppercase tracking-wider text-zinc-300`}>
+            🔊 Escapamento
+          </span>
+          <span className="rounded bg-zinc-950 px-1 py-0.5 text-[7.5px] font-mono text-zinc-400">
+            Rede <b className="text-emerald-400">{batteryVoltageV.toFixed(1)}V</b>
+          </span>
+        </div>
+
+        <button
+          type="button"
+          data-testid="btn-cabin-exhaust-toggle"
+          onClick={toggleExhaustValve}
+          className={`${
+            isCompactPanel ? 'h-5 px-2 text-[8px]' : 'h-7 px-3 text-[9px]'
+          } rounded-md border font-mono font-black uppercase transition-all active:scale-95 cursor-pointer ${
+            exhaustValveOpen
+              ? 'border-amber-400 bg-amber-500/25 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.35)]'
+              : 'border-white/10 bg-zinc-950 text-zinc-400 hover:text-white'
+          }`}
+          title="Alternar difusor/válvula de escapamento (Aberto / Fechado)"
+        >
+          {exhaustValveOpen ? '⚡ ESCAPE ABERTO' : 'ESCAPE FECHADO'}
+        </button>
+      </div>
     </div>
   )
 
@@ -464,7 +420,7 @@ export const CabinControlsBar = memo(function CabinControlsBar({
       <div
         className={`${
           isFullPanel
-            ? 'flex h-full w-full min-h-0 flex-col overflow-y-auto rounded-xl border border-white/10 bg-zinc-950/90 p-1'
+            ? 'flex h-full w-full min-h-0 flex-col overflow-y-auto rounded-xl border border-white/10 bg-zinc-950/90 px-1 py-0.5'
             : ''
         } ${className}`}
         onPointerDown={!isFullPanel ? stopProp : undefined}
@@ -473,12 +429,12 @@ export const CabinControlsBar = memo(function CabinControlsBar({
         data-testid={isFullPanel ? 'vehicle-controls-panel-root' : undefined}
       >
         {/* Barra rápida de Setas, Pisca-Alerta, Faróis e Neblina */}
-        <div className={`mb-1 grid ${cabinSpec.hasFogLights ? 'grid-cols-5' : 'grid-cols-4'} gap-1 flex-shrink-0`}>
+        <div className={`mb-0.5 grid ${cabinSpec.hasFogLights ? 'grid-cols-5' : 'grid-cols-4'} gap-1 flex-shrink-0`}>
           <button
             type="button"
             data-testid="btn-turn-left"
             onClick={toggleLeftTurnSignal}
-            className={`${isFullPanel ? 'h-6 text-[8.5px] rounded-lg' : 'h-8 text-[9.5px] rounded-xl'} border font-mono font-black transition-all active:scale-95 cursor-pointer ${
+            className={`${isFullPanel ? 'h-5 text-[8px] rounded-md' : 'h-8 text-[9.5px] rounded-xl'} border font-mono font-black transition-all active:scale-95 cursor-pointer ${
               leftIndicatorLit
                 ? 'border-emerald-400 bg-emerald-500 text-black shadow-[0_0_12px_rgba(16,185,129,0.8)]'
                 : leftTurnSignal
@@ -492,7 +448,7 @@ export const CabinControlsBar = memo(function CabinControlsBar({
             type="button"
             data-testid="btn-hazard"
             onClick={toggleHazardLights}
-            className={`${isFullPanel ? 'h-6 text-[8.5px] rounded-lg' : 'h-8 text-[9.5px] rounded-xl'} border font-mono font-black transition-all active:scale-95 cursor-pointer ${
+            className={`${isFullPanel ? 'h-5 text-[8px] rounded-md' : 'h-8 text-[9.5px] rounded-xl'} border font-mono font-black transition-all active:scale-95 cursor-pointer ${
               hazardIndicatorLit
                 ? 'border-red-400 bg-red-600 text-white shadow-[0_0_12px_rgba(239,68,68,0.8)]'
                 : hazardLights
@@ -506,7 +462,7 @@ export const CabinControlsBar = memo(function CabinControlsBar({
             type="button"
             data-testid="btn-turn-right"
             onClick={toggleRightTurnSignal}
-            className={`${isFullPanel ? 'h-6 text-[8.5px] rounded-lg' : 'h-8 text-[9.5px] rounded-xl'} border font-mono font-black transition-all active:scale-95 cursor-pointer ${
+            className={`${isFullPanel ? 'h-5 text-[8px] rounded-md' : 'h-8 text-[9.5px] rounded-xl'} border font-mono font-black transition-all active:scale-95 cursor-pointer ${
               rightIndicatorLit
                 ? 'border-emerald-400 bg-emerald-500 text-black shadow-[0_0_12px_rgba(16,185,129,0.8)]'
                 : rightTurnSignal
@@ -520,7 +476,7 @@ export const CabinControlsBar = memo(function CabinControlsBar({
             type="button"
             data-testid="btn-panel-headlights"
             onClick={cycleHeadlights}
-            className={`${isFullPanel ? 'h-6 text-[8.5px] rounded-lg' : 'h-8 text-[9.5px] rounded-xl'} border font-mono font-black transition-all active:scale-95 cursor-pointer ${
+            className={`${isFullPanel ? 'h-5 text-[8px] rounded-md' : 'h-8 text-[9.5px] rounded-xl'} border font-mono font-black transition-all active:scale-95 cursor-pointer ${
               headlightsMode !== 'off'
                 ? 'border-sky-400 bg-sky-500/20 text-sky-200'
                 : 'border-white/10 bg-zinc-900 text-zinc-400'
@@ -533,7 +489,7 @@ export const CabinControlsBar = memo(function CabinControlsBar({
               type="button"
               data-testid="btn-fog-lights"
               onClick={toggleFogLights}
-              className={`${isFullPanel ? 'h-6 text-[8.5px] rounded-lg' : 'h-8 text-[9.5px] rounded-xl'} border font-mono font-black uppercase transition-all active:scale-95 cursor-pointer ${
+              className={`${isFullPanel ? 'h-5 text-[8px] rounded-md' : 'h-8 text-[9.5px] rounded-xl'} border font-mono font-black uppercase transition-all active:scale-95 cursor-pointer ${
                 fogLightsLit
                   ? 'border-amber-400 bg-amber-500/30 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.45)]'
                   : 'border-white/10 bg-zinc-900 text-zinc-400'
@@ -556,9 +512,8 @@ export const CabinControlsBar = memo(function CabinControlsBar({
       onTouchStart={stopProp}
       style={{ touchAction: 'manipulation' }}
     >
-      {/* Barra compacta de acesso imediato (Setas, Alerta, Luzes, Ignição, A/C e Vidros) */}
+      {/* Barra compacta de acesso imediato (Setas, Alerta, Luzes, A/C, Vidros e Escape) */}
       <div className="flex flex-wrap items-center justify-center gap-1 rounded-full border border-white/10 bg-zinc-950/85 px-2 py-1 shadow-lg">
-        {/* Seta Esquerda */}
         <button
           type="button"
           data-testid="btn-turn-left"
@@ -575,7 +530,6 @@ export const CabinControlsBar = memo(function CabinControlsBar({
           ⬅
         </button>
 
-        {/* Pisca-Alerta */}
         <button
           type="button"
           data-testid="btn-hazard"
@@ -592,7 +546,6 @@ export const CabinControlsBar = memo(function CabinControlsBar({
           ⚠️
         </button>
 
-        {/* Seta Direita */}
         <button
           type="button"
           data-testid="btn-turn-right"
@@ -609,7 +562,6 @@ export const CabinControlsBar = memo(function CabinControlsBar({
           ➡
         </button>
 
-        {/* Farol de Neblina (apenas quando disponível no veículo) */}
         {cabinSpec.hasFogLights && (
           <button
             type="button"
@@ -628,7 +580,6 @@ export const CabinControlsBar = memo(function CabinControlsBar({
           </button>
         )}
 
-        {/* Botão de Gaveta de Cabine / Ignição / A/C / Vidros */}
         <button
           type="button"
           data-testid="btn-cabin-drawer-toggle"
@@ -639,8 +590,8 @@ export const CabinControlsBar = memo(function CabinControlsBar({
               : 'border-white/15 bg-zinc-900 text-zinc-300 hover:text-white'
           }`}
         >
-          <span>{ignitionSpec.type === 'push_button' ? '🔘' : '🔑'}</span>
-          <span>IGN:{ignitionPosition}</span>
+          <span>🎛️</span>
+          <span>CABINE</span>
           {hasClimate && (
             <>
               <span className="opacity-40">·</span>
@@ -657,7 +608,6 @@ export const CabinControlsBar = memo(function CabinControlsBar({
         </button>
       </div>
 
-      {/* Gaveta / Popover Flutuante de Controles de Cabine (não bloqueia pedais mobile) */}
       {activeDrawer !== 'none' && (
         <div
           className={`${

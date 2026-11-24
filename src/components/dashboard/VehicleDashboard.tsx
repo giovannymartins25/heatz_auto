@@ -18,7 +18,7 @@ import { DrivingMapViewport } from './DrivingMapViewport'
 import { WorldMapModal } from './WorldMapModal'
 import { DesktopCockpitLayout } from '@/components/cockpit'
 import { PedalTelemetry } from '@/components/gauges'
-import { Pedals, GearShift, EngineButton } from '@/components/controls'
+import { Pedals, GearShift, HudIgnitionControl } from '@/components/controls'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
 import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
@@ -671,13 +671,11 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
         />
       </main>
 
-      {/* Seção Inferior: Controles de Pilotagem (Start, Alavanca, Freio de Mão, Pedais) */}
+      {/* Seção Inferior: Controles de Pilotagem + Pedais + Ignição no canto inferior direito */}
       <footer className="w-full max-w-[1440px] flex flex-wrap items-center justify-center gap-3 sm:gap-5 px-2 mt-auto">
-        {/* Controles: Start Engine, Freio de Mão, Buzina & Shifter */}
+        {/* Controles: Buzina, Mapa, Freio de Mão, NOS & Shifter */}
         <div className="flex flex-wrap items-center justify-center gap-3">
           <div className="flex items-center gap-2">
-            <EngineButton />
-
             {/* Buzina Desktop */}
             <button
               onPointerDown={() => setHorn(true)}
@@ -755,8 +753,11 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           </div>
         </div>
 
-        {/* Pedais interativos com Pointer Capture */}
-        <Pedals vehicle={vehicle} />
+        {/* Pedais interativos + Ignição real do veículo à direita (Start/Stop ou Chave Física) */}
+        <div className="flex items-end gap-3">
+          <Pedals vehicle={vehicle} />
+          <HudIgnitionControl vehicle={vehicle} variant="desktop" />
+        </div>
       </footer>
 
       {/* ── Efeitos Especiais de Imersão e Oficina ── */}
