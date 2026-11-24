@@ -22,44 +22,102 @@
     "revLimiter": 6500,
     "flywheelMass": 5.8,
     "engineBrakeFactor": 0.27,
-    "throttleProgressionExponent": 1.40,
+    "throttleProgressionExponent": 1.4,
     "defaultFuelType": "common_gasoline",
     "podiumGainMultiplier": 1.02,
     "torqueCurve": [
-      { "rpm": 750,  "torque": 150 },
-      { "rpm": 1400, "torque": 182 },
-      { "rpm": 2200, "torque": 204 },
-      { "rpm": 3000, "torque": 216 },
-      { "rpm": 4000, "torque": 225 },
-      { "rpm": 4800, "torque": 219 },
-      { "rpm": 5500, "torque": 209 },
-      { "rpm": 6000, "torque": 202 },
-      { "rpm": 6500, "torque": 180 },
-      { "rpm": 6700, "torque": 164 }
+      {
+        "rpm": 750,
+        "torque": 150
+      },
+      {
+        "rpm": 1400,
+        "torque": 182
+      },
+      {
+        "rpm": 2200,
+        "torque": 204
+      },
+      {
+        "rpm": 3000,
+        "torque": 216
+      },
+      {
+        "rpm": 4000,
+        "torque": 225
+      },
+      {
+        "rpm": 4800,
+        "torque": 219
+      },
+      {
+        "rpm": 5500,
+        "torque": 209
+      },
+      {
+        "rpm": 6000,
+        "torque": 202
+      },
+      {
+        "rpm": 6500,
+        "torque": 180
+      },
+      {
+        "rpm": 6700,
+        "torque": 164
+      }
     ]
   },
   "transmission": {
     "type": "automatic",
     "drivetrain": "fwd",
     "defaultMode": "automatic",
-    "supportedSelectorPositions": ["P", "R", "N", "D", "M"],
+    "supportedSelectorPositions": [
+      "P",
+      "R",
+      "N",
+      "D",
+      "M"
+    ],
     "gearCount": 6,
     "gearRatios": [
-      { "gear": 1, "ratio": 4.584 },
-      { "gear": 2, "ratio": 2.964 },
-      { "gear": 3, "ratio": 1.912 },
-      { "gear": 4, "ratio": 1.446 },
-      { "gear": 5, "ratio": 1.000 },
-      { "gear": 6, "ratio": 0.746 }
+      {
+        "gear": 1,
+        "ratio": 4.584
+      },
+      {
+        "gear": 2,
+        "ratio": 2.964
+      },
+      {
+        "gear": 3,
+        "ratio": 1.912
+      },
+      {
+        "gear": 4,
+        "ratio": 1.446
+      },
+      {
+        "gear": 5,
+        "ratio": 1
+      },
+      {
+        "gear": 6,
+        "ratio": 0.746
+      }
     ],
     "reverseRatio": 2.943,
     "finalDrive": 3.066,
     "hasClutch": false,
     "hasManualMode": true,
     "defaultDrivingMode": "normal",
-    "supportedModes": ["normal"],
+    "supportedModes": [
+      "normal"
+    ],
     "supportsPaddleShifters": false,
-    "manualShiftControls": ["gear_selector_buttons"],
+    "manualShiftControls": [
+      "gear_selector_buttons"
+    ],
     "supportsNos": true,
     "tcs": {
       "enabled": true,
@@ -71,7 +129,14 @@
     "useSamples": false,
     "synthConfig": {
       "baseFrequency": 54,
-      "harmonics": [1, 2, 2.5, 3, 4, 5],
+      "harmonics": [
+        1,
+        2,
+        2.5,
+        3,
+        4,
+        5
+      ],
       "gainIdle": 0.17,
       "gainMax": 0.84,
       "cylinders": 4,
@@ -112,6 +177,7 @@
   },
   "cabin": {
     "climateType": "auto_dual",
+    "climateControlsLocation": "panel",
     "hasAcCompressor": true,
     "hasHeater": true,
     "hasSeatHeating": true,
@@ -125,15 +191,15 @@
   },
   "multimedia": {
     "unitId": "ford_sync1_2012",
-    "type": "factory",
+    "type": "radio",
     "layout": "horizontal",
     "screenSize": 4.2,
     "name": "Ford SYNC 1 (Powered by Microsoft · Console 2012)",
     "era": "2010s",
     "features": [
-      "Visor VFD Dot-Matrix Ice Blue Superior",
+      "Visor VFD Dot-Matrix Ice Blue Superior (2 Linhas)",
       "Teclado Físico Metálico AM/FM/CD/AUX & SYNC Voice",
-      "Ar-Condicionado Digital Dual-Zone DEATC + Bancos Aquecidos"
+      "Iluminação Ambiente Ford Ice Blue de 7 Cores"
     ],
     "supportsAftermarketUpgrade": false
   },

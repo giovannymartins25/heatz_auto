@@ -9,6 +9,7 @@
  */
 
 import type {
+  ClimateControlsLocation,
   DrivetrainConfigValue,
   DrivetrainLayout,
   IgnitionStartInterlock,
@@ -397,6 +398,44 @@ export function resolveVehicleCabin(vehicle: VehicleConfig): VehicleCabinSpec {
 
 export function resolveDefaultAmbientColor(vehicle: VehicleConfig): AmbientLightColor {
   return resolveVehicleCabin(vehicle).defaultAmbientColor ?? 'red'
+}
+
+/**
+ * Resolve declarativamente onde os controles de climatização devem ser exibidos:
+ * - `'none'`: veículos sem climatização/ventilação (ex.: motocicletas como a CB1000R)
+ * - `'multimedia'`: veículos com central multimídia integrada (touchscreen OEM) ou upgrade aftermarket 2-DIN (`retrofit_2din`)
+ * - `'panel'`: veículos com rádio convencional 1-DIN/2-DIN OEM (ex.: Gol G6, Opala, Pampa, Civic Si 2008 H-Audio 2-DIN, Fusion SEL 2012 SYNC 1 VFD) ou console cego (Gol Quadrado)
+ */
+export function resolveClimateControlsLocation(
+  vehicle: VehicleConfig,
+  upgrades?: { multimediaKit?: boolean } | null,
+): ClimateControlsLocation {
+  const cabin = resolveVehicleCabin(vehicle)
+  if (cabin.climateType === 'none' || vehicle.info.category === 'motorcycle') {
+    return 'none'
+  }
+
+  const media = resolveVehicleMultimediaSpec(vehicle, upgrades)
+  // Se o jogador instalou central multimídia aftermarket 2-DIN na Oficina em um carro de rádio/console cego
+  if (media.unitId === 'retrofit_2din' && media.type === 'aftermarket') {
+    return 'multimedia'
+  }
+
+  if (cabin.climateControlsLocation) {
+    return cabin.climateControlsLocation
+  }
+
+  // Unidades convencionais 1-DIN / 2-DIN OEM (rádios físicos sem tela multimídia integrada de climatização)
+  const isConventionalRadioOrBlank =
+    media.type === 'radio' ||
+    media.type === 'none' ||
+    media.unitId === 'honda_haudio' ||
+    media.unitId === 'ford_sync1_2012' ||
+    media.unitId === 'ford_pampa_radio_1din' ||
+    media.unitId === 'classic_radio_1din' ||
+    media.unitId === 'classic_blank_console'
+
+  return isConventionalRadioOrBlank ? 'panel' : 'multimedia'
 }
 
 // ─── 4. Visual 2D Resolver ───────────────────────────────────────────────────
@@ -840,6 +879,7 @@ export function resolveDefaultUpgradesForVehicle(
 const VALID_IGNITION_TYPES = new Set(['key', 'push_button'])
 const VALID_START_INTERLOCKS = new Set(['none', 'brake', 'clutch', 'brake_or_clutch'])
 const VALID_CLIMATE_TYPES = new Set(['none', 'manual_vent', 'manual_ac', 'auto_single', 'auto_dual', 'auto_tri'])
+const VALID_CLIMATE_LOCATIONS = new Set(['multimedia', 'panel', 'none'])
 const VALID_WINDOW_CONTROLS = new Set(['none', 'manual_crank', 'electric'])
 const VALID_SILHOUETTES = new Set([
   'hatch',
@@ -924,6 +964,12 @@ export function validateVehicleConfig(config: VehicleConfig): VehicleConfigValid
   if (config.cabin) {
     if (!VALID_CLIMATE_TYPES.has(config.cabin.climateType)) {
       errors.push(`cabin.climateType inválido: "${String(config.cabin.climateType)}".`)
+    }
+    if (
+      config.cabin.climateControlsLocation !== undefined &&
+      !VALID_CLIMATE_LOCATIONS.has(config.cabin.climateControlsLocation)
+    ) {
+      errors.push(`cabin.climateControlsLocation inválido: "${String(config.cabin.climateControlsLocation)}".`)
     }
     if (!VALID_WINDOW_CONTROLS.has(config.cabin.windowControlType)) {
       errors.push(`cabin.windowControlType inválido: "${String(config.cabin.windowControlType)}".`)

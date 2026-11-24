@@ -14,7 +14,9 @@
       "gearCount": 7,
       "isSimulatedGears": true,
       "hasManualMode": true,
-      "supportedModes": ["normal"],
+      "supportedModes": [
+        "normal"
+      ],
       "hasTcs": true,
       "hasClutchPedal": false,
       "hasInfotainment": true,
@@ -54,7 +56,11 @@
       "gearCount": 6,
       "isSimulatedGears": false,
       "hasManualMode": false,
-      "supportedModes": ["eco", "normal", "sport"],
+      "supportedModes": [
+        "eco",
+        "normal",
+        "sport"
+      ],
       "hasTcs": true,
       "hasClutchPedal": true,
       "hasInfotainment": false,
@@ -74,7 +80,11 @@
       "gearCount": 8,
       "isSimulatedGears": false,
       "hasManualMode": true,
-      "supportedModes": ["normal", "sport", "track"],
+      "supportedModes": [
+        "normal",
+        "sport",
+        "track"
+      ],
       "hasTcs": true,
       "hasClutchPedal": false,
       "hasTurbo": true,
@@ -95,7 +105,11 @@
       "gearCount": 6,
       "isSimulatedGears": false,
       "hasManualMode": true,
-      "supportedModes": ["eco", "normal", "sport"],
+      "supportedModes": [
+        "eco",
+        "normal",
+        "sport"
+      ],
       "hasTcs": true,
       "hasClutchPedal": false,
       "hasTurbo": true,
@@ -179,7 +193,10 @@
       "gearCount": 6,
       "isSimulatedGears": false,
       "hasManualMode": true,
-      "supportedModes": ["eco", "normal", "sport"],
+      "supportedModes": [
+        "normal",
+        "sport"
+      ],
       "hasTcs": true,
       "hasClutchPedal": false,
       "hasTurbo": true,
@@ -200,7 +217,11 @@
       "gearCount": 9,
       "isSimulatedGears": false,
       "hasManualMode": true,
-      "supportedModes": ["eco", "normal", "sport"],
+      "supportedModes": [
+        "eco",
+        "normal",
+        "sport"
+      ],
       "hasTcs": true,
       "hasClutchPedal": false,
       "hasTurbo": true,
@@ -221,7 +242,11 @@
       "gearCount": 6,
       "isSimulatedGears": false,
       "hasManualMode": true,
-      "supportedModes": ["eco", "normal", "sport"],
+      "supportedModes": [
+        "eco",
+        "normal",
+        "sport"
+      ],
       "hasTcs": true,
       "hasClutchPedal": false,
       "hasTurbo": true,
@@ -242,7 +267,11 @@
       "gearCount": 8,
       "isSimulatedGears": false,
       "hasManualMode": true,
-      "supportedModes": ["eco", "normal", "sport"],
+      "supportedModes": [
+        "eco",
+        "normal",
+        "sport"
+      ],
       "hasTcs": true,
       "hasClutchPedal": false,
       "hasTurbo": true,
@@ -284,7 +313,9 @@
       "gearCount": 6,
       "isSimulatedGears": false,
       "hasManualMode": true,
-      "supportedModes": ["normal"],
+      "supportedModes": [
+        "normal"
+      ],
       "hasTcs": true,
       "hasClutchPedal": false,
       "hasTurbo": false,
@@ -299,13 +330,17 @@
       "year": 2019,
       "category": "car",
       "powerHp": 248,
-      "torqueKgfm": 38.0,
+      "torqueKgfm": 38,
       "transmissionType": "automatic",
       "transmissionLabel": "Automático 6 Marchas 6F35 (Intelligent AWD)",
       "gearCount": 6,
       "isSimulatedGears": false,
       "hasManualMode": true,
-      "supportedModes": ["eco", "normal", "sport"],
+      "supportedModes": [
+        "eco",
+        "normal",
+        "sport"
+      ],
       "hasTcs": true,
       "hasClutchPedal": false,
       "hasTurbo": true,

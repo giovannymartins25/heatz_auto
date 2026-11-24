@@ -66,7 +66,9 @@
   "transmission": {
     "type": "manual",
     "defaultMode": "manual",
-    "supportedSelectorPositions": ["N"],
+    "supportedSelectorPositions": [
+      "N"
+    ],
     "gearCount": 6,
     "hasClutch": true,
     "hasManualMode": false,
@@ -148,6 +150,7 @@
   },
   "cabin": {
     "climateType": "auto_single",
+    "climateControlsLocation": "panel",
     "hasAcCompressor": true,
     "hasHeater": true,
     "hasSeatHeating": false,

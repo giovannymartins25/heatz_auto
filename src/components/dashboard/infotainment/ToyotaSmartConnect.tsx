@@ -268,7 +268,7 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
 
         {/* ABA 2: CLIMATIZAÇÃO DUAL TOYOTA NANOEX */}
         {activeTab === 'clima' && (
-          <ClimateControlPanel theme="toyota" compact={compact || fill} />
+          <ClimateControlPanel vehicle={vehicle} theme="toyota" compact={compact || fill} />
         )}
 
         {/* ABA 3: TOYOTA MULTIMEDIA / YOUTUBE & MÚSICAS */}

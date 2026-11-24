@@ -173,7 +173,7 @@ export const Retrofit2DinInfotainment = memo(function Retrofit2DinInfotainment({
 
         {/* ABA 2: CLIMATIZAÇÃO DIGITAL TOUCH */}
         {activeTab === 'clima' && (
-          <ClimateControlPanel theme="gti" compact={compact || fill} />
+          <ClimateControlPanel vehicle={vehicle} theme="gti" compact={compact || fill} />
         )}
 
         {/* ABA 3: YOUTUBE & STREAMING ONLINE */}

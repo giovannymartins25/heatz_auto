@@ -7,7 +7,7 @@
     "year": 2025,
     "category": "car",
     "weight": 1910,
-    "wheelDiameter": 0.700,
+    "wheelDiameter": 0.7,
     "powerHp": 200,
     "torqueKgfm": 45.9,
     "description": "Picape compacta-média / SUP Premium topo de linha equipada com motor 2.2 Turbo Diesel MultiJet II de 200 cv e 45,9 kgfm (450 Nm) a 1.500 rpm, transmissão automática ZF 9HP de 9 marchas, tração integral 4x4 inteligente com modos AUTO, 4WD LOCK e 4WD LOW com crawl ratio, central multimídia vertical Uconnect de 10,1 polegadas e acabamento premium Ranch."
@@ -31,46 +31,114 @@
       "hasBlowOff": false
     },
     "torqueCurve": [
-      { "rpm": 700,  "torque": 250 },
-      { "rpm": 1100, "torque": 380 },
-      { "rpm": 1500, "torque": 450 },
-      { "rpm": 2200, "torque": 450 },
-      { "rpm": 2800, "torque": 440 },
-      { "rpm": 3500, "torque": 390 },
-      { "rpm": 4000, "torque": 320 },
-      { "rpm": 4500, "torque": 240 },
-      { "rpm": 4800, "torque": 170 }
+      {
+        "rpm": 700,
+        "torque": 250
+      },
+      {
+        "rpm": 1100,
+        "torque": 380
+      },
+      {
+        "rpm": 1500,
+        "torque": 450
+      },
+      {
+        "rpm": 2200,
+        "torque": 450
+      },
+      {
+        "rpm": 2800,
+        "torque": 440
+      },
+      {
+        "rpm": 3500,
+        "torque": 390
+      },
+      {
+        "rpm": 4000,
+        "torque": 320
+      },
+      {
+        "rpm": 4500,
+        "torque": 240
+      },
+      {
+        "rpm": 4800,
+        "torque": 170
+      }
     ]
   },
   "transmission": {
     "type": "automatic",
     "defaultMode": "automatic",
-    "supportedSelectorPositions": ["P", "R", "N", "D", "S", "M"],
+    "supportedSelectorPositions": [
+      "P",
+      "R",
+      "N",
+      "D",
+      "S",
+      "M"
+    ],
     "gearCount": 9,
     "gearRatios": [
-      { "gear": 1, "ratio": 4.700 },
-      { "gear": 2, "ratio": 2.840 },
-      { "gear": 3, "ratio": 1.910 },
-      { "gear": 4, "ratio": 1.380 },
-      { "gear": 5, "ratio": 1.000 },
-      { "gear": 6, "ratio": 0.810 },
-      { "gear": 7, "ratio": 0.700 },
-      { "gear": 8, "ratio": 0.580 },
-      { "gear": 9, "ratio": 0.480 }
+      {
+        "gear": 1,
+        "ratio": 4.7
+      },
+      {
+        "gear": 2,
+        "ratio": 2.84
+      },
+      {
+        "gear": 3,
+        "ratio": 1.91
+      },
+      {
+        "gear": 4,
+        "ratio": 1.38
+      },
+      {
+        "gear": 5,
+        "ratio": 1
+      },
+      {
+        "gear": 6,
+        "ratio": 0.81
+      },
+      {
+        "gear": 7,
+        "ratio": 0.7
+      },
+      {
+        "gear": 8,
+        "ratio": 0.58
+      },
+      {
+        "gear": 9,
+        "ratio": 0.48
+      }
     ],
     "reverseRatio": 3.805,
     "finalDrive": 3.136,
     "hasClutch": false,
     "hasManualMode": true,
     "defaultDrivingMode": "normal",
-    "supportedModes": ["normal"],
+    "supportedModes": [
+      "eco",
+      "normal",
+      "sport"
+    ],
     "supportsPaddleShifters": true,
-    "manualShiftControls": ["paddle_shifters", "gear_selector_gesture"],
+    "manualShiftControls": [
+      "paddle_shifters",
+      "gear_selector_gesture"
+    ],
     "supportsNos": true,
     "tcs": {
       "enabled": true,
       "slipThreshold": 1.15,
-      "torqueReduction": 0.20
+      "torqueReduction": 0.2
     },
     "launchControl": {
       "enabled": false,
@@ -81,7 +149,14 @@
     "useSamples": false,
     "synthConfig": {
       "baseFrequency": 44,
-      "harmonics": [1, 1.5, 2, 2.8, 3.6, 4.5],
+      "harmonics": [
+        1,
+        1.5,
+        2,
+        2.8,
+        3.6,
+        4.5
+      ],
       "gainIdle": 0.24,
       "gainMax": 0.88,
       "cylinders": 4,
@@ -104,11 +179,11 @@
   },
   "chassis": {
     "totalMass": 1910,
-    "wheelbase": 2.990,
+    "wheelbase": 2.99,
     "centerOfMassHeight": 0.68,
     "frontWeightRatio": 0.56,
-    "wheelRadius": 0.350,
-    "wheelInertia": 1.40,
+    "wheelRadius": 0.35,
+    "wheelInertia": 1.4,
     "wheelCount": 4,
     "gravity": 9.81,
     "isProvisional": false,
@@ -121,6 +196,7 @@
   },
   "cabin": {
     "climateType": "auto_dual",
+    "climateControlsLocation": "multimedia",
     "hasAcCompressor": true,
     "hasHeater": true,
     "hasSeatHeating": false,

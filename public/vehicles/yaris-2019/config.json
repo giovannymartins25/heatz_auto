@@ -7,7 +7,7 @@
     "year": 2019,
     "category": "car",
     "weight": 1130,
-    "wheelDiameter": 0.60,
+    "wheelDiameter": 0.6,
     "powerHp": "106 / 110 HP",
     "torqueKgfm": 14.9,
     "description": "Hatch compacto premium com motor 1.5 16V Dual VVT-i Flex e câmbio Multidrive CVT de 7 relações simuladas."
@@ -23,18 +23,54 @@
     "flywheelMass": 7.5,
     "engineBrakeFactor": 0.25,
     "torqueCurve": [
-      { "rpm": 750,  "torque": 60 },
-      { "rpm": 1500, "torque": 105 },
-      { "rpm": 2000, "torque": 122 },
-      { "rpm": 2500, "torque": 133 },
-      { "rpm": 3000, "torque": 140 },
-      { "rpm": 3500, "torque": 144 },
-      { "rpm": 4000, "torque": 146 },
-      { "rpm": 4500, "torque": 142 },
-      { "rpm": 5000, "torque": 138 },
-      { "rpm": 5600, "torque": 132 },
-      { "rpm": 6000, "torque": 120 },
-      { "rpm": 6400, "torque": 98 }
+      {
+        "rpm": 750,
+        "torque": 60
+      },
+      {
+        "rpm": 1500,
+        "torque": 105
+      },
+      {
+        "rpm": 2000,
+        "torque": 122
+      },
+      {
+        "rpm": 2500,
+        "torque": 133
+      },
+      {
+        "rpm": 3000,
+        "torque": 140
+      },
+      {
+        "rpm": 3500,
+        "torque": 144
+      },
+      {
+        "rpm": 4000,
+        "torque": 146
+      },
+      {
+        "rpm": 4500,
+        "torque": 142
+      },
+      {
+        "rpm": 5000,
+        "torque": 138
+      },
+      {
+        "rpm": 5600,
+        "torque": 132
+      },
+      {
+        "rpm": 6000,
+        "torque": 120
+      },
+      {
+        "rpm": 6400,
+        "torque": 98
+      }
     ]
   },
   "transmission": {
@@ -42,24 +78,55 @@
     "isSimulatedGears": true,
     "hasManualMode": true,
     "defaultMode": "automatic",
-    "supportedSelectorPositions": ["P", "R", "N", "D", "M"],
+    "supportedSelectorPositions": [
+      "P",
+      "R",
+      "N",
+      "D",
+      "M"
+    ],
     "gearCount": 7,
     "gearRatios": [
-      { "gear": 1, "ratio": 2.480 },
-      { "gear": 2, "ratio": 1.620 },
-      { "gear": 3, "ratio": 1.180 },
-      { "gear": 4, "ratio": 0.920 },
-      { "gear": 5, "ratio": 0.740 },
-      { "gear": 6, "ratio": 0.610 },
-      { "gear": 7, "ratio": 0.510 }
+      {
+        "gear": 1,
+        "ratio": 2.48
+      },
+      {
+        "gear": 2,
+        "ratio": 1.62
+      },
+      {
+        "gear": 3,
+        "ratio": 1.18
+      },
+      {
+        "gear": 4,
+        "ratio": 0.92
+      },
+      {
+        "gear": 5,
+        "ratio": 0.74
+      },
+      {
+        "gear": 6,
+        "ratio": 0.61
+      },
+      {
+        "gear": 7,
+        "ratio": 0.51
+      }
     ],
-    "reverseRatio": 2.600,
-    "finalDrive": 5.100,
+    "reverseRatio": 2.6,
+    "finalDrive": 5.1,
     "hasClutch": false,
     "defaultDrivingMode": "normal",
-    "supportedModes": ["normal"],
+    "supportedModes": [
+      "normal"
+    ],
     "supportsPaddleShifters": false,
-    "manualShiftControls": ["gear_selector_gesture"],
+    "manualShiftControls": [
+      "gear_selector_gesture"
+    ],
     "supportsNos": true,
     "tcs": {
       "enabled": true,
@@ -71,7 +138,13 @@
     "useSamples": false,
     "synthConfig": {
       "baseFrequency": 58,
-      "harmonics": [1, 2, 2.98, 4, 5.96],
+      "harmonics": [
+        1,
+        2,
+        2.98,
+        4,
+        5.96
+      ],
       "gainIdle": 0.14,
       "gainMax": 0.68,
       "cylinders": 4,
@@ -98,6 +171,7 @@
   },
   "cabin": {
     "climateType": "auto_single",
+    "climateControlsLocation": "multimedia",
     "hasAcCompressor": true,
     "hasHeater": true,
     "hasSeatHeating": false,

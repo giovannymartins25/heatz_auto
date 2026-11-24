@@ -12,6 +12,7 @@ import { GearShift } from '@/components/controls/GearShift'
 import { QuickClutchButton, HudIgnitionControl, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
 import { resolveVehicleIgnition } from '@/systems/vehicle/vehicleResolvers'
 import { DrivingMapViewport } from './DrivingMapViewport'
+import { HudMinimap } from './HudMinimap'
 import { WorldMapModal } from './WorldMapModal'
 import { CockpitPanelCarousel } from '@/components/cockpit'
 import { MobileQuickMenu } from './MobileQuickMenu'
@@ -164,6 +165,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               {shortName}
             </span>
           </div>
+
+          {/* Minimapa fixo acima da região dos pedais (sem sobrepor pedais ou embreagem) */}
+          <HudMinimap variant="mobile_landscape" />
 
           <div className="flex items-end justify-center gap-1.5 sm:gap-2 min-h-0">
             {hasClutch && (

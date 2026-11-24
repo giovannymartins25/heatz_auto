@@ -2447,7 +2447,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   selectShifterMode: (mode: 'P' | 'R' | 'N' | 'D' | 'S' | 'M') => {
     const { _transmission, _autoTransmission, _physics, _config, speed, isAutomaticVehicle } = get()
     if (!_transmission || !_config) return
-    const supported = _config.transmission.supportedSelectorPositions ?? []
+    const supported = getVehicleCapabilities(_config).supportedSelectorPositions
     if (!supported.includes(mode)) return
 
     // Carros com câmbio manual convencional (Gol, Civic Si, Gol Quadrado, CB1000R)

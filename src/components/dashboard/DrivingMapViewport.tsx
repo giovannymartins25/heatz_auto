@@ -22,6 +22,10 @@ export interface DrivingMapViewportProps {
   navigation?: MapNavigationTelemetry
 }
 
+const ZOOM_MIN = 2.2
+const ZOOM_MAX = 6.5
+const ZOOM_STEP = 0.8
+
 const roundOptional = (val?: number): number | undefined =>
   val === undefined ? undefined : Math.round(val)
 
@@ -55,13 +59,17 @@ export function areDrivingMapPropsEqual(
 }
 
 /**
- * DrivingMapViewport — Viewport interativo de condução automotiva 2D em tempo real.
- * Renderiza o mapa métrico com física compartilhada a 120 Hz, câmera suave e HUD informativo.
+ * DrivingMapViewport — Viewport interativo de condução automotiva 2D em tempo real (Fase 4.4.2).
+ *
+ * Reorganização visual:
+ * - Sem textos persistentes de nome da rua ou superfície ocupando espaço da pista
+ * - Controles discretos e touch-friendly de Zoom nos cantos opostos (+ no canto superior direito, − no canto inferior esquerdo)
+ * - Controles secundários (Centralizar veículo, Seguir/Norte e tamanho P/M/G) agrupados em menu expansível com seta indicadora
+ * - Alertas temporários/contextuais preservados (aproximação de curva, ABS e Airbrake)
  */
 export const DrivingMapViewport = memo(function DrivingMapViewport({
   size,
   onSizeChange,
-  compact = false,
   className = '',
   telemetry,
   vehicle,
@@ -69,32 +77,17 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
 }: DrivingMapViewportProps) {
   const [cameraMode, setCameraMode] = useState<'follow' | 'north_up'>('follow')
   const [zoomScale, setZoomScale] = useState<number>(4.2)
+  const [isSecondaryMenuOpen, setIsSecondaryMenuOpen] = useState<boolean>(false)
 
   const rawSpeed = navigation?.speedKmh ?? telemetry?.speedometer.speed ?? 0
   const currentSpeed = Math.round(rawSpeed)
-  const isMoving = currentSpeed > 0
 
-  // Telemetria 2D ao vivo da store
-  const storeX = useSimulationStore((s) => s.positionX)
-  const storeY = useSimulationStore((s) => s.positionY)
-  const storeHeading = useSimulationStore((s) => s.headingDeg)
-  const zoneName = useSimulationStore((s) => s.zoneName)
-  const surfaceType = useSimulationStore((s) => s.surfaceType)
   const absEngaged = useSimulationStore((s) => s.absEngaged)
   const isAirbrakeActive = useSimulationStore((s) => s.isAirbrakeActive)
   const downforceN = useSimulationStore((s) => s.downforceN)
   const resetPosition = useSimulationStore((s) => s.resetPosition)
 
-  const effectiveHeading = navigation?.headingDeg ?? storeHeading ?? 0
-  const headingLabel = `${Math.round(effectiveHeading)}°`
-  const paddingClass = compact ? 'p-1.5' : 'p-2'
-
-  // Formatação de coordenadas métricas (X, Y)
-  const coordX = Math.round(storeX * 10) / 10
-  const coordY = Math.round(storeY * 10) / 10
-  const coordLabel = `X: ${coordX >= 0 ? '+' : ''}${coordX.toFixed(1)}m · Y: ${coordY >= 0 ? '+' : ''}${coordY.toFixed(1)}m`
-
-  // Cálculo da Próxima Curva e Velocidade Recomendada
+  // Alerta contextual temporário de próxima curva (exibido apenas em aproximação <= 120 m)
   const curveInfo = useMemo(() => {
     const trackCurves = [
       { id: 'c1', name: 'Curva da Praça', positionM: 140, radiusM: 42, direction: 'right' as const },
@@ -104,7 +97,7 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
 
     const traveled = (navigation?.distanceTraveledMeters ?? 0) % 600
     let target = trackCurves.find((c) => c.positionM > traveled)
-    let dist = target ? target.positionM - traveled : (600 - traveled) + trackCurves[0].positionM
+    const dist = target ? target.positionM - traveled : (600 - traveled) + trackCurves[0].positionM
     if (!target) target = trackCurves[0]
 
     const g = 9.81
@@ -115,7 +108,7 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
     const vRecMs = Math.sqrt(muTotal * g * target.radiusM)
     const vRecKmh = Math.round(vRecMs * 3.6)
 
-    const isAlert = dist <= 120
+    const isAlert = navigation?.distanceTraveledMeters !== undefined && dist <= 120
     const shouldBrake = isAlert && currentSpeed > vRecKmh + 4
 
     return {
@@ -131,9 +124,13 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
     return null
   }
 
+  const canZoomIn = zoomScale < ZOOM_MAX - 1e-3
+  const canZoomOut = zoomScale > ZOOM_MIN + 1e-3
+
   return (
     <section
       aria-label="Mapa de condução 2D dirigível"
+      data-testid="driving-map-viewport"
       className={`relative isolate flex flex-col w-full h-full max-w-xl sm:max-w-2xl mx-auto overflow-hidden rounded-2xl border border-sky-500/25 bg-[#06090f] shadow-[0_4px_25px_rgba(0,0,0,0.85),inset_0_0_20px_rgba(15,23,42,0.9)] transition-all duration-200 select-none ${className}`}
     >
       {/* ── 1. Canvas 2D Dirigível de Alta Performance ── */}
@@ -145,159 +142,191 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
         />
       </div>
 
-      {/* ── 2. HUD / Badges Superiores ── */}
-      <div className={`relative z-10 flex items-center justify-between w-full ${paddingClass} text-white pointer-events-none`}>
-        {/* Status GPS e Velocidade */}
-        <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/80 px-2 py-0.5 backdrop-blur-md shadow-md">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
-          <span className="font-mono text-[8px] sm:text-[9px] font-black tracking-wider text-slate-200">
-            GPS 2D · {isMoving ? `${currentSpeed} KM/H` : 'PARADO'}
-          </span>
-          {absEngaged && (
-            <span className="ml-1 px-1 rounded bg-amber-500 text-black font-mono font-black text-[7.5px] animate-pulse">
-              ABS
-            </span>
-          )}
-          {isAirbrakeActive && (
-            <span className="ml-1 px-1 rounded bg-rose-600 text-white font-mono font-black text-[7.5px] animate-pulse">
-              AIRBRAKE
-            </span>
-          )}
-        </div>
-
-        {/* Bússola e Coordenadas Métricas */}
-        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/80 px-2 py-0.5 font-mono text-[8px] sm:text-[9px] font-bold text-slate-300 backdrop-blur-md shadow-md">
-          <span className="text-sky-400 font-black">▲ {headingLabel}</span>
-          <span className="text-slate-400 hidden xs:inline">{coordLabel}</span>
-        </div>
-      </div>
-
-      {/* ── 2.1 Alerta e Orientação Antecipada de Curvas ── */}
-      {curveInfo.isAlert && (
-        <div className="relative z-10 mx-auto -mt-1 px-2 pointer-events-none transition-all">
-          <div
-            className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border backdrop-blur-md shadow-lg ${
-              curveInfo.shouldBrake
-                ? 'bg-rose-950/85 border-rose-500 text-rose-100 animate-pulse shadow-[0_0_15px_rgba(244,63,94,0.4)]'
-                : 'bg-black/85 border-sky-400/40 text-slate-200 shadow-[0_0_12px_rgba(56,189,248,0.25)]'
-            }`}
-          >
-            <span className="text-sm font-black">
-              {curveInfo.target.direction === 'right' ? '↱' : '↰'}
-            </span>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1 text-[7.5px] font-bold uppercase tracking-wider">
-                <span className={curveInfo.shouldBrake ? 'text-rose-400' : 'text-sky-400'}>
-                  {curveInfo.target.name}
+      {/* ── 2. Alertas Temporários Contextuais (ABS / Airbrake / Aproximação de Curva) ── */}
+      {(absEngaged || isAirbrakeActive || curveInfo.isAlert) && (
+        <div className="relative z-10 mx-auto mt-1.5 flex flex-col items-center gap-1 px-2 pointer-events-none">
+          {(absEngaged || isAirbrakeActive) && (
+            <div className="flex items-center gap-1 rounded-full border border-white/10 bg-black/80 px-2 py-0.5 backdrop-blur-md">
+              {absEngaged && (
+                <span className="px-1.5 py-px rounded bg-amber-500 text-black font-mono font-black text-[7.5px] animate-pulse">
+                  ABS
                 </span>
-                <span className="text-slate-400">· R:{curveInfo.target.radiusM}m em {curveInfo.dist}m</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[8.5px] font-black font-mono">
-                <span>REC: <strong className={curveInfo.shouldBrake ? 'text-rose-300' : 'text-emerald-400'}>{curveInfo.vRecKmh} km/h</strong></span>
-                {curveInfo.shouldBrake && (
-                  <span className="text-[7.5px] text-rose-400 font-black tracking-widest uppercase">⚠ REDUZA</span>
-                )}
+              )}
+              {isAirbrakeActive && (
+                <span className="px-1.5 py-px rounded bg-rose-600 text-white font-mono font-black text-[7.5px] animate-pulse">
+                  AIRBRAKE
+                </span>
+              )}
+            </div>
+          )}
+
+          {curveInfo.isAlert && (
+            <div
+              className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border backdrop-blur-md shadow-lg ${
+                curveInfo.shouldBrake
+                  ? 'bg-rose-950/85 border-rose-500 text-rose-100 animate-pulse shadow-[0_0_15px_rgba(244,63,94,0.4)]'
+                  : 'bg-black/85 border-sky-400/40 text-slate-200 shadow-[0_0_12px_rgba(56,189,248,0.25)]'
+              }`}
+            >
+              <span className="text-sm font-black">
+                {curveInfo.target.direction === 'right' ? '↱' : '↰'}
+              </span>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1 text-[7.5px] font-bold uppercase tracking-wider">
+                  <span className={curveInfo.shouldBrake ? 'text-rose-400' : 'text-sky-400'}>
+                    {curveInfo.target.name}
+                  </span>
+                  <span className="text-slate-400">· {curveInfo.dist}m</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[8.5px] font-black font-mono">
+                  <span>
+                    REC:{' '}
+                    <strong className={curveInfo.shouldBrake ? 'text-rose-300' : 'text-emerald-400'}>
+                      {curveInfo.vRecKmh} km/h
+                    </strong>
+                  </span>
+                  {curveInfo.shouldBrake && (
+                    <span className="text-[7.5px] text-rose-400 font-black tracking-widest uppercase">
+                      ⚠ REDUZA
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
-      {/* ── 3. Rodapé com Informações de Rua, Câmera & Seletor de Modos ── */}
-      <div className={`relative z-10 mt-auto flex flex-wrap items-center justify-between gap-1 w-full max-w-full ${paddingClass}`}>
-        {/* Localização e Superfície Atual */}
-        <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-black/85 px-1.5 sm:px-2 py-0.5 sm:py-1 font-mono text-[7px] sm:text-[8.5px] font-semibold text-slate-300 backdrop-blur-md shadow-md min-w-0 max-w-full">
-          <span className="text-sky-400 font-bold shrink-0">📍</span>
-          <span className="font-bold text-white uppercase truncate max-w-[110px] sm:max-w-none">{zoneName || 'Setor Central'}</span>
-          <span className="text-slate-500 hidden sm:inline">|</span>
-          <span className="text-slate-400 hidden sm:inline capitalize">
-            {surfaceType === 'wet_asphalt' ? 'Asfalto Molhado' : surfaceType === 'gravel' ? 'Cascalho' : surfaceType === 'grass' ? 'Grama' : 'Asfalto'}
-          </span>
-        </div>
+      {/* ── 3. Controle de Zoom + no Canto Superior Direito ── */}
+      <button
+        type="button"
+        data-testid="btn-map-zoom-in"
+        onClick={() => setZoomScale((z) => Math.min(ZOOM_MAX, Number((z + ZOOM_STEP).toFixed(2))))}
+        disabled={!canZoomIn}
+        style={{ touchAction: 'manipulation' }}
+        className={`absolute top-2 right-2 z-20 h-7 w-7 sm:h-8 sm:w-8 rounded-xl border font-mono text-sm font-black flex items-center justify-center transition-all backdrop-blur-md shadow-md ${
+          canZoomIn
+            ? 'bg-black/75 hover:bg-zinc-900/90 border-white/15 text-sky-300 active:scale-90 cursor-pointer'
+            : 'bg-black/45 border-white/5 text-zinc-600 cursor-not-allowed'
+        }`}
+        title="Aproximar Zoom (+)"
+        aria-label="Aproximar Zoom"
+      >
+        +
+      </button>
 
-        {/* Controles de Câmera e Centralização */}
-        <div className="flex items-center gap-1 flex-wrap justify-end max-w-full">
-          {/* Botão de Centralizar / Spawn */}
-          <button
-            type="button"
-            onClick={resetPosition}
-            className="h-6 px-1.5 rounded-lg bg-black/80 hover:bg-zinc-800 border border-white/15 text-zinc-300 text-[8px] font-mono font-bold transition-all active:scale-95 cursor-pointer backdrop-blur-md flex items-center gap-0.5"
-            title="Recolocar veículo no ponto inicial seguro"
-            aria-label="Centralizar veículo"
-          >
-            <span>🎯</span>
-            <span className="hidden sm:inline">Centro</span>
-          </button>
+      {/* ── 4. Controle de Zoom − no Canto Oposto (Inferior Esquerdo) ── */}
+      <button
+        type="button"
+        data-testid="btn-map-zoom-out"
+        onClick={() => setZoomScale((z) => Math.max(ZOOM_MIN, Number((z - ZOOM_STEP).toFixed(2))))}
+        disabled={!canZoomOut}
+        style={{ touchAction: 'manipulation' }}
+        className={`absolute bottom-2 left-2 z-20 h-7 w-7 sm:h-8 sm:w-8 rounded-xl border font-mono text-sm font-black flex items-center justify-center transition-all backdrop-blur-md shadow-md ${
+          canZoomOut
+            ? 'bg-black/75 hover:bg-zinc-900/90 border-white/15 text-sky-300 active:scale-90 cursor-pointer'
+            : 'bg-black/45 border-white/5 text-zinc-600 cursor-not-allowed'
+        }`}
+        title="Afastar Zoom (−)"
+        aria-label="Afastar Zoom"
+      >
+        −
+      </button>
 
-          {/* Alternar Câmera: Seguir vs Norte Fixo */}
-          <button
-            type="button"
-            onClick={() => setCameraMode(cameraMode === 'follow' ? 'north_up' : 'follow')}
-            className={`h-6 px-1.5 rounded-lg border text-[8px] font-mono font-bold transition-all active:scale-95 cursor-pointer backdrop-blur-md flex items-center gap-0.5 ${
-              cameraMode === 'follow'
-                ? 'bg-sky-500/20 border-sky-400 text-sky-300'
-                : 'bg-black/80 border-white/15 text-zinc-400 hover:text-white'
-            }`}
-            title={cameraMode === 'follow' ? 'Câmera acompanhando a proa do carro' : 'Câmera com Norte fixo para cima'}
-            aria-label="Alternar modo de câmera"
-          >
-            <span>{cameraMode === 'follow' ? '🔄' : '🧭'}</span>
-            <span className="hidden sm:inline">{cameraMode === 'follow' ? 'Seguir' : 'Norte'}</span>
-          </button>
-
-          {/* Zoom In / Out */}
-          <button
-            type="button"
-            onClick={() => setZoomScale((z) => Math.min(6.5, z + 0.8))}
-            className="h-6 w-6 rounded-lg bg-black/80 hover:bg-zinc-800 border border-white/15 text-zinc-300 text-[10px] font-mono font-bold flex items-center justify-center transition-all active:scale-95 cursor-pointer backdrop-blur-md"
-            title="Aproximar Zoom"
-            aria-label="Aproximar Zoom"
-          >
-            +
-          </button>
-          <button
-            type="button"
-            onClick={() => setZoomScale((z) => Math.max(2.2, z - 0.8))}
-            className="h-6 w-6 rounded-lg bg-black/80 hover:bg-zinc-800 border border-white/15 text-zinc-300 text-[10px] font-mono font-bold flex items-center justify-center transition-all active:scale-95 cursor-pointer backdrop-blur-md"
-            title="Afastar Zoom"
-            aria-label="Afastar Zoom"
-          >
-            -
-          </button>
-
-          {/* ── Alternador de Tamanho (P · M · G) ── */}
+      {/* ── 5. Agrupamento Expansível dos Controles Secundários (Canto Inferior Direito, com seta indicadora) ── */}
+      <div
+        className="absolute bottom-2 right-2 z-20 flex items-center gap-1 max-w-[calc(100%-3.5rem)]"
+        style={{ touchAction: 'manipulation' }}
+      >
+        {isSecondaryMenuOpen && (
           <div
-            className="flex items-center rounded-xl border border-white/15 bg-black/85 p-0.5 shadow-lg backdrop-blur-md"
-            role="group"
-            aria-label="Tamanho do mapa"
+            data-testid="map-secondary-controls-panel"
+            className="flex items-center gap-1 rounded-xl border border-white/15 bg-black/85 px-1.5 py-1 shadow-xl backdrop-blur-md animate-in fade-in duration-150"
           >
-            {(
-              [
-                { id: 'compact', label: 'P', title: 'Mapa Compacto' },
-                { id: 'balanced', label: 'M', title: 'Mapa Equilibrado' },
-                { id: 'expanded', label: 'G', title: 'Mapa Expandido' },
-              ] as const
-            ).map((option) => {
-              const isSelected = size === option.id
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => onSizeChange(option.id)}
-                  aria-pressed={isSelected}
-                  title={option.title}
-                  className={`min-h-5 min-w-5 sm:min-w-6 rounded-lg px-1 sm:px-1.5 font-mono text-[8px] font-black uppercase transition-all cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-300 active:scale-95 ${
-                    isSelected
-                      ? 'bg-blue-600 text-white shadow-[0_0_10px_rgba(37,99,235,0.85)]'
-                      : 'text-slate-400 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
+            {/* Centralizar Veículo */}
+            <button
+              type="button"
+              data-testid="btn-map-center-vehicle"
+              onClick={resetPosition}
+              className="h-6 px-2 rounded-lg bg-zinc-900/90 hover:bg-zinc-800 border border-white/15 text-zinc-200 text-[8px] font-mono font-bold transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+              title="Centralizar / reposicionar veículo"
+              aria-label="Centralizar veículo"
+            >
+              <span>🎯</span>
+              <span>Centro</span>
+            </button>
+
+            {/* Seguir Veículo vs Norte Fixo */}
+            <button
+              type="button"
+              data-testid="btn-map-follow-toggle"
+              onClick={() => setCameraMode((prev) => (prev === 'follow' ? 'north_up' : 'follow'))}
+              aria-pressed={cameraMode === 'follow'}
+              className={`h-6 px-2 rounded-lg border text-[8px] font-mono font-bold transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
+                cameraMode === 'follow'
+                  ? 'bg-sky-500/25 border-sky-400 text-sky-200'
+                  : 'bg-zinc-900/90 border-white/15 text-zinc-300 hover:text-white'
+              }`}
+              title={cameraMode === 'follow' ? 'Seguindo proa do veículo' : 'Norte fixo para cima'}
+              aria-label="Alternar acompanhamento da câmera"
+            >
+              <span>{cameraMode === 'follow' ? '🔄' : '🧭'}</span>
+              <span>{cameraMode === 'follow' ? 'Seguir' : 'Norte'}</span>
+            </button>
+
+            {/* Tamanho do Mapa (P · M · G) */}
+            <div
+              className="flex items-center rounded-lg border border-white/10 bg-zinc-950/90 p-0.5"
+              role="group"
+              aria-label="Tamanho do mapa"
+            >
+              {(
+                [
+                  { id: 'compact', label: 'P', title: 'Mapa Compacto' },
+                  { id: 'balanced', label: 'M', title: 'Mapa Equilibrado' },
+                  { id: 'expanded', label: 'G', title: 'Mapa Expandido' },
+                ] as const
+              ).map((option) => {
+                const isSelected = size === option.id
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    data-testid={`btn-map-size-${option.id}`}
+                    onClick={() => onSizeChange(option.id)}
+                    aria-pressed={isSelected}
+                    title={option.title}
+                    className={`min-h-5 min-w-5 rounded px-1 font-mono text-[8px] font-black uppercase transition-all cursor-pointer active:scale-95 ${
+                      isSelected
+                        ? 'bg-sky-600 text-white'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Botão de Seta para Abrir/Fechar Controles Secundários */}
+        <button
+          type="button"
+          data-testid="btn-map-secondary-toggle"
+          aria-expanded={isSecondaryMenuOpen}
+          aria-label={isSecondaryMenuOpen ? 'Recolher controles do mapa' : 'Expandir controles do mapa'}
+          title={isSecondaryMenuOpen ? 'Recolher controles do mapa' : 'Controles do mapa (Centralizar / Seguir / Tamanho)'}
+          onClick={() => setIsSecondaryMenuOpen((prev) => !prev)}
+          className={`h-7 sm:h-8 px-2 rounded-xl border font-mono text-[10px] font-black flex items-center justify-center gap-1 transition-all backdrop-blur-md shadow-md active:scale-95 cursor-pointer ${
+            isSecondaryMenuOpen
+              ? 'bg-sky-600/30 border-sky-400 text-sky-200'
+              : 'bg-black/75 hover:bg-zinc-900/90 border-white/15 text-zinc-300'
+          }`}
+        >
+          <span>{isSecondaryMenuOpen ? '▶' : '◀'}</span>
+          <span className="text-[8px] uppercase tracking-wider">Opções</span>
+        </button>
       </div>
     </section>
   )

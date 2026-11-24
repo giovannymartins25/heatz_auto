@@ -111,9 +111,9 @@ export const GearShift = memo(function GearShift({
   const isS = !isP && !isR && !isN && !isM && gearSelectorPosition === 'S'
   const isD = !isP && !isR && !isN && !isM && !isS
 
-  const supportedPositions = vehicleConfig?.transmission.supportedSelectorPositions ?? (
-    isAutomaticVehicle ? ['P', 'R', 'N', 'D', 'M'] : ['N']
-  )
+  const supportedPositions = caps
+    ? caps.supportedSelectorPositions
+    : (isAutomaticVehicle ? ['P', 'R', 'N', 'D', 'M'] : ['N'])
 
   const activeLabel =
     isP ? 'PARK'

@@ -28,42 +28,107 @@
       "hasBlowOff": true
     },
     "torqueCurve": [
-      { "rpm": 850,  "torque": 280 },
-      { "rpm": 1500, "torque": 420 },
-      { "rpm": 2500, "torque": 800 },
-      { "rpm": 4000, "torque": 800 },
-      { "rpm": 5000, "torque": 780 },
-      { "rpm": 6000, "torque": 720 },
-      { "rpm": 6750, "torque": 670 },
-      { "rpm": 7200, "torque": 580 },
-      { "rpm": 7400, "torque": 500 }
+      {
+        "rpm": 850,
+        "torque": 280
+      },
+      {
+        "rpm": 1500,
+        "torque": 420
+      },
+      {
+        "rpm": 2500,
+        "torque": 800
+      },
+      {
+        "rpm": 4000,
+        "torque": 800
+      },
+      {
+        "rpm": 5000,
+        "torque": 780
+      },
+      {
+        "rpm": 6000,
+        "torque": 720
+      },
+      {
+        "rpm": 6750,
+        "torque": 670
+      },
+      {
+        "rpm": 7200,
+        "torque": 580
+      },
+      {
+        "rpm": 7400,
+        "torque": 500
+      }
     ]
   },
   "transmission": {
     "type": "automatic",
     "defaultMode": "automatic",
-    "supportedSelectorPositions": ["P", "R", "N", "D", "S", "M"],
+    "supportedSelectorPositions": [
+      "P",
+      "R",
+      "N",
+      "D",
+      "S",
+      "M"
+    ],
     "gearCount": 8,
     "gearRatios": [
-      { "gear": 1, "ratio": 4.890 },
-      { "gear": 2, "ratio": 3.170 },
-      { "gear": 3, "ratio": 2.150 },
-      { "gear": 4, "ratio": 1.560 },
-      { "gear": 5, "ratio": 1.180 },
-      { "gear": 6, "ratio": 0.940 },
-      { "gear": 7, "ratio": 0.760 },
-      { "gear": 8, "ratio": 0.610 }
+      {
+        "gear": 1,
+        "ratio": 4.89
+      },
+      {
+        "gear": 2,
+        "ratio": 3.17
+      },
+      {
+        "gear": 3,
+        "ratio": 2.15
+      },
+      {
+        "gear": 4,
+        "ratio": 1.56
+      },
+      {
+        "gear": 5,
+        "ratio": 1.18
+      },
+      {
+        "gear": 6,
+        "ratio": 0.94
+      },
+      {
+        "gear": 7,
+        "ratio": 0.76
+      },
+      {
+        "gear": 8,
+        "ratio": 0.61
+      }
     ],
-    "reverseRatio": 3.990,
-    "finalDrive": 3.020,
-    "frontFinalDrive": 3.330,
+    "reverseRatio": 3.99,
+    "finalDrive": 3.02,
+    "frontFinalDrive": 3.33,
     "drivetrain": "awd",
     "hasClutch": false,
     "hasManualMode": true,
     "defaultDrivingMode": "normal",
-    "supportedModes": ["normal", "sport", "track"],
+    "supportedModes": [
+      "normal",
+      "sport",
+      "track"
+    ],
     "supportsPaddleShifters": true,
-    "manualShiftControls": ["paddle_shifters", "gear_selector_gesture"],
+    "manualShiftControls": [
+      "paddle_shifters",
+      "gear_selector_gesture"
+    ],
     "supportsNos": true,
     "tcs": {
       "enabled": true,
@@ -80,7 +145,14 @@
     "useSamples": false,
     "synthConfig": {
       "baseFrequency": 72,
-      "harmonics": [1, 2, 3, 4.5, 6, 8.05],
+      "harmonics": [
+        1,
+        2,
+        3,
+        4.5,
+        6,
+        8.05
+      ],
       "gainIdle": 0.18,
       "gainMax": 0.88,
       "cylinders": 6,
@@ -106,7 +178,7 @@
     "wheelbase": 2.457,
     "centerOfMassHeight": 0.44,
     "frontWeightRatio": 0.39,
-    "wheelRadius": 0.340,
+    "wheelRadius": 0.34,
     "wheelInertia": 1.35,
     "wheelCount": 4,
     "gravity": 9.81,
@@ -120,6 +192,7 @@
   },
   "cabin": {
     "climateType": "auto_dual",
+    "climateControlsLocation": "multimedia",
     "hasAcCompressor": true,
     "hasHeater": true,
     "hasSeatHeating": true,

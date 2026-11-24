@@ -45,12 +45,26 @@ export const FiatToroUconnectVertical = memo(function FiatToroUconnectVertical({
   const [isPlaying, setIsPlaying] = useState(true)
   const [elapsed, setElapsed] = useState(38)
 
-  // Climatização Dual-Zone Ranch
-  const [driverTemp, setDriverTemp] = useState(21.0)
-  const [passengerTemp, setPassengerTemp] = useState(22.0)
-  const [isAcOn, setIsAcOn] = useState(true)
-  const [isAuto, setIsAuto] = useState(true)
+  // Climatização Dual-Zone Ranch sincronizada com useSimulationStore (ClimateSystem)
+  const [passOffsetC, setPassOffsetC] = useState(0.5)
   const [isDual, setIsDual] = useState(true)
+  const cabinTempC = useSimulationStore((s) => s.cabinTempC)
+  const climateTargetTempC = useSimulationStore((s) => s.climateTargetTempC)
+  const climateFanLevel = useSimulationStore((s) => s.climateFanLevel)
+  const climateAcEnabled = useSimulationStore((s) => s.climateAcEnabled)
+  const isCompressorEngaged = useSimulationStore((s) => s.isCompressorEngaged)
+  const climateAutoMode = useSimulationStore((s) => s.climateAutoMode)
+  const climateRecirculation = useSimulationStore((s) => s.climateRecirculation)
+  const climateHeaterEnabled = useSimulationStore((s) => s.climateHeaterEnabled)
+  const climateDefrosterEnabled = useSimulationStore((s) => s.climateDefrosterEnabled)
+  const stepClimateTargetTempC = useSimulationStore((s) => s.stepClimateTargetTempC)
+  const setClimateFanLevel = useSimulationStore((s) => s.setClimateFanLevel)
+  const toggleClimateAc = useSimulationStore((s) => s.toggleClimateAc)
+  const toggleClimateAutoMode = useSimulationStore((s) => s.toggleClimateAutoMode)
+  const toggleClimateRecirculation = useSimulationStore((s) => s.toggleClimateRecirculation)
+  const toggleClimateHeater = useSimulationStore((s) => s.toggleClimateHeater)
+  const toggleClimateDefroster = useSimulationStore((s) => s.toggleClimateDefroster)
+  const passengerTemp = isDual ? Math.max(16, Math.min(30, climateTargetTempC + passOffsetC)) : climateTargetTempC
 
   // Tração 4x4 da Store
   const fourWheelDriveMode = useSimulationStore((s) => s.fourWheelDriveMode)
@@ -516,30 +530,36 @@ export const FiatToroUconnectVertical = memo(function FiatToroUconnectVertical({
           </div>
         )}
 
-        {/* ─── ABA 3: CLIMATIZAÇÃO DUAL-ZONE ─── */}
+        {/* ─── ABA 3: CLIMATIZAÇÃO DUAL-ZONE REAL ─── */}
         {activeTab === 'climate' && (
-          <div className="flex flex-col gap-2 p-1">
+          <div className="flex flex-col gap-1.5 p-1" data-testid="multimedia-climate-panel">
+            <div className="flex items-center justify-between text-[7.5px] font-mono text-amber-300 px-1">
+              <span>AR DUAL-ZONE RANCH</span>
+              <span className="text-zinc-300">Cabine {cabinTempC.toFixed(1)}°C</span>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               {/* Motorista */}
-              <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl bg-zinc-900/80 border border-amber-900/40 p-2">
+              <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl bg-zinc-900/80 border border-amber-900/40 p-1.5">
                 <span className="text-[7.5px] font-mono font-bold text-amber-300 uppercase">
                   Motorista
                 </span>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setDriverTemp((t) => Math.max(16, t - 0.5))}
-                    className="h-7 w-7 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer text-xs"
+                    data-testid="multimedia-btn-temp-down"
+                    onClick={() => stepClimateTargetTempC(-0.5)}
+                    className="h-6 w-6 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer text-xs"
                   >
                     −
                   </button>
-                  <span className="text-lg font-black font-mono text-white min-w-[50px] text-center">
-                    {driverTemp.toFixed(1)}°
+                  <span className="text-base font-black font-mono text-white min-w-[46px] text-center" data-testid="multimedia-target-temp">
+                    {climateTargetTempC.toFixed(1)}°
                   </span>
                   <button
                     type="button"
-                    onClick={() => setDriverTemp((t) => Math.min(30, t + 0.5))}
-                    className="h-7 w-7 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer text-xs"
+                    data-testid="multimedia-btn-temp-up"
+                    onClick={() => stepClimateTargetTempC(0.5)}
+                    className="h-6 w-6 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer text-xs"
                   >
                     +
                   </button>
@@ -547,25 +567,25 @@ export const FiatToroUconnectVertical = memo(function FiatToroUconnectVertical({
               </div>
 
               {/* Passageiro */}
-              <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl bg-zinc-900/80 border border-amber-900/40 p-2">
+              <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl bg-zinc-900/80 border border-amber-900/40 p-1.5">
                 <span className="text-[7.5px] font-mono font-bold text-amber-300 uppercase">
                   Passageiro
                 </span>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setPassengerTemp((t) => Math.max(16, t - 0.5))}
-                    className="h-7 w-7 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer text-xs"
+                    onClick={() => setPassOffsetC((v) => Math.max(-4, v - 0.5))}
+                    className="h-6 w-6 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer text-xs"
                   >
                     −
                   </button>
-                  <span className="text-lg font-black font-mono text-white min-w-[50px] text-center">
+                  <span className="text-base font-black font-mono text-white min-w-[46px] text-center">
                     {passengerTemp.toFixed(1)}°
                   </span>
                   <button
                     type="button"
-                    onClick={() => setPassengerTemp((t) => Math.min(30, t + 0.5))}
-                    className="h-7 w-7 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer text-xs"
+                    onClick={() => setPassOffsetC((v) => Math.min(4, v + 0.5))}
+                    className="h-6 w-6 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer text-xs"
                   >
                     +
                   </button>
@@ -573,25 +593,77 @@ export const FiatToroUconnectVertical = memo(function FiatToroUconnectVertical({
               </div>
             </div>
 
+            {/* Ventilação 0..5 */}
+            <div className="flex items-center justify-between rounded-lg border border-amber-900/40 bg-zinc-900/70 px-2 py-1 text-[7.5px] font-mono">
+              <span className="text-zinc-400">VENTILADOR</span>
+              <div className="flex gap-0.5">
+                {([0, 1, 2, 3, 4, 5] as const).map((lvl) => (
+                  <button
+                    key={lvl}
+                    type="button"
+                    data-testid={`multimedia-btn-fan-${lvl}`}
+                    onClick={() => setClimateFanLevel(lvl)}
+                    className={`h-5 w-4 rounded font-black cursor-pointer ${
+                      climateFanLevel === lvl ? 'bg-amber-500 text-black' : 'bg-zinc-950 text-zinc-400'
+                    }`}
+                  >
+                    {lvl}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Modos do Clima */}
-            <div className="grid grid-cols-3 gap-1 text-[8px] font-mono font-bold uppercase">
+            <div className="grid grid-cols-3 gap-1 text-[7.5px] font-mono font-bold uppercase">
               <button
                 type="button"
-                onClick={() => setIsAcOn(!isAcOn)}
+                data-testid="multimedia-btn-ac"
+                onClick={toggleClimateAc}
                 className={`py-1 rounded-lg border transition-colors cursor-pointer ${
-                  isAcOn ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' : 'bg-zinc-900 text-zinc-500 border-white/5'
+                  climateAcEnabled ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' : 'bg-zinc-900 text-zinc-500 border-white/5'
                 }`}
               >
-                A/C {isAcOn ? 'LIGADO' : 'DESL'}
+                A/C{isCompressorEngaged ? ' ●' : ''}
               </button>
               <button
                 type="button"
-                onClick={() => setIsAuto(!isAuto)}
+                data-testid="multimedia-btn-auto"
+                onClick={toggleClimateAutoMode}
                 className={`py-1 rounded-lg border transition-colors cursor-pointer ${
-                  isAuto ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-zinc-900 text-zinc-500 border-white/5'
+                  climateAutoMode ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-zinc-900 text-zinc-500 border-white/5'
                 }`}
               >
                 AUTO
+              </button>
+              <button
+                type="button"
+                data-testid="multimedia-btn-recirc"
+                onClick={toggleClimateRecirculation}
+                className={`py-1 rounded-lg border transition-colors cursor-pointer ${
+                  climateRecirculation ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-zinc-900 text-zinc-500 border-white/5'
+                }`}
+              >
+                RECIRC
+              </button>
+              <button
+                type="button"
+                data-testid="multimedia-btn-heater"
+                onClick={toggleClimateHeater}
+                className={`py-1 rounded-lg border transition-colors cursor-pointer ${
+                  climateHeaterEnabled ? 'bg-orange-500/25 text-orange-200 border-orange-500/50' : 'bg-zinc-900 text-zinc-500 border-white/5'
+                }`}
+              >
+                AQUEC
+              </button>
+              <button
+                type="button"
+                data-testid="multimedia-btn-defrost"
+                onClick={toggleClimateDefroster}
+                className={`py-1 rounded-lg border transition-colors cursor-pointer ${
+                  climateDefrosterEnabled ? 'bg-amber-500/25 text-amber-200 border-amber-500/50' : 'bg-zinc-900 text-zinc-500 border-white/5'
+                }`}
+              >
+                DESEMB
               </button>
               <button
                 type="button"
@@ -600,7 +672,7 @@ export const FiatToroUconnectVertical = memo(function FiatToroUconnectVertical({
                   isDual ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-zinc-900 text-zinc-500 border-white/5'
                 }`}
               >
-                DUAL ZONE
+                DUAL
               </button>
             </div>
           </div>

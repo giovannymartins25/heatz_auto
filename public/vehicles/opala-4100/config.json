@@ -21,30 +21,83 @@
     "flywheelMass": 9.8,
     "engineBrakeFactor": 0.35,
     "torqueCurve": [
-      { "rpm": 750,  "torque": 210 },
-      { "rpm": 1200, "torque": 260 },
-      { "rpm": 1800, "torque": 295 },
-      { "rpm": 2200, "torque": 312 },
-      { "rpm": 2600, "torque": 320 },
-      { "rpm": 3200, "torque": 310 },
-      { "rpm": 3800, "torque": 295 },
-      { "rpm": 4400, "torque": 270 },
-      { "rpm": 4800, "torque": 250 },
-      { "rpm": 5200, "torque": 225 },
-      { "rpm": 5600, "torque": 195 },
-      { "rpm": 6000, "torque": 160 }
+      {
+        "rpm": 750,
+        "torque": 210
+      },
+      {
+        "rpm": 1200,
+        "torque": 260
+      },
+      {
+        "rpm": 1800,
+        "torque": 295
+      },
+      {
+        "rpm": 2200,
+        "torque": 312
+      },
+      {
+        "rpm": 2600,
+        "torque": 320
+      },
+      {
+        "rpm": 3200,
+        "torque": 310
+      },
+      {
+        "rpm": 3800,
+        "torque": 295
+      },
+      {
+        "rpm": 4400,
+        "torque": 270
+      },
+      {
+        "rpm": 4800,
+        "torque": 250
+      },
+      {
+        "rpm": 5200,
+        "torque": 225
+      },
+      {
+        "rpm": 5600,
+        "torque": 195
+      },
+      {
+        "rpm": 6000,
+        "torque": 160
+      }
     ]
   },
   "transmission": {
     "type": "manual",
-    "supportedSelectorPositions": ["N"],
+    "supportedSelectorPositions": [
+      "N"
+    ],
     "gearCount": 5,
     "gearRatios": [
-      { "gear": 1, "ratio": 3.25 },
-      { "gear": 2, "ratio": 1.95 },
-      { "gear": 3, "ratio": 1.36 },
-      { "gear": 4, "ratio": 1.00 },
-      { "gear": 5, "ratio": 0.82 }
+      {
+        "gear": 1,
+        "ratio": 3.25
+      },
+      {
+        "gear": 2,
+        "ratio": 1.95
+      },
+      {
+        "gear": 3,
+        "ratio": 1.36
+      },
+      {
+        "gear": 4,
+        "ratio": 1
+      },
+      {
+        "gear": 5,
+        "ratio": 0.82
+      }
     ],
     "reverseRatio": 3.35,
     "finalDrive": 3.07,
@@ -60,7 +113,14 @@
     "useSamples": false,
     "synthConfig": {
       "baseFrequency": 37.5,
-      "harmonics": [1, 1.5, 2, 3, 4, 6],
+      "harmonics": [
+        1,
+        1.5,
+        2,
+        3,
+        4,
+        6
+      ],
       "gainIdle": 0.22,
       "gainMax": 0.82,
       "cylinders": 6,
@@ -88,6 +148,7 @@
   },
   "cabin": {
     "climateType": "manual_vent",
+    "climateControlsLocation": "panel",
     "hasAcCompressor": false,
     "hasHeater": true,
     "hasSeatHeating": false,

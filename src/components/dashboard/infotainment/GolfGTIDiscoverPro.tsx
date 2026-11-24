@@ -273,7 +273,7 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
 
         {/* ABA 2: CLIMATRONIC GTI */}
         {activeTab === 'clima' && (
-          <ClimateControlPanel theme="gti" compact={compact || fill} />
+          <ClimateControlPanel vehicle={vehicle} theme="gti" compact={compact || fill} />
         )}
 
         {/* ABA 3: APP-CONNECT / YOUTUBE & MÚSICAS */}

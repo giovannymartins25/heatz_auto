@@ -5,7 +5,7 @@ import { clamp } from '@/utils/math'
 import { CircularProgressDial } from '@/components/gauges'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
-import { ClimateControlPanel, InternetMediaCenter } from './shared'
+import { InternetMediaCenter } from './shared'
 
 export interface CivicSiInfotainmentProps {
   vehicle: VehicleConfig
@@ -15,7 +15,7 @@ export interface CivicSiInfotainmentProps {
   className?: string
 }
 
-type CivicActiveTab = 'vtec' | 'nav' | 'clima' | 'media' | 'ambient'
+type CivicActiveTab = 'vtec' | 'nav' | 'media' | 'ambient'
 
 /**
  * CivicSiInfotainment — Central Multimídia oficial Honda Civic Si (H-Audio / Pioneer 2-DIN).
@@ -270,11 +270,6 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
           </div>
         )}
 
-        {/* ABA 2: CLIMATIZAÇÃO DIGITAL Si */}
-        {activeTab === 'clima' && (
-          <ClimateControlPanel theme="honda" compact={compact || fill} />
-        )}
-
         {/* ABA 3: YOUTUBE & STREAMING */}
         {activeTab === 'media' && (
           <InternetMediaCenter theme="honda" compact={compact || fill} />
@@ -342,16 +337,6 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
           }`}
         >
           GPS MAP
-        </button>
-        <button
-          onClick={() => setActiveTab('clima')}
-          className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
-            activeTab === 'clima'
-              ? 'bg-sky-600 text-white shadow-[0_0_8px_rgba(2,132,199,0.5)]'
-              : 'text-zinc-500 hover:text-zinc-300'
-          }`}
-        >
-          A/C DIGITAL
         </button>
         <button
           onClick={() => setActiveTab('media')}

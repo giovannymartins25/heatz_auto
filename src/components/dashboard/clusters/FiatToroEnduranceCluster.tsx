@@ -87,14 +87,13 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
   // Barra de Turbo Boost
   const boostRatio = clamp((boostPressureBar || 0) / 1.5, 0, 1)
 
-  // Formatação de marcha Fiat
+  // Formatação de marcha Fiat AT6 (P, R, N, D1..D6, M1..M6 — sem posição S independente)
   const gearDisplay =
     gear.isPark ? 'P'
-    : gear.isReverse ? 'R'
-    : gear.isNeutral ? 'N'
-    : gear.gearSelectorPosition === 'S' ? (gear.label.startsWith('M') ? gear.label : `S${gear.label.replace(/\D/g, '') || ''}`)
-    : gear.gearSelectorPosition === 'M' || gear.transmissionMode === 'manual_simulated' ? gear.label
-    : `D${gear.label.replace(/\D/g, '') || ''}`
+      : gear.isReverse ? 'R'
+        : gear.isNeutral ? 'N'
+          : gear.gearSelectorPosition === 'M' || gear.transmissionMode === 'manual_simulated' ? gear.label
+            : `D${gear.label.replace(/\D/g, '') || ''}`
 
   return (
     <div
@@ -235,11 +234,6 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
                 SPORT
               </span>
             )}
-            {drivingMode === 'eco' && (
-              <span className="px-1.5 py-0.5 rounded bg-emerald-600/30 border border-emerald-500/60 text-emerald-400 font-mono text-[7.5px] font-black tracking-wider uppercase shadow-[0_0_8px_rgba(16,185,129,0.4)]">
-                ECO
-              </span>
-            )}
             {drivingMode === 'normal' && (
               <span className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-400 font-mono text-[7.5px] font-bold tracking-wider uppercase">
                 NORMAL
@@ -341,13 +335,12 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
               return (
                 <div
                   key={i}
-                  className={`flex-1 h-full rounded-xs transition-colors ${
-                    active
-                      ? isReserve
-                        ? 'bg-amber-500'
-                        : 'bg-emerald-500'
-                      : 'bg-zinc-800/60'
-                  }`}
+                  className={`flex-1 h-full rounded-xs transition-colors ${active
+                    ? isReserve
+                      ? 'bg-amber-500'
+                      : 'bg-emerald-500'
+                    : 'bg-zinc-800/60'
+                    }`}
                 />
               )
             })}
@@ -375,9 +368,8 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
               return (
                 <div
                   key={i}
-                  className={`flex-1 h-full rounded-xs ${
-                    active ? (i >= 6 ? 'bg-red-500' : 'bg-cyan-500') : 'bg-zinc-800/60'
-                  }`}
+                  className={`flex-1 h-full rounded-xs ${active ? (i >= 6 ? 'bg-red-500' : 'bg-cyan-500') : 'bg-zinc-800/60'
+                    }`}
                 />
               )
             })}
@@ -395,10 +387,10 @@ export const FiatToroEnduranceCluster = memo(function FiatToroEnduranceCluster({
             <span className="text-zinc-500 text-[8px]">TRAÇÃO</span>
             <span className="text-zinc-200 font-bold">FWD DIANTEIRA</span>
           </div>
-          <div className="text-right">
-            <span className="text-zinc-500 text-[8px]">MODO CÂMBIO</span>
-            <span className="text-red-400 font-bold">
-              {gear.gearSelectorPosition === 'S' ? 'SPORT' : 'COMFORT'}
+          <div className="flex flex-col text-right">
+            <span className="text-zinc-500 text-[8px]">CONDUÇÃO</span>
+            <span className={`font-bold ${drivingMode === 'sport' ? 'text-red-400' : 'text-zinc-200'}`}>
+              {drivingMode === 'sport' ? 'SPORT' : 'NORMAL'}
             </span>
           </div>
         </div>

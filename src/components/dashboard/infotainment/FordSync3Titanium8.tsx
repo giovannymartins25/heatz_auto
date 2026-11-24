@@ -58,12 +58,14 @@ export const FordSync3Titanium8 = memo(function FordSync3Titanium8({
   const climateFanLevel = useSimulationStore((s) => s.climateFanLevel)
   const climateAutoMode = useSimulationStore((s) => s.climateAutoMode)
   const climateRecirculation = useSimulationStore((s) => s.climateRecirculation)
+  const climateHeaterEnabled = useSimulationStore((s) => s.climateHeaterEnabled)
   const climateDefrosterEnabled = useSimulationStore((s) => s.climateDefrosterEnabled)
   const toggleClimateAc = useSimulationStore((s) => s.toggleClimateAc)
   const stepClimateTargetTempC = useSimulationStore((s) => s.stepClimateTargetTempC)
   const setClimateFanLevel = useSimulationStore((s) => s.setClimateFanLevel)
   const toggleClimateAutoMode = useSimulationStore((s) => s.toggleClimateAutoMode)
   const toggleClimateRecirculation = useSimulationStore((s) => s.toggleClimateRecirculation)
+  const toggleClimateHeater = useSimulationStore((s) => s.toggleClimateHeater)
   const toggleClimateDefroster = useSimulationStore((s) => s.toggleClimateDefroster)
 
   useEffect(() => {
@@ -270,9 +272,10 @@ export const FordSync3Titanium8 = memo(function FordSync3Titanium8({
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-1 text-[7px] font-black">
+            <div className="grid grid-cols-5 gap-1 text-[7px] font-black" data-testid="multimedia-climate-panel">
               <button
                 type="button"
+                data-testid="multimedia-btn-ac"
                 onClick={toggleClimateAc}
                 className={`rounded border py-0.5 cursor-pointer ${
                   climateAcEnabled ? 'border-sky-400 bg-sky-500/25 text-sky-200' : 'border-white/10 bg-slate-900 text-slate-400'
@@ -282,6 +285,7 @@ export const FordSync3Titanium8 = memo(function FordSync3Titanium8({
               </button>
               <button
                 type="button"
+                data-testid="multimedia-btn-auto"
                 onClick={toggleClimateAutoMode}
                 className={`rounded border py-0.5 cursor-pointer ${
                   climateAutoMode ? 'border-emerald-400 bg-emerald-500/25 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-400'
@@ -291,6 +295,7 @@ export const FordSync3Titanium8 = memo(function FordSync3Titanium8({
               </button>
               <button
                 type="button"
+                data-testid="multimedia-btn-recirc"
                 onClick={toggleClimateRecirculation}
                 className={`rounded border py-0.5 cursor-pointer ${
                   climateRecirculation ? 'border-cyan-400 bg-cyan-500/25 text-cyan-200' : 'border-white/10 bg-slate-900 text-slate-400'
@@ -300,6 +305,17 @@ export const FordSync3Titanium8 = memo(function FordSync3Titanium8({
               </button>
               <button
                 type="button"
+                data-testid="multimedia-btn-heater"
+                onClick={toggleClimateHeater}
+                className={`rounded border py-0.5 cursor-pointer ${
+                  climateHeaterEnabled ? 'border-orange-400 bg-orange-500/25 text-orange-200' : 'border-white/10 bg-slate-900 text-slate-400'
+                }`}
+              >
+                AQUEC
+              </button>
+              <button
+                type="button"
+                data-testid="multimedia-btn-defrost"
                 onClick={toggleClimateDefroster}
                 className={`rounded border py-0.5 cursor-pointer ${
                   climateDefrosterEnabled ? 'border-amber-400 bg-amber-500/25 text-amber-200' : 'border-white/10 bg-slate-900 text-slate-400'

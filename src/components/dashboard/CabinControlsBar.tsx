@@ -17,7 +17,8 @@
 import { memo, useState } from 'react'
 import type { VehicleConfig } from '@/types/vehicle'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { resolveVehicleCabin } from '@/systems/vehicle/vehicleResolvers'
+import { useGarageStore } from '@/stores/useGarageStore'
+import { resolveClimateControlsLocation, resolveVehicleCabin } from '@/systems/vehicle/vehicleResolvers'
 import type { FanLevel, WindowId } from '@/systems/cabin'
 
 export interface CabinControlsBarProps {
@@ -40,6 +41,8 @@ export const CabinControlsBar = memo(function CabinControlsBar({
   className = '',
 }: CabinControlsBarProps) {
   const cabinSpec = resolveVehicleCabin(vehicle)
+  const activeCar = useGarageStore((s) => s.resolveInstanceForVehicle(vehicle.id))
+  const climateLocation = resolveClimateControlsLocation(vehicle, activeCar?.upgrades)
 
   const [activeDrawer, setActiveDrawer] = useState<'none' | 'all' | 'climate' | 'windows'>('none')
 
@@ -95,6 +98,9 @@ export const CabinControlsBar = memo(function CabinControlsBar({
   const toggleWindows = useSimulationStore((s) => s.toggleWindows)
 
   const hasClimate = cabinSpec.climateType !== 'none'
+  // No Painel 3 ('panel'), exibe climatização apenas quando o veículo declara controles no painel físico (rádio convencional / console sem multimídia)
+  const showClimateInCurrentVariant =
+    hasClimate && (variant !== 'panel' || climateLocation === 'panel')
   const hasAutoClimate =
     cabinSpec.climateType === 'auto_single' ||
     cabinSpec.climateType === 'auto_dual' ||
@@ -130,8 +136,8 @@ export const CabinControlsBar = memo(function CabinControlsBar({
       style={{ touchAction: isCompactPanel ? 'pan-y' : 'manipulation' }}
       data-testid="cabin-controls-panel"
     >
-      {/* 1. CLIMATIZAÇÃO (somente veículos com cabine climatizada/ventilada) */}
-      {hasClimate && (
+      {/* 1. CLIMATIZAÇÃO (exibida no Painel 3 apenas para veículos sem multimídia integrada; sem duplicação) */}
+      {showClimateInCurrentVariant && (
         <div
           className={`rounded-lg border border-white/10 bg-zinc-900/70 ${isCompactPanel ? 'px-1.5 py-0.5' : 'rounded-xl p-2'}`}
           data-testid="cabin-climate-section"

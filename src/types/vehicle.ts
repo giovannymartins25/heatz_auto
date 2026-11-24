@@ -55,8 +55,13 @@ export type ClimateSystemType =
   | 'auto_dual'
   | 'auto_tri'
 
+/** Localização canônica dos controles de climatização na interface do veículo */
+export type ClimateControlsLocation = 'multimedia' | 'panel' | 'none'
+
 export interface VehicleCabinSpec {
   climateType: ClimateSystemType
+  /** Onde os controles de climatização devem aparecer ('multimedia' = central multimídia integrada; 'panel' = Painel 3 físico; 'none' = sem climatização) */
+  climateControlsLocation?: ClimateControlsLocation
   hasAcCompressor: boolean
   hasHeater: boolean
   hasSeatHeating?: boolean
@@ -405,11 +410,11 @@ export function getVehicleCapabilities(
         ? [...transmission.supportedModes]
         : []
   } else if (vehicle.id.includes('toro-endurance')) {
-    // Toro Endurance: possui modos de condução Eco, Normal e Sport
+    // Toro Endurance de entrada: possui seletor de modo Sport (Normal ↔ Sport), sem posição S independente
     supportedDrivingModes =
       transmission.supportedModes && transmission.supportedModes.length > 0
         ? transmission.supportedModes
-        : ['eco', 'normal', 'sport']
+        : ['normal', 'sport']
   } else if (vehicle.id.includes('toro-ranch') || vehicle.id.includes('toro')) {
     // Toro Ranch: possui modos de troca de marcha Eco, Normal e Sport
     supportedDrivingModes =

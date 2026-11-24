@@ -68,7 +68,7 @@ const MODE_CONFIGS: Record<DrivingMode, ModeVisualConfig> = {
   },
   normal: {
     label: 'NORMAL',
-    compactLabel: 'NORM',
+    compactLabel: 'NORMAL',
     // Azul vibrante
     activeClass:
       'bg-sky-500 text-white border-sky-300 shadow-[0_0_12px_rgba(14,165,233,0.85)] font-black',

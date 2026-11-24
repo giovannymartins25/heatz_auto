@@ -10,6 +10,7 @@ import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { QuickClutchButton, HudIgnitionControl, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
 import { DrivingMapViewport } from './DrivingMapViewport'
+import { HudMinimap } from './HudMinimap'
 import { WorldMapModal } from './WorldMapModal'
 import { CockpitPanelCarousel } from '@/components/cockpit'
 import { useUIStore } from '@/stores/useUIStore'
@@ -288,9 +289,12 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         </div>
       </div>
 
-      {/* ─── 3.5. Telemetria e Calibração de Direção por Inclinação Mobile (Fase 1.6.2) ─── */}
-      <div className="w-full flex items-center justify-center py-0.5 px-1 flex-shrink-0">
-        <SteeringControlZone vehicle={vehicle} />
+      {/* ─── 3.5. Faixa Superior aos Pedais: Minimapa Fixo de Condução + Indicador de Direção Mobile ─── */}
+      <div className="w-full flex items-center justify-between gap-1.5 py-0.5 px-1.5 flex-shrink-0">
+        <HudMinimap variant="mobile_portrait" />
+        <div className="flex-1 flex items-center justify-end min-w-0">
+          <SteeringControlZone vehicle={vehicle} />
+        </div>
       </div>
 
       {/* ─── 4. Zona dos polegares: botões laterais + pedais + ignição no canto inferior direito ─── */}

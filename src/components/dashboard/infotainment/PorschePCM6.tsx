@@ -438,7 +438,7 @@ export const PorschePCM6 = memo(function PorschePCM6({
 
         {/* ABA 3: CLIMATIZAÇÃO PORSCHE ADVANCED 2-ZONE */}
         {activeTab === 'clima' && (
-          <ClimateControlPanel theme="porsche" compact={compact || fill} />
+          <ClimateControlPanel vehicle={vehicle} theme="porsche" compact={compact || fill} />
         )}
 
         {/* ABA 4: PCM STREAMING / YOUTUBE & MÚSICAS */}

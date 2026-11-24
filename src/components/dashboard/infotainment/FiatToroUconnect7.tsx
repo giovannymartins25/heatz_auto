@@ -40,13 +40,22 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
   const [isPlaying, setIsPlaying] = useState(true)
   const [elapsed, setElapsed] = useState(42)
 
-  // Climatização
-  const [temp, setTemp] = useState(21.5)
-  const [fanSpeed, setFanSpeed] = useState(3)
-  const [isAcOn, setIsAcOn] = useState(true)
-  const [isAuto, setIsAuto] = useState(true)
-  const [recirc, setRecirc] = useState(false)
-  const [defrost, setDefrost] = useState(false)
+  // Climatização real sincronizada com useSimulationStore (ClimateSystem)
+  const ambientTempC = useSimulationStore((s) => s.ambientTempC)
+  const cabinTempC = useSimulationStore((s) => s.cabinTempC)
+  const climateTargetTempC = useSimulationStore((s) => s.climateTargetTempC)
+  const climateFanLevel = useSimulationStore((s) => s.climateFanLevel)
+  const climateAcEnabled = useSimulationStore((s) => s.climateAcEnabled)
+  const isCompressorEngaged = useSimulationStore((s) => s.isCompressorEngaged)
+  const climateRecirculation = useSimulationStore((s) => s.climateRecirculation)
+  const climateHeaterEnabled = useSimulationStore((s) => s.climateHeaterEnabled)
+  const climateDefrosterEnabled = useSimulationStore((s) => s.climateDefrosterEnabled)
+  const stepClimateTargetTempC = useSimulationStore((s) => s.stepClimateTargetTempC)
+  const setClimateFanLevel = useSimulationStore((s) => s.setClimateFanLevel)
+  const toggleClimateAc = useSimulationStore((s) => s.toggleClimateAc)
+  const toggleClimateRecirculation = useSimulationStore((s) => s.toggleClimateRecirculation)
+  const toggleClimateHeater = useSimulationStore((s) => s.toggleClimateHeater)
+  const toggleClimateDefroster = useSimulationStore((s) => s.toggleClimateDefroster)
 
   // Ajustes
   const [volume, setVolume] = useState(65)
@@ -218,87 +227,107 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
         )}
 
         {activeTab === 'climate' && (
-          <div className="grid h-full grid-cols-[1fr_1.1fr_1fr] gap-1.5 items-center">
+          <div className="grid h-full grid-cols-[1fr_1.1fr_1fr] gap-1.5 items-center" data-testid="multimedia-climate-panel">
             {/* Temperatura */}
             <div className="flex h-full flex-col items-center justify-center gap-0.5 rounded-xl bg-zinc-900/70 border border-white/5 p-1.5">
               <span className="text-[7.5px] font-mono font-bold text-zinc-400 uppercase">Temperatura</span>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setTemp((t) => Math.max(16, t - 0.5))}
+                  data-testid="multimedia-btn-temp-down"
+                  onClick={() => stepClimateTargetTempC(-0.5)}
                   className="h-6 w-6 sm:h-7 sm:w-7 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer text-sm"
                 >
                   −
                 </button>
-                <span className="text-lg sm:text-2xl font-black text-red-400 font-mono min-w-[55px] text-center">
-                  {temp.toFixed(1)}°
+                <span className="text-lg sm:text-2xl font-black text-red-400 font-mono min-w-[55px] text-center" data-testid="multimedia-target-temp">
+                  {climateTargetTempC.toFixed(1)}°
                 </span>
                 <button
                   type="button"
-                  onClick={() => setTemp((t) => Math.min(30, t + 0.5))}
+                  data-testid="multimedia-btn-temp-up"
+                  onClick={() => stepClimateTargetTempC(0.5)}
                   className="h-6 w-6 sm:h-7 sm:w-7 rounded-full bg-zinc-800 border border-white/10 text-white font-bold active:scale-90 cursor-pointer text-sm"
                 >
                   +
                 </button>
               </div>
-              <span className="text-[7px] font-mono text-zinc-500">Ar Digital Automático</span>
+              <span className="text-[7px] font-mono text-zinc-500">
+                Ext {ambientTempC.toFixed(0)}° · Cab {cabinTempC.toFixed(1)}°C
+              </span>
             </div>
 
-            {/* Ventilação */}
+            {/* Ventilação (0 a 5) */}
             <div className="flex h-full flex-col items-center justify-center gap-1 rounded-xl bg-zinc-900/70 border border-white/5 p-1.5">
               <span className="text-[7.5px] font-mono font-bold text-zinc-400 uppercase">Fluxo de Ar</span>
-              <div className="flex items-end gap-1 h-8 sm:h-10">
-                {[1, 2, 3, 4, 5].map((lvl) => (
+              <div className="flex items-end gap-0.5 h-8 sm:h-10">
+                {([0, 1, 2, 3, 4, 5] as const).map((lvl) => (
                   <button
                     key={lvl}
                     type="button"
-                    onClick={() => setFanSpeed(lvl)}
-                    className="w-4 sm:w-5 rounded-t-sm transition-all cursor-pointer"
+                    data-testid={`multimedia-btn-fan-${lvl}`}
+                    onClick={() => setClimateFanLevel(lvl)}
+                    className={`w-3.5 sm:w-4 rounded-t-sm text-[7px] font-mono font-black transition-all cursor-pointer flex items-end justify-center pb-0.5 ${
+                      climateFanLevel === lvl ? 'text-white ring-1 ring-red-300' : 'text-zinc-400'
+                    }`}
                     style={{
-                      height: `${lvl * 20}%`,
-                      background: lvl <= fanSpeed ? '#dc2626' : '#27272a',
+                      height: `${lvl === 0 ? 28 : 28 + lvl * 14}%`,
+                      background:
+                        lvl === 0
+                          ? climateFanLevel === 0
+                            ? '#52525b'
+                            : '#27272a'
+                          : lvl <= climateFanLevel
+                            ? '#dc2626'
+                            : '#27272a',
                     }}
                     title={`Velocidade ${lvl}`}
-                  />
+                  >
+                    {lvl}
+                  </button>
                 ))}
               </div>
-              <span className="text-[7px] font-mono text-zinc-400">Nível {fanSpeed} de 5</span>
+              <span className="text-[7px] font-mono text-zinc-400">Nível {climateFanLevel} de 5</span>
             </div>
 
-            {/* Botões de Comando */}
+            {/* Botões de Comando (conforme VehicleCabinSpec manual_ac da Endurance) */}
             <div className="grid grid-cols-2 gap-1 h-full content-center">
               <button
                 type="button"
-                onClick={() => setIsAcOn(!isAcOn)}
+                data-testid="multimedia-btn-ac"
+                onClick={toggleClimateAc}
                 className={`py-1 px-1 rounded-lg border font-mono text-[8px] font-black uppercase transition-all cursor-pointer ${
-                  isAcOn ? 'bg-red-600 text-white border-red-500' : 'bg-zinc-900 text-zinc-500 border-white/5'
+                  climateAcEnabled ? 'bg-red-600 text-white border-red-500' : 'bg-zinc-900 text-zinc-500 border-white/5'
                 }`}
               >
-                A/C
+                A/C{isCompressorEngaged ? ' ●' : ''}
               </button>
               <button
                 type="button"
-                onClick={() => setIsAuto(!isAuto)}
-                className={`py-1 px-1 rounded-lg border font-mono text-[8px] font-black uppercase transition-all cursor-pointer ${
-                  isAuto ? 'bg-red-600 text-white border-red-500' : 'bg-zinc-900 text-zinc-500 border-white/5'
-                }`}
-              >
-                AUTO
-              </button>
-              <button
-                type="button"
-                onClick={() => setRecirc(!recirc)}
+                data-testid="multimedia-btn-heater"
+                onClick={toggleClimateHeater}
                 className={`py-1 px-1 rounded-lg border font-mono text-[7.5px] font-bold uppercase transition-all cursor-pointer ${
-                  recirc ? 'bg-red-600 text-white border-red-500' : 'bg-zinc-900 text-zinc-500 border-white/5'
+                  climateHeaterEnabled ? 'bg-orange-600 text-white border-orange-400' : 'bg-zinc-900 text-zinc-500 border-white/5'
+                }`}
+              >
+                Aquec.
+              </button>
+              <button
+                type="button"
+                data-testid="multimedia-btn-recirc"
+                onClick={toggleClimateRecirculation}
+                className={`py-1 px-1 rounded-lg border font-mono text-[7.5px] font-bold uppercase transition-all cursor-pointer ${
+                  climateRecirculation ? 'bg-red-600 text-white border-red-500' : 'bg-zinc-900 text-zinc-500 border-white/5'
                 }`}
               >
                 Recirc.
               </button>
               <button
                 type="button"
-                onClick={() => setDefrost(!defrost)}
+                data-testid="multimedia-btn-defrost"
+                onClick={toggleClimateDefroster}
                 className={`py-1 px-1 rounded-lg border font-mono text-[7.5px] font-bold uppercase transition-all cursor-pointer ${
-                  defrost ? 'bg-red-600 text-white border-red-500' : 'bg-zinc-900 text-zinc-500 border-white/5'
+                  climateDefrosterEnabled ? 'bg-red-600 text-white border-red-500' : 'bg-zinc-900 text-zinc-500 border-white/5'
                 }`}
               >
                 Desemb.

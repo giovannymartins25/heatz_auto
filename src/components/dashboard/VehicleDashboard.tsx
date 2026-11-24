@@ -15,6 +15,7 @@ import { RotateDeviceOverlay } from './RotateDeviceOverlay'
 import { PerformanceBox } from './PerformanceBox'
 import { KeyboardHUD } from './KeyboardHUD'
 import { DrivingMapViewport } from './DrivingMapViewport'
+import { HudMinimap } from './HudMinimap'
 import { WorldMapModal } from './WorldMapModal'
 import { DesktopCockpitLayout } from '@/components/cockpit'
 import { PedalTelemetry } from '@/components/gauges'
@@ -265,9 +266,9 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   }
 
   return (
-    <div className="flex flex-col min-h-dvh bg-[var(--color-bg-primary)] safe-top safe-bottom p-3 sm:p-4 justify-between select-none">
+    <div className="flex flex-col min-h-dvh bg-[var(--color-bg-primary)] safe-top safe-bottom p-2 sm:p-2.5 justify-between select-none">
       {/* Barra de cabeçalho superior */}
-      <header className="flex flex-wrap justify-between items-center w-full gap-2 mb-2">
+      <header className="flex flex-wrap justify-between items-center w-full gap-2 mb-1">
         <div className="flex items-center gap-2">
           <button
             onClick={handleBack}
@@ -279,9 +280,8 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           {/* Botão de Som Mute */}
           <button
             onClick={toggleMute}
-            className={`px-2.5 py-1 text-xs rounded-lg border font-mono transition-all cursor-pointer ${
-              isMuted ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
-            }`}
+            className={`px-2.5 py-1 text-xs rounded-lg border font-mono transition-all cursor-pointer ${isMuted ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
+              }`}
             title="Alternar Áudio"
           >
             {isMuted ? '🔇 Mudo' : '🔊 Som'}
@@ -300,11 +300,10 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           {/* Botão Oficina de Preparação (Tuning Stages) */}
           <button
             onClick={() => setIsTuningOpen(true)}
-            className={`px-2.5 py-1 text-xs rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
-              tuningStage > 0
-                ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
-                : 'bg-zinc-900 border-white/10 text-zinc-300 hover:text-white'
-            }`}
+            className={`px-2.5 py-1 text-xs rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${tuningStage > 0
+              ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+              : 'bg-zinc-900 border-white/10 text-zinc-300 hover:text-white'
+              }`}
             title="Oficina de Preparação (Stage 1, 2 e 3)"
           >
             <span>🔧</span>
@@ -327,11 +326,10 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             onClick={toggleWorldMap}
             aria-label="Abrir mapa do mundo"
             data-testid="btn-world-map"
-            className={`px-2.5 py-1 text-xs rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
-              isWorldMapOpen
-                ? 'bg-sky-500/25 border-sky-400 text-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.45)]'
-                : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:bg-sky-500/15 hover:border-sky-400'
-            }`}
+            className={`px-2.5 py-1 text-xs rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${isWorldMapOpen
+              ? 'bg-sky-500/25 border-sky-400 text-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.45)]'
+              : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:bg-sky-500/15 hover:border-sky-400'
+              }`}
             title="Abrir Mapa do Mundo 2D com sua posição atual"
           >
             <span>🗺️</span>
@@ -342,11 +340,10 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           {vehicle.info.category !== 'motorcycle' && (
             <button
               onClick={toggleWindows}
-              className={`px-2.5 py-1 text-xs rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                windowsOpen
-                  ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-[0_0_10px_rgba(56,189,248,0.4)]'
-                  : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
-              }`}
+              className={`px-2.5 py-1 text-xs rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${windowsOpen
+                ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-[0_0_10px_rgba(56,189,248,0.4)]'
+                : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
+                }`}
               title="Abrir/Fechar Vidros (Modifica acústica interna: 14kHz vs 2.2kHz)"
             >
               <span>🪟</span>
@@ -360,21 +357,19 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           <div className="flex items-center gap-1 bg-zinc-950/80 p-1 rounded-full border border-white/10 text-[9px] font-mono shadow-md">
             <button
               onClick={() => setViewMode('cluster')}
-              className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-                viewMode === 'cluster'
-                  ? 'bg-zinc-700 text-white font-bold shadow'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
+              className={`px-3 py-1 rounded-full transition-all cursor-pointer ${viewMode === 'cluster'
+                ? 'bg-zinc-700 text-white font-bold shadow'
+                : 'text-zinc-500 hover:text-zinc-300'
+                }`}
             >
               CLUSTER
             </button>
             <button
               onClick={() => setViewMode('cockpit')}
-              className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-                viewMode === 'cockpit'
-                  ? 'bg-zinc-700 text-white font-bold shadow'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
+              className={`px-3 py-1 rounded-full transition-all cursor-pointer ${viewMode === 'cockpit'
+                ? 'bg-zinc-700 text-white font-bold shadow'
+                : 'text-zinc-500 hover:text-zinc-300'
+                }`}
               title="Modo Cockpit com pista 3D e velocidade dinâmica"
             >
               COCKPIT
@@ -404,7 +399,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
       </header>
 
       {/* Seção Central: Painel de Instrumentos ou Cockpit View */}
-      <main className="flex flex-col items-center gap-2 sm:gap-3 my-auto w-full">
+      <main className="flex flex-col items-center gap-1.5 my-auto w-full">
         {/* Controles superiores: Modo de Condução + Toggle AUTO/MANUAL + TCS */}
         <div className="flex flex-wrap items-center justify-center gap-2 w-full">
           {/* Seletor de Modo de Condução (ECO, NORMAL, SPORT, TRACK) */}
@@ -432,10 +427,10 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
                   ? mode === 'eco'
                     ? 'RAIN'
                     : mode === 'normal'
-                    ? 'STANDARD'
-                    : mode === 'sport'
-                    ? 'SPORT'
-                    : mode.toUpperCase()
+                      ? 'STANDARD'
+                      : mode === 'sport'
+                        ? 'SPORT'
+                        : mode.toUpperCase()
                   : mode.toUpperCase()
 
                 return (
@@ -457,11 +452,10 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
               id="btn-auto-manual-toggle"
               onClick={toggleSimulatedManual}
               disabled={!isRunning}
-              className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer disabled:opacity-40 ${
-                isManualSimulated
-                  ? 'bg-sky-500/20 border-sky-500 text-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.3)]'
-                  : 'bg-zinc-950/70 border-white/10 text-zinc-400 hover:border-white/20 hover:text-zinc-300'
-              }`}
+              className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer disabled:opacity-40 ${isManualSimulated
+                ? 'bg-sky-500/20 border-sky-500 text-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.3)]'
+                : 'bg-zinc-950/70 border-white/10 text-zinc-400 hover:border-white/20 hover:text-zinc-300'
+                }`}
               title="Tecla M — Alterna entre AUTO e MANUAL SIMULADO"
             >
               {isManualSimulated ? '⇌ MANUAL' : '⇌ AUTO'}
@@ -473,19 +467,17 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             <button
               id="btn-tcs-toggle"
               onClick={() => setTcsEnabled(!tcsEnabled)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer ${
-                !tcsEnabled
-                  ? 'bg-zinc-950/70 border-zinc-700/30 text-zinc-600 line-through'
-                  : tcsIntervening
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer ${!tcsEnabled
+                ? 'bg-zinc-950/70 border-zinc-700/30 text-zinc-600 line-through'
+                : tcsIntervening
                   ? 'bg-amber-500/20 border-amber-500 text-amber-400 animate-pulse'
                   : 'bg-zinc-950/60 border-white/10 text-zinc-400'
-              }`}
+                }`}
               title="Tecla T — Liga/desliga TCS"
             >
               <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  !tcsEnabled ? 'bg-zinc-600' : tcsIntervening ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'
-                }`}
+                className={`w-1.5 h-1.5 rounded-full ${!tcsEnabled ? 'bg-zinc-600' : tcsIntervening ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'
+                  }`}
               />
               {telemetry.tcs.statusLabel}
               {tcsIntervening && tcsEnabled && (
@@ -518,11 +510,10 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           {/* Botão Válvula de Difusor de Escape */}
           <button
             onClick={toggleExhaustValve}
-            className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
-              exhaustValveOpen
-                ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)]'
-                : 'bg-zinc-950/70 border-white/10 text-zinc-500'
-            }`}
+            className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${exhaustValveOpen
+              ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+              : 'bg-zinc-950/70 border-white/10 text-zinc-500'
+              }`}
             title="Tecla V — Alterna Válvula de Difusor (Escape Aberto / Direto)"
           >
             <span>⚡</span>
@@ -532,11 +523,10 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           {/* Botão de Faróis */}
           <button
             onClick={cycleHeadlights}
-            className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
-              headlightsMode !== 'off'
-                ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-[0_0_10px_rgba(56,189,248,0.4)]'
-                : 'bg-zinc-950/70 border-white/10 text-zinc-500'
-            }`}
+            className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${headlightsMode !== 'off'
+              ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-[0_0_10px_rgba(56,189,248,0.4)]'
+              : 'bg-zinc-950/70 border-white/10 text-zinc-500'
+              }`}
             title="Tecla L — Alterna Faróis (Desligado, Lanterna, Farol Baixo, Farol Alto)"
           >
             <span>💡</span>
@@ -546,11 +536,10 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           {/* Botão de Clima & Chuva */}
           <button
             onClick={toggleRain}
-            className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
-              isRaining
-                ? 'bg-blue-600/30 border-blue-400 text-blue-200 shadow-[0_0_12px_rgba(59,130,246,0.5)]'
-                : 'bg-zinc-950/70 border-white/10 text-zinc-500'
-            }`}
+            className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${isRaining
+              ? 'bg-blue-600/30 border-blue-400 text-blue-200 shadow-[0_0_12px_rgba(59,130,246,0.5)]'
+              : 'bg-zinc-950/70 border-white/10 text-zinc-500'
+              }`}
             title="Tecla C — Alterna Clima (Chuva com pista escorregadia ou Pista Seca)"
           >
             <span>{isRaining ? '🌧️ CHUVA ON' : '☀️ SECO'}</span>
@@ -561,13 +550,12 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
         <div className="flex flex-wrap items-center justify-center gap-2 text-[10px] font-mono">
           {/* Nível de Combustível */}
           <div
-            className={`flex items-center gap-1 px-3 py-1 rounded-full border ${
-              isOutOfFuel
-                ? 'border-red-500 bg-red-950/70 text-red-300 animate-pulse font-black'
-                : fuelLevelLiters < 8
+            className={`flex items-center gap-1 px-3 py-1 rounded-full border ${isOutOfFuel
+              ? 'border-red-500 bg-red-950/70 text-red-300 animate-pulse font-black'
+              : fuelLevelLiters < 8
                 ? 'border-amber-500 bg-amber-950/60 text-amber-300 font-bold'
                 : 'border-white/10 bg-black/60 text-neutral-300'
-            }`}
+              }`}
           >
             <span>⛽</span>
             <span>{isOutOfFuel ? 'PANE SECA' : `${fuelLevelLiters.toFixed(1)}L`}</span>
@@ -578,13 +566,12 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
 
           {/* Arrefecimento do Motor & Temperatura do Óleo */}
           <div
-            className={`flex items-center gap-1 px-3 py-1 rounded-full border ${
-              isEngineBlown
-                ? 'border-red-500 bg-red-950/80 text-red-400 font-black animate-pulse'
-                : coolantTemp >= 115
+            className={`flex items-center gap-1 px-3 py-1 rounded-full border ${isEngineBlown
+              ? 'border-red-500 bg-red-950/80 text-red-400 font-black animate-pulse'
+              : coolantTemp >= 115
                 ? 'border-red-500 bg-red-950/70 text-red-300 animate-pulse font-bold'
                 : 'border-white/10 bg-black/60 text-neutral-300'
-            }`}
+              }`}
           >
             <span>🌡️</span>
             <span>H2O: <strong className={coolantTemp >= 115 ? 'text-red-400' : 'text-white'}>{Math.round(coolantTemp)}°C</strong></span>
@@ -594,13 +581,12 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
 
           {/* Temperatura de Freios & Brake Fade */}
           <div
-            className={`flex items-center gap-1 px-3 py-1 rounded-full border ${
-              brakeDiscTemp > 650
-                ? 'border-purple-500 bg-purple-950/70 text-purple-300 animate-pulse font-bold'
-                : isBrakeGlowing
+            className={`flex items-center gap-1 px-3 py-1 rounded-full border ${brakeDiscTemp > 650
+              ? 'border-purple-500 bg-purple-950/70 text-purple-300 animate-pulse font-bold'
+              : isBrakeGlowing
                 ? 'border-red-500 bg-red-950/70 text-red-400 animate-pulse'
                 : 'border-white/10 bg-black/60 text-neutral-300'
-            }`}
+              }`}
           >
             <span>🛑</span>
             <span>DISCOS: <strong>{Math.round(brakeDiscTemp)}°C</strong></span>
@@ -619,13 +605,12 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
         {/* ── Viewport do Mapa 2D Dirigível (Desktop) ── */}
         {isMapOpen && (
           <div
-            className={`w-full max-w-4xl px-2 animate-in fade-in zoom-in-95 duration-200 transition-all ${
-              mapViewportSize === 'compact'
-                ? 'h-[220px] sm:h-[240px] lg:h-[260px]'
-                : mapViewportSize === 'expanded'
-                ? 'h-[380px] sm:h-[440px] lg:h-[500px]'
-                : 'h-[260px] sm:h-[300px] lg:h-[320px]'
-            }`}
+            className={`w-full max-w-4xl px-2 animate-in fade-in zoom-in-95 duration-200 transition-all ${mapViewportSize === 'compact'
+              ? 'h-[155px] sm:h-[165px] lg:h-[175px]'
+              : mapViewportSize === 'expanded'
+                ? 'h-[300px] sm:h-[340px] lg:h-[380px]'
+                : 'h-[170px] sm:h-[185px] lg:h-[195px]'
+              }`}
           >
             <DrivingMapViewport
               size={mapViewportSize === 'hidden' ? 'balanced' : mapViewportSize}
@@ -691,11 +676,10 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             <button
               type="button"
               onClick={toggleWorldMap}
-              className={`w-10 h-10 rounded-xl border flex items-center justify-center text-sm transition-all active:scale-95 cursor-pointer ${
-                isWorldMapOpen
-                  ? 'bg-sky-500/25 text-sky-200 border-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.55)]'
-                  : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:text-white'
-              }`}
+              className={`w-10 h-10 rounded-xl border flex items-center justify-center text-sm transition-all active:scale-95 cursor-pointer ${isWorldMapOpen
+                ? 'bg-sky-500/25 text-sky-200 border-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.55)]'
+                : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:text-white'
+                }`}
               title="Abrir Mapa do Mundo 2D"
               aria-label="Abrir mapa do mundo (atalho rodapé)"
             >
@@ -705,11 +689,10 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             {/* Freio de mão Desktop */}
             <button
               onClick={toggleHandbrake}
-              className={`px-2.5 py-2 rounded-xl border font-mono text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
-                handbrake
-                  ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.8)]'
-                  : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
-              }`}
+              className={`px-2.5 py-2 rounded-xl border font-mono text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${handbrake
+                ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.8)]'
+                : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
+                }`}
               title="Tecla Espaço — Freio de mão"
             >
               (P) {handbrake ? 'TRAVADO' : 'FREIO'}
@@ -723,13 +706,12 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
                   onPointerUp={() => setNosActive(false)}
                   onPointerCancel={() => setNosActive(false)}
                   disabled={nosPressurePercent <= 0 || !isRunning}
-                  className={`px-3 py-2 rounded-xl border font-mono text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow ${
-                    nosActive
-                      ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.9)] animate-pulse'
-                      : nosPressurePercent <= 0
+                  className={`px-3 py-2 rounded-xl border font-mono text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow ${nosActive
+                    ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.9)] animate-pulse'
+                    : nosPressurePercent <= 0
                       ? 'bg-zinc-900/50 text-zinc-600 border-zinc-800'
                       : 'bg-cyan-950/70 text-cyan-300 border-cyan-500/50 hover:bg-cyan-900/80'
-                  }`}
+                    }`}
                   title="Segure tecla B para disparar Nitro (NOS)"
                 >
                   <span>⚡</span>
@@ -753,9 +735,12 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           </div>
         </div>
 
-        {/* Pedais interativos + Ignição real do veículo à direita (Start/Stop ou Chave Física) */}
+        {/* Minimapa fixo acima da região dos pedais + Pedais interativos + Ignição real à direita */}
         <div className="flex items-end gap-3">
-          <Pedals vehicle={vehicle} />
+          <div className="flex flex-col items-center gap-1.5">
+            <HudMinimap variant="desktop" />
+            <Pedals vehicle={vehicle} />
+          </div>
           <HudIgnitionControl vehicle={vehicle} variant="desktop" />
         </div>
       </footer>
