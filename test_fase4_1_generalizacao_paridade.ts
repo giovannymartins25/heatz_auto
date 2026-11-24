@@ -67,8 +67,10 @@ function loadVehicle(id: string): VehicleConfig {
 
 console.log('\n=== FASE 4.1 — 1. PARIDADE EXATA DOS 10 VEÍCULOS EXISTENTES VS BASELINE REAL ===')
 
-for (const entry of manifest.vehicles) {
-  const cfg = loadVehicle(entry.id)
+for (const baselineId of Object.keys(baseline)) {
+  const entry = manifest.vehicles.find((v: any) => v.id === baselineId)
+  assert(Boolean(entry), `[${baselineId}] preservado no manifest.json`)
+  const cfg = loadVehicle(baselineId)
   const expected = baseline[cfg.id]
   assert(Boolean(expected), `[${cfg.id}] baseline pré-migração presente`)
 
@@ -220,7 +222,7 @@ const syntheticRwdSedan: VehicleConfig = {
   },
   ignition: {
     type: 'push_button',
-    requiresPedalForStart: true,
+    startInterlock: 'brake',
     supportsAccessoryMode: true,
   },
   cabin: {
@@ -326,7 +328,7 @@ assert(!dupValidation.valid, 'validateVehicleConfig rejeita drivetrain duplicado
 console.log('\n=== FASE 4.1 — 4. REGISTROS DEDICADOS (CLUSTER_REGISTRY & MULTIMEDIA_REGISTRY) ===')
 
 const allThemes = Object.keys(CLUSTER_REGISTRY)
-assert(allThemes.length === 11, `CLUSTER_REGISTRY cobre todos os 11 temas (${allThemes.length})`)
+assert(allThemes.length >= 11, `CLUSTER_REGISTRY cobre todos os temas registrados (${allThemes.length})`)
 for (const theme of allThemes) {
   const entry = resolveClusterEntry(theme)
   assert(
@@ -341,7 +343,7 @@ assert(
 )
 
 const allMediaIds = Object.keys(MULTIMEDIA_REGISTRY)
-assert(allMediaIds.length === 10, `MULTIMEDIA_REGISTRY cobre todas as 10 unidades (${allMediaIds.length})`)
+assert(allMediaIds.length >= 10, `MULTIMEDIA_REGISTRY cobre todas as unidades registradas (${allMediaIds.length})`)
 assert(resolveMultimediaEntry('none') === null, "resolveMultimediaEntry('none') retorna null (motocicletas)")
 assert(
   resolveMultimediaEntry('unidade_inexistente_futura')?.unitId === 'generic_multimedia',

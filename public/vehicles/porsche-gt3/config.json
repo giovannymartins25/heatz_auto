@@ -112,5 +112,23 @@
     "gravity": 9.81,
     "isProvisional": false,
     "notes": "Porsche 911 Turbo S (992)"
+  },
+  "ignition": {
+    "type": "push_button",
+    "startInterlock": "brake",
+    "supportsAccessoryMode": true
+  },
+  "cabin": {
+    "climateType": "auto_dual",
+    "hasAcCompressor": true,
+    "hasHeater": true,
+    "hasSeatHeating": true,
+    "hasRecirculation": true,
+    "hasDefroster": true,
+    "windowCount": 2,
+    "windowControlType": "electric",
+    "hasFogLights": true,
+    "hasAmbientLighting": true,
+    "defaultAmbientColor": "amber"
   }
 }

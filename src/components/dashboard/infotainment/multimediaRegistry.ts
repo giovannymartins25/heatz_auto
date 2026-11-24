@@ -14,6 +14,11 @@ import { FiatToroUconnect7 } from './FiatToroUconnect7'
 import { FiatToroUconnectVertical } from './FiatToroUconnectVertical'
 import { PorschePCM6 } from './PorschePCM6'
 import { GolfGTIDiscoverPro } from './GolfGTIDiscoverPro'
+import { JettaDiscoverMedia8 } from './JettaDiscoverMedia8'
+import { BMWiDrive8Curved } from './BMWiDrive8Curved'
+import { FordPampa1997RadioUnit } from './FordPampa1997RadioUnit'
+import { FordSync1Console2012 } from './FordSync1Console2012'
+import { FordSync3Titanium8 } from './FordSync3Titanium8'
 import { CivicSiInfotainment } from './CivicSiInfotainment'
 import { ToyotaSmartConnect } from './ToyotaSmartConnect'
 import { Retrofit2DinInfotainment } from './Retrofit2DinInfotainment'
@@ -55,6 +60,31 @@ export const MULTIMEDIA_REGISTRY: Readonly<
     unitId: 'vw_discover_pro',
     label: 'VW Discover Pro 8"',
     component: GolfGTIDiscoverPro,
+  },
+  vw_discover_media_8: {
+    unitId: 'vw_discover_media_8',
+    label: 'VW Discover Media 8" MIB',
+    component: JettaDiscoverMedia8,
+  },
+  bmw_idrive8_curved: {
+    unitId: 'bmw_idrive8_curved',
+    label: 'BMW Curved Display 14.9" (OS 8)',
+    component: BMWiDrive8Curved,
+  },
+  ford_pampa_radio_1din: {
+    unitId: 'ford_pampa_radio_1din',
+    label: 'Rádio Ford FIC Sound 1-DIN (1997)',
+    component: FordPampa1997RadioUnit,
+  },
+  ford_sync1_2012: {
+    unitId: 'ford_sync1_2012',
+    label: 'Ford SYNC 1 Console 2012',
+    component: FordSync1Console2012,
+  },
+  ford_sync3_8: {
+    unitId: 'ford_sync3_8',
+    label: 'Ford SYNC 3 Touchscreen 8" (2019)',
+    component: FordSync3Titanium8,
   },
   toyota_smart_connect: {
     unitId: 'toyota_smart_connect',

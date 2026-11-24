@@ -110,5 +110,23 @@
     "gravity": 9.81,
     "isProvisional": false,
     "notes": "Fiat Toro Endurance 1.3 Turbo 270 Flex AT6 2025 FWD"
+  },
+  "ignition": {
+    "type": "key",
+    "startInterlock": "brake",
+    "supportsAccessoryMode": true
+  },
+  "cabin": {
+    "climateType": "manual_ac",
+    "hasAcCompressor": true,
+    "hasHeater": true,
+    "hasSeatHeating": false,
+    "hasRecirculation": true,
+    "hasDefroster": true,
+    "windowCount": 4,
+    "windowControlType": "electric",
+    "hasFogLights": false,
+    "hasAmbientLighting": false,
+    "defaultAmbientColor": "red"
   }
 }

@@ -3,6 +3,8 @@ import { create } from 'zustand'
 type Screen = 'home' | 'simulator'
 export type MapViewportSize = 'hidden' | 'compact' | 'balanced' | 'expanded' | 'fullscreen'
 export type GraphicProfile = 'eco' | 'normal' | 'high'
+export type CockpitPanelId = 'cluster' | 'multimedia' | 'controls'
+export type DesktopSecondaryPanelId = 'multimedia' | 'controls'
 
 const STORAGE_SHOW_TILT_INDICATOR_KEY = 'heatz_show_tilt_indicator'
 
@@ -55,6 +57,10 @@ interface UIStoreState {
   showPerformanceMonitor: boolean
   /** Exibir indicador visual de inclinação do smartphone no HUD mobile (padrão: true) */
   showTiltIndicator: boolean
+  /** Painel ativo no carrossel modular de 3 painéis (preservado ao redimensionar portrait ↔ landscape) */
+  activeCockpitPanel: CockpitPanelId
+  /** Painel secundário ativo no layout desktop (multimídia ou controles) */
+  desktopSecondaryPanel: DesktopSecondaryPanelId
   /** Teclas do teclado ativas para feedback visual no PC */
   activeKeys: ActiveKeysState
 }
@@ -74,6 +80,8 @@ interface UIStoreActions {
   setGraphicProfile: (profile: GraphicProfile) => void
   togglePerformanceMonitor: () => void
   setShowTiltIndicator: (show: boolean) => void
+  setActiveCockpitPanel: (panel: CockpitPanelId) => void
+  setDesktopSecondaryPanel: (panel: DesktopSecondaryPanelId) => void
   setActiveKey: (key: keyof ActiveKeysState, pressed: boolean) => void
 }
 
@@ -91,6 +99,8 @@ export const useUIStore = create<UIStore>((set) => ({
   graphicProfile: 'normal',
   showPerformanceMonitor: false,
   showTiltIndicator: getInitialShowTiltIndicator(),
+  activeCockpitPanel: 'cluster',
+  desktopSecondaryPanel: 'multimedia',
   activeKeys: {
     w: false,
     a: false,
@@ -142,6 +152,8 @@ export const useUIStore = create<UIStore>((set) => ({
     }
     set({ showTiltIndicator: show })
   },
+  setActiveCockpitPanel: (panel) => set({ activeCockpitPanel: panel }),
+  setDesktopSecondaryPanel: (panel) => set({ desktopSecondaryPanel: panel }),
   setActiveKey: (key, pressed) =>
     set((s) => {
       if (s.activeKeys[key] === pressed) return s

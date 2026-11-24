@@ -828,11 +828,12 @@ export class SynthEngine implements IAudioEngine {
    * Vidros fechados: som abafado e isolado (passa-baixa 2.2kHz).
    * Vidros abertos: som cru, direto e aberto (passa-baixa 14kHz) com indução e turbo nítidos.
    */
-  setWindowsOpen(open: boolean): void {
+  setWindowsOpen(open: boolean, openRatio?: number): void {
     this.windowsOpen = open
     if (this.context && this.cabinFilter) {
       const now = this.context.currentTime
-      const targetFreq = open ? 14000 : 2200
+      const ratio = openRatio !== undefined ? Math.max(0, Math.min(1, openRatio)) : (open ? 1 : 0)
+      const targetFreq = 2200 + ratio * (14000 - 2200)
       this.cabinFilter.frequency.setTargetAtTime(targetFreq, now, 0.15)
     }
   }

@@ -31,6 +31,11 @@ export const VEHICLE_PRICES: Record<string, { price: number; badge: string; desc
   'opala-4100': { price: 68000, badge: '6 CILINDROS RWD', description: '4.1L 250-S · Tração Traseira · Câmbio 5M · Ronco Cavernoso' },
   'fiat-toro-endurance-2025': { price: 152000, badge: 'SUP TURBO FLEX', description: '1.3 GSE T270 Flex · Câmbio AT6 Aisin · Tração Dianteira FWD' },
   'fiat-toro-ranch-2025': { price: 219000, badge: 'SUP 4X4 DIESEL', description: '2.2 MultiJet II Turbodiesel · Câmbio ZF 9HP · Tração 4x4 com Reduzida' },
+  'jetta-gli-2021': { price: 189000, badge: 'SEDAN SPORT GLI', description: '2.0 TSI EA888 · 230 cv · Câmbio DSG 6M · Active Info Display + Discover Media 8"' },
+  'bmw-320i-msport-2024': { price: 339000, badge: 'M SPORT RWD', description: '2.0 TwinPower Turbo Flex · 184 cv · ZF 8M · Tração Traseira · BMW Curved Display' },
+  'ford-pampa-l-1997': { price: 29500, badge: 'PICAPE CLÁSSICA', description: '1.8i AP Monoponto · 95 cv · Manual 5M · Cabine Simples Utilitária 1997' },
+  'ford-fusion-sel-2012': { price: 58000, badge: 'EXEC SEDAN 2012', description: '2.5 16V Duratec · 173 cv · AT6 6F35 · Painel Ice Blue + Ford SYNC 1' },
+  'ford-fusion-titanium-awd-2019': { price: 138000, badge: 'TITANIUM AWD', description: '2.0 EcoBoost Turbo · 248 cv · Intelligent AWD · SmartGauge + SYNC 3 8"' },
 }
 
 export function getVehicleSpecs(manifest?: any, vehicleId?: string) {
@@ -41,6 +46,21 @@ export function getVehicleSpecs(manifest?: any, vehicleId?: string) {
   if (id.includes('civic')) {
     engine = '2.0 16V i-VTEC (K20Z3)'
     drivetrain = 'FWD (Dianteira)'
+  } else if (id.includes('jetta-gli')) {
+    engine = '2.0 16V TSI (EA888 Gen 3)'
+    drivetrain = 'FWD (Dianteira)'
+  } else if (id.includes('bmw-320i')) {
+    engine = '2.0 16V TwinPower Turbo (B48)'
+    drivetrain = 'RWD (Traseira)'
+  } else if (id.includes('ford-pampa')) {
+    engine = '1.8 8V AP-1800i CFI (EEC-IV)'
+    drivetrain = 'FWD (Dianteira)'
+  } else if (id.includes('fusion-sel-2012')) {
+    engine = '2.5 16V Duratec iVCT'
+    drivetrain = 'FWD (Dianteira)'
+  } else if (id.includes('fusion-titanium-awd')) {
+    engine = '2.0 16V EcoBoost GTDI'
+    drivetrain = 'AWD (Intelligent Sob Demanda)'
   } else if (id.includes('golf')) {
     engine = '2.0 TSI (EA888 Gen 3)'
     drivetrain = 'FWD (Dianteira)'

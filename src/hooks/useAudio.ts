@@ -34,6 +34,7 @@ export function useAudio(config: VehicleConfig | null) {
   const exhaustType = useSimulationStore((s) => s.exhaustType)
   const triggerBackfireFlame = useSimulationStore((s) => s.triggerBackfireFlame)
   const windowsOpen = useSimulationStore((s) => s.windowsOpen)
+  const windowAverageOpenRatio = useSimulationStore((s) => s.windowAverageOpenRatio)
   const gearGrindTrigger = useSimulationStore((s) => s.gearGrindTrigger)
   const engineBlownTrigger = useSimulationStore((s) => s.engineBlownTrigger)
   const isBurningOut = useSimulationStore((s) => s.isBurningOut)
@@ -167,12 +168,12 @@ export function useAudio(config: VehicleConfig | null) {
     synth.setMasterGain(isMuted ? 0 : masterVolume)
   }, [isMuted, masterVolume])
 
-  // Acústica de Cabine & Vidros Elétricos
+  // Acústica de Cabine & Vidros (abertura gradual 0% a 100%)
   useEffect(() => {
     const synth = engineRef.current
     if (!synth) return
-    synth.setWindowsOpen(windowsOpen)
-  }, [windowsOpen])
+    synth.setWindowsOpen(windowsOpen, windowAverageOpenRatio)
+  }, [windowsOpen, windowAverageOpenRatio])
 
   // Som de sincronizador arranhando (Crrrck!)
   useEffect(() => {

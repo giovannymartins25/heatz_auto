@@ -324,6 +324,66 @@ export const VEHICLE_CHASSIS_DATABASE: Record<string, ChassisConfig> = {
     isProvisional: false,
     notes: 'Fiat Toro Ranch 2.2 Turbo Diesel 4x4 AT9 2025 (AWD/4WD sob demanda e Reduzida 4WD LOW)',
   },
+  'jetta-gli-2021': {
+    totalMass: 1432,
+    wheelbase: 2.680,
+    centerOfMassHeight: 0.51,
+    frontWeightRatio: 0.61, // Sedã MQB 2.0 TSI transversal dianteiro (estimativa de engenharia)
+    wheelRadius: 0.660 / 2, // 0.330 m (225/45 R18)
+    wheelInertia: 1.24,
+    wheelCount: 4,
+    gravity: 9.81,
+    isProvisional: false,
+    notes: 'Volkswagen Jetta GLI 350 TSI 2021 (Plataforma MQB FWD, Multilink traseiro)',
+  },
+  'bmw-320i-msport-2024': {
+    totalMass: 1460,
+    wheelbase: 2.851,
+    centerOfMassHeight: 0.49,
+    frontWeightRatio: 0.50, // Distribuição 50/50 nominal da plataforma CLAR G20 RWD
+    wheelRadius: 0.663 / 2, // 0.3315 m (225/40 R19 / 255/35 R19)
+    wheelInertia: 1.28,
+    wheelCount: 4,
+    gravity: 9.81,
+    isProvisional: false,
+    notes: 'BMW 320i M Sport 2.0 ActiveFlex 2024 (G20 LCI RWD, ZF 8HP)',
+  },
+  'ford-pampa-l-1997': {
+    totalMass: 1040,
+    wheelbase: 2.578,
+    centerOfMassHeight: 0.57,
+    frontWeightRatio: 0.62, // Motor AP-1800i longitudinal dianteiro + caçamba descarregada (estimativa de engenharia)
+    wheelRadius: 0.561 / 2, // 0.2805 m (165/70 R13)
+    wheelInertia: 0.96,
+    wheelCount: 4,
+    gravity: 9.81,
+    isProvisional: true,
+    notes: 'Ford Pampa L 1.8i CFI 1997 (Picape leve FWD derivada do Corcel II/Del Rey)',
+  },
+  'ford-fusion-sel-2012': {
+    totalMass: 1520,
+    wheelbase: 2.728,
+    centerOfMassHeight: 0.53,
+    frontWeightRatio: 0.61, // Sedã CD338 2.5 Duratec transversal FWD
+    wheelRadius: 0.657 / 2, // 0.3285 m (225/50 R17)
+    wheelInertia: 1.26,
+    wheelCount: 4,
+    gravity: 9.81,
+    isProvisional: false,
+    notes: 'Ford Fusion SEL 2.5 16V AT6 2012 (CD338 FWD)',
+  },
+  'ford-fusion-titanium-awd-2019': {
+    totalMass: 1691,
+    wheelbase: 2.850,
+    centerOfMassHeight: 0.53,
+    frontWeightRatio: 0.57, // Sedã CD391 2.0 EcoBoost com PTU + diferencial traseiro Intelligent AWD
+    wheelRadius: 0.669 / 2, // 0.3345 m (235/45 R18)
+    wheelInertia: 1.32,
+    wheelCount: 4,
+    gravity: 9.81,
+    isProvisional: false,
+    notes: 'Ford Fusion Titanium 2.0 EcoBoost AWD AT6 2019 (CD391 Intelligent AWD sob demanda)',
+  },
 }
 
 /**

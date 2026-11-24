@@ -10,6 +10,11 @@ import { performanceMonitor } from '@/utils/performanceMonitor'
 export const CLUSTER_PROFILES: Record<DashboardTelemetry['theme'], ClusterProfile> = {
   civic_si: CLUSTER_REGISTRY.civic_si.profile,
   gti: CLUSTER_REGISTRY.gti.profile,
+  jetta_gli_aid: CLUSTER_REGISTRY.jetta_gli_aid.profile,
+  bmw_curved_msport: CLUSTER_REGISTRY.bmw_curved_msport.profile,
+  ford_pampa_1997: CLUSTER_REGISTRY.ford_pampa_1997.profile,
+  ford_fusion_2012_ice: CLUSTER_REGISTRY.ford_fusion_2012_ice.profile,
+  ford_fusion_2019_smartgauge: CLUSTER_REGISTRY.ford_fusion_2019_smartgauge.profile,
   classic: CLUSTER_REGISTRY.classic.profile,
   square_turbo: CLUSTER_REGISTRY.square_turbo.profile,
   supercar: CLUSTER_REGISTRY.supercar.profile,

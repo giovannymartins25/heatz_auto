@@ -12,9 +12,28 @@ import { PedalInputSystem, createInitialZeroToHundredState, stepZeroToHundredTim
 import {
   resolveDefaultAmbientColor,
   resolveVehicleAero,
+  resolveVehicleCabin,
   resolveVehicleDrivetrain,
   resolveVehicleFuelDefaults,
+  resolveVehicleIgnition,
 } from '@/systems/vehicle/vehicleResolvers'
+import {
+  ClimateSystem,
+  CLIMATE_CALIBRATION,
+  WindowSystem,
+  WINDOW_CALIBRATION,
+  IgnitionSystem,
+  IGNITION_CALIBRATION,
+  LightingSystem,
+  type FanLevel,
+  type ClimateStateSnapshot,
+  type WindowId,
+  type WindowStateSnapshot,
+  type IgnitionStateSnapshot,
+  type TurnSignalSelection,
+  type LightingStateSnapshot,
+} from '@/systems/cabin'
+import type { IgnitionPosition, IgnitionStartInterlock, IgnitionType } from '@/types/vehicle'
 import type { SensorPermissionState, SteeringMethod } from '@/systems/input'
 import { MAX_SUBSTEPS } from '@/systems/engine/constants'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
@@ -131,6 +150,10 @@ export interface SimulationRuntimeCandidate {
   transmission: TransmissionSnapshot
   autoTransmission: AutoTransmissionSnapshot | null
   physics: VehiclePhysicsSnapshot
+  climate?: ClimateStateSnapshot
+  windows?: WindowStateSnapshot
+  ignition?: IgnitionStateSnapshot
+  lighting?: LightingStateSnapshot
 }
 
 /**
@@ -181,6 +204,16 @@ function cloneRuntimeCandidate(candidate: SimulationRuntimeCandidate): Simulatio
     transmission: { ...candidate.transmission },
     autoTransmission: candidate.autoTransmission ? { ...candidate.autoTransmission } : null,
     physics: { ...candidate.physics },
+    climate: candidate.climate ? { ...candidate.climate } : undefined,
+    windows: candidate.windows
+      ? {
+          ...candidate.windows,
+          positions: { ...candidate.windows.positions },
+          targets: { ...candidate.windows.targets },
+        }
+      : undefined,
+    ignition: candidate.ignition ? { ...candidate.ignition } : undefined,
+    lighting: candidate.lighting ? { ...candidate.lighting } : undefined,
   }
 }
 
@@ -319,7 +352,17 @@ interface SimulationActions {
   /** Alterna ativação de Pops & Bangs */
   togglePopsAndBangs: () => void
   /** Liga o motor (ou aciona arranque se parado/estolado) */
-  startEngine: () => void
+  startEngine: (options?: { enforceInterlock?: boolean }) => void
+  /** Solicita partida do motor respeitando estritamente o contrato `startInterlock` da ignição */
+  requestEngineStart: (enforceInterlock?: boolean) => boolean
+  /** Define posição da chave/comutador de ignição (OFF, ACC, ON, CRANK) */
+  setIgnitionPosition: (pos: IgnitionPosition, enforceInterlock?: boolean) => boolean
+  /** Avança um estágio na chave física (OFF -> ACC -> ON -> CRANK) ou botão Start/Stop */
+  advanceIgnition: (enforceInterlock?: boolean) => boolean
+  /** Retorna um estágio na chave física (ON -> ACC -> OFF) */
+  stepBackIgnitionKey: () => void
+  /** Define estado de descarga da bateria para simulação de falha de partida */
+  setBatteryDischarged: (discharged: boolean) => void
   /** Desliga o motor */
   stopEngine: () => void
   /** Define a posição do acelerador (0-1) */
@@ -376,15 +419,40 @@ interface SimulationActions {
   triggerBackfireFlame: () => void
   /** Oficina de Preparação (Stage 0 Stock, Stage 1, Stage 2, Stage 3) */
   setTuningStage: (stage: 0 | 1 | 2 | 3) => void
-  /** Controle de Faróis (Desligado, Lanterna, Farol Baixo, Farol Alto) */
+  /** Controle de Faróis, Neblina e Setas / Pisca-Alerta */
   cycleHeadlights: () => void
   setHeadlightsMode: (mode: 'off' | 'parking' | 'low' | 'high') => void
+  toggleFogLights: () => void
+  setFogLightsEnabled: (enabled: boolean) => void
+  toggleLeftTurnSignal: () => void
+  toggleRightTurnSignal: () => void
+  setTurnSignal: (selection: TurnSignalSelection) => void
+  toggleHazardLights: () => void
+  setHazardLights: (enabled: boolean) => void
   /** Clima & Limpadores */
   toggleRain: () => void
   toggleWipers: () => void
-  /** Vidros Elétricos & Acústica */
+  /** Sistema de Climatização da Cabine (ClimateSystem) */
+  setClimateAcEnabled: (enabled: boolean) => void
+  toggleClimateAc: () => void
+  setClimateTargetTempC: (tempC: number) => void
+  stepClimateTargetTempC: (deltaC: number) => void
+  setClimateFanLevel: (level: FanLevel) => void
+  setClimateAutoMode: (enabled: boolean) => void
+  toggleClimateAutoMode: () => void
+  setClimateRecirculation: (enabled: boolean) => void
+  toggleClimateRecirculation: () => void
+  setClimateHeaterEnabled: (enabled: boolean) => void
+  toggleClimateHeater: () => void
+  setClimateDefrosterEnabled: (enabled: boolean) => void
+  toggleClimateDefroster: () => void
+  setAmbientTempC: (tempC: number) => void
+  /** Vidros Elétricos / Manivela & Acústica (WindowSystem) */
   toggleWindows: () => void
   setWindowsOpen: (open: boolean) => void
+  setWindowPosition: (id: WindowId, openRatio: number) => void
+  setWindowTarget: (id: WindowId, targetRatio: number) => void
+  stepWindowPosition: (id: WindowId, deltaRatio: number) => void
   /** Alternador de Câmbio: Sequencial (+/-) vs H-Shifter (1ª-6ª + Ré) */
   setShifterLayout: (layout: 'sequential' | 'h_pattern') => void
   toggleShifterLayout: () => void
@@ -592,8 +660,48 @@ interface SimulationState {
   isBurningOut: boolean
   tireSmokeDensity: number
 
-  // Vidros Elétricos & H-Shifter
+  // Vidros Elétricos / Manivela, Climatização, Ignição, Iluminação & H-Shifter
   windowsOpen: boolean
+  windowPositions: Record<WindowId, number>
+  windowTargets: Record<WindowId, number>
+  windowAverageOpenRatio: number
+  windowAeroDragMultiplier: number
+  cabinNoiseLevel: number
+  cabinFilterCutoffHz: number
+  ambientTempC: number
+  cabinTempC: number
+  climateTargetTempC: number
+  climateAcEnabled: boolean
+  isCompressorEngaged: boolean
+  climateFanLevel: FanLevel
+  climateAutoMode: boolean
+  climateRecirculation: boolean
+  climateHeaterEnabled: boolean
+  climateDefrosterEnabled: boolean
+  compressorMechanicalPowerW: number
+  compressorLoadTorqueNm: number
+  blowerElectricalPowerW: number
+  ignitionPosition: IgnitionPosition
+  ignitionType: IgnitionType
+  ignitionStartInterlock: IgnitionStartInterlock
+  batteryVoltageV: number
+  isBatteryDischarged: boolean
+  ignitionStartAttempts: number
+  ignitionFailedAttempts: number
+  ignitionFailureReason: string | null
+  fogLightsEnabled: boolean
+  hasFogLights: boolean
+  turnSignal: TurnSignalSelection
+  leftTurnSignal: boolean
+  rightTurnSignal: boolean
+  hazardLights: boolean
+  leftIndicatorLit: boolean
+  rightIndicatorLit: boolean
+  hazardIndicatorLit: boolean
+  parkingLightsLit: boolean
+  lowBeamLit: boolean
+  highBeamLit: boolean
+  fogLightsLit: boolean
   shifterLayout: 'sequential' | 'h_pattern'
   isGearGrinding: boolean
   gearGrindTrigger: number
@@ -620,6 +728,10 @@ interface SimulationState {
   _physics: VehiclePhysics | null
   _tcs: TractionControlSystem | null
   _pedalInput: PedalInputSystem | null
+  _climate: ClimateSystem | null
+  _windows: WindowSystem | null
+  _ignition: IgnitionSystem | null
+  _lighting: LightingSystem | null
   _config: VehicleConfig | null
   _accumulator: number
   _isInitialized: boolean
@@ -760,8 +872,48 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isBurningOut: false,
   tireSmokeDensity: 0,
 
-  // Vidros Elétricos & H-Shifter
+  // Vidros Elétricos / Manivela, Climatização, Ignição, Iluminação & H-Shifter
   windowsOpen: false,
+  windowPositions: { front_left: 0, front_right: 0, rear_left: 0, rear_right: 0 },
+  windowTargets: { front_left: 0, front_right: 0, rear_left: 0, rear_right: 0 },
+  windowAverageOpenRatio: 0,
+  windowAeroDragMultiplier: 1.0,
+  cabinNoiseLevel: 0.18,
+  cabinFilterCutoffHz: WINDOW_CALIBRATION.CLOSED_CABIN_CUTOFF_HZ,
+  ambientTempC: CLIMATE_CALIBRATION.DEFAULT_AMBIENT_TEMP_C,
+  cabinTempC: CLIMATE_CALIBRATION.DEFAULT_AMBIENT_TEMP_C,
+  climateTargetTempC: CLIMATE_CALIBRATION.DEFAULT_TARGET_TEMP_C,
+  climateAcEnabled: false,
+  isCompressorEngaged: false,
+  climateFanLevel: 0,
+  climateAutoMode: false,
+  climateRecirculation: false,
+  climateHeaterEnabled: false,
+  climateDefrosterEnabled: false,
+  compressorMechanicalPowerW: 0,
+  compressorLoadTorqueNm: 0,
+  blowerElectricalPowerW: 0,
+  ignitionPosition: 'OFF',
+  ignitionType: 'key',
+  ignitionStartInterlock: 'none',
+  batteryVoltageV: IGNITION_CALIBRATION.BATTERY_REST_VOLTAGE_V,
+  isBatteryDischarged: false,
+  ignitionStartAttempts: 0,
+  ignitionFailedAttempts: 0,
+  ignitionFailureReason: null,
+  fogLightsEnabled: false,
+  hasFogLights: false,
+  turnSignal: 'off',
+  leftTurnSignal: false,
+  rightTurnSignal: false,
+  hazardLights: false,
+  leftIndicatorLit: false,
+  rightIndicatorLit: false,
+  hazardIndicatorLit: false,
+  parkingLightsLit: true,
+  lowBeamLit: true,
+  highBeamLit: false,
+  fogLightsLit: false,
   shifterLayout: 'sequential',
   isGearGrinding: false,
   gearGrindTrigger: 0,
@@ -787,6 +939,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   _physics: null,
   _tcs: null,
   _pedalInput: null,
+  _climate: null,
+  _windows: null,
+  _ignition: null,
+  _lighting: null,
   _config: null,
   _accumulator: 0,
   _isInitialized: false,
@@ -843,6 +999,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     const tcs = new TractionControlSystem()
     const pedalInput = new PedalInputSystem()
+    const resolvedCabin = resolveVehicleCabin(config)
+    const resolvedIgnition = resolveVehicleIgnition(config)
+    const climate = new ClimateSystem(resolvedCabin)
+    const windows = new WindowSystem(resolvedCabin)
+    const ignition = new IgnitionSystem(resolvedIgnition)
+    const lighting = new LightingSystem(resolvedCabin)
 
     const defaultTransMode: TransmissionMode = isAutoOrCvt ? 'automatic' : 'manual'
     const defaultDriveMode: DrivingMode = caps.defaultDrivingMode
@@ -867,6 +1029,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       transmission: transmission.getStateSnapshot(),
       autoTransmission: autoTransmission ? autoTransmission.getStateSnapshot() : null,
       physics: physics.getStateSnapshot(),
+      climate: climate.getStateSnapshot(),
+      windows: windows.getStateSnapshot(),
+      ignition: ignition.getStateSnapshot(),
+      lighting: lighting.getStateSnapshot(),
     }
 
     const integrator = new DeterministicIntegrator<SimulationRuntimeCandidate, SimulationSubstepContext>(
@@ -897,6 +1063,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _physics: physics,
       _tcs: tcs,
       _pedalInput: pedalInput,
+      _climate: climate,
+      _windows: windows,
+      _ignition: ignition,
+      _lighting: lighting,
       _config: config,
       _isInitialized: true,
       _integrator: integrator,
@@ -1014,6 +1184,46 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isBurningOut: false,
       tireSmokeDensity: 0,
       windowsOpen: false,
+      windowPositions: windows.getStateSnapshot().positions,
+      windowTargets: windows.getStateSnapshot().targets,
+      windowAverageOpenRatio: 0,
+      windowAeroDragMultiplier: 1.0,
+      cabinNoiseLevel: windows.getCabinNoiseLevel(),
+      cabinFilterCutoffHz: windows.getCabinFilterCutoffHz(),
+      ambientTempC: climate.getAmbientTempC(),
+      cabinTempC: climate.getCabinTempC(),
+      climateTargetTempC: climate.getTargetTempC(),
+      climateAcEnabled: false,
+      isCompressorEngaged: false,
+      climateFanLevel: 0,
+      climateAutoMode: false,
+      climateRecirculation: false,
+      climateHeaterEnabled: false,
+      climateDefrosterEnabled: false,
+      compressorMechanicalPowerW: 0,
+      compressorLoadTorqueNm: 0,
+      blowerElectricalPowerW: 0,
+      ignitionPosition: 'OFF',
+      ignitionType: resolvedIgnition.type,
+      ignitionStartInterlock: resolvedIgnition.startInterlock,
+      batteryVoltageV: ignition.getBatteryVoltageV(),
+      isBatteryDischarged: false,
+      ignitionStartAttempts: 0,
+      ignitionFailedAttempts: 0,
+      ignitionFailureReason: null,
+      fogLightsEnabled: false,
+      hasFogLights: lighting.supportsFogLights(),
+      turnSignal: 'off',
+      leftTurnSignal: false,
+      rightTurnSignal: false,
+      hazardLights: false,
+      leftIndicatorLit: false,
+      rightIndicatorLit: false,
+      hazardIndicatorLit: false,
+      parkingLightsLit: true,
+      lowBeamLit: true,
+      highBeamLit: false,
+      fogLightsLit: false,
       isMapOpen: true,
       mapViewportSize: 'balanced',
       shifterLayout: !isAutoOrCvt ? 'h_pattern' : 'sequential',
@@ -1029,14 +1239,16 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     })
   },
 
-  startEngine: () => {
+  startEngine: (options?: { enforceInterlock?: boolean }) => {
     const {
       _engine,
+      _ignition,
       transmissionMode,
       _transmission,
       _clutch,
       currentGear,
       clutchPosition,
+      brake,
       isEngineBlown,
       isOutOfFuel,
     } = get()
@@ -1045,16 +1257,64 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     // Se já estiver no processo de partida (cranking), ignora para evitar reiniciar o arranque
     if (_engine.getStatus() === 'starting') return
 
-    if (isEngineBlown) {
-      HapticFeedback.light()
-      set({ isRunning: false, isStalled: true, status: 'stalled' })
-      return
-    }
+    const enforceInterlock = options?.enforceInterlock ?? false
+    if (_ignition) {
+      const attempt = _ignition.attemptCrank({
+        brake,
+        clutch: clutchPosition,
+        engineStatus: _engine.getStatus(),
+        isEngineBlown,
+        isOutOfFuel,
+        enforceInterlock,
+      })
+      const ignSnap = _ignition.getStateSnapshot()
+      if (!attempt.shouldStartEngine) {
+        HapticFeedback.light()
+        if (isEngineBlown) {
+          set({
+            isRunning: false,
+            isStalled: true,
+            status: 'stalled',
+            ignitionPosition: ignSnap.position,
+            ignitionStartAttempts: ignSnap.startAttempts,
+            ignitionFailedAttempts: ignSnap.failedAttempts,
+            ignitionFailureReason: ignSnap.lastFailureReason,
+          })
+          return
+        }
+        if (isOutOfFuel) {
+          set({
+            isRunning: false,
+            isStalled: true,
+            status: 'stalled',
+            damageReason: 'Pane Seca: Sem combustível!',
+            ignitionPosition: ignSnap.position,
+            ignitionStartAttempts: ignSnap.startAttempts,
+            ignitionFailedAttempts: ignSnap.failedAttempts,
+            ignitionFailureReason: ignSnap.lastFailureReason,
+          })
+          return
+        }
+        set({
+          ignitionPosition: ignSnap.position,
+          ignitionStartAttempts: ignSnap.startAttempts,
+          ignitionFailedAttempts: ignSnap.failedAttempts,
+          ignitionFailureReason: ignSnap.lastFailureReason,
+        })
+        return
+      }
+    } else {
+      if (isEngineBlown) {
+        HapticFeedback.light()
+        set({ isRunning: false, isStalled: true, status: 'stalled' })
+        return
+      }
 
-    if (isOutOfFuel) {
-      HapticFeedback.light()
-      set({ isRunning: false, isStalled: true, status: 'stalled', damageReason: 'Pane Seca: Sem combustível!' })
-      return
+      if (isOutOfFuel) {
+        HapticFeedback.light()
+        set({ isRunning: false, isStalled: true, status: 'stalled', damageReason: 'Pane Seca: Sem combustível!' })
+        return
+      }
     }
 
     // Em veículos manuais, se estiver engatado sem a embreagem pressionada,
@@ -1087,6 +1347,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     phys.gear = startedGear
     phys.damageReason = null
 
+    const ignSnap = _ignition?.getStateSnapshot()
     set({
       isRunning: startedRunning,
       isStalled: false,
@@ -1094,14 +1355,122 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       rpm: startedRpm,
       currentGear: startedGear,
       damageReason: null,
+      ignitionPosition: ignSnap?.position ?? 'CRANK',
+      ignitionStartAttempts: ignSnap?.startAttempts ?? get().ignitionStartAttempts + 1,
+      ignitionFailedAttempts: ignSnap?.failedAttempts ?? get().ignitionFailedAttempts,
+      ignitionFailureReason: null,
+    })
+  },
+
+  requestEngineStart: (enforceInterlock = true) => {
+    const prevAttempts = get().ignitionFailedAttempts
+    get().startEngine({ enforceInterlock })
+    const st = get()
+    return st.status === 'starting' || st.isRunning || st.ignitionFailedAttempts === prevAttempts
+  },
+
+  setIgnitionPosition: (pos: IgnitionPosition, enforceInterlock = true) => {
+    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel } = get()
+    if (!_ignition) return false
+
+    if (pos === 'CRANK') {
+      return get().requestEngineStart(enforceInterlock)
+    }
+
+    const result = _ignition.setPosition(pos, {
+      brake,
+      clutch: clutchPosition,
+      engineStatus: _engine?.getStatus() ?? 'off',
+      isEngineBlown,
+      isOutOfFuel,
+      enforceInterlock,
+    })
+
+    if (result.shouldStopEngine && _engine && (_engine.getIsRunning() || _engine.getStatus() === 'starting')) {
+      get().stopEngine()
+    }
+
+    const snap = _ignition.getStateSnapshot()
+    set({
+      ignitionPosition: snap.position,
+      batteryVoltageV: snap.batteryVoltageV,
+      isBatteryDischarged: snap.isBatteryDischarged,
+      ignitionStartAttempts: snap.startAttempts,
+      ignitionFailedAttempts: snap.failedAttempts,
+      ignitionFailureReason: snap.lastFailureReason,
+    })
+    HapticFeedback.light()
+    return result.failureReason === null
+  },
+
+  advanceIgnition: (enforceInterlock = true) => {
+    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel } = get()
+    if (!_ignition) return false
+
+    const result = _ignition.advanceStage({
+      brake,
+      clutch: clutchPosition,
+      engineStatus: _engine?.getStatus() ?? 'off',
+      isEngineBlown,
+      isOutOfFuel,
+      enforceInterlock,
+    })
+
+    if (result.shouldStartEngine) {
+      // Executa partida mecânica (interlock já validado acima)
+      get().startEngine({ enforceInterlock: false })
+      return true
+    }
+
+    if (result.shouldStopEngine) {
+      get().stopEngine()
+    }
+
+    const snap = _ignition.getStateSnapshot()
+    set({
+      ignitionPosition: snap.position,
+      batteryVoltageV: snap.batteryVoltageV,
+      isBatteryDischarged: snap.isBatteryDischarged,
+      ignitionStartAttempts: snap.startAttempts,
+      ignitionFailedAttempts: snap.failedAttempts,
+      ignitionFailureReason: snap.lastFailureReason,
+    })
+    HapticFeedback.light()
+    return result.failureReason === null
+  },
+
+  stepBackIgnitionKey: () => {
+    const { _ignition } = get()
+    if (!_ignition) return
+    const res = _ignition.stepBackKey()
+    if (res.shouldStopEngine) {
+      get().stopEngine()
+    }
+    const snap = _ignition.getStateSnapshot()
+    set({
+      ignitionPosition: snap.position,
+      ignitionFailureReason: snap.lastFailureReason,
+    })
+    HapticFeedback.light()
+  },
+
+  setBatteryDischarged: (discharged: boolean) => {
+    const { _ignition } = get()
+    _ignition?.setBatteryDischarged(discharged)
+    const snap = _ignition?.getStateSnapshot()
+    set({
+      isBatteryDischarged: Boolean(discharged),
+      batteryVoltageV: snap?.batteryVoltageV ?? (discharged ? 8.4 : IGNITION_CALIBRATION.BATTERY_REST_VOLTAGE_V),
     })
   },
 
   stopEngine: () => {
-    const { _engine, _transmission, transmissionMode, _phys } = get()
+    const { _engine, _ignition, _transmission, transmissionMode, _phys } = get()
     if (!_engine) return
 
     _engine.stop()
+    _engine.setAccessoryLoadTorque(0)
+    _ignition?.setPosition('OFF')
     if (transmissionMode === 'manual') {
       _transmission?.reset()
     }
@@ -1122,6 +1491,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isKickdown: false,
       tcsIntervening: false,
       tcsInterventionLevel: 0,
+      ignitionPosition: 'OFF',
+      isCompressorEngaged: false,
+      compressorMechanicalPowerW: 0,
+      compressorLoadTorqueNm: 0,
     })
   },
 
@@ -1332,16 +1705,308 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   cycleHeadlights: () => {
-    const modes: ('off' | 'parking' | 'low' | 'high')[] = ['off', 'parking', 'low', 'high']
-    const current = get().headlightsMode
-    const nextIdx = (modes.indexOf(current) + 1) % modes.length
-    set({ headlightsMode: modes[nextIdx] })
+    const { _lighting } = get()
+    if (_lighting) {
+      _lighting.cycleHeadlightsMode()
+      const snap = _lighting.getStateSnapshot()
+      set({
+        headlightsMode: snap.headlightsMode,
+        fogLightsEnabled: snap.fogLightsEnabled,
+        parkingLightsLit: snap.parkingLightsLit,
+        lowBeamLit: snap.lowBeamLit,
+        highBeamLit: snap.highBeamLit,
+        fogLightsLit: snap.fogLightsLit,
+      })
+    } else {
+      const modes: ('off' | 'parking' | 'low' | 'high')[] = ['off', 'parking', 'low', 'high']
+      const current = get().headlightsMode
+      const nextIdx = (modes.indexOf(current) + 1) % modes.length
+      set({ headlightsMode: modes[nextIdx] })
+    }
     HapticFeedback.light()
   },
 
   setHeadlightsMode: (mode: 'off' | 'parking' | 'low' | 'high') => {
-    set({ headlightsMode: mode })
+    const { _lighting } = get()
+    if (_lighting) {
+      _lighting.setHeadlightsMode(mode)
+      const snap = _lighting.getStateSnapshot()
+      set({
+        headlightsMode: snap.headlightsMode,
+        fogLightsEnabled: snap.fogLightsEnabled,
+        parkingLightsLit: snap.parkingLightsLit,
+        lowBeamLit: snap.lowBeamLit,
+        highBeamLit: snap.highBeamLit,
+        fogLightsLit: snap.fogLightsLit,
+      })
+    } else {
+      set({ headlightsMode: mode })
+    }
     HapticFeedback.light()
+  },
+
+  toggleFogLights: () => {
+    const { _lighting } = get()
+    if (!_lighting) return
+    _lighting.toggleFogLights()
+    const snap = _lighting.getStateSnapshot()
+    set({
+      headlightsMode: snap.headlightsMode,
+      fogLightsEnabled: snap.fogLightsEnabled,
+      parkingLightsLit: snap.parkingLightsLit,
+      lowBeamLit: snap.lowBeamLit,
+      highBeamLit: snap.highBeamLit,
+      fogLightsLit: snap.fogLightsLit,
+    })
+    HapticFeedback.light()
+  },
+
+  setFogLightsEnabled: (enabled: boolean) => {
+    const { _lighting } = get()
+    if (!_lighting) return
+    _lighting.setFogLightsEnabled(enabled)
+    const snap = _lighting.getStateSnapshot()
+    set({
+      headlightsMode: snap.headlightsMode,
+      fogLightsEnabled: snap.fogLightsEnabled,
+      parkingLightsLit: snap.parkingLightsLit,
+      lowBeamLit: snap.lowBeamLit,
+      highBeamLit: snap.highBeamLit,
+      fogLightsLit: snap.fogLightsLit,
+    })
+    HapticFeedback.light()
+  },
+
+  toggleLeftTurnSignal: () => {
+    const { _lighting } = get()
+    if (!_lighting) return
+    _lighting.toggleLeftTurnSignal()
+    const snap = _lighting.getStateSnapshot()
+    set({
+      turnSignal: snap.turnSignal,
+      leftTurnSignal: snap.leftTurnSignal,
+      rightTurnSignal: snap.rightTurnSignal,
+      leftIndicatorLit: snap.leftIndicatorLit,
+      rightIndicatorLit: snap.rightIndicatorLit,
+      hazardIndicatorLit: snap.hazardIndicatorLit,
+    })
+    HapticFeedback.light()
+  },
+
+  toggleRightTurnSignal: () => {
+    const { _lighting } = get()
+    if (!_lighting) return
+    _lighting.toggleRightTurnSignal()
+    const snap = _lighting.getStateSnapshot()
+    set({
+      turnSignal: snap.turnSignal,
+      leftTurnSignal: snap.leftTurnSignal,
+      rightTurnSignal: snap.rightTurnSignal,
+      leftIndicatorLit: snap.leftIndicatorLit,
+      rightIndicatorLit: snap.rightIndicatorLit,
+      hazardIndicatorLit: snap.hazardIndicatorLit,
+    })
+    HapticFeedback.light()
+  },
+
+  setTurnSignal: (selection: TurnSignalSelection) => {
+    const { _lighting } = get()
+    if (!_lighting) return
+    _lighting.setTurnSignal(selection)
+    const snap = _lighting.getStateSnapshot()
+    set({
+      turnSignal: snap.turnSignal,
+      leftTurnSignal: snap.leftTurnSignal,
+      rightTurnSignal: snap.rightTurnSignal,
+      leftIndicatorLit: snap.leftIndicatorLit,
+      rightIndicatorLit: snap.rightIndicatorLit,
+      hazardIndicatorLit: snap.hazardIndicatorLit,
+    })
+    HapticFeedback.light()
+  },
+
+  toggleHazardLights: () => {
+    const { _lighting } = get()
+    if (!_lighting) return
+    _lighting.toggleHazardLights()
+    const snap = _lighting.getStateSnapshot()
+    set({
+      hazardLights: snap.hazardLights,
+      leftIndicatorLit: snap.leftIndicatorLit,
+      rightIndicatorLit: snap.rightIndicatorLit,
+      hazardIndicatorLit: snap.hazardIndicatorLit,
+    })
+    HapticFeedback.light()
+  },
+
+  setHazardLights: (enabled: boolean) => {
+    const { _lighting } = get()
+    if (!_lighting) return
+    _lighting.setHazardLights(enabled)
+    const snap = _lighting.getStateSnapshot()
+    set({
+      hazardLights: snap.hazardLights,
+      leftIndicatorLit: snap.leftIndicatorLit,
+      rightIndicatorLit: snap.rightIndicatorLit,
+      hazardIndicatorLit: snap.hazardIndicatorLit,
+    })
+    HapticFeedback.light()
+  },
+
+  setClimateAcEnabled: (enabled: boolean) => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.setAcEnabled(enabled)
+    const snap = _climate.getStateSnapshot()
+    set({
+      climateAcEnabled: snap.acEnabled,
+      climateFanLevel: snap.fanLevel,
+      isCompressorEngaged: snap.isCompressorEngaged,
+    })
+    HapticFeedback.light()
+  },
+
+  toggleClimateAc: () => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.toggleAc()
+    const snap = _climate.getStateSnapshot()
+    set({
+      climateAcEnabled: snap.acEnabled,
+      climateFanLevel: snap.fanLevel,
+      isCompressorEngaged: snap.isCompressorEngaged,
+    })
+    HapticFeedback.light()
+  },
+
+  setClimateTargetTempC: (tempC: number) => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.setTargetTempC(tempC)
+    set({ climateTargetTempC: _climate.getTargetTempC() })
+    HapticFeedback.light()
+  },
+
+  stepClimateTargetTempC: (deltaC: number) => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.stepTargetTempC(deltaC)
+    set({ climateTargetTempC: _climate.getTargetTempC() })
+    HapticFeedback.light()
+  },
+
+  setClimateFanLevel: (level: FanLevel) => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.setFanLevel(level)
+    const snap = _climate.getStateSnapshot()
+    set({
+      climateFanLevel: snap.fanLevel,
+      climateAutoMode: snap.autoMode,
+    })
+    HapticFeedback.light()
+  },
+
+  setClimateAutoMode: (enabled: boolean) => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.setAutoMode(enabled)
+    const snap = _climate.getStateSnapshot()
+    set({
+      climateAutoMode: snap.autoMode,
+      climateAcEnabled: snap.acEnabled,
+      climateHeaterEnabled: snap.heaterEnabled,
+      climateFanLevel: snap.fanLevel,
+    })
+    HapticFeedback.light()
+  },
+
+  toggleClimateAutoMode: () => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.toggleAutoMode()
+    const snap = _climate.getStateSnapshot()
+    set({
+      climateAutoMode: snap.autoMode,
+      climateAcEnabled: snap.acEnabled,
+      climateHeaterEnabled: snap.heaterEnabled,
+      climateFanLevel: snap.fanLevel,
+    })
+    HapticFeedback.light()
+  },
+
+  setClimateRecirculation: (enabled: boolean) => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.setRecirculation(enabled)
+    set({ climateRecirculation: _climate.isRecirculationEnabled() })
+    HapticFeedback.light()
+  },
+
+  toggleClimateRecirculation: () => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.toggleRecirculation()
+    set({ climateRecirculation: _climate.isRecirculationEnabled() })
+    HapticFeedback.light()
+  },
+
+  setClimateHeaterEnabled: (enabled: boolean) => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.setHeaterEnabled(enabled)
+    const snap = _climate.getStateSnapshot()
+    set({
+      climateHeaterEnabled: snap.heaterEnabled,
+      climateFanLevel: snap.fanLevel,
+    })
+    HapticFeedback.light()
+  },
+
+  toggleClimateHeater: () => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.toggleHeater()
+    const snap = _climate.getStateSnapshot()
+    set({
+      climateHeaterEnabled: snap.heaterEnabled,
+      climateFanLevel: snap.fanLevel,
+    })
+    HapticFeedback.light()
+  },
+
+  setClimateDefrosterEnabled: (enabled: boolean) => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.setDefrosterEnabled(enabled)
+    const snap = _climate.getStateSnapshot()
+    set({
+      climateDefrosterEnabled: snap.defrosterEnabled,
+      climateFanLevel: snap.fanLevel,
+    })
+    HapticFeedback.light()
+  },
+
+  toggleClimateDefroster: () => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.toggleDefroster()
+    const snap = _climate.getStateSnapshot()
+    set({
+      climateDefrosterEnabled: snap.defrosterEnabled,
+      climateFanLevel: snap.fanLevel,
+    })
+    HapticFeedback.light()
+  },
+
+  setAmbientTempC: (tempC: number) => {
+    const { _climate } = get()
+    if (!_climate) return
+    _climate.setAmbientTempC(tempC)
+    set({
+      ambientTempC: _climate.getAmbientTempC(),
+      cabinTempC: _climate.getCabinTempC(),
+    })
   },
 
   toggleRain: () => {
@@ -1794,13 +2459,91 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   toggleWindows: () => {
-    const next = !get().windowsOpen
-    set({ windowsOpen: next })
+    const { _windows, _physics } = get()
+    if (_windows) {
+      if (_windows.getWindowCount() === 0) return
+      _windows.toggleAllWindows()
+      const snap = _windows.getStateSnapshot()
+      _physics?.setWindowAeroDragMultiplier(snap.aeroDragMultiplier)
+      set({
+        windowsOpen: snap.windowsOpen,
+        windowPositions: snap.positions,
+        windowTargets: snap.targets,
+        windowAverageOpenRatio: snap.averageOpenRatio,
+        windowAeroDragMultiplier: snap.aeroDragMultiplier,
+        cabinNoiseLevel: snap.cabinNoiseLevel,
+        cabinFilterCutoffHz: snap.cabinFilterCutoffHz,
+      })
+    } else {
+      const next = !get().windowsOpen
+      set({ windowsOpen: next })
+    }
     HapticFeedback.light()
   },
 
   setWindowsOpen: (open: boolean) => {
-    set({ windowsOpen: open })
+    const { _windows, _physics } = get()
+    if (_windows) {
+      _windows.setWindowsOpen(open)
+      const snap = _windows.getStateSnapshot()
+      _physics?.setWindowAeroDragMultiplier(snap.aeroDragMultiplier)
+      set({
+        windowsOpen: snap.windowsOpen,
+        windowPositions: snap.positions,
+        windowTargets: snap.targets,
+        windowAverageOpenRatio: snap.averageOpenRatio,
+        windowAeroDragMultiplier: snap.aeroDragMultiplier,
+        cabinNoiseLevel: snap.cabinNoiseLevel,
+        cabinFilterCutoffHz: snap.cabinFilterCutoffHz,
+      })
+    } else {
+      set({ windowsOpen: open })
+    }
+  },
+
+  setWindowPosition: (id: WindowId, openRatio: number) => {
+    const { _windows, _physics } = get()
+    if (!_windows) return
+    _windows.setWindowPosition(id, openRatio)
+    const snap = _windows.getStateSnapshot()
+    _physics?.setWindowAeroDragMultiplier(snap.aeroDragMultiplier)
+    set({
+      windowsOpen: snap.windowsOpen,
+      windowPositions: snap.positions,
+      windowTargets: snap.targets,
+      windowAverageOpenRatio: snap.averageOpenRatio,
+      windowAeroDragMultiplier: snap.aeroDragMultiplier,
+      cabinNoiseLevel: snap.cabinNoiseLevel,
+      cabinFilterCutoffHz: snap.cabinFilterCutoffHz,
+    })
+  },
+
+  setWindowTarget: (id: WindowId, targetRatio: number) => {
+    const { _windows } = get()
+    if (!_windows) return
+    _windows.setWindowTarget(id, targetRatio)
+    const snap = _windows.getStateSnapshot()
+    set({
+      windowTargets: snap.targets,
+    })
+  },
+
+  stepWindowPosition: (id: WindowId, deltaRatio: number) => {
+    const { _windows, _physics } = get()
+    if (!_windows) return
+    _windows.stepWindowPosition(id, deltaRatio)
+    const snap = _windows.getStateSnapshot()
+    _physics?.setWindowAeroDragMultiplier(snap.aeroDragMultiplier)
+    set({
+      windowsOpen: snap.windowsOpen,
+      windowPositions: snap.positions,
+      windowTargets: snap.targets,
+      windowAverageOpenRatio: snap.averageOpenRatio,
+      windowAeroDragMultiplier: snap.aeroDragMultiplier,
+      cabinNoiseLevel: snap.cabinNoiseLevel,
+      cabinFilterCutoffHz: snap.cabinFilterCutoffHz,
+    })
+    HapticFeedback.light()
   },
 
   setShifterLayout: (layout: 'sequential' | 'h_pattern') => {
@@ -2150,7 +2893,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   update: (frameTime: number) => {
     const state = get()
-    const { _engine, _transmission, _autoTransmission, _clutch, _physics, _tcs, _config, _integrator } = state
+    const {
+      _engine,
+      _transmission,
+      _autoTransmission,
+      _clutch,
+      _physics,
+      _tcs,
+      _climate,
+      _windows,
+      _ignition,
+      _lighting,
+      _config,
+      _integrator,
+    } = state
 
     if (!_engine || !_transmission || !_clutch || !_physics || !_config || !_integrator) return
 
@@ -2287,6 +3043,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     currentCandidate.transmission = _transmission.getStateSnapshot()
     currentCandidate.autoTransmission = _autoTransmission ? _autoTransmission.getStateSnapshot() : null
     currentCandidate.physics = _physics.getStateSnapshot()
+    currentCandidate.climate = _climate ? _climate.getStateSnapshot() : undefined
+    currentCandidate.windows = _windows ? _windows.getStateSnapshot() : undefined
+    currentCandidate.ignition = _ignition ? _ignition.getStateSnapshot() : undefined
+    currentCandidate.lighting = _lighting ? _lighting.getStateSnapshot() : undefined
     const syncSuccess = _integrator.setState(currentCandidate)
     if (!syncSuccess) {
       // Estado externo continha NaN/Infinito: ativa FAIL_SAFE_HOLD e restaura subsistemas
@@ -2322,9 +3082,45 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           _autoTransmission.restoreSnapshot(cand.autoTransmission)
         }
         _physics.restoreSnapshot(cand.physics)
+        if (_climate && cand.climate) _climate.restoreSnapshot(cand.climate)
+        if (_windows && cand.windows) _windows.restoreSnapshot(cand.windows)
+        if (_ignition && cand.ignition) _ignition.restoreSnapshot(cand.ignition)
+        if (_lighting && cand.lighting) _lighting.restoreSnapshot(cand.lighting)
 
         const substepPhys = cand.phys
         let substepTimer0to100 = cand.timer0to100State
+
+        // 0.1 Evolução a 120 Hz dos sistemas de Cabine (Vidros, Ignição, Climatização e Iluminação)
+        const winSnap = _windows ? _windows.tick(dt) : null
+        const ignSnap = _ignition
+          ? _ignition.tick({
+              deltaTime: dt,
+              engineStatus: _engine.getStatus(),
+              engineRpm: _engine.getRpm(),
+              isEngineBlown: substepPhys.isEngineBlown,
+              isOutOfFuel: substepPhys.isOutOfFuel,
+            })
+          : null
+        const climSnap = _climate
+          ? _climate.tick({
+              deltaTime: dt,
+              isEngineRunning: _engine.getIsRunning(),
+              engineRpm: _engine.getRpm(),
+              coolantTempC: substepPhys.coolantTemp,
+              ignitionPosition: ignSnap?.position ?? (_engine.getIsRunning() ? 'ON' : 'OFF'),
+              windowOpenRatio: winSnap?.averageOpenRatio ?? 0,
+              isRaining: ctx.isRaining,
+              speedKmh: substepPhys.speedKmh,
+            })
+          : null
+        if (_lighting) {
+          _lighting.tick(dt)
+        }
+
+        // Ponto único de aplicação da carga mecânica do compressor de A/C no virabrequim
+        _engine.setAccessoryLoadTorque(climSnap?.compressorLoadTorqueNm ?? 0)
+        // Ponto único de aplicação do modificador aerodinâmico de vidros abertos
+        _physics.setWindowAeroDragMultiplier(winSnap?.aeroDragMultiplier ?? 1.0)
 
         substepPhys.rpm = _engine.getRpm()
         substepPhys.gear = _transmission.currentGear
@@ -2982,6 +3778,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         cand.transmission = _transmission.getStateSnapshot()
         cand.autoTransmission = _autoTransmission ? _autoTransmission.getStateSnapshot() : null
         cand.physics = _physics.getStateSnapshot()
+        cand.climate = _climate ? _climate.getStateSnapshot() : undefined
+        cand.windows = _windows ? _windows.getStateSnapshot() : undefined
+        cand.ignition = _ignition ? _ignition.getStateSnapshot() : undefined
+        cand.lighting = _lighting ? _lighting.getStateSnapshot() : undefined
         cand.phys = substepPhys
         cand.timer0to100State = substepTimer0to100
 
@@ -3017,6 +3817,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _autoTransmission.restoreSnapshot(stepResult.state.autoTransmission)
     }
     _physics.restoreSnapshot(stepResult.state.physics)
+    if (_climate && stepResult.state.climate) _climate.restoreSnapshot(stepResult.state.climate)
+    if (_windows && stepResult.state.windows) _windows.restoreSnapshot(stepResult.state.windows)
+    if (_ignition && stepResult.state.ignition) _ignition.restoreSnapshot(stepResult.state.ignition)
+    if (_lighting && stepResult.state.lighting) _lighting.restoreSnapshot(stepResult.state.lighting)
+
+    const committedClimate = stepResult.state.climate ?? _climate?.getStateSnapshot()
+    const committedWindows = stepResult.state.windows ?? _windows?.getStateSnapshot()
+    const committedIgnition = stepResult.state.ignition ?? _ignition?.getStateSnapshot()
+    const committedLighting = stepResult.state.lighting ?? _lighting?.getStateSnapshot()
 
     const prevPhys = stepResult.previousState.phys
     const currPhys = stepResult.state.phys
@@ -3054,6 +3863,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const wasBrakeFade = state.brakeDiscTemp > 650
     const isBrakeFade = phys.brakeDiscTemp > 650
 
+    const hasCabinCriticalEvent =
+      (committedIgnition !== undefined && committedIgnition.position !== state.ignitionPosition) ||
+      (committedLighting !== undefined &&
+        (committedLighting.leftIndicatorLit !== state.leftIndicatorLit ||
+          committedLighting.rightIndicatorLit !== state.rightIndicatorLit ||
+          committedLighting.hazardIndicatorLit !== state.hazardIndicatorLit)) ||
+      (committedWindows !== undefined &&
+        Math.abs(committedWindows.averageOpenRatio - state.windowAverageOpenRatio) >= 0.01)
+
     const hasCriticalEvent =
       phys.isEngineBlown !== state.isEngineBlown ||
       phys.isOutOfFuel !== state.isOutOfFuel ||
@@ -3064,7 +3882,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       timer0to100State.isTiming !== state.isTiming0to100 ||
       timer0to100State.lastCompleted !== state.last0to100 ||
       phys.isBrakeGlowing !== state.isBrakeGlowing ||
-      phys.nosActive !== state.nosActive
+      phys.nosActive !== state.nosActive ||
+      hasCabinCriticalEvent
 
     const hasSlowThresholdCrossed =
       phys.isEngineBlown !== state.isEngineBlown ||
@@ -3224,6 +4043,62 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _dragDistanceTraveled: phys.dragDistanceTraveled,
       _dragTimerStart: phys.dragTimerStart,
       downforceN: Math.round(_physics.getDownforceN()),
+      ...(committedWindows
+        ? {
+            windowsOpen: committedWindows.windowsOpen,
+            windowPositions: committedWindows.positions,
+            windowTargets: committedWindows.targets,
+            windowAverageOpenRatio: Math.round(committedWindows.averageOpenRatio * 1000) / 1000,
+            windowAeroDragMultiplier: Math.round(committedWindows.aeroDragMultiplier * 10000) / 10000,
+            cabinNoiseLevel: Math.round(committedWindows.cabinNoiseLevel * 1000) / 1000,
+            cabinFilterCutoffHz: committedWindows.cabinFilterCutoffHz,
+          }
+        : {}),
+      ...(committedClimate
+        ? {
+            ambientTempC: Math.round(committedClimate.ambientTempC * 10) / 10,
+            cabinTempC: Math.round(committedClimate.cabinTempC * 10) / 10,
+            climateTargetTempC: committedClimate.targetTempC,
+            climateAcEnabled: committedClimate.acEnabled,
+            isCompressorEngaged: committedClimate.isCompressorEngaged,
+            climateFanLevel: committedClimate.fanLevel,
+            climateAutoMode: committedClimate.autoMode,
+            climateRecirculation: committedClimate.recirculation,
+            climateHeaterEnabled: committedClimate.heaterEnabled,
+            climateDefrosterEnabled: committedClimate.defrosterEnabled,
+            compressorMechanicalPowerW: Math.round(committedClimate.compressorMechanicalPowerW),
+            compressorLoadTorqueNm: Math.round(committedClimate.compressorLoadTorqueNm * 100) / 100,
+            blowerElectricalPowerW: Math.round(committedClimate.blowerElectricalPowerW),
+          }
+        : {}),
+      ...(committedIgnition
+        ? {
+            ignitionPosition: committedIgnition.position,
+            batteryVoltageV: Math.round(committedIgnition.batteryVoltageV * 100) / 100,
+            isBatteryDischarged: committedIgnition.isBatteryDischarged,
+            ignitionStartAttempts: committedIgnition.startAttempts,
+            ignitionFailedAttempts: committedIgnition.failedAttempts,
+            ignitionFailureReason: committedIgnition.lastFailureReason,
+          }
+        : {}),
+      ...(committedLighting
+        ? {
+            headlightsMode: committedLighting.headlightsMode,
+            fogLightsEnabled: committedLighting.fogLightsEnabled,
+            hasFogLights: committedLighting.hasFogLights,
+            turnSignal: committedLighting.turnSignal,
+            leftTurnSignal: committedLighting.leftTurnSignal,
+            rightTurnSignal: committedLighting.rightTurnSignal,
+            hazardLights: committedLighting.hazardLights,
+            leftIndicatorLit: committedLighting.leftIndicatorLit,
+            rightIndicatorLit: committedLighting.rightIndicatorLit,
+            hazardIndicatorLit: committedLighting.hazardIndicatorLit,
+            parkingLightsLit: committedLighting.parkingLightsLit,
+            lowBeamLit: committedLighting.lowBeamLit,
+            highBeamLit: committedLighting.highBeamLit,
+            fogLightsLit: committedLighting.fogLightsLit,
+          }
+        : {}),
     })
   },
 
@@ -3299,6 +4174,43 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isBurningOut: false,
       tireSmokeDensity: 0,
       windowsOpen: false,
+      windowPositions: { front_left: 0, front_right: 0, rear_left: 0, rear_right: 0 },
+      windowTargets: { front_left: 0, front_right: 0, rear_left: 0, rear_right: 0 },
+      windowAverageOpenRatio: 0,
+      windowAeroDragMultiplier: 1.0,
+      cabinNoiseLevel: 0.18,
+      cabinFilterCutoffHz: WINDOW_CALIBRATION.CLOSED_CABIN_CUTOFF_HZ,
+      ambientTempC: CLIMATE_CALIBRATION.DEFAULT_AMBIENT_TEMP_C,
+      cabinTempC: CLIMATE_CALIBRATION.DEFAULT_AMBIENT_TEMP_C,
+      climateTargetTempC: CLIMATE_CALIBRATION.DEFAULT_TARGET_TEMP_C,
+      climateAcEnabled: false,
+      isCompressorEngaged: false,
+      climateFanLevel: 0,
+      climateAutoMode: false,
+      climateRecirculation: false,
+      climateHeaterEnabled: false,
+      climateDefrosterEnabled: false,
+      compressorMechanicalPowerW: 0,
+      compressorLoadTorqueNm: 0,
+      blowerElectricalPowerW: 0,
+      ignitionPosition: 'OFF',
+      batteryVoltageV: IGNITION_CALIBRATION.BATTERY_REST_VOLTAGE_V,
+      isBatteryDischarged: false,
+      ignitionStartAttempts: 0,
+      ignitionFailedAttempts: 0,
+      ignitionFailureReason: null,
+      fogLightsEnabled: false,
+      turnSignal: 'off',
+      leftTurnSignal: false,
+      rightTurnSignal: false,
+      hazardLights: false,
+      leftIndicatorLit: false,
+      rightIndicatorLit: false,
+      hazardIndicatorLit: false,
+      parkingLightsLit: true,
+      lowBeamLit: true,
+      highBeamLit: false,
+      fogLightsLit: false,
       shifterLayout: isManual ? 'h_pattern' : 'sequential',
       isGearGrinding: false,
       gearGrindTrigger: 0,
@@ -3314,6 +4226,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _physics: null,
       _tcs: null,
       _pedalInput: null,
+      _climate: null,
+      _windows: null,
+      _ignition: null,
+      _lighting: null,
       _config: null,
       _accumulator: 0,
       _isInitialized: false,

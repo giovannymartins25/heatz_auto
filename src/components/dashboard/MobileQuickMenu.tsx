@@ -225,6 +225,12 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
             activeClass="bg-red-500/20 border-red-400 text-red-200"
             onClick={toggleMute}
           />
+          <Tile
+            icon="🎛️"
+            label="Cabine"
+            sub="PAINEL 3"
+            onClick={openAndClose(() => useUIStore.getState().setActiveCockpitPanel('controls'))}
+          />
         </div>
 
         {/* Garagem & Pista */}

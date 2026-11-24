@@ -140,5 +140,23 @@
     "coolantTempTarget": 90,
     "hasBoostGauge": true,
     "hasInfotainment": false
+  },
+  "ignition": {
+    "type": "key",
+    "startInterlock": "none",
+    "supportsAccessoryMode": true
+  },
+  "cabin": {
+    "climateType": "manual_vent",
+    "hasAcCompressor": false,
+    "hasHeater": true,
+    "hasSeatHeating": false,
+    "hasRecirculation": false,
+    "hasDefroster": true,
+    "windowCount": 2,
+    "windowControlType": "manual_crank",
+    "hasFogLights": true,
+    "hasAmbientLighting": false,
+    "defaultAmbientColor": "red"
   }
 }

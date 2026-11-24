@@ -59,6 +59,22 @@ export const BRAND_THEME_COLORS: Record<
     glow: 'rgba(225, 29, 72, 0.3)',
     badgeBg: 'bg-rose-500/10 text-rose-300 border-rose-500/30',
   },
+  bmw: {
+    accent: '#38bdf8',
+    border: 'border-cyan-500/30',
+    text: 'text-cyan-300',
+    bg: 'from-cyan-950/40 via-blue-950/20 to-transparent',
+    glow: 'rgba(56, 189, 248, 0.32)',
+    badgeBg: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
+  },
+  ford: {
+    accent: '#3b82f6',
+    border: 'border-blue-500/30',
+    text: 'text-blue-300',
+    bg: 'from-blue-950/45 via-zinc-900/10 to-transparent',
+    glow: 'rgba(59, 130, 246, 0.32)',
+    badgeBg: 'bg-blue-500/10 text-blue-300 border-blue-500/30',
+  },
 }
 
 export function getBrandTheme(brand: string) {

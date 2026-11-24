@@ -11,6 +11,7 @@
 import type {
   DrivetrainConfigValue,
   DrivetrainLayout,
+  IgnitionStartInterlock,
   MultimediaUnitId,
   VehicleAeroSpec,
   VehicleCabinSpec,
@@ -230,15 +231,34 @@ export function toSimpleDrivetrain(layout: DrivetrainLayout): 'fwd' | 'rwd' | 'a
 // ─── 2. Ignition Resolver ────────────────────────────────────────────────────
 
 export function resolveVehicleIgnition(vehicle: VehicleConfig): VehicleIgnitionSpec {
+  const isAutoOrCvt =
+    vehicle.transmission.type === 'automatic' ||
+    vehicle.transmission.type === 'cvt' ||
+    vehicle.transmission.type === 'dct'
+
   if (vehicle.ignition) {
-    return vehicle.ignition
+    // Normaliza configs legados que eventualmente tenham usado requiresPedalForStart sem startInterlock
+    const inferredInterlock: IgnitionStartInterlock =
+      vehicle.ignition.startInterlock ??
+      (vehicle.ignition.requiresPedalForStart
+        ? isAutoOrCvt
+          ? 'brake'
+          : 'clutch'
+        : 'none')
+    return {
+      type: vehicle.ignition.type,
+      startInterlock: inferredInterlock,
+      supportsAccessoryMode: vehicle.ignition.supportsAccessoryMode,
+      requiresPedalForStart: inferredInterlock !== 'none',
+    }
   }
 
   if (vehicle.info.category === 'motorcycle') {
     return {
       type: 'key',
-      requiresPedalForStart: false,
+      startInterlock: 'none',
       supportsAccessoryMode: false,
+      requiresPedalForStart: false,
     }
   }
 
@@ -251,15 +271,35 @@ export function resolveVehicleIgnition(vehicle: VehicleConfig): VehicleIgnitionS
   if (isModernPushButton) {
     return {
       type: 'push_button',
-      requiresPedalForStart: true,
+      startInterlock: isAutoOrCvt ? 'brake' : 'clutch',
       supportsAccessoryMode: true,
+      requiresPedalForStart: true,
+    }
+  }
+
+  if (vehicle.id === 'fiat-toro-endurance-2025') {
+    return {
+      type: 'key',
+      startInterlock: 'brake',
+      supportsAccessoryMode: true,
+      requiresPedalForStart: true,
+    }
+  }
+
+  if (vehicle.id === 'civic-si') {
+    return {
+      type: 'key',
+      startInterlock: 'clutch',
+      supportsAccessoryMode: true,
+      requiresPedalForStart: true,
     }
   }
 
   return {
     type: 'key',
-    requiresPedalForStart: false,
+    startInterlock: 'none',
     supportsAccessoryMode: true,
+    requiresPedalForStart: false,
   }
 }
 
@@ -732,9 +772,12 @@ export function resolveDefaultUpgradesForVehicle(
     }
   }
 
-  // Fallback legado exato quando apenas vehicleId está disponível (ex.: estado inicial do useGarageStore)
+  // Fallback legado / por-ID quando apenas vehicleId está disponível (ex.: buyCar ou estado inicial do useGarageStore)
   const isOriginallyTurbo =
     vehicleId === 'golf-gti' ||
+    vehicleId === 'jetta-gli-2021' ||
+    vehicleId === 'bmw-320i-msport-2024' ||
+    vehicleId === 'ford-fusion-titanium-awd-2019' ||
     vehicleId === 'porsche-gt3' ||
     vehicleId === 'gol-quadrado-turbo' ||
     vehicleId === 'fiat-toro-endurance-2025' ||
@@ -742,6 +785,10 @@ export function resolveDefaultUpgradesForVehicle(
 
   const hasDefaultMultimedia =
     vehicleId === 'golf-gti' ||
+    vehicleId === 'jetta-gli-2021' ||
+    vehicleId === 'bmw-320i-msport-2024' ||
+    vehicleId === 'ford-fusion-sel-2012' ||
+    vehicleId === 'ford-fusion-titanium-awd-2019' ||
     vehicleId === 'porsche-gt3' ||
     vehicleId === 'yaris-2019' ||
     vehicleId === 'civic-si' ||
@@ -751,7 +798,7 @@ export function resolveDefaultUpgradesForVehicle(
   const defaultFuel: FuelType =
     vehicleId === 'gol-quadrado-turbo'
       ? 'ethanol_e100'
-      : vehicleId === 'porsche-gt3' || vehicleId === 'golf-gti'
+      : vehicleId === 'porsche-gt3' || vehicleId === 'golf-gti' || vehicleId === 'jetta-gli-2021'
         ? 'premium_podium'
         : 'common_gasoline'
 
@@ -791,6 +838,7 @@ export function resolveDefaultUpgradesForVehicle(
 // ─── 8. Runtime Config Validation ────────────────────────────────────────────
 
 const VALID_IGNITION_TYPES = new Set(['key', 'push_button'])
+const VALID_START_INTERLOCKS = new Set(['none', 'brake', 'clutch', 'brake_or_clutch'])
 const VALID_CLIMATE_TYPES = new Set(['none', 'manual_vent', 'manual_ac', 'auto_single', 'auto_dual', 'auto_tri'])
 const VALID_WINDOW_CONTROLS = new Set(['none', 'manual_crank', 'electric'])
 const VALID_SILHOUETTES = new Set([
@@ -807,6 +855,11 @@ const VALID_MULTIMEDIA_UNITS: ReadonlySet<MultimediaUnitId> = new Set([
   'toro_uconnect_10_vertical',
   'porsche_pcm6',
   'vw_discover_pro',
+  'vw_discover_media_8',
+  'bmw_idrive8_curved',
+  'ford_pampa_radio_1din',
+  'ford_sync1_2012',
+  'ford_sync3_8',
   'toyota_smart_connect',
   'honda_haudio',
   'retrofit_2din',
@@ -856,6 +909,12 @@ export function validateVehicleConfig(config: VehicleConfig): VehicleConfigValid
   if (config.ignition) {
     if (!VALID_IGNITION_TYPES.has(config.ignition.type)) {
       errors.push(`ignition.type inválido: "${String(config.ignition.type)}".`)
+    }
+    if (
+      config.ignition.startInterlock !== undefined &&
+      !VALID_START_INTERLOCKS.has(config.ignition.startInterlock)
+    ) {
+      errors.push(`ignition.startInterlock inválido: "${String(config.ignition.startInterlock)}".`)
     }
     if (typeof config.ignition.supportsAccessoryMode !== 'boolean') {
       errors.push('ignition.supportsAccessoryMode deve ser boolean.')

@@ -187,7 +187,9 @@ console.log('\n--- PARTE 4: Sistema de Tração 4x4, Multimídia Vertical e Bloq
   assert(verticalCode.includes('AUTO (SOB DEMANDA)'), 'Uconnect Vertical indica modo AUTO')
   assert(verticalCode.includes('Pare para LOW'), 'Uconnect Vertical exibe condição de engate de velocidade')
 
-  const vehicleMultimediaCode = fs.readFileSync(path.join(baseDir, 'src/components/dashboard/infotainment/VehicleMultimedia.tsx'), 'utf-8')
+  const vehicleMultimediaCode =
+    fs.readFileSync(path.join(baseDir, 'src/components/dashboard/infotainment/VehicleMultimedia.tsx'), 'utf-8') +
+    fs.readFileSync(path.join(baseDir, 'src/components/dashboard/infotainment/multimediaRegistry.ts'), 'utf-8')
   assert(vehicleMultimediaCode.includes('FiatToroUconnect7'), 'VehicleMultimedia integra FiatToroUconnect7 para Endurance')
   assert(vehicleMultimediaCode.includes('FiatToroUconnectVertical'), 'VehicleMultimedia integra FiatToroUconnectVertical para Ranch')
 }
@@ -263,7 +265,7 @@ console.log('\n--- PARTE 5: Dinâmica Física, Aderência e Tração ---')
 console.log('\n--- PARTE 6: Catálogo Completo (10 Veículos) e Não-Regressão ---')
 {
   const manifest = manifestJson as unknown as VehicleManifest
-  assert(manifest.vehicles.length === 10, `Catálogo de veículos agora possui exatamente 10 veículos (encontrados: ${manifest.vehicles.length})`)
+  assert(manifest.vehicles.length >= 10, `Catálogo de veículos preserva os 10 modelos base + expansões (encontrados: ${manifest.vehicles.length})`)
 
   const originalIds = [
     'yaris-2019',

@@ -31,10 +31,19 @@ export type DrivetrainConfigValue = DrivetrainLayout | 'awd'
 /** Tipo de sistema de ignição/partida do veículo */
 export type IgnitionType = 'key' | 'push_button'
 
+/** Posição do comutador/sistema de ignição */
+export type IgnitionPosition = 'OFF' | 'ACC' | 'ON' | 'CRANK'
+
+/** Requisito de intertravamento mecânico/eletrônico de pedal para acionar o motor de arranque (CRANK) */
+export type IgnitionStartInterlock = 'none' | 'brake' | 'clutch' | 'brake_or_clutch'
+
 export interface VehicleIgnitionSpec {
   type: IgnitionType
-  requiresPedalForStart?: boolean
+  /** Contrato explícito de intertravamento de partida (evita ambiguidade entre freio e embreagem) */
+  startInterlock: IgnitionStartInterlock
   supportsAccessoryMode: boolean
+  /** @deprecated Mantido opcionalmente apenas para retrocompatibilidade com configs legados; prefira `startInterlock` */
+  requiresPedalForStart?: boolean
 }
 
 /** Arquitetura de climatização da cabine */
@@ -66,6 +75,11 @@ export type MultimediaUnitId =
   | 'toro_uconnect_10_vertical'
   | 'porsche_pcm6'
   | 'vw_discover_pro'
+  | 'vw_discover_media_8'
+  | 'bmw_idrive8_curved'
+  | 'ford_pampa_radio_1din'
+  | 'ford_sync1_2012'
+  | 'ford_sync3_8'
   | 'toyota_smart_connect'
   | 'honda_haudio'
   | 'retrofit_2din'
@@ -283,6 +297,11 @@ export type DashboardTheme =
   | 'motorcycle'
   | 'supercar'
   | 'gti'
+  | 'jetta_gli_aid'
+  | 'bmw_curved_msport'
+  | 'ford_pampa_1997'
+  | 'ford_fusion_2012_ice'
+  | 'ford_fusion_2019_smartgauge'
   | 'square_turbo'
   | 'civic_si'
   | 'opala_classic'

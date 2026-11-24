@@ -98,14 +98,22 @@ function GenericVehicleMultimedia({
   const [playing, setPlaying] = useState(true)
   const [elapsed, setElapsed] = useState(37)
   const [video, setVideo] = useState<number | null>(null)
-  const [temp, setTemp] = useState(22)
-  const [fan, setFan] = useState(2)
-  const [acOn, setAcOn] = useState(true)
-  const [auto, setAuto] = useState(true)
-  const [recirc, setRecirc] = useState(false)
-  const [defrost, setDefrost] = useState(false)
   const [volume, setVolume] = useState(55)
   const [brightness, setBrightness] = useState(80)
+
+  const temp = useSimulationStore((s) => s.climateTargetTempC)
+  const cabinTempC = useSimulationStore((s) => s.cabinTempC)
+  const fan = useSimulationStore((s) => s.climateFanLevel)
+  const acOn = useSimulationStore((s) => s.climateAcEnabled)
+  const auto = useSimulationStore((s) => s.climateAutoMode)
+  const recirc = useSimulationStore((s) => s.climateRecirculation)
+  const defrost = useSimulationStore((s) => s.climateDefrosterEnabled)
+  const setClimateTargetTempC = useSimulationStore((s) => s.setClimateTargetTempC)
+  const setClimateFanLevel = useSimulationStore((s) => s.setClimateFanLevel)
+  const toggleClimateAc = useSimulationStore((s) => s.toggleClimateAc)
+  const toggleClimateAutoMode = useSimulationStore((s) => s.toggleClimateAutoMode)
+  const toggleClimateRecirculation = useSimulationStore((s) => s.toggleClimateRecirculation)
+  const toggleClimateDefroster = useSimulationStore((s) => s.toggleClimateDefroster)
 
   const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
   const setAmbientLightColor = useSimulationStore((s) => s.setAmbientLightColor)
@@ -292,26 +300,26 @@ function GenericVehicleMultimedia({
         {tab === 'climate' && (
           <div className="grid h-full grid-cols-[1fr_1.2fr_1fr] items-center gap-1.5">
             <div className="flex flex-col items-center gap-0.5 rounded-xl border border-white/10 bg-zinc-900/60 py-1">
-              <span className="text-[8px] text-zinc-500">TEMPERATURA</span>
+              <span className="text-[8px] text-zinc-500">ALVO (CABINE {cabinTempC.toFixed(1)}°)</span>
               <div className="flex items-center gap-2">
-                <button type="button" aria-label="Diminuir temperatura" onClick={() => setTemp((t) => Math.max(16, t - 1))} className="h-6 w-6 rounded-full bg-zinc-800 text-sm font-black cursor-pointer active:scale-90">−</button>
+                <button type="button" aria-label="Diminuir temperatura" onClick={() => setClimateTargetTempC(temp - 1)} className="h-6 w-6 rounded-full bg-zinc-800 text-sm font-black cursor-pointer active:scale-90">−</button>
                 <span className="text-xl font-black" style={{ color: accent }}>{temp}°</span>
-                <button type="button" aria-label="Aumentar temperatura" onClick={() => setTemp((t) => Math.min(30, t + 1))} className="h-6 w-6 rounded-full bg-zinc-800 text-sm font-black cursor-pointer active:scale-90">+</button>
+                <button type="button" aria-label="Aumentar temperatura" onClick={() => setClimateTargetTempC(temp + 1)} className="h-6 w-6 rounded-full bg-zinc-800 text-sm font-black cursor-pointer active:scale-90">+</button>
               </div>
             </div>
             <div className="flex flex-col items-center gap-1 rounded-xl border border-white/10 bg-zinc-900/60 py-1">
               <span className="text-[8px] text-zinc-500">VENTILAÇÃO</span>
               <div className="flex gap-1">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} type="button" aria-label={`Ventilação ${n}`} onClick={() => setFan(n)} className="w-4 cursor-pointer rounded-sm" style={{ height: 6 + n * 4, background: n <= fan ? accent : '#3f3f46' }} />
+                {([1, 2, 3, 4, 5] as const).map((n) => (
+                  <button key={n} type="button" aria-label={`Ventilação ${n}`} onClick={() => setClimateFanLevel(n)} className="w-4 cursor-pointer rounded-sm" style={{ height: 6 + n * 4, background: n <= fan ? accent : '#3f3f46' }} />
                 ))}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-1">
-              <Btn on={acOn} onClick={() => setAcOn((v) => !v)} label="Ar-condicionado">A/C</Btn>
-              <Btn on={auto} onClick={() => setAuto((v) => !v)} label="Automático">AUTO</Btn>
-              <Btn on={recirc} onClick={() => setRecirc((v) => !v)} label="Recirculação">Recirc.</Btn>
-              <Btn on={defrost} onClick={() => setDefrost((v) => !v)} label="Desembaçar">Desemb.</Btn>
+              <Btn on={acOn} onClick={toggleClimateAc} label="Ar-condicionado">A/C</Btn>
+              <Btn on={auto} onClick={toggleClimateAutoMode} label="Automático">AUTO</Btn>
+              <Btn on={recirc} onClick={toggleClimateRecirculation} label="Recirculação">Recirc.</Btn>
+              <Btn on={defrost} onClick={toggleClimateDefroster} label="Desembaçar">Desemb.</Btn>
             </div>
           </div>
         )}

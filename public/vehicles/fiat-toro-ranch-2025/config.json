@@ -113,5 +113,23 @@
     "gravity": 9.81,
     "isProvisional": false,
     "notes": "Fiat Toro Ranch 2.2 Turbo Diesel 4x4 AT9 2025"
+  },
+  "ignition": {
+    "type": "push_button",
+    "startInterlock": "brake",
+    "supportsAccessoryMode": true
+  },
+  "cabin": {
+    "climateType": "auto_dual",
+    "hasAcCompressor": true,
+    "hasHeater": true,
+    "hasSeatHeating": false,
+    "hasRecirculation": true,
+    "hasDefroster": true,
+    "windowCount": 4,
+    "windowControlType": "electric",
+    "hasFogLights": true,
+    "hasAmbientLighting": true,
+    "defaultAmbientColor": "red"
   }
 }

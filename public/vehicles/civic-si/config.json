@@ -140,5 +140,23 @@
     "fuelCapacity": 50,
     "coolantTempTarget": 90,
     "hasInfotainment": true
+  },
+  "ignition": {
+    "type": "key",
+    "startInterlock": "clutch",
+    "supportsAccessoryMode": true
+  },
+  "cabin": {
+    "climateType": "auto_single",
+    "hasAcCompressor": true,
+    "hasHeater": true,
+    "hasSeatHeating": false,
+    "hasRecirculation": true,
+    "hasDefroster": true,
+    "windowCount": 4,
+    "windowControlType": "electric",
+    "hasFogLights": true,
+    "hasAmbientLighting": false,
+    "defaultAmbientColor": "red"
   }
 }

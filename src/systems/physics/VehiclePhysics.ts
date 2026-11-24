@@ -116,6 +116,8 @@ export class VehiclePhysics {
   // Propriedades Aerodinâmicas e de Suspensão Dinâmicas
   private baseAeroConstant: number = 0.40
   private currentAeroConstant: number = 0.40
+  /** Multiplicador de arrasto por abertura de vidros (1.0 = fechados; ponto único de aplicação) */
+  private windowAeroDragMultiplier: number = 1.0
   private downforceCoeff: number = 0.10
   private suspensionHeightOffset: number = 0
   private effectiveDownforceN: number = 0
@@ -294,6 +296,18 @@ export class VehiclePhysics {
 
   getDownforceN(): number {
     return this.effectiveDownforceN
+  }
+
+  /**
+   * Define o multiplicador de arrasto aerodinâmico decorrente da abertura dos vidros da cabine.
+   * Ponto único de aplicação no cálculo de `aeroResistance` dentro de `tick()`.
+   */
+  setWindowAeroDragMultiplier(multiplier: number): void {
+    this.windowAeroDragMultiplier = this.isMotorcycle ? 1.0 : clamp(multiplier, 1.0, 1.25)
+  }
+
+  getWindowAeroDragMultiplier(): number {
+    return this.windowAeroDragMultiplier
   }
 
   getEffectiveAeroConstant(): number {
@@ -1034,8 +1048,9 @@ export class VehiclePhysics {
     // 2. Resistência ao Rolamento
     const rollingResistance = this.rollingCoeff * normalWeight
 
-    // 3. Resistência Aerodinâmica (incluindo Airbrake se ativo)
-    const aeroResistance = this.currentAeroConstant * this.speedMs * this.speedMs
+    // 3. Resistência Aerodinâmica (incluindo Airbrake se ativo e penalidade única de vidros abertos)
+    const aeroResistance =
+      this.currentAeroConstant * this.windowAeroDragMultiplier * this.speedMs * this.speedMs
 
     // 4. Força Gravitacional de Rampa
     const slopeForce = this.mass * this.chassis.gravity * sinTheta
@@ -1608,6 +1623,7 @@ export class VehiclePhysics {
       leanAngleRad: this.leanAngleRad,
       awdRearCoupling: this.awdRearCoupling,
       currentSurface: this.currentSurface,
+      windowAeroDragMultiplier: this.windowAeroDragMultiplier,
     }
   }
 
@@ -1639,6 +1655,9 @@ export class VehiclePhysics {
     if (snapshot.leanAngleRad !== undefined) this.leanAngleRad = snapshot.leanAngleRad
     if (snapshot.awdRearCoupling !== undefined) this.awdRearCoupling = snapshot.awdRearCoupling
     if (snapshot.currentSurface !== undefined) this.currentSurface = snapshot.currentSurface
+    if (snapshot.windowAeroDragMultiplier !== undefined) {
+      this.windowAeroDragMultiplier = snapshot.windowAeroDragMultiplier
+    }
   }
 }
 
@@ -1663,4 +1682,5 @@ export interface VehiclePhysicsSnapshot {
   leanAngleRad?: number
   awdRearCoupling?: number
   currentSurface?: SurfaceType
+  windowAeroDragMultiplier?: number
 }

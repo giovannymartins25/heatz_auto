@@ -283,6 +283,10 @@ export const DrivingWorldCanvas = memo(function DrivingWorldCanvas({
         isLateralSliding
       const isAirbrake = state.isAirbrakeActive
       const headlightsOn = state.headlightsMode !== 'off'
+      const isHighBeam = state.highBeamLit
+      const isFogLit = state.fogLightsLit
+      const leftBlinkLit = state.leftIndicatorLit
+      const rightBlinkLit = state.rightIndicatorLit
 
       // Ajusta dimensões do canvas ao tamanho real do elemento
       const rect = canvas.getBoundingClientRect()
@@ -575,20 +579,33 @@ export const DrivingWorldCanvas = memo(function DrivingWorldCanvas({
         ctx.stroke()
       }
 
-      // Feixe de Faróis
-      if (headlightsOn) {
+      // Feixe de Faróis (Lanterna / Baixo / Alto + Neblina)
+      if (headlightsOn && state.headlightsMode !== 'parking') {
         ctx.save()
-        const beamGradient = ctx.createRadialGradient(0, -halfL - 2, 1, 0, -halfL - 30, 26)
-        beamGradient.addColorStop(0, 'rgba(254, 240, 138, 0.45)')
+        const reach = isHighBeam ? 42 : 30
+        const spread = isHighBeam ? 17 : 13
+        const beamGradient = ctx.createRadialGradient(0, -halfL - 2, 1, 0, -halfL - reach, reach * 0.88)
+        beamGradient.addColorStop(0, isHighBeam ? 'rgba(254, 249, 195, 0.58)' : 'rgba(254, 240, 138, 0.45)')
         beamGradient.addColorStop(1, 'rgba(254, 240, 138, 0.0)')
         ctx.fillStyle = beamGradient
         ctx.beginPath()
         ctx.moveTo(-halfW * 0.7, -halfL)
-        ctx.lineTo(-13, -halfL - 30)
-        ctx.lineTo(13, -halfL - 30)
+        ctx.lineTo(-spread, -halfL - reach)
+        ctx.lineTo(spread, -halfL - reach)
         ctx.lineTo(halfW * 0.7, -halfL)
         ctx.closePath()
         ctx.fill()
+
+        if (isFogLit) {
+          ctx.fillStyle = 'rgba(253, 224, 71, 0.22)'
+          ctx.beginPath()
+          ctx.moveTo(-halfW * 0.85, -halfL)
+          ctx.lineTo(-16, -halfL - 12)
+          ctx.lineTo(16, -halfL - 12)
+          ctx.lineTo(halfW * 0.85, -halfL)
+          ctx.closePath()
+          ctx.fill()
+        }
         ctx.restore()
       }
 
@@ -691,6 +708,23 @@ export const DrivingWorldCanvas = memo(function DrivingWorldCanvas({
         ctx.shadowBlur = 15
         ctx.fillRect(-halfW * 0.9, halfL - 0.45, carWidth * 0.9, 0.35)
       }
+
+      // Indicadores Visuais de Setas / Pisca-Alerta (sincronizados a 1,4 Hz com LightingSystem)
+      if (leftBlinkLit) {
+        ctx.fillStyle = '#f59e0b'
+        ctx.shadowColor = '#f59e0b'
+        ctx.shadowBlur = 10
+        ctx.fillRect(-halfW - 0.04, -halfL + 0.04, 0.24, 0.22)
+        ctx.fillRect(-halfW - 0.04, halfL - 0.26, 0.24, 0.22)
+      }
+      if (rightBlinkLit) {
+        ctx.fillStyle = '#f59e0b'
+        ctx.shadowColor = '#f59e0b'
+        ctx.shadowBlur = 10
+        ctx.fillRect(halfW - 0.20, -halfL + 0.04, 0.24, 0.22)
+        ctx.fillRect(halfW - 0.20, halfL - 0.26, 0.24, 0.22)
+      }
+      ctx.shadowBlur = 0
 
       ctx.restore()
 

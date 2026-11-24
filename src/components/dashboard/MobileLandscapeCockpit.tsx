@@ -12,7 +12,7 @@ import { GearShift } from '@/components/controls/GearShift'
 import { QuickClutchButton, MobileStartButton, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { WorldMapModal } from './WorldMapModal'
-import { SwipeableClusterMediaSlot } from './SwipeableClusterMediaSlot'
+import { CockpitPanelCarousel } from '@/components/cockpit'
 import { MobileQuickMenu } from './MobileQuickMenu'
 import { formatZeroToHundredSeconds } from '@/systems/vehicle'
 import { formatVehicleHeaderInfo, getShortVehicleName } from '@/utils/vehicleSpecs'
@@ -261,13 +261,13 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                 </div>
               )}
 
-              {/* 2. SLOT INFERIOR RESPONSIVO: PAINEL ORIGINAL (<VehicleDashboardCluster telemetry={telemetry} />) ↔ MULTIMÍDIA VIA SWIPE */}
+              {/* 2. CARROSSEL MODULAR DE 3 PAINÉIS: CLUSTER ↔ MULTIMÍDIA ↔ CONTROLES */}
               <div className="w-full flex-1 flex items-center justify-center min-h-0 self-stretch relative">
-                <SwipeableClusterMediaSlot
+                <CockpitPanelCarousel
                   telemetry={telemetry}
                   vehicle={vehicle}
                   expanded={false}
-                  supportsPaddleShifters={caps.supportsPaddleShifters} /* AutomaticShiftButton direction="down" e AutomaticShiftButton direction="up" */
+                  supportsPaddleShifters={caps.supportsPaddleShifters}
                   isManualActive={isManualActive}
                   hasTurbo={hasTurbo}
                   showAftermarketBoostGauge={showAftermarketBoostGauge}
@@ -276,9 +276,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               </div>
             </div>
           ) : (
-            /* MODO PAINEL: Foco exclusivo no painel do veículo, ocupando todo o espaço com swipe para multimídia */
+            /* MODO PAINEL: Foco exclusivo no carrossel modular de 3 painéis */
             <div className="w-full h-full flex items-center justify-center min-h-0 self-stretch relative">
-              <SwipeableClusterMediaSlot
+              <CockpitPanelCarousel
                 telemetry={telemetry}
                 vehicle={vehicle}
                 expanded={true}

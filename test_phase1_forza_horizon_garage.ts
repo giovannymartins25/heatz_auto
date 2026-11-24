@@ -47,7 +47,7 @@ test('Concessionária: Agrupa veículos por brand dinamicamente sem cadastro dup
 
   const vwGroup = groups.find((g) => g.brand === 'Volkswagen')
   assert(!!vwGroup, 'Fabricante Volkswagen deve existir no catálogo')
-  assert(vwGroup!.vehicles.length === 3, `Volkswagen deve conter 3 modelos (GTI, Gol G6, Gol Quadrado), tem: ${vwGroup!.vehicles.length}`)
+  assert(vwGroup!.vehicles.length >= 3, `Volkswagen deve conter pelo menos os 3 modelos base (GTI, Gol G6, Gol Quadrado), tem: ${vwGroup!.vehicles.length}`)
 
   const fiatGroup = groups.find((g) => g.brand === 'Fiat')
   assert(!!fiatGroup, 'Fabricante Fiat deve existir no catálogo')

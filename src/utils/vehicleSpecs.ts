@@ -16,6 +16,11 @@ const SHORT_NAMES: Record<string, string> = {
   cb1000r: 'CB1000R',
   'fiat-toro-endurance-2025': 'TORO ENDURANCE',
   'fiat-toro-ranch-2025': 'TORO RANCH',
+  'jetta-gli-2021': 'JETTA GLI',
+  'bmw-320i-msport-2024': 'BMW 320I',
+  'ford-pampa-l-1997': 'PAMPA 1.8',
+  'ford-fusion-sel-2012': 'FUSION SEL',
+  'ford-fusion-titanium-awd-2019': 'FUSION AWD',
 }
 
 /** Identificação curta e discreta do veículo para o cockpit mobile. */

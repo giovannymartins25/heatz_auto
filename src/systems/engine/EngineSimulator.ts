@@ -38,6 +38,8 @@ export class EngineSimulator {
   private startingElapsed: number = 0
   private lastTorqueOutput: number = 0
   private lastDrivetrainTorque: number = 0
+  /** Carga mecânica parasita na correia de acessórios (ex.: compressor de A/C em N·m) */
+  private accessoryLoadTorque: number = 0
 
   constructor(config: EngineConfig) {
     this.config = config
@@ -69,6 +71,18 @@ export class EngineSimulator {
 
   getTorqueOutput(): number {
     return this.lastTorqueOutput
+  }
+
+  /**
+   * Define o torque parasita absorvido na polia do virabrequim por acessórios mecânicos
+   * (ex.: compressor do ar-condicionado). Ponto único de aplicação — sem duplicação no chassi.
+   */
+  setAccessoryLoadTorque(torqueNm: number): void {
+    this.accessoryLoadTorque = Math.max(0, torqueNm)
+  }
+
+  getAccessoryLoadTorque(): number {
+    return this.accessoryLoadTorque
   }
 
   /**
@@ -117,9 +131,13 @@ export class EngineSimulator {
       drivetrainBrakeTorque = pumpingLoss + frictionTorque * coastFactor
     }
 
-    const outputTorque = Math.max(0, engineTorque)
+    const outputTorque = Math.max(0, engineTorque - this.accessoryLoadTorque)
     const drivetrainTorque =
-      outputTorque > 0 ? outputTorque : drivetrainBrakeTorque > 0 ? -drivetrainBrakeTorque : 0
+      outputTorque > 0
+        ? outputTorque
+        : drivetrainBrakeTorque + this.accessoryLoadTorque > 0
+          ? -(drivetrainBrakeTorque + this.accessoryLoadTorque)
+          : 0
 
     return {
       rawThrottle,
@@ -264,8 +282,14 @@ export class EngineSimulator {
     }
 
     // 3.6 Torque Líquido atuando no virabrequim / volante
-    // loadTorque vem da embreagem/transmissão
-    const netTorque = engineTorque + idleTorque - frictionTorque - engineBrakeTorque - loadTorque
+    // loadTorque vem da embreagem/transmissão; accessoryLoadTorque vem da correia (compressor de A/C)
+    const netTorque =
+      engineTorque +
+      idleTorque -
+      frictionTorque -
+      engineBrakeTorque -
+      loadTorque -
+      this.accessoryLoadTorque
 
     // 3.7 Aceleração Angular: alpha = tau / I
     const angularAcceleration = netTorque / this.momentOfInertia
@@ -329,6 +353,7 @@ export class EngineSimulator {
       startingElapsed: this.startingElapsed,
       lastTorqueOutput: this.lastTorqueOutput,
       lastDrivetrainTorque: this.lastDrivetrainTorque,
+      accessoryLoadTorque: this.accessoryLoadTorque,
     }
   }
 
@@ -339,6 +364,7 @@ export class EngineSimulator {
     this.startingElapsed = snapshot.startingElapsed
     this.lastTorqueOutput = snapshot.lastTorqueOutput
     this.lastDrivetrainTorque = snapshot.lastDrivetrainTorque
+    this.accessoryLoadTorque = snapshot.accessoryLoadTorque ?? 0
   }
 }
 
@@ -351,4 +377,5 @@ export interface EngineSimulatorSnapshot {
   startingElapsed: number
   lastTorqueOutput: number
   lastDrivetrainTorque: number
+  accessoryLoadTorque?: number
 }

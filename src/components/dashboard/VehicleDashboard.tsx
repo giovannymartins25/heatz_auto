@@ -9,8 +9,6 @@ import { useKeyboardControls } from '@/hooks/useKeyboardControls'
 import { useOrientation } from '@/hooks/useOrientation'
 import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { DashboardSystem } from '@/systems/dashboard'
-import { CockpitView } from './CockpitView'
-import { VehicleDashboardCluster } from './VehicleDashboardCluster'
 import { MobileLandscapeCockpit } from './MobileLandscapeCockpit'
 import { MobilePortraitCockpit } from './MobilePortraitCockpit'
 import { RotateDeviceOverlay } from './RotateDeviceOverlay'
@@ -18,8 +16,8 @@ import { PerformanceBox } from './PerformanceBox'
 import { KeyboardHUD } from './KeyboardHUD'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { WorldMapModal } from './WorldMapModal'
-import { InfotainmentScreen } from './InfotainmentScreen'
-import { PedalTelemetry, AftermarketPillarGaugePod } from '@/components/gauges'
+import { DesktopCockpitLayout } from '@/components/cockpit'
+import { PedalTelemetry } from '@/components/gauges'
 import { Pedals, GearShift, EngineButton } from '@/components/controls'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
@@ -95,6 +93,8 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const brakeDiscTemp = useSimulationStore((s) => s.brakeDiscTemp)
   const isBrakeGlowing = useSimulationStore((s) => s.isBrakeGlowing)
   const brakeFadeFactor = useSimulationStore((s) => s.brakeFadeFactor)
+  const hasTurbo = useSimulationStore((s) => s.hasTurbo)
+  const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const hasNosKit = useSimulationStore((s) => s.hasNosKit)
   const nosActive = useSimulationStore((s) => s.nosActive)
   const nosPressurePercent = useSimulationStore((s) => s.nosPressurePercent)
@@ -108,7 +108,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
 
   const [isTuningOpen, setIsTuningOpen] = useState(false)
   const [isDragStripOpen, setIsDragStripOpen] = useState(false)
-  const { hasInfotainment, showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
+  const { showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
 
   const viewMode = useUIStore((s) => s.viewMode)
   const setViewMode = useUIStore((s) => s.setViewMode)
@@ -652,30 +652,15 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           </div>
         )}
 
-        {/* ── Painel de Instrumentos Modular (escalonado responsivamente) + Multimídia ── */}
-        <div className="relative w-full max-w-[1440px] flex flex-col lg:flex-row items-center justify-center gap-3 px-2">
-          <div className="w-full min-w-0 flex-1 flex items-center justify-center relative h-[220px] xl:h-[260px]">
-            {/* Manômetro Esportivo de Coluna Aftermarket (visível quando equipado em carros sem manômetro original) */}
-            {showAftermarketBoostGauge && viewMode === 'cluster' && (
-              <div className="hidden sm:flex absolute left-2 lg:left-4 top-1/2 -translate-y-1/2 z-20 animate-in zoom-in-95 duration-200">
-                <AftermarketPillarGaugePod size={80} />
-              </div>
-            )}
-
-            {viewMode === 'cluster' ? (
-              <VehicleDashboardCluster telemetry={telemetry} maxScale={1.0} />
-            ) : (
-              <CockpitView telemetry={telemetry} vehicle={vehicle} />
-            )}
-          </div>
-
-          {/* Central Multimídia Automotiva ao lado (Console Central) */}
-          {hasInfotainment && (
-            <div className="flex flex-col items-center justify-center shrink-0 w-full max-w-[420px] lg:w-[340px] xl:w-[400px] h-[220px] xl:h-[260px]">
-              <InfotainmentScreen vehicle={vehicle} telemetry={telemetry} fill />
-            </div>
-          )}
-        </div>
+        {/* ── Cockpit Modular Desktop: Painel 1 (Cluster sempre visível) + Painel 2/3 (Multimídia ↔ Controles) ── */}
+        <DesktopCockpitLayout
+          telemetry={telemetry}
+          vehicle={vehicle}
+          viewMode={viewMode}
+          showAftermarketBoostGauge={showAftermarketBoostGauge}
+          hasTurbo={hasTurbo}
+          boostPressureBar={boostPressureBar}
+        />
 
         {/* ── Telemetria Analógica dos Pedais (0-100%) ── */}
         <PedalTelemetry

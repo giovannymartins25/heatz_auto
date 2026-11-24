@@ -21,6 +21,11 @@ import {
   Opala4100RealCluster,
   FiatToroEnduranceCluster,
   FiatToroRanchCluster,
+  JettaGLIActiveInfoCluster,
+  BMW320iCurvedCluster,
+  FordPampa1997Cluster,
+  FordFusion2012IceCluster,
+  FordFusion2019SmartGaugeCluster,
 } from './index'
 
 export interface ClusterProfile {
@@ -65,6 +70,36 @@ export const CLUSTER_REGISTRY: Readonly<Record<DashboardTheme, ClusterRegistryEn
     label: 'VW Golf GTI Mk7',
     component: GolfGTIRealCluster,
     profile: { width: 790, height: 260 },
+  },
+  jetta_gli_aid: {
+    theme: 'jetta_gli_aid',
+    label: 'VW Jetta GLI Active Info Display 10.25"',
+    component: JettaGLIActiveInfoCluster,
+    profile: { width: 760, height: 258 },
+  },
+  bmw_curved_msport: {
+    theme: 'bmw_curved_msport',
+    label: 'BMW 320i Live Cockpit M Sport 12.3"',
+    component: BMW320iCurvedCluster,
+    profile: { width: 770, height: 256 },
+  },
+  ford_pampa_1997: {
+    theme: 'ford_pampa_1997',
+    label: 'Ford Pampa L 1.8i Analógico 1997',
+    component: FordPampa1997Cluster,
+    profile: { width: 720, height: 254 },
+  },
+  ford_fusion_2012_ice: {
+    theme: 'ford_fusion_2012_ice',
+    label: 'Ford Fusion SEL 2012 Ice Blue',
+    component: FordFusion2012IceCluster,
+    profile: { width: 760, height: 256 },
+  },
+  ford_fusion_2019_smartgauge: {
+    theme: 'ford_fusion_2019_smartgauge',
+    label: 'Ford Fusion Titanium 2019 SmartGauge Dual TFT',
+    component: FordFusion2019SmartGaugeCluster,
+    profile: { width: 770, height: 256 },
   },
   square_turbo: {
     theme: 'square_turbo',

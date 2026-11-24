@@ -1,0 +1,161 @@
+{
+  "id": "jetta-gli-2021",
+  "info": {
+    "name": "Volkswagen Jetta GLI 350 TSI 2021",
+    "brand": "Volkswagen",
+    "model": "Jetta GLI 350 TSI (Mk7)",
+    "year": 2021,
+    "category": "car",
+    "weight": 1432,
+    "wheelDiameter": 0.660,
+    "powerHp": 230,
+    "torqueKgfm": 35.7,
+    "description": "Sedã esportivo médio sobre plataforma MQB equipado com motor EA888 2.0 TSI de 230 cv e 35,7 kgfm (350 Nm) planos entre 1.500 e 4.600 rpm, câmbio automatizado DSG DQ250 de dupla embreagem banhada a óleo e 6 marchas (normalizado em eixo final único 4.769), suspensão traseira independente Multilink, quadro 100% digital Active Info Display de 10,25\" e central Discover Media de 8\"."
+  },
+  "engine": {
+    "maxPower": 230,
+    "maxPowerRpm": 6200,
+    "maxTorque": 350,
+    "maxTorqueRpm": 4400,
+    "maxRpm": 6800,
+    "idleRpm": 780,
+    "revLimiter": 6700,
+    "flywheelMass": 5.1,
+    "engineBrakeFactor": 0.27,
+    "throttleProgressionExponent": 1.42,
+    "defaultFuelType": "premium_podium",
+    "podiumGainMultiplier": 1.04,
+    "turbo": {
+      "enabled": true,
+      "maxBoostBar": 1.35,
+      "spoolRpmStart": 1450,
+      "fullBoostRpm": 2300,
+      "hasBlowOff": true
+    },
+    "torqueCurve": [
+      { "rpm": 780,  "torque": 182 },
+      { "rpm": 1200, "torque": 268 },
+      { "rpm": 1500, "torque": 350 },
+      { "rpm": 2500, "torque": 350 },
+      { "rpm": 3500, "torque": 350 },
+      { "rpm": 4600, "torque": 350 },
+      { "rpm": 5200, "torque": 318 },
+      { "rpm": 6200, "torque": 266 },
+      { "rpm": 6700, "torque": 225 },
+      { "rpm": 6800, "torque": 210 }
+    ]
+  },
+  "transmission": {
+    "type": "automatic",
+    "drivetrain": "fwd",
+    "defaultMode": "automatic",
+    "supportedSelectorPositions": ["P", "R", "N", "D", "S", "M"],
+    "gearCount": 6,
+    "gearRatios": [
+      { "gear": 1, "ratio": 2.933 },
+      { "gear": 2, "ratio": 1.792 },
+      { "gear": 3, "ratio": 1.125 },
+      { "gear": 4, "ratio": 0.773 },
+      { "gear": 5, "ratio": 0.586 },
+      { "gear": 6, "ratio": 0.459 }
+    ],
+    "reverseRatio": 3.352,
+    "finalDrive": 4.769,
+    "hasClutch": false,
+    "hasManualMode": true,
+    "defaultDrivingMode": "normal",
+    "supportedModes": ["eco", "normal", "sport"],
+    "supportsPaddleShifters": true,
+    "manualShiftControls": ["paddle_shifters", "gear_selector_gesture"],
+    "supportsNos": true,
+    "tcs": {
+      "enabled": true,
+      "slipThreshold": 1.15,
+      "torqueReduction": 0.24
+    },
+    "launchControl": {
+      "enabled": true,
+      "launchRpm": 3800,
+      "targetBoostBar": 0.85
+    }
+  },
+  "audio": {
+    "useSamples": false,
+    "synthConfig": {
+      "baseFrequency": 61,
+      "harmonics": [1, 2, 2.5, 3, 4, 5.5],
+      "gainIdle": 0.19,
+      "gainMax": 0.88,
+      "cylinders": 4,
+      "engineType": "i4",
+      "exhaustResonanceHz": 210,
+      "intakeResonanceHz": 530,
+      "hasBrapOnShift": true
+    }
+  },
+  "dashboard": {
+    "type": "default",
+    "theme": "jetta_gli_aid",
+    "tachometerMax": 8000,
+    "speedometerMax": 280,
+    "redlineStart": 6500,
+    "shiftLightOffsetRpm": 350,
+    "fuelCapacity": 50,
+    "coolantTempTarget": 90,
+    "hasBoostGauge": true,
+    "hasInfotainment": true
+  },
+  "chassis": {
+    "totalMass": 1432,
+    "wheelbase": 2.680,
+    "centerOfMassHeight": 0.51,
+    "frontWeightRatio": 0.61,
+    "wheelRadius": 0.330,
+    "wheelInertia": 1.24,
+    "wheelCount": 4,
+    "gravity": 9.81,
+    "isProvisional": false,
+    "notes": "Volkswagen Jetta GLI 350 TSI 2021 (MQB FWD)"
+  },
+  "ignition": {
+    "type": "push_button",
+    "startInterlock": "brake",
+    "supportsAccessoryMode": true
+  },
+  "cabin": {
+    "climateType": "auto_dual",
+    "hasAcCompressor": true,
+    "hasHeater": true,
+    "hasSeatHeating": true,
+    "hasRecirculation": true,
+    "hasDefroster": true,
+    "windowCount": 4,
+    "windowControlType": "electric",
+    "hasFogLights": false,
+    "hasAmbientLighting": true,
+    "defaultAmbientColor": "red"
+  },
+  "multimedia": {
+    "unitId": "vw_discover_media_8",
+    "type": "factory",
+    "layout": "horizontal",
+    "screenSize": 8.0,
+    "name": "VW Discover Media 8\" MIB (Jetta GLI)",
+    "era": "2020s",
+    "features": [
+      "Performance Monitor GLI (Boost / Potência / G-Force)",
+      "Climatronic Dual-Zone + Aquecimento de Bancos",
+      "App-Connect & Media Center",
+      "Modos de Condução VW (Eco / Normal / Sport)"
+    ],
+    "supportsAftermarketUpgrade": false
+  },
+  "visual2d": {
+    "bodyColor": "#dc2626",
+    "accentColor": "#111827",
+    "lengthM": 4.709,
+    "widthM": 1.799,
+    "silhouette": "sedan",
+    "hasFrontRedStripe": true
+  }
+}

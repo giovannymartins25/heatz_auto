@@ -1,0 +1,159 @@
+{
+  "id": "ford-fusion-titanium-awd-2019",
+  "info": {
+    "name": "Ford Fusion Titanium 2.0 EcoBoost AWD 2019",
+    "brand": "Ford",
+    "model": "Fusion Titanium 2.0 GTDI AWD (CD391)",
+    "year": 2019,
+    "category": "car",
+    "weight": 1691,
+    "wheelDiameter": 0.669,
+    "powerHp": 248,
+    "torqueKgfm": 38.0,
+    "description": "Sedã executivo topo de linha de 2ª geração reestilizada (CD391, 2019) com motor 2.0 EcoBoost GTDI turbo de injeção direta (248 cv a 5.500 rpm e 38,0 kgfm / 373 Nm a 3.000 rpm), transmissão automática 6F35 de 6 marchas com seletor rotativo e-Shifter e paddle shifters, tração integral automática sob demanda Intelligent AWD, painel duplo SmartGauge e central SYNC 3 de 8\"."
+  },
+  "engine": {
+    "maxPower": 248,
+    "maxPowerRpm": 5500,
+    "maxTorque": 373,
+    "maxTorqueRpm": 3000,
+    "maxRpm": 6500,
+    "idleRpm": 760,
+    "revLimiter": 6400,
+    "flywheelMass": 5.4,
+    "engineBrakeFactor": 0.28,
+    "throttleProgressionExponent": 1.40,
+    "defaultFuelType": "common_gasoline",
+    "podiumGainMultiplier": 1.04,
+    "turbo": {
+      "enabled": true,
+      "maxBoostBar": 1.45,
+      "spoolRpmStart": 1350,
+      "fullBoostRpm": 2250,
+      "hasBlowOff": false
+    },
+    "torqueCurve": [
+      { "rpm": 760,  "torque": 195 },
+      { "rpm": 1350, "torque": 285 },
+      { "rpm": 1750, "torque": 350 },
+      { "rpm": 2500, "torque": 368 },
+      { "rpm": 3000, "torque": 373 },
+      { "rpm": 3800, "torque": 364 },
+      { "rpm": 4600, "torque": 346 },
+      { "rpm": 5500, "torque": 316 },
+      { "rpm": 6200, "torque": 265 },
+      { "rpm": 6500, "torque": 235 }
+    ]
+  },
+  "transmission": {
+    "type": "automatic",
+    "drivetrain": "awd_ondemand",
+    "defaultMode": "automatic",
+    "supportedSelectorPositions": ["P", "R", "N", "D", "S", "M"],
+    "gearCount": 6,
+    "gearRatios": [
+      { "gear": 1, "ratio": 4.584 },
+      { "gear": 2, "ratio": 2.964 },
+      { "gear": 3, "ratio": 1.912 },
+      { "gear": 4, "ratio": 1.446 },
+      { "gear": 5, "ratio": 1.000 },
+      { "gear": 6, "ratio": 0.746 }
+    ],
+    "reverseRatio": 2.943,
+    "finalDrive": 3.360,
+    "hasClutch": false,
+    "hasManualMode": true,
+    "defaultDrivingMode": "normal",
+    "supportedModes": ["eco", "normal", "sport"],
+    "supportsPaddleShifters": true,
+    "manualShiftControls": ["paddle_shifters", "gear_selector_buttons"],
+    "supportsNos": true,
+    "tcs": {
+      "enabled": true,
+      "slipThreshold": 1.15,
+      "torqueReduction": 0.22
+    },
+    "launchControl": {
+      "enabled": false,
+      "launchRpm": 2800
+    }
+  },
+  "audio": {
+    "useSamples": false,
+    "synthConfig": {
+      "baseFrequency": 59,
+      "harmonics": [1, 2, 2.5, 3, 4.2, 5.2],
+      "gainIdle": 0.17,
+      "gainMax": 0.85,
+      "cylinders": 4,
+      "engineType": "i4",
+      "exhaustResonanceHz": 198,
+      "intakeResonanceHz": 505,
+      "hasBrapOnShift": false
+    }
+  },
+  "dashboard": {
+    "type": "default",
+    "theme": "ford_fusion_2019_smartgauge",
+    "tachometerMax": 7000,
+    "speedometerMax": 260,
+    "redlineStart": 6200,
+    "shiftLightOffsetRpm": 350,
+    "fuelCapacity": 68,
+    "coolantTempTarget": 90,
+    "hasBoostGauge": true,
+    "hasInfotainment": true
+  },
+  "chassis": {
+    "totalMass": 1691,
+    "wheelbase": 2.850,
+    "centerOfMassHeight": 0.53,
+    "frontWeightRatio": 0.57,
+    "wheelRadius": 0.3345,
+    "wheelInertia": 1.32,
+    "wheelCount": 4,
+    "gravity": 9.81,
+    "isProvisional": false,
+    "notes": "Ford Fusion Titanium 2.0 EcoBoost AWD AT6 2019 (Intelligent AWD sob demanda, tanque 68L)"
+  },
+  "ignition": {
+    "type": "push_button",
+    "startInterlock": "brake",
+    "supportsAccessoryMode": true
+  },
+  "cabin": {
+    "climateType": "auto_dual",
+    "hasAcCompressor": true,
+    "hasHeater": true,
+    "hasSeatHeating": true,
+    "hasRecirculation": true,
+    "hasDefroster": true,
+    "windowCount": 4,
+    "windowControlType": "electric",
+    "hasFogLights": true,
+    "hasAmbientLighting": true,
+    "defaultAmbientColor": "cyan"
+  },
+  "multimedia": {
+    "unitId": "ford_sync3_8",
+    "type": "factory",
+    "layout": "horizontal",
+    "screenSize": 8.0,
+    "name": "Ford SYNC 3 Touchscreen 8\" (Titanium AWD)",
+    "era": "2020s",
+    "features": [
+      "Monitor Intelligent AWD em Tempo Real",
+      "Climatização Touch Dual-Zone + Bancos Dianteiros Aquecidos",
+      "Sony Premium Audio & Media Center",
+      "Telemetria 2.0 EcoBoost GTDI"
+    ],
+    "supportsAftermarketUpgrade": false
+  },
+  "visual2d": {
+    "bodyColor": "#1e293b",
+    "accentColor": "#38bdf8",
+    "lengthM": 4.871,
+    "widthM": 1.852,
+    "silhouette": "sedan"
+  }
+}
