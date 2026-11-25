@@ -5,6 +5,8 @@ import { useGarageStore, createDefaultUpgrades } from './src/stores/useGarageSto
 import { useSimulationStore } from './src/stores/useSimulationStore'
 import { AutomaticTransmission } from './src/systems/transmission/AutomaticTransmission'
 import { VehiclePhysics } from './src/systems/physics/VehiclePhysics'
+import { resolveVehicleMultimediaSpec } from './src/systems/vehicle/vehicleResolvers'
+import { MULTIMEDIA_REGISTRY } from './src/components/dashboard/infotainment/multimediaRegistry'
 import type { VehicleConfig } from './src/types'
 
 function loadConfig(vehicleId: string): VehicleConfig {
@@ -70,8 +72,16 @@ test('Golf GTI: Discover Pro 8" com Sport HMI integrado sem botões de oficina v
 
 test('Fiat Toro: Endurance (7" FWD) e Ranch (10.1" Vertical 4x4) mantêm componentes próprios', () => {
   const routerFile = readFileSync(resolve(process.cwd(), 'src/components/dashboard/infotainment/VehicleMultimedia.tsx'), 'utf-8')
-  assert.ok(routerFile.includes('FiatToroUconnectVertical'), 'VehicleMultimedia roteia Toro Ranch para Uconnect Vertical')
-  assert.ok(routerFile.includes('FiatToroUconnect7'), 'VehicleMultimedia roteia Toro Endurance para Uconnect 7"')
+  const endurance = resolveVehicleMultimediaSpec(loadConfig('fiat-toro-endurance-2025'))
+  const ranch = resolveVehicleMultimediaSpec(loadConfig('fiat-toro-ranch-2025'))
+  assert.ok(routerFile.includes('resolveVehicleMultimediaSpec') && routerFile.includes('resolveMultimediaEntry'), 'VehicleMultimedia usa resolução declarativa e registro dedicado')
+  assert.strictEqual(endurance.unitId, 'toro_uconnect_7')
+  assert.strictEqual(ranch.unitId, 'toro_uconnect_10_vertical')
+  const enduranceComponent = MULTIMEDIA_REGISTRY[endurance.unitId].component
+  const ranchComponent = MULTIMEDIA_REGISTRY[ranch.unitId].component
+  assert.notStrictEqual(enduranceComponent, 'generic')
+  assert.notStrictEqual(ranchComponent, 'generic')
+  assert.notStrictEqual(enduranceComponent, ranchComponent, 'Toro Endurance e Ranch mantêm unidades React próprias')
 })
 
 // ─────────────────────────────────────────────────────────────────
@@ -81,8 +91,8 @@ console.log('\n▶ [2/6] Oficina: Turbo Básico em Aspirados & Internos de Motor
 
 test('Carro aspirado pode equipar Kit Turbo Básico (+0.4 bar) sem exigir motor forjado', () => {
   const modalFile = readFileSync(resolve(process.cwd(), 'src/components/tuning/TuningGarageModal.tsx'), 'utf-8')
-  assert.ok(modalFile.includes('Kit Turbo Básico de Rua (+0.4 bar)'), 'Oficina possui Kit Turbo Básico de rua')
-  assert.ok(modalFile.includes('Instalação em motores aspirados sem forjar motor!'), 'Deixa explícito que não exige forjar motor')
+  assert.ok(modalFile.includes('Kit Turbo Básico de Rua (+0.45 bar)'), 'Oficina possui Kit Turbo Básico de rua (+0.45 bar)')
+  assert.ok(modalFile.includes('Instalação em motores aspirados!'), 'Deixa explícito que pode instalar em aspirados sem exigir motor forjado')
   assert.ok(modalFile.includes('Pistões & Bielas Forjadas'), 'Possui opção separada de motor forjado')
   assert.ok(modalFile.includes('Internos Reforçados ARP'), 'Possui opção de internos reforçados')
 })

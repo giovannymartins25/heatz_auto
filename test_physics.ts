@@ -9,6 +9,13 @@ console.log('       HEATZ AUTO — BATERIA DE TESTES DA ETAPA 3      ')
 console.log('======================================================\n')
 
 const DT = 1 / 120
+let passedCount = 0
+let failedCount = 0
+
+function recordTest(passed: boolean) {
+  if (passed) passedCount++
+  else failedCount++
+}
 
 function createSim() {
   const engine = new EngineSimulator(golConfig.engine)
@@ -53,6 +60,7 @@ function step(sim: any, throttle: number, brake: number, steps = 1) {
       finalDrive,
       brake,
       deltaTime: DT,
+    gear,
     })
 
     if (gear !== 0 && sim.clutch.getEngagement() > 0.95 && sim.engine.getIsRunning() && sim.physics.getSpeedKmh() > 1) {
@@ -80,6 +88,7 @@ function setClutch(sim: any, pos: number) {
   step(sim, 0, 0, 60) // 0.5s sob carga
 
   const passed = sim.engine.getIsStalled() && !sim.engine.getIsRunning()
+  recordTest(passed)
   console.log(`[TESTE A] Estol ao soltar embreagem sem acelerador: ${passed ? '✓ PASSOU' : '✗ FALHOU'}`)
   console.log(`          Status: ${sim.engine.getStatus()} | RPM: ${sim.engine.getRpm().toFixed(0)} | Stalled: ${sim.engine.getIsStalled()}\n`)
 }
@@ -104,6 +113,7 @@ function setClutch(sim: any, pos: number) {
   }
 
   const passed = sim.engine.getIsRunning() && !sim.engine.getIsStalled() && sim.physics.getSpeedKmh() > 5
+  recordTest(passed)
   console.log(`[TESTE B] Arrancada suave com modulação: ${passed ? '✓ PASSOU' : '✗ FALHOU'}`)
   console.log(`          Velocidade: ${sim.physics.getSpeedKmh().toFixed(1)} km/h | RPM: ${sim.engine.getRpm().toFixed(0)} | Status: ${sim.engine.getStatus()}\n`)
 }
@@ -137,6 +147,7 @@ function setClutch(sim: any, pos: number) {
   const rpmIn2nd = sim.engine.getRpm()
 
   const passed = rpmIn2nd < rpmIn1st
+  recordTest(passed)
   console.log(`[TESTE C] Troca 1ª -> 2ª com queda de RPM: ${passed ? '✓ PASSOU' : '✗ FALHOU'}`)
   console.log(`          RPM 1ª: ${rpmIn1st.toFixed(0)} -> RPM 2ª: ${rpmIn2nd.toFixed(0)} (Queda de ${(rpmIn1st - rpmIn2nd).toFixed(0)} RPM)\n`)
 }
@@ -171,6 +182,7 @@ function setClutch(sim: any, pos: number) {
   const speed5th = sim5.physics.getSpeedKmh()
 
   const passed = speed1st > speed5th * 1.5
+  recordTest(passed)
   console.log(`[TESTE D] Comparação de aceleração (Peso das Marchas): ${passed ? '✓ PASSOU' : '✗ FALHOU'}`)
   console.log(`          Ganho em 1s na 1ª: ${speed1st.toFixed(1)} km/h vs 5ª: ${speed5th.toFixed(1)} km/h\n`)
 }
@@ -188,6 +200,7 @@ function setClutch(sim: any, pos: number) {
   step(sim, 0.05, 0, 60)
 
   const passed = sim.engine.getRpm() < 600
+  recordTest(passed)
   console.log(`[TESTE E] Sub-rotação em 5ª a baixa velocidade (Engasgo/Carga): ${passed ? '✓ PASSOU' : '✗ FALHOU'}`)
   console.log(`          RPM sob carga da 5ª: ${sim.engine.getRpm().toFixed(1)} RPM\n`)
 }
@@ -211,6 +224,7 @@ function setClutch(sim: any, pos: number) {
   const rpmRecovered = sim.engine.getRpm()
 
   const passed = rpmRecovered > rpmLow && sim.engine.getIsRunning() && !sim.engine.getIsStalled()
+  recordTest(passed)
   console.log(`[TESTE F] Salvar o motor acionando embreagem a tempo: ${passed ? '✓ PASSOU' : '✗ FALHOU'}`)
   console.log(`          RPM em queda: ${rpmLow.toFixed(0)} -> Recuperado pós-embreagem: ${rpmRecovered.toFixed(0)} RPM\n`)
 }
@@ -229,10 +243,12 @@ function setClutch(sim: any, pos: number) {
   const drop100 = testBrake(1.0)
 
   const passed = drop100 > drop50 && drop50 > drop0
+  recordTest(passed)
   console.log(`[TESTE G] Graduação da frenagem proporcional: ${passed ? '✓ PASSOU' : '✗ FALHOU'}`)
   console.log(`          Queda em 0.5s: Freio 0% = ${drop0.toFixed(1)} km/h | Freio 50% = ${drop50.toFixed(1)} km/h | Freio 100% = ${drop100.toFixed(1)} km/h\n`)
 }
 
 console.log('======================================================')
-console.log('       TODOS OS TESTES (A a G) FORAM APROVADOS!       ')
+console.log(`       RESULTADO: ${passedCount} PASSARAM | ${failedCount} FALHARAM       `)
 console.log('======================================================\n')
+if (failedCount > 0) process.exitCode = 1

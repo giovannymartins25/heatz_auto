@@ -70,7 +70,7 @@ export const ClutchControl = memo(function ClutchControl({
         onChange={onChange}
         colorTheme="blue"
         widthClass="w-14"
-        heightClass="h-44"
+        heightClass="h-28 xl:h-36"
         disabled={disabled}
         showPercent={true}
       />

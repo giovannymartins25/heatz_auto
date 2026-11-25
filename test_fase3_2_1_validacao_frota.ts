@@ -173,7 +173,8 @@ console.log('1. Auditoria Matemática — Carga Normal, Continuidade C0, Marcha 
     initialPositionY: 70,
     initialHeadingDeg: 0,
   })
-  revPhys.setSpeedKmh(15)
+  // setSpeedKmh agora aceita sinal para definir o sentido efetivo do movimento.
+  revPhys.setSpeedKmh(-15)
   let revRes = revPhys.tick({
     driveTorqueAtTransmission: 150,
     gearRatio: 3.99,

@@ -291,9 +291,9 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   }
 
   return (
-    <div className="flex flex-col min-h-dvh bg-[var(--color-bg-primary)] safe-top safe-bottom p-2 sm:p-2.5 justify-between select-none">
+    <div className="flex flex-col min-h-dvh lg:h-dvh lg:max-h-dvh lg:overflow-hidden bg-[var(--color-bg-primary)] safe-top safe-bottom px-2 py-1.5 sm:px-2.5 sm:py-2 justify-between select-none">
       {/* Barra de cabeçalho superior */}
-      <header className="flex flex-wrap justify-between items-center w-full gap-2 mb-1">
+      <header className="flex flex-wrap xl:flex-nowrap justify-between items-center w-full gap-1.5 mb-0.5 flex-shrink-0">
         <div className="flex items-center gap-2">
           <button
             onClick={handleBack}
@@ -424,7 +424,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
       </header>
 
       {/* Seção Central: Painel de Instrumentos ou Cockpit View */}
-      <main className="flex flex-col items-center gap-1.5 my-auto w-full">
+      <main className="flex flex-col items-center justify-center gap-1 flex-1 min-h-0 w-full overflow-hidden">
         {/* Controles superiores: Modo de Condução + Toggle AUTO/MANUAL + TCS */}
         <div className="flex flex-wrap items-center justify-center gap-2 w-full">
           {/* Seletor de Modo de Condução (ECO, NORMAL, SPORT, TRACK) */}
@@ -609,11 +609,11 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
         {/* ── Viewport do Mapa 2D Dirigível (Desktop) ── */}
         {isMapOpen && (
           <div
-            className={`w-full max-w-4xl px-2 animate-in fade-in zoom-in-95 duration-200 transition-all ${mapViewportSize === 'compact'
-              ? 'h-[155px] sm:h-[165px] lg:h-[175px]'
+            className={`w-full max-w-4xl px-2 animate-in fade-in zoom-in-95 duration-200 transition-all flex-shrink-0 ${mapViewportSize === 'compact'
+              ? 'h-[128px] xl:h-[168px]'
               : mapViewportSize === 'expanded'
-                ? 'h-[300px] sm:h-[340px] lg:h-[380px]'
-                : 'h-[170px] sm:h-[185px] lg:h-[195px]'
+                ? 'h-[240px] xl:h-[340px]'
+                : 'h-[146px] xl:h-[192px]'
               }`}
           >
             <DrivingMapViewport
@@ -661,7 +661,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
       </main>
 
       {/* Seção Inferior: Controles de Pilotagem + Pedais + Ignição no canto inferior direito */}
-      <footer className="w-full max-w-[1440px] flex flex-wrap items-center justify-center gap-3 sm:gap-5 px-2 mt-auto">
+      <footer className="w-full max-w-[1440px] mx-auto flex flex-wrap items-end justify-center gap-3 sm:gap-5 px-2 pt-0.5 flex-shrink-0">
         {/* Controles: Buzina, Mapa, Freio de Mão, NOS & Shifter */}
         <div className="flex flex-wrap items-center justify-center gap-3">
           <div className="flex items-center gap-2">
@@ -734,12 +734,12 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           </div>
         </div>
 
-        {/* Minimapa fixo acima da região dos pedais + Pedais interativos + Ignição real à direita */}
+        {/* Minimapa radar na região superior-lateral dos pedais + Pedais interativos + Ignição real à direita */}
         <div className="flex items-end gap-3">
-          <div className="flex flex-col items-center gap-1.5">
+          <div className="self-start pt-1">
             <HudMinimap variant="desktop" />
-            <Pedals vehicle={vehicle} />
           </div>
+          <Pedals vehicle={vehicle} />
           <HudIgnitionControl vehicle={vehicle} variant="desktop" />
         </div>
       </footer>

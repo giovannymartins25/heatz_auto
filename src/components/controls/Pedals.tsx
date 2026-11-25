@@ -66,8 +66,8 @@ export const Pedals = memo(function Pedals({ vehicle: propVehicle }: PedalsProps
           value={brake}
           onChange={setBrake}
           colorTheme="red"
-          widthClass="w-16"
-          heightClass="h-44"
+          widthClass="w-15 xl:w-16"
+          heightClass="h-28 xl:h-36"
           disabled={!isRunning}
           showPercent={true}
         />
@@ -80,7 +80,7 @@ export const Pedals = memo(function Pedals({ vehicle: propVehicle }: PedalsProps
           onChange={setThrottle}
           colorTheme="accent"
           widthClass="w-14"
-          heightClass="h-44"
+          heightClass="h-28 xl:h-36"
           disabled={!isRunning}
           showPercent={true}
         />

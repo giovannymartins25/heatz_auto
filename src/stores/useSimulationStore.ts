@@ -53,21 +53,6 @@ import { useUIStore, type MapViewportSize } from './useUIStore'
 import { performanceMonitor } from '@/utils/performanceMonitor'
 
 /**
- * Calcula o ângulo máximo efetivo das rodas dianteiras (rad) de forma sensível à velocidade (EPS progressivo).
- * - Até 25 km/h: autoridade plena de 0.55 rad (~31.5°) para manobras e curvas travadas.
- * - Acima de 25 km/h: atenuação progressiva contínua (sem salto), evitando respostas bruscas em média/alta velocidade.
- */
-function computeSpeedSensitiveSteerRad(normalizedSteer: number, speedKmh: number): number {
-  if (!Number.isFinite(normalizedSteer) || Math.abs(normalizedSteer) < 1e-5) return 0
-  const safeSpeed = Number.isFinite(speedKmh) ? Math.max(0, speedKmh) : 0
-  const maxRad =
-    safeSpeed <= 25
-      ? 0.55
-      : clamp(0.55 / (1 + Math.pow((safeSpeed - 25) / 68, 1.15)), 0.12, 0.55)
-  return clamp(normalizedSteer, -1, 1) * maxRad
-}
-
-/**
  * Estado físico autoritativo desacoplado das publicações visuais do Zustand.
  * Permite que todos os subsistemas integrem a 120 Hz sem perda nem quantização
  * mesmo quando a UI recebe snapshots em 35 Hz (ECO), 60 Hz (NORMAL) ou ~6.6 Hz (telemetria lenta).
@@ -3678,7 +3663,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             : clutchState.transmittedTorque >= 0
               ? clutchState.transmittedTorque * totalTorqueMult
               : clutchState.transmittedTorque
-        const steeringAngleRad = computeSpeedSensitiveSteerRad(ctx.steeringAngle || 0, substepPhys.speedKmh)
+        const steeringAngleRad = (ctx.steeringAngle || 0) * 0.55
         const physicsTick = _physics.tick({
           driveTorqueAtTransmission,
           gearRatio,

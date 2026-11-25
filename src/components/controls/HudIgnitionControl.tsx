@@ -196,7 +196,7 @@ export const HudIgnitionControl = memo(function HudIgnitionControl({
         aria-label={isRunning ? 'Desligar motor (Start/Stop)' : 'Dar partida no motor (Start/Stop)'}
         className={`relative overflow-hidden select-none touch-none font-mono font-black uppercase transition-all active:scale-95 cursor-pointer flex flex-col items-center justify-center ${
           isDesktop
-            ? 'w-16 h-16 rounded-full border-2 p-1'
+            ? 'w-16 h-16 flex-shrink-0 rounded-full border-2 p-1'
             : 'h-11 w-full rounded-xl border-2 px-1 py-0.5'
         } ${theme} ${className}`}
       >
@@ -277,7 +277,7 @@ export const HudIgnitionControl = memo(function HudIgnitionControl({
       onTouchStart={(e) => e.stopPropagation()}
       style={{ touchAction: 'none' }}
       className={`select-none touch-none rounded-xl border border-white/15 bg-zinc-950/95 flex flex-col justify-between shadow-md ${
-        isDesktop ? 'w-[138px] p-1.5 gap-1' : 'h-11 w-full px-1 py-0.5 gap-0.5'
+        isDesktop ? 'w-[138px] flex-shrink-0 p-1.5 gap-1' : 'h-11 w-full px-1 py-0.5 gap-0.5'
       } ${className}`}
     >
       {/* Estágios da chave física: OFF · ACC (quando suportado) · ON */}

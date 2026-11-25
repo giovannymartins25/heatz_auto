@@ -35,6 +35,12 @@ export const HandbrakeButton = memo(function HandbrakeButton({
     if (handledPointersRef.current.has(e.pointerId)) return
     handledPointersRef.current.add(e.pointerId)
 
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // Ignora em ambientes sintéticos sem capture
+    }
+
     lastPointerActivateMsRef.current = typeof performance !== 'undefined' ? performance.now() : Date.now()
     onToggle()
   }
@@ -42,6 +48,13 @@ export const HandbrakeButton = memo(function HandbrakeButton({
   const clearPointer = (e: React.PointerEvent<HTMLButtonElement>) => {
     e.stopPropagation()
     handledPointersRef.current.delete(e.pointerId)
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      }
+    } catch {
+      // Ignora
+    }
   }
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -66,6 +79,7 @@ export const HandbrakeButton = memo(function HandbrakeButton({
         onPointerDown={handlePointerDown}
         onPointerUp={clearPointer}
         onPointerCancel={clearPointer}
+        onLostPointerCapture={clearPointer}
         onPointerLeave={clearPointer}
         onClick={handleClick}
         style={{ touchAction: 'none' }}
@@ -92,6 +106,7 @@ export const HandbrakeButton = memo(function HandbrakeButton({
         onPointerDown={handlePointerDown}
         onPointerUp={clearPointer}
         onPointerCancel={clearPointer}
+        onLostPointerCapture={clearPointer}
         onPointerLeave={clearPointer}
         onClick={handleClick}
         style={{ touchAction: 'none' }}

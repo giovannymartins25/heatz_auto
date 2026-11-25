@@ -121,8 +121,8 @@ console.log('\n=== FASE 4.4.2.1 — 2. ORIENTAÇÃO DE VELOCIDADE E SAÍDAS DIRE
     `Velocidade recomendada no asfalto reduz automaticamente sob chuva (${gRoundDry?.recommendedSpeedKmh} -> ${gRoundWet?.recommendedSpeedKmh} km/h)`,
   )
 
-  // 2.2 Entroncamento em T sem passagem reta: int-ne-anel-norte (140, 230) vindo do sul pela rua-ne-saida-norte (140, 186 rumo Norte 0°)
-  const gT = computeAsphaltGuidance(140, 186, 0, false, WORLD_GEOMETRY)
+  // 2.2 Entroncamento em T sem passagem reta: int-ne-anel-norte (140, 230) na aproximação pela ligação norte (140, 200 rumo Norte 0°)
+  const gT = computeAsphaltGuidance(140, 200, 0, false, WORLD_GEOMETRY)
   assert(
     gT !== null &&
       gT.featureId === 'int-ne-anel-norte' &&

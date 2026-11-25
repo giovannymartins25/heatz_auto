@@ -66,7 +66,7 @@ export const DesktopCockpitLayout = memo(function DesktopCockpitLayout({
       data-testid="desktop-cockpit-layout"
     >
       {/* Painel 1 — Instrument Cluster (sempre visível no desktop) */}
-      <div className="w-full min-w-0 flex-1 flex items-center justify-center relative h-[230px] xl:h-[268px] rounded-2xl border border-white/5 bg-black/25">
+      <div className="w-full min-w-0 flex-1 flex items-center justify-center relative h-[204px] xl:h-[264px] rounded-2xl border border-white/5 bg-black/25">
         <InstrumentClusterPanel
           telemetry={telemetry}
           vehicle={vehicle}
@@ -81,7 +81,7 @@ export const DesktopCockpitLayout = memo(function DesktopCockpitLayout({
 
       {/* Área Secundária — Alternância limpa entre Painel 2 (Multimídia/Rádio) e Painel 3 (Controles) */}
       <div
-        className="flex flex-col shrink-0 w-full max-w-[460px] mx-auto lg:mx-0 lg:w-[370px] xl:w-[420px] h-[230px] xl:h-[268px] rounded-2xl border border-white/10 bg-zinc-950/80 p-1.5"
+        className="flex flex-col shrink-0 w-full max-w-[460px] mx-auto lg:mx-0 lg:w-[370px] xl:w-[420px] h-[204px] xl:h-[264px] rounded-2xl border border-white/10 bg-zinc-950/80 p-1.5"
         data-testid="desktop-secondary-panel"
         data-active-secondary={activeSecondary}
         {...secondaryTouchHandlers}

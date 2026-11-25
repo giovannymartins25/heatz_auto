@@ -1513,9 +1513,11 @@ export class VehiclePhysics {
         const nextVx = vWorldX * sinH + vWorldY * cosH
         const nextVy = vWorldX * cosH - vWorldY * sinH
 
-        this.speedMs = Math.abs(nextVx)
-        this.motionDirection = this.speedMs >= 0.25 ? (nextVx < 0 ? -1 : 1) : 0
-        if (this.speedMs < 0.25) this.speedMs = 0
+        this.speedMs = isReverse ? Math.max(0, -nextVx) : Math.max(0, nextVx)
+        if (this.speedMs < 0.25) {
+          this.speedMs = 0
+          this.motionDirection = 0
+        }
         this.lateralSpeedMs = nextVy * 0.45
         if (Math.abs(this.lateralSpeedMs) < 0.05) this.lateralSpeedMs = 0
         this.yawRate *= 0.35
