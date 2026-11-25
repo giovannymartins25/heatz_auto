@@ -207,5 +207,56 @@
     "hasFogLights": true,
     "hasAmbientLighting": true,
     "defaultAmbientColor": "red"
+  },
+  "controls": {
+    "climate": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "controlType": "digital",
+      "panel": "multimedia",
+      "adjustable": "setpoint_and_fan"
+    },
+    "tractionControl": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "userToggleable": true,
+      "controlType": "physical",
+      "panel": "controls",
+      "systemLabel": "TC+ / ESC"
+    },
+    "steeringWheel": {
+      "hasAudioControls": true,
+      "hasCruiseControls": true,
+      "confirmationStatus": "confirmed"
+    },
+    "driverAssists": {
+      "cruiseControl": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "steering_wheel_physical",
+        "panel": "controls",
+        "adjustable": "setpoint_adjustable",
+        "implementationState": "pending_sensors",
+        "notes": "Piloto automático convencional no volante da Toro Ranch 2025."
+      },
+      "adaptiveCruiseControl": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Toro Ranch 2025 utiliza piloto automático convencional (sem ACC radar)."
+      },
+      "laneKeepingAssist": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "digital_multimedia",
+        "panel": "multimedia",
+        "adjustable": "toggle_only",
+        "implementationState": "pending_sensors",
+        "notes": "Pacote ADAS (LDW/LKA + AEB) de série na versão topo Ranch 2025."
+      }
+    }
   }
 }

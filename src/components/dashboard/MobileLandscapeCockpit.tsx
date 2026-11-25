@@ -9,7 +9,8 @@ import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { useDeviceTilt } from '@/hooks/useDeviceTilt'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, HudIgnitionControl, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
+import { QuickClutchButton, HudIgnitionControl, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone, HandbrakeButton } from '@/components/controls'
+import { useSecondaryTouchTapBridge } from '@/utils/multitouchBridge'
 import { resolveVehicleIgnition } from '@/systems/vehicle/vehicleResolvers'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { HudMinimap } from './HudMinimap'
@@ -57,6 +58,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   entryMode = 'drive',
 }: MobileLandscapeCockpitProps) {
   const isDriveMode = entryMode !== 'cluster'
+  const secondaryTouchHandlers = useSecondaryTouchTapBridge()
 
   // Garante escuta física ininterrupta do sensor de inclinação durante toda a sessão de condução
   useDeviceTilt()
@@ -71,8 +73,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   const setClutch = useSimulationStore((s) => s.setClutch)
 
   const isRunning = useSimulationStore((s) => s.isRunning)
-  const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
-  const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
   const setHorn = useSimulationStore((s) => s.setHorn)
   const handbrake = useSimulationStore((s) => s.handbrake)
   const toggleHandbrake = useSimulationStore((s) => s.toggleHandbrake)
@@ -110,6 +110,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
 
   return (
     <div
+      {...secondaryTouchHandlers}
       className="fixed inset-0 w-full h-full bg-zinc-950 text-white flex flex-col select-none touch-none overflow-hidden z-40"
       style={{
         paddingLeft: 'max(0.35rem, env(safe-area-inset-left))',
@@ -329,25 +330,6 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             >
               📢
             </button>
-
-            {vehicle.transmission.tcs?.enabled && (
-              <button
-                type="button"
-                onClick={() => setTcsEnabled(!tcsEnabled)}
-                aria-pressed={tcsEnabled}
-                title={tcsEnabled ? 'Desativar controle de tração (TCS)' : 'Ativar controle de tração (TCS)'}
-                className={`w-9 h-9 rounded-full border font-mono font-black leading-none flex flex-col items-center justify-center cursor-pointer transition-all active:scale-95 shadow-sm ${
-                  !tcsEnabled
-                    ? 'bg-zinc-900 text-zinc-500 border-zinc-700 opacity-75'
-                    : telemetry.tcs.intervening
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.45)] animate-pulse'
-                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/60'
-                }`}
-              >
-                <span className="text-[8px] sm:text-[8.5px]">TCS</span>
-                <span className="text-[6px] sm:text-[6.5px] opacity-85">{tcsEnabled ? 'ON' : 'OFF'}</span>
-              </button>
-            )}
           </div>
 
           <div
@@ -430,19 +412,11 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               : 'grid-cols-2 gap-1.5'
           }`}
         >
-          <button
-            type="button"
-            onClick={toggleHandbrake}
-            className={`h-11 rounded-xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer shadow-sm ${
-              handbrake
-                ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_8px_rgba(249,115,22,0.8)]'
-                : 'bg-zinc-900 border-white/10 text-zinc-400'
-            }`}
-            aria-label="Freio de mão"
-          >
-            <span className="text-[10.5px] sm:text-xs">(P)</span>
-            <span className="text-[6px] sm:text-[6.5px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
-          </button>
+          <HandbrakeButton
+            active={handbrake}
+            onToggle={toggleHandbrake}
+            variant="mobile_landscape"
+          />
           <HudIgnitionControl vehicle={vehicle} variant="mobile_landscape" />
         </div>
       </aside>

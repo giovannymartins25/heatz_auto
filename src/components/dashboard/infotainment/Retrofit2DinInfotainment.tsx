@@ -4,7 +4,7 @@ import type { VehicleConfig } from '@/types/vehicle'
 import { clamp } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
-import { ClimateControlPanel, InternetMediaCenter } from './shared'
+import { ClimateControlPanel, InternetMediaCenter, MultimediaStatusFooter } from './shared'
 import { BoostGauge } from '@/components/gauges'
 
 export interface Retrofit2DinInfotainmentProps {
@@ -279,6 +279,7 @@ export const Retrofit2DinInfotainment = memo(function Retrofit2DinInfotainment({
           <span className="text-[7px]">LUZ RGB</span>
         </button>
       </div>
+      <MultimediaStatusFooter theme="emerald" />
     </div>
   )
 })

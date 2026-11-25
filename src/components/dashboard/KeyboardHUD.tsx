@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { useUIStore } from '@/stores/useUIStore'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { canControlExhaustValve } from '@/systems/vehicle/vehicleResolvers'
 
 interface KeyboardHUDProps {
   hasClutch?: boolean
@@ -15,6 +16,10 @@ export const KeyboardHUD = memo(function KeyboardHUD({
   const activeKeys = useUIStore((s) => s.activeKeys)
   const handbrake = useSimulationStore((s) => s.handbrake)
   const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
+  const exhaustType = useSimulationStore((s) => s.exhaustType)
+  const hasExhaustValveKit = useSimulationStore((s) => s.hasExhaustValveKit)
+  const simConfig = useSimulationStore((s) => s._config)
+  const showExhaustValve = canControlExhaustValve(simConfig, { exhaustType, hasExhaustValveKit })
   const headlightsMode = useSimulationStore((s) => s.headlightsMode)
   const isRaining = useSimulationStore((s) => s.isRaining)
   const isAutomaticVehicle = useSimulationStore((s) => s.isAutomaticVehicle)
@@ -125,16 +130,18 @@ export const KeyboardHUD = memo(function KeyboardHUD({
         Espaço · F.Mão
       </span>
 
-      {/* [V] Difusor de Escape */}
-      <span
-        className={`px-1.5 py-0.5 rounded font-bold transition-all ${
-          exhaustValveOpen
-            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/60 shadow-[0_0_10px_rgba(245,158,11,0.4)]'
-            : 'bg-zinc-900 text-zinc-500 border border-white/5'
-        }`}
-      >
-        V · Difusor {exhaustValveOpen ? 'ON' : 'OFF'}
-      </span>
+      {/* [V] Difusor de Escape (somente quando equipado com upgrade compatível) */}
+      {showExhaustValve && (
+        <span
+          className={`px-1.5 py-0.5 rounded font-bold transition-all ${
+            exhaustValveOpen
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/60 shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+              : 'bg-zinc-900 text-zinc-500 border border-white/5'
+          }`}
+        >
+          V · Difusor {exhaustValveOpen ? 'ON' : 'OFF'}
+        </span>
+      )}
 
       {/* [L] Faróis */}
       <span

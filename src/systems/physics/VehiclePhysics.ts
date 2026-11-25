@@ -127,7 +127,9 @@ export class VehiclePhysics {
   private rearWingType: RearWingType = 'none'
   private isAirbrakeActive: boolean = false
 
-  private speedMs: number = 0 // velocidade linear longitudinal em m/s
+  private speedMs: number = 0 // velocidade linear longitudinal em m/s (módulo >= 0)
+  /** Sentido longitudinal efetivo de deslocamento (-1 = ré, 0 = parado, +1 = frente) para impedir inversão instantânea em trocas D↔R */
+  private motionDirection: -1 | 0 | 1 = 0
   private accelerationMs2: number = 0
   private surfaceFriction: number = 0.95 // Coeficiente de atrito efetivo mu (superfície × composto de pneu)
   private baseSurfaceFriction: number = 0.95 // Atrito bruto da superfície do WorldMap
@@ -478,12 +480,23 @@ export class VehiclePhysics {
   }
 
   setSpeedKmh(speedKmh: number): void {
-    this.speedMs = Math.max(0, speedKmh / 3.6)
+    const signed = Number.isFinite(speedKmh) ? speedKmh : 0
+    this.speedMs = Math.max(0, Math.abs(signed) / 3.6)
+    this.motionDirection = this.speedMs > 0.05 ? (signed < 0 ? -1 : 1) : 0
     this.wheelSpeedMs = this.speedMs
     const omega = this.wheelRadius > 0 ? this.speedMs / this.wheelRadius : 0
     this.wheelAngularVel = [omega, omega, omega, omega]
     this.prevWheelAngularVel = [omega, omega, omega, omega]
     this.filteredWheelAccels = [0, 0, 0, 0]
+  }
+
+  getMotionDirection(): -1 | 0 | 1 {
+    return this.motionDirection
+  }
+
+  getSignedLongitudinalSpeedKmh(): number {
+    if (this.speedMs < 0.02 || this.motionDirection === 0) return 0
+    return this.motionDirection * this.getSpeedKmh()
   }
 
   setSurfaceFriction(mu: number): void {
@@ -1103,21 +1116,44 @@ export class VehiclePhysics {
       }
     }
 
-    // 6. Força Líquida
+    // 6. Força Líquida e Sentido Longitudinal Efetivo (Proteção Física contra inversão instantânea D ↔ R)
+    const safeGear = gear ?? 0
+    const desiredGearDir: -1 | 0 | 1 = safeGear === -1 ? -1 : safeGear > 0 ? 1 : 0
+    if (this.speedMs <= 0.12 && this.motionDirection === 0 && desiredGearDir !== 0 && tractionForce > 0) {
+      this.motionDirection = desiredGearDir
+    } else if (this.speedMs > 0.12 && this.motionDirection === 0) {
+      this.motionDirection = desiredGearDir !== 0 ? desiredGearDir : 1
+    }
+
+    const isGearOpposingMotion =
+      this.speedMs > 0.12 &&
+      this.motionDirection !== 0 &&
+      desiredGearDir !== 0 &&
+      desiredGearDir !== this.motionDirection
+
+    // Quando a rampa atua sobre o carro em ré vs frente: slopeForce > 0 opõe subida para frente
+    const directionalSlopeForce = this.motionDirection === -1 ? -slopeForce : slopeForce
     let netForce = 0
-    const totalOpposingForce = rollingResistance + aeroResistance + brakeForce + slopeForce
+    const totalOpposingForce = rollingResistance + aeroResistance + brakeForce + directionalSlopeForce
 
     if (this.speedMs > 0.05) {
-      netForce = tractionForce - totalOpposingForce
+      // Se uma marcha contrária ao deslocamento atual estiver acoplada, qualquer força nas rodas desacelera
+      // o módulo da velocidade até zero (nunca soma velocidade instantaneamente no sentido oposto!)
+      const signedTractionAlongMotion = isGearOpposingMotion ? -tractionForce : tractionForce
+      netForce = signedTractionAlongMotion - totalOpposingForce
     } else {
-      const staticResistance = rollingResistance * 1.2 + brakeForce + slopeForce
-      if (tractionForce > staticResistance) {
+      const staticSlope = (desiredGearDir === -1 ? -1 : 1) * slopeForce
+      const staticResistance = rollingResistance * 1.2 + brakeForce + staticSlope
+      if (tractionForce > staticResistance && desiredGearDir !== 0) {
+        this.motionDirection = desiredGearDir
         netForce = tractionForce - staticResistance
       } else if (slopeForce < 0 && Math.abs(slopeForce) > rollingResistance * 1.2 + brakeForce) {
+        this.motionDirection = 1
         netForce = Math.abs(slopeForce) - (rollingResistance * 1.2 + brakeForce)
       } else {
         netForce = 0
         this.speedMs = 0
+        this.motionDirection = 0
         this.wheelSpeedMs = 0
       }
     }
@@ -1125,16 +1161,19 @@ export class VehiclePhysics {
     // 7. Aceleração
     this.accelerationMs2 = netForce / this.mass
 
-    // 8. Atualizar Velocidade
+    // 8. Atualizar Velocidade (ao cruzar zero por frenagem/força oposta, para em 0 antes de inverter sentido)
     this.speedMs += this.accelerationMs2 * deltaTime
-    if (this.speedMs < 0) {
+    if (this.speedMs <= 0) {
       this.speedMs = 0
       this.accelerationMs2 = 0
       this.wheelSpeedMs = 0
+      this.motionDirection = 0
     }
 
     // 9. Dinâmica Planar 2D Acoplada (Carros: Bicicleta Dinâmica + Círculo de Atrito | Motocicletas: Roll/Lean + Camber Thrust)
-    const isReverse = gear === -1
+    const isMovingReverse =
+      this.speedMs > 0.05 ? this.motionDirection === -1 : gear === -1
+    const isReverse = isMovingReverse
     const wheelbase = this.chassis.wheelbase
     const aDist = this.chassis.distanceCgToFrontAxle
     const bDist = this.chassis.distanceCgToRearAxle
@@ -1474,7 +1513,8 @@ export class VehiclePhysics {
         const nextVx = vWorldX * sinH + vWorldY * cosH
         const nextVy = vWorldX * cosH - vWorldY * sinH
 
-        this.speedMs = isReverse ? Math.max(0, -nextVx) : Math.max(0, nextVx)
+        this.speedMs = Math.abs(nextVx)
+        this.motionDirection = this.speedMs >= 0.25 ? (nextVx < 0 ? -1 : 1) : 0
         if (this.speedMs < 0.25) this.speedMs = 0
         this.lateralSpeedMs = nextVy * 0.45
         if (Math.abs(this.lateralSpeedMs) < 0.05) this.lateralSpeedMs = 0
@@ -1578,6 +1618,7 @@ export class VehiclePhysics {
 
   reset(): void {
     this.speedMs = 0
+    this.motionDirection = 0
     this.accelerationMs2 = 0
     this.wheelSpeedMs = 0
     this.positionX = WorldMap.SPAWN_X
@@ -1604,6 +1645,7 @@ export class VehiclePhysics {
   getStateSnapshot(): VehiclePhysicsSnapshot {
     return {
       speedMs: this.speedMs,
+      motionDirection: this.motionDirection,
       accelerationMs2: this.accelerationMs2,
       surfaceFriction: this.surfaceFriction,
       roadGradePercent: this.roadGradePercent,
@@ -1629,6 +1671,11 @@ export class VehiclePhysics {
 
   restoreSnapshot(snapshot: VehiclePhysicsSnapshot): void {
     this.speedMs = snapshot.speedMs
+    if (snapshot.motionDirection !== undefined) {
+      this.motionDirection = snapshot.motionDirection
+    } else if (this.speedMs <= 0.02) {
+      this.motionDirection = 0
+    }
     this.accelerationMs2 = snapshot.accelerationMs2
     this.surfaceFriction = snapshot.surfaceFriction
     this.wheelSpeedMs = snapshot.wheelSpeedMs
@@ -1663,6 +1710,7 @@ export class VehiclePhysics {
 
 export interface VehiclePhysicsSnapshot {
   speedMs: number
+  motionDirection?: -1 | 0 | 1
   accelerationMs2: number
   surfaceFriction: number
   roadGradePercent?: number

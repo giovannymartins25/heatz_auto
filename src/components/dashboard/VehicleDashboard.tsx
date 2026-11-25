@@ -17,9 +17,10 @@ import { KeyboardHUD } from './KeyboardHUD'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { HudMinimap } from './HudMinimap'
 import { WorldMapModal } from './WorldMapModal'
-import { DesktopCockpitLayout } from '@/components/cockpit'
+import { DesktopCockpitLayout, PanelModeInteriorView } from '@/components/cockpit'
 import { PedalTelemetry } from '@/components/gauges'
-import { Pedals, GearShift, HudIgnitionControl } from '@/components/controls'
+import { Pedals, GearShift, HudIgnitionControl, HandbrakeButton } from '@/components/controls'
+import { canControlExhaustValve } from '@/systems/vehicle/vehicleResolvers'
 import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
 import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
@@ -66,7 +67,6 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const tcsInterventionLevel = useSimulationStore((s) => s.tcsInterventionLevel)
   const setDrivingMode = useSimulationStore((s) => s.setDrivingMode)
   const toggleSimulatedManual = useSimulationStore((s) => s.toggleSimulatedManual)
-  const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
   const isRunning = useSimulationStore((s) => s.isRunning)
   const handbrake = useSimulationStore((s) => s.handbrake)
   const toggleHandbrake = useSimulationStore((s) => s.toggleHandbrake)
@@ -75,6 +75,8 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const toggleMute = useSimulationStore((s) => s.toggleMute)
   const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
   const isLaunching = useSimulationStore((s) => s.isLaunching)
+  const exhaustType = useSimulationStore((s) => s.exhaustType)
+  const hasExhaustValveKit = useSimulationStore((s) => s.hasExhaustValveKit)
   const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
   const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
   const headlightsMode = useSimulationStore((s) => s.headlightsMode)
@@ -142,8 +144,10 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   // Conectar sistema de som (SynthEngine)
   useAudio(vehicle)
 
-  // Conectar controles de teclado do PC (desativa enquanto modais estiverem abertos)
-  useKeyboardControls(vehicle, !isTuningOpen && !isDragStripOpen)
+  const { isLandscape, isPortrait, isMobileDevice, lockLandscape } = useOrientation()
+
+  // Conectar controles de teclado do PC (somente fora de dispositivos móveis e com modais fechados)
+  useKeyboardControls(vehicle, !isMobileDevice && !isTuningOpen && !isDragStripOpen)
 
   // Computar telemetria do DashboardSystem (desacoplado e puro com interpolação visual)
   const telemetry = useMemo(() => {
@@ -208,11 +212,33 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
     isEngineBlown,
   ])
 
-  const { isLandscape, isPortrait, isMobileDevice, lockLandscape } = useOrientation()
-
   const handleBack = () => {
     reset()
     navigate('/')
+  }
+
+  const showExhaustValveButton = canControlExhaustValve(vehicle, {
+    exhaustType: activeCar?.upgrades?.exhaustType ?? exhaustType,
+    hasExhaustValveKit: activeCar?.upgrades?.hasExhaustValveKit ?? hasExhaustValveKit,
+  })
+
+  // ── Separação Completa do Modo Painel (Interior do Veículo — Fase 4.4.2.2) ──
+  // Renderiza experiência dedicada de interior em Desktop, Mobile Portrait e Mobile Landscape,
+  // sem minimapa, sem mapa 2D e sem HUD/pedais de direção.
+  if (entryMode === 'cluster') {
+    return (
+      <PanelModeInteriorView
+        telemetry={telemetry}
+        vehicle={vehicle}
+        onBack={handleBack}
+        carInstance={activeCar}
+        hasTurbo={hasTurbo}
+        showAftermarketBoostGauge={showAftermarketBoostGauge}
+        boostPressureBar={boostPressureBar}
+        isTuningOpen={isTuningOpen}
+        setIsTuningOpen={setIsTuningOpen}
+      />
+    )
   }
 
   const isManualSimulated = transmissionMode === 'manual_simulated'
@@ -222,7 +248,6 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
       vehicle.transmission.type === 'cvt' ||
       vehicle.transmission.type === 'dct' ||
       vehicle.transmission.defaultMode === 'automatic')
-  const hasTcs = !!vehicle.transmission.tcs?.enabled
   const caps = getVehicleCapabilities(vehicle)
   const supportedModes = caps.supportedDrivingModes
 
@@ -462,30 +487,6 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             </button>
           )}
 
-          {/* Indicador e Controle TCS */}
-          {hasTcs && (
-            <button
-              id="btn-tcs-toggle"
-              onClick={() => setTcsEnabled(!tcsEnabled)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer ${!tcsEnabled
-                ? 'bg-zinc-950/70 border-zinc-700/30 text-zinc-600 line-through'
-                : tcsIntervening
-                  ? 'bg-amber-500/20 border-amber-500 text-amber-400 animate-pulse'
-                  : 'bg-zinc-950/60 border-white/10 text-zinc-400'
-                }`}
-              title="Tecla T — Liga/desliga TCS"
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${!tcsEnabled ? 'bg-zinc-600' : tcsIntervening ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'
-                  }`}
-              />
-              {telemetry.tcs.statusLabel}
-              {tcsIntervening && tcsEnabled && (
-                <span className="text-amber-400 font-black">●</span>
-              )}
-            </button>
-          )}
-
           {/* Freio de Mão Ativo Badge */}
           {handbrake && (
             <span className="px-2 py-0.5 rounded-full border border-orange-500 bg-orange-500/20 text-orange-400 text-[9px] font-mono font-bold uppercase animate-pulse">
@@ -507,18 +508,21 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             </span>
           )}
 
-          {/* Botão Válvula de Difusor de Escape */}
-          <button
-            onClick={toggleExhaustValve}
-            className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${exhaustValveOpen
-              ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)]'
-              : 'bg-zinc-950/70 border-white/10 text-zinc-500'
-              }`}
-            title="Tecla V — Alterna Válvula de Difusor (Escape Aberto / Direto)"
-          >
-            <span>⚡</span>
-            <span>{exhaustValveOpen ? 'DIFUSOR ON' : 'DIFUSOR OFF'}</span>
-          </button>
+          {/* Botão Válvula de Difusor de Escape (somente quando equipado com upgrade compatível) */}
+          {showExhaustValveButton && (
+            <button
+              data-testid="btn-desktop-exhaust-valve"
+              onClick={toggleExhaustValve}
+              className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${exhaustValveOpen
+                ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+                : 'bg-zinc-950/70 border-white/10 text-zinc-500'
+                }`}
+              title="Tecla V — Alterna Válvula de Difusor (Escape Aberto / Direto)"
+            >
+              <span>⚡</span>
+              <span>{exhaustValveOpen ? 'DIFUSOR ON' : 'DIFUSOR OFF'}</span>
+            </button>
+          )}
 
           {/* Botão de Faróis */}
           <button
@@ -687,16 +691,11 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             </button>
 
             {/* Freio de mão Desktop */}
-            <button
-              onClick={toggleHandbrake}
-              className={`px-2.5 py-2 rounded-xl border font-mono text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${handbrake
-                ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.8)]'
-                : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
-                }`}
-              title="Tecla Espaço — Freio de mão"
-            >
-              (P) {handbrake ? 'TRAVADO' : 'FREIO'}
-            </button>
+            <HandbrakeButton
+              active={handbrake}
+              onToggle={toggleHandbrake}
+              variant="desktop"
+            />
 
             {/* Injeção de Nitro (NOS) & Purga */}
             {hasNosKit && (

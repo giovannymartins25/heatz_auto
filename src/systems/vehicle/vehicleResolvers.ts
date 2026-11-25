@@ -10,20 +10,35 @@
 
 import type {
   ClimateControlsLocation,
+  ControlActuationType,
+  ControlPanelTarget,
+  DriverAssistAdjustability,
+  DriverAssistControlType,
+  DriverAssistImplementationState,
   DrivetrainConfigValue,
   DrivetrainLayout,
+  EquipmentConfirmationStatus,
   IgnitionStartInterlock,
   MultimediaUnitId,
   VehicleAeroSpec,
   VehicleCabinSpec,
   VehicleCategory,
   VehicleConfig,
+  VehicleControlsSpec,
+  VehicleDriverAssistEntry,
   VehicleFuelType,
   VehicleIgnitionSpec,
   VehicleMultimediaSpec,
   VehicleVisual2DSpec,
 } from '@/types/vehicle'
-import type { CarUpgrades, EngineInternals, RearWingPosition, RearWingType, TurboLevel } from '@/stores/useGarageStore'
+import type {
+  CarUpgrades,
+  EngineInternals,
+  ExhaustType,
+  RearWingPosition,
+  RearWingType,
+  TurboLevel,
+} from '@/stores/useGarageStore'
 import type { FuelType } from '@/types/simulation'
 import type { AmbientLightColor } from '@/utils/ambientLighting'
 
@@ -400,42 +415,174 @@ export function resolveDefaultAmbientColor(vehicle: VehicleConfig): AmbientLight
   return resolveVehicleCabin(vehicle).defaultAmbientColor ?? 'red'
 }
 
+function createUnavailableAssist(
+  confirmationStatus: EquipmentConfirmationStatus = 'confirmed',
+  notes?: string,
+): VehicleDriverAssistEntry {
+  return {
+    available: false,
+    confirmationStatus,
+    controlType: 'none',
+    panel: 'none',
+    adjustable: 'none',
+    implementationState: 'not_applicable',
+    ...(notes ? { notes } : {}),
+  }
+}
+
+/**
+ * Resolve declarativamente a distribuição completa de comandos do veículo (`VehicleControlsSpec`):
+ * - Climatização (`climate`): Painel 2 ('multimedia'), Painel 3 ('controls') ou ausente ('none'),
+ *   respeitando também upgrade aftermarket 2-DIN (`retrofit_2din`) na Oficina.
+ * - Controle de Tração/Estabilidade (`tractionControl`): disponibilidade real, se pode ser alternado
+ *   pelo motorista (`userToggleable`), natureza física vs digital e painel exclusivo ('controls' vs 'multimedia').
+ * - Comandos de volante (`steeringWheel`) e Assistências de Condução (`driverAssists`: Cruise Control, ACC, LKA)
+ *   como preparação arquitetural auditada (`implementationState: 'pending_sensors'`), sem simulação falsa.
+ */
+export function resolveVehicleControls(
+  vehicle: VehicleConfig,
+  upgrades?: { multimediaKit?: boolean } | null,
+): VehicleControlsSpec {
+  const cabin = resolveVehicleCabin(vehicle)
+  const media = resolveVehicleMultimediaSpec(vehicle, upgrades)
+  const isMoto = vehicle.info.category === 'motorcycle'
+  const isAftermarketRetrofit = media.unitId === 'retrofit_2din' && media.type === 'aftermarket'
+
+  // 1. Climatização
+  let climatePanel: ControlPanelTarget = 'none'
+  let climateControlType: ControlActuationType = 'none'
+  let climateAdjustable: 'setpoint_and_fan' | 'vent_only' | 'none' = 'none'
+
+  if (cabin.climateType !== 'none' && !isMoto) {
+    climateAdjustable = cabin.hasAcCompressor || cabin.hasHeater ? 'setpoint_and_fan' : 'vent_only'
+    if (isAftermarketRetrofit) {
+      climatePanel = 'multimedia'
+      climateControlType = 'digital'
+    } else if (vehicle.controls?.climate) {
+      climatePanel = vehicle.controls.climate.panel
+      climateControlType = vehicle.controls.climate.controlType
+      climateAdjustable = vehicle.controls.climate.adjustable
+    } else if (cabin.climateControlsLocation) {
+      climatePanel = cabin.climateControlsLocation === 'panel' ? 'controls' : cabin.climateControlsLocation
+      climateControlType = climatePanel === 'multimedia' ? 'digital' : 'physical'
+    } else {
+      const isConventionalRadioOrBlank =
+        media.type === 'radio' ||
+        media.type === 'none' ||
+        media.unitId === 'honda_haudio' ||
+        media.unitId === 'ford_sync1_2012' ||
+        media.unitId === 'ford_pampa_radio_1din' ||
+        media.unitId === 'classic_radio_1din' ||
+        media.unitId === 'classic_blank_console'
+      climatePanel = isConventionalRadioOrBlank ? 'controls' : 'multimedia'
+      climateControlType = climatePanel === 'multimedia' ? 'digital' : 'physical'
+    }
+  }
+
+  // 2. Controle de Tração / Estabilidade
+  const hasTcsPhysics = Boolean(vehicle.transmission.tcs?.enabled)
+  let tractionSpec = vehicle.controls?.tractionControl
+  if (!tractionSpec) {
+    if (!hasTcsPhysics) {
+      tractionSpec = {
+        available: false,
+        confirmationStatus: 'confirmed',
+        userToggleable: false,
+        controlType: 'none',
+        panel: 'none',
+        systemLabel: 'N/A',
+      }
+    } else {
+      const isDigitalMultimediaTcs =
+        vehicle.id === 'bmw-320i-msport-2024' ||
+        vehicle.id === 'golf-gti' ||
+        vehicle.id === 'jetta-gli-2021' ||
+        vehicle.id === 'ford-fusion-titanium-awd-2019'
+      tractionSpec = {
+        available: true,
+        confirmationStatus: 'confirmed',
+        userToggleable: true,
+        controlType: isDigitalMultimediaTcs ? 'digital' : 'physical',
+        panel: isDigitalMultimediaTcs ? 'multimedia' : 'controls',
+        systemLabel:
+          vehicle.id === 'porsche-gt3'
+            ? 'PSM'
+            : vehicle.id === 'bmw-320i-msport-2024'
+              ? 'DSC'
+              : vehicle.id === 'golf-gti' || vehicle.id === 'jetta-gli-2021'
+                ? 'ASR / ESC'
+                : vehicle.id === 'civic-si'
+                  ? 'VSA'
+                  : vehicle.id === 'cb1000r'
+                    ? 'HSTC'
+                    : vehicle.id === 'yaris-2019'
+                      ? 'VSC / TRC'
+                      : vehicle.id.includes('toro')
+                        ? 'TC+ / ESC'
+                        : vehicle.id.includes('fusion')
+                          ? 'AdvanceTrac'
+                          : 'TCS',
+      }
+    }
+  }
+
+  // 3. Comandos de Volante e Assistências (fallback seguro caso config parcial legado omita `controls`)
+  const steeringWheel = vehicle.controls?.steeringWheel ?? {
+    hasAudioControls:
+      !isMoto &&
+      vehicle.id !== 'gol-quadrado-turbo' &&
+      vehicle.id !== 'opala-4100' &&
+      vehicle.id !== 'ford-pampa-l-1997',
+    hasCruiseControls:
+      vehicle.id === 'porsche-gt3' ||
+      vehicle.id === 'golf-gti' ||
+      vehicle.id === 'jetta-gli-2021' ||
+      vehicle.id === 'bmw-320i-msport-2024' ||
+      vehicle.id === 'ford-fusion-titanium-awd-2019' ||
+      vehicle.id === 'ford-fusion-sel-2012' ||
+      vehicle.id === 'fiat-toro-ranch-2025' ||
+      vehicle.id === 'fiat-toro-endurance-2025' ||
+      vehicle.id === 'yaris-2019' ||
+      vehicle.id === 'civic-si',
+    confirmationStatus: 'confirmed',
+  }
+
+  const driverAssists = vehicle.controls?.driverAssists ?? {
+    cruiseControl: createUnavailableAssist('unconfirmed'),
+    adaptiveCruiseControl: createUnavailableAssist('unconfirmed'),
+    laneKeepingAssist: createUnavailableAssist('unconfirmed'),
+  }
+
+  return {
+    climate: {
+      available: climatePanel !== 'none',
+      confirmationStatus: vehicle.controls?.climate.confirmationStatus ?? 'confirmed',
+      controlType: climateControlType,
+      panel: climatePanel,
+      adjustable: climateAdjustable,
+    },
+    tractionControl: tractionSpec,
+    steeringWheel,
+    driverAssists,
+  }
+}
+
 /**
  * Resolve declarativamente onde os controles de climatização devem ser exibidos:
  * - `'none'`: veículos sem climatização/ventilação (ex.: motocicletas como a CB1000R)
  * - `'multimedia'`: veículos com central multimídia integrada (touchscreen OEM) ou upgrade aftermarket 2-DIN (`retrofit_2din`)
  * - `'panel'`: veículos com rádio convencional 1-DIN/2-DIN OEM (ex.: Gol G6, Opala, Pampa, Civic Si 2008 H-Audio 2-DIN, Fusion SEL 2012 SYNC 1 VFD) ou console cego (Gol Quadrado)
+ *
+ * Delega diretamente a `resolveVehicleControls` para manter fonte única da verdade sem redundância.
  */
 export function resolveClimateControlsLocation(
   vehicle: VehicleConfig,
   upgrades?: { multimediaKit?: boolean } | null,
 ): ClimateControlsLocation {
-  const cabin = resolveVehicleCabin(vehicle)
-  if (cabin.climateType === 'none' || vehicle.info.category === 'motorcycle') {
-    return 'none'
-  }
-
-  const media = resolveVehicleMultimediaSpec(vehicle, upgrades)
-  // Se o jogador instalou central multimídia aftermarket 2-DIN na Oficina em um carro de rádio/console cego
-  if (media.unitId === 'retrofit_2din' && media.type === 'aftermarket') {
-    return 'multimedia'
-  }
-
-  if (cabin.climateControlsLocation) {
-    return cabin.climateControlsLocation
-  }
-
-  // Unidades convencionais 1-DIN / 2-DIN OEM (rádios físicos sem tela multimídia integrada de climatização)
-  const isConventionalRadioOrBlank =
-    media.type === 'radio' ||
-    media.type === 'none' ||
-    media.unitId === 'honda_haudio' ||
-    media.unitId === 'ford_sync1_2012' ||
-    media.unitId === 'ford_pampa_radio_1din' ||
-    media.unitId === 'classic_radio_1din' ||
-    media.unitId === 'classic_blank_console'
-
-  return isConventionalRadioOrBlank ? 'panel' : 'multimedia'
+  const panel = resolveVehicleControls(vehicle, upgrades).climate.panel
+  if (panel === 'multimedia') return 'multimedia'
+  if (panel === 'controls') return 'panel'
+  return 'none'
 }
 
 // ─── 4. Visual 2D Resolver ───────────────────────────────────────────────────
@@ -797,6 +944,7 @@ export function resolveDefaultUpgradesForVehicle(
       intakeType: 'stock',
       tires: 'street',
       tuningStage: 0,
+      hasExhaustValveKit: false,
       exhaustValveOpen: false,
       fuelType: defaultFuel,
       hasNosKit: false,
@@ -860,6 +1008,7 @@ export function resolveDefaultUpgradesForVehicle(
     intakeType: 'stock',
     tires: 'street',
     tuningStage: 0,
+    hasExhaustValveKit: false,
     exhaustValveOpen: false,
     fuelType: defaultFuel,
     hasNosKit: false,
@@ -874,12 +1023,55 @@ export function resolveDefaultUpgradesForVehicle(
   }
 }
 
+/**
+ * Resolve declarativamente se o veículo possui controle funcional de abertura de válvula/difusor
+ * de escapamento no estado atual de equipamentos.
+ *
+ * Regras (Fase 4.4.2.2):
+ * - Não é concedido automaticamente aos 15 veículos originais.
+ * - Disponível apenas quando o veículo declarar `cabin.hasFactoryActiveExhaust === true`,
+ *   quando possuir o `hasExhaustValveKit` instalado na Oficina, ou quando estiver equipado
+ *   com escapamento aftermarket compatível com válvula (`cat_back` ou `downpipe`).
+ */
+export function canControlExhaustValve(
+  vehicle?: VehicleConfig | null,
+  upgrades?: { exhaustType?: ExhaustType; hasExhaustValveKit?: boolean } | null,
+): boolean {
+  if (!vehicle) return false
+  if (vehicle.cabin?.hasFactoryActiveExhaust === true) return true
+  if (upgrades?.hasExhaustValveKit === true) return true
+  const exhaustType = upgrades?.exhaustType
+  return exhaustType === 'cat_back' || exhaustType === 'downpipe'
+}
+
 // ─── 8. Runtime Config Validation ────────────────────────────────────────────
 
 const VALID_IGNITION_TYPES = new Set(['key', 'push_button'])
 const VALID_START_INTERLOCKS = new Set(['none', 'brake', 'clutch', 'brake_or_clutch'])
 const VALID_CLIMATE_TYPES = new Set(['none', 'manual_vent', 'manual_ac', 'auto_single', 'auto_dual', 'auto_tri'])
 const VALID_CLIMATE_LOCATIONS = new Set(['multimedia', 'panel', 'none'])
+const VALID_CONTROL_PANELS = new Set<ControlPanelTarget>(['controls', 'multimedia', 'none'])
+const VALID_CONTROL_ACTUATIONS = new Set<ControlActuationType>(['physical', 'digital', 'none'])
+const VALID_CONFIRMATION_STATUSES = new Set<EquipmentConfirmationStatus>([
+  'confirmed',
+  'estimated_or_optional',
+  'unconfirmed',
+])
+const VALID_ASSIST_CONTROL_TYPES = new Set<DriverAssistControlType>([
+  'steering_wheel_physical',
+  'stalk_physical',
+  'digital_multimedia',
+  'none',
+])
+const VALID_ASSIST_ADJUSTABILITY = new Set<DriverAssistAdjustability>([
+  'toggle_only',
+  'setpoint_adjustable',
+  'none',
+])
+const VALID_ASSIST_IMPL_STATES = new Set<DriverAssistImplementationState>([
+  'pending_sensors',
+  'not_applicable',
+])
 const VALID_WINDOW_CONTROLS = new Set(['none', 'manual_crank', 'electric'])
 const VALID_SILHOUETTES = new Set([
   'hatch',
@@ -1000,6 +1192,98 @@ export function validateVehicleConfig(config: VehicleConfig): VehicleConfigValid
     }
     if (!config.visual2d.bodyColor || typeof config.visual2d.bodyColor !== 'string') {
       errors.push('visual2d.bodyColor deve ser uma string de cor válida.')
+    }
+  }
+
+  if (config.controls) {
+    const { climate, tractionControl, steeringWheel, driverAssists } = config.controls
+    if (!climate || !VALID_CONTROL_PANELS.has(climate.panel) || !VALID_CONTROL_ACTUATIONS.has(climate.controlType)) {
+      errors.push('controls.climate possui panel ou controlType inválido.')
+    } else {
+      if (!VALID_CONFIRMATION_STATUSES.has(climate.confirmationStatus)) {
+        errors.push(`controls.climate.confirmationStatus inválido: "${String(climate.confirmationStatus)}".`)
+      }
+      if (!climate.available && climate.panel !== 'none') {
+        errors.push('controls.climate indisponível deve declarar panel="none".')
+      }
+      if (config.cabin?.climateType === 'none' && (climate.available || climate.panel !== 'none')) {
+        errors.push('controls.climate conflita com cabin.climateType="none".')
+      }
+      if (config.cabin?.climateControlsLocation) {
+        const mappedPanel: ControlPanelTarget =
+          config.cabin.climateControlsLocation === 'panel'
+            ? 'controls'
+            : config.cabin.climateControlsLocation
+        if (mappedPanel !== climate.panel) {
+          errors.push(
+            `Conflito declarativo entre cabin.climateControlsLocation ("${config.cabin.climateControlsLocation}") e controls.climate.panel ("${climate.panel}").`,
+          )
+        }
+      }
+    }
+
+    if (
+      !tractionControl ||
+      !VALID_CONTROL_PANELS.has(tractionControl.panel) ||
+      !VALID_CONTROL_ACTUATIONS.has(tractionControl.controlType) ||
+      !VALID_CONFIRMATION_STATUSES.has(tractionControl.confirmationStatus)
+    ) {
+      errors.push('controls.tractionControl possui campos estruturais inválidos.')
+    } else {
+      const hasTcsCfg = Boolean(config.transmission?.tcs?.enabled)
+      if (tractionControl.available !== hasTcsCfg) {
+        errors.push(
+          `Inconsistência entre controls.tractionControl.available (${String(tractionControl.available)}) e transmission.tcs.enabled (${String(hasTcsCfg)}).`,
+        )
+      }
+      if (!tractionControl.available && (tractionControl.userToggleable || tractionControl.panel !== 'none')) {
+        errors.push('Veículo sem controle de tração não pode expor comando userToggleable ou panel ativo.')
+      }
+      if (tractionControl.userToggleable && tractionControl.panel === 'none') {
+        errors.push('controls.tractionControl.userToggleable=true exige panel="controls" ou panel="multimedia".')
+      }
+      if (!tractionControl.userToggleable && tractionControl.panel !== 'none') {
+        errors.push('controls.tractionControl.userToggleable=false deve declarar panel="none".')
+      }
+    }
+
+    if (
+      !steeringWheel ||
+      typeof steeringWheel.hasAudioControls !== 'boolean' ||
+      typeof steeringWheel.hasCruiseControls !== 'boolean' ||
+      !VALID_CONFIRMATION_STATUSES.has(steeringWheel.confirmationStatus)
+    ) {
+      errors.push('controls.steeringWheel inválido.')
+    }
+
+    if (!driverAssists) {
+      errors.push('controls.driverAssists ausente.')
+    } else {
+      for (const [assistKey, entry] of [
+        ['cruiseControl', driverAssists.cruiseControl],
+        ['adaptiveCruiseControl', driverAssists.adaptiveCruiseControl],
+        ['laneKeepingAssist', driverAssists.laneKeepingAssist],
+      ] as const) {
+        if (
+          !entry ||
+          typeof entry.available !== 'boolean' ||
+          !VALID_CONFIRMATION_STATUSES.has(entry.confirmationStatus) ||
+          !VALID_ASSIST_CONTROL_TYPES.has(entry.controlType) ||
+          !VALID_CONTROL_PANELS.has(entry.panel) ||
+          !VALID_ASSIST_ADJUSTABILITY.has(entry.adjustable) ||
+          !VALID_ASSIST_IMPL_STATES.has(entry.implementationState)
+        ) {
+          errors.push(`controls.driverAssists.${assistKey} possui valores inválidos.`)
+        } else if (entry.available && entry.implementationState !== 'pending_sensors') {
+          errors.push(
+            `controls.driverAssists.${assistKey}: assistências disponíveis devem permanecer com implementationState="pending_sensors" nesta fase.`,
+          )
+        } else if (!entry.available && (entry.panel !== 'none' || entry.controlType !== 'none')) {
+          errors.push(
+            `controls.driverAssists.${assistKey} indisponível deve declarar panel="none" e controlType="none".`,
+          )
+        }
+      }
     }
   }
 

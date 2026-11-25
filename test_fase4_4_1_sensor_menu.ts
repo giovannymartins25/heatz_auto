@@ -127,21 +127,21 @@ console.log('=== 1. Sentido físico (Direita > 0, Esquerda < 0) e Orientação i
   const rightLandPast90 = ctrl.computeSteering({ beta: 164, gamma: -80, isLandscape: true, orientationAngle: 90 }, 1 / 60)
   assertClose(rightLandPast90, rightLand90, 1e-4, 'Paisagem |beta| > 90°: sem salto nem saturação ao passar da vertical')
 
-  // Retrato 0° normal (|beta| <= 90°) e reclinado além da vertical (|beta| > 90°, onde W3C inverte sinal de gamma!)
+  // Retrato 0° normal (beta=55°) e simétrico reclinado além da vertical (beta=125° = 180°-55°, onde W3C inverte sinal de gamma!)
   const rightPortNormal = ctrl.computeSteering({ beta: 55, gamma: 15, isLandscape: false, orientationAngle: 0 }, 1 / 60)
-  const rightPortPastVertical = ctrl.computeSteering({ beta: 105, gamma: -15, isLandscape: false, orientationAngle: 0 }, 1 / 60)
-  const leftPortPastVertical = ctrl.computeSteering({ beta: 105, gamma: 15, isLandscape: false, orientationAngle: 0 }, 1 / 60)
+  const rightPortPastVertical = ctrl.computeSteering({ beta: 125, gamma: -15, isLandscape: false, orientationAngle: 0 }, 1 / 60)
+  const leftPortPastVertical = ctrl.computeSteering({ beta: 125, gamma: 15, isLandscape: false, orientationAngle: 0 }, 1 / 60)
   assert(rightPortNormal > 0, 'Retrato 0° (beta=55°): inclinar à direita gera esterço positivo')
   assertClose(
     rightPortPastVertical,
     rightPortNormal,
     1e-4,
-    'Retrato 0° com aparelho vertical/reclinado (beta=105°): compensa inversão Euler de gamma sem virar para o lado errado',
+    'Retrato 0° com aparelho vertical/reclinado (beta=125°): projeção 3D compensa inversão Euler de gamma sem virar para o lado errado',
   )
-  assert(leftPortPastVertical < 0, 'Retrato 0° com beta=105°: inclinar à esquerda mantém esterço negativo')
+  assert(leftPortPastVertical < 0, 'Retrato 0° com beta=125°: inclinar à esquerda mantém esterço negativo')
 
   // Tablet Android com orientação paisagem nativa (orientationAngle = 0, isLandscape = true): eixo horizontal é X -> gamma
-  const rightNativeTablet = ctrl.computeSteering({ beta: 30, gamma: 15, isLandscape: true, orientationAngle: 0 }, 1 / 60)
+  const rightNativeTablet = ctrl.computeSteering({ beta: 0, gamma: 15, isLandscape: true, orientationAngle: 0 }, 1 / 60)
   assertClose(rightNativeTablet, 0.5, 1e-3, 'Tablet paisagem nativa (0°): lê eixo gamma real em vez de pitch beta')
 
   // iOS Safari 16.4+ WebKit Bug #254863: screen.orientation.angle reporta 90 quando window.orientation é -90 (topo à direita)
@@ -569,10 +569,11 @@ console.log('\n=== 7. Menu Hambúrguer Limpo, Escape no Painel 3 e Ignição For
     'Painel 3 (CabinControlsBar) integra controle funcional de Escapamento reutilizando useSimulationStore',
   )
 
-  // Teste funcional do estado de Escape + navegação entre os 3 painéis
+  // Teste funcional do estado de Escape (dependente de upgrade na Fase 4.4.2.2) + navegação entre os 3 painéis
   const golf = loadVehicle('golf-gti')
   useSimulationStore.getState().init(golf)
   assert(useSimulationStore.getState().exhaustValveOpen === false, 'Escape inicia fechado por padrão')
+  useSimulationStore.getState().setEquippedUpgrades({ hasExhaustValveKit: true })
   useUIStore.getState().setActiveCockpitPanel('controls')
   useSimulationStore.getState().toggleExhaustValve()
   useSimulationStore.getState().toggleClimateAc()

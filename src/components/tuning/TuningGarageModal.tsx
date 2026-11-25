@@ -13,6 +13,7 @@ import {
   type RearWingType,
 } from '@/stores/useGarageStore'
 import { HapticFeedback } from '@/systems/haptics/HapticFeedback'
+import { canControlExhaustValve } from '@/systems/vehicle/vehicleResolvers'
 import { DynoTestModal } from './DynoTestModal'
 
 interface TuningGarageModalProps {
@@ -79,6 +80,7 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const hasNosKit = useSimulationStore((s) => s.hasNosKit)
   const nosPressurePercent = useSimulationStore((s) => s.nosPressurePercent)
   const refillNos = useSimulationStore((s) => s.refillNos)
+  const hasExhaustValveKit = useSimulationStore((s) => s.hasExhaustValveKit)
   const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
   const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
   const suspensionHeight = useSimulationStore((s) => s.suspensionHeight)
@@ -137,6 +139,11 @@ export const TuningGarageModal = memo(function TuningGarageModal({
   const isMultimediaInstalled = Boolean(upgrades?.multimediaKit ?? hasRetrofitInfotainment)
   const isBoostGaugeInstalled = Boolean(upgrades?.boostGaugeKit ?? hasBoostGaugeKit)
   const isNosInstalled = Boolean(upgrades?.hasNosKit ?? hasNosKit)
+  const isExhaustValveKitInstalled = Boolean(upgrades?.hasExhaustValveKit ?? hasExhaustValveKit)
+  const isExhaustValveAvailable = canControlExhaustValve(vehicle, {
+    exhaustType: activeExhaust,
+    hasExhaustValveKit: isExhaustValveKitInstalled,
+  })
 
   const isMoto = vehicle.info.category === 'motorcycle'
   const hasManualClutch = Boolean(vehicle.transmission.hasClutch)
@@ -192,6 +199,16 @@ export const TuningGarageModal = memo(function TuningGarageModal({
     }
     if (upgradeKey === 'caliperColor') {
       partialUpgrade.brakeCaliperColor = value
+    }
+    if (
+      (upgradeKey === 'exhaustType' || upgradeKey === 'hasExhaustValveKit') &&
+      !canControlExhaustValve(vehicle, {
+        exhaustType: upgradeKey === 'exhaustType' ? (value as ExhaustType) : activeExhaust,
+        hasExhaustValveKit:
+          upgradeKey === 'hasExhaustValveKit' ? Boolean(value) : isExhaustValveKitInstalled,
+      })
+    ) {
+      partialUpgrade.exhaustValveOpen = false
     }
 
     if (liveCar && liveCar.instanceId) {
@@ -853,22 +870,53 @@ export const TuningGarageModal = memo(function TuningGarageModal({
                 )
               })}
 
-              {/* Botão de Válvula de Difusor PSE */}
-              <div className="col-span-1 sm:col-span-2 p-2.5 rounded-2xl border bg-black/60 border-white/10 flex items-center justify-between">
+              {/* Upgrade + Comando de Difusor / Válvula Eletrônica de Escape (Fase 4.4.2.2) */}
+              <div className="col-span-1 sm:col-span-2 p-3 rounded-2xl border bg-black/60 border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <strong className="text-xs font-black text-amber-300">Válvula Ativa de Escape (PSE / Difusor)</strong>
-                  <p className="text-[8.5px] text-zinc-400">Abre as borboletas de escape para ronco direto sob demanda</p>
+                  <strong className="text-xs font-black text-amber-300">
+                    Kit Difusor / Válvula Eletrônica de Escape
+                  </strong>
+                  <p className="text-[8.5px] text-zinc-400">
+                    {isExhaustValveAvailable
+                      ? 'Equipado (via Kit Difusor ou Cat-Back/Downpipe): habilita o botão de abertura do escape no Painel 3.'
+                      : 'Requer instalação deste Kit (R$ 3.200) ou sistema Cat-Back / Downpipe para habilitar o comando de abertura.'}
+                  </p>
                 </div>
-                <button
-                  onClick={toggleExhaustValve}
-                  className={`px-3 py-1 rounded-xl text-[9px] font-black uppercase border transition-all cursor-pointer ${
-                    exhaustValveOpen
-                      ? 'bg-amber-500 text-black border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
-                      : 'bg-zinc-800 text-zinc-400 border-white/10'
-                  }`}
-                >
-                  {exhaustValveOpen ? 'VÁLVULA ABERTA (ROAR)' : 'SILENCIOSO'}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {isExhaustValveAvailable && (
+                    <button
+                      type="button"
+                      data-testid="btn-tuning-exhaust-valve-toggle"
+                      onClick={toggleExhaustValve}
+                      className={`px-3 py-1 rounded-xl text-[9px] font-black uppercase border transition-all cursor-pointer ${
+                        exhaustValveOpen
+                          ? 'bg-amber-500 text-black border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+                          : 'bg-zinc-800 text-zinc-400 border-white/10'
+                      }`}
+                    >
+                      {exhaustValveOpen ? 'VÁLVULA ABERTA (ROAR)' : 'SILENCIOSO'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    data-testid="btn-tuning-exhaust-valve-kit"
+                    onClick={() =>
+                      handlePurchaseAndEquip(
+                        'hasExhaustValveKit',
+                        !isExhaustValveKitInstalled,
+                        3200,
+                        'Kit Difusor Eletrônico de Escape',
+                      )
+                    }
+                    className={`px-3 py-1 rounded-xl text-[9px] font-black uppercase border transition-all cursor-pointer ${
+                      isExhaustValveKitInstalled
+                        ? 'bg-rose-950/60 text-rose-300 border-rose-500/40 hover:bg-rose-900/60'
+                        : 'bg-amber-600 hover:bg-amber-500 text-white border-amber-400/50'
+                    }`}
+                  >
+                    {isExhaustValveKitInstalled ? 'REMOVER KIT DIFUSOR' : 'INSTALAR KIT (R$ 3.200)'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

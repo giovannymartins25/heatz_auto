@@ -21,6 +21,7 @@ export interface CarUpgrades {
   intakeType: 'stock' | 'cold_air' // Admissão: original ou intake cônico K&N
   tires: 'street' | 'semi_slick' // Pneus de rua ou semi-slick de arrancada
   tuningStage: 0 | 1 | 2 | 3 // Estágio de reprogramação de ECU
+  hasExhaustValveKit?: boolean // Kit de difusor / válvula eletrônica de escapamento instalado na oficina
   exhaustValveOpen: boolean // Válvula de difusor aberta/fechada
   fuelType: FuelType // Tipo de combustível (Etanol E100, Podium 102 ou Gasolina Comum)
   hasNosKit: boolean // Kit de Óxido Nitroso (Garrafa NOS 10 lbs)

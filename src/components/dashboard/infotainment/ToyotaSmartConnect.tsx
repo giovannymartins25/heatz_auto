@@ -7,6 +7,7 @@ import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
 import { ClimateControlPanel } from './shared/ClimateControlPanel'
 import { InternetMediaCenter } from './shared/InternetMediaCenter'
+import { MultimediaStatusFooter } from './shared/MultimediaStatusFooter'
 
 interface ToyotaSmartConnectProps {
   vehicle: VehicleConfig
@@ -385,6 +386,7 @@ export const ToyotaSmartConnect = memo(function ToyotaSmartConnect({
           LUZ CABINE
         </button>
       </div>
+      <MultimediaStatusFooter theme="cyan" />
     </div>
   )
 })

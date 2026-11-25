@@ -209,5 +209,56 @@
     "lengthM": 4.841,
     "widthM": 1.834,
     "silhouette": "sedan"
+  },
+  "controls": {
+    "climate": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "controlType": "physical",
+      "panel": "controls",
+      "adjustable": "setpoint_and_fan"
+    },
+    "tractionControl": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "userToggleable": true,
+      "controlType": "physical",
+      "panel": "controls",
+      "systemLabel": "AdvanceTrac TCS"
+    },
+    "steeringWheel": {
+      "hasAudioControls": true,
+      "hasCruiseControls": true,
+      "confirmationStatus": "confirmed"
+    },
+    "driverAssists": {
+      "cruiseControl": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "steering_wheel_physical",
+        "panel": "controls",
+        "adjustable": "setpoint_adjustable",
+        "implementationState": "pending_sensors",
+        "notes": "Piloto automático convencional no volante do Fusion SEL 2.5 2012."
+      },
+      "adaptiveCruiseControl": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Sem ACC no Fusion SEL 2.5 2012."
+      },
+      "laneKeepingAssist": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Sem assistente de faixa na geração CD338 2012."
+      }
+    }
   }
 }

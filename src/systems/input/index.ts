@@ -10,9 +10,13 @@ export {
 export {
   sharedTiltSteering,
   isIOSWebKitEnvironment,
+  isSensorSecureContext,
   resolveEffectiveScreenAngleDeg,
   requiresDeviceOrientationPermissionPrompt,
   type SharedTiltSnapshot,
+  type TiltSensorDiagnostics,
+  type TiltSensorDiagnosticStatus,
+  type TiltSensorSource,
   type ScreenOrientationEnvironment,
 } from './sharedTiltSteering'
 export {

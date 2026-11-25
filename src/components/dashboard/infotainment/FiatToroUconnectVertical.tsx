@@ -4,6 +4,7 @@ import type { DashboardTelemetry } from '@/systems/dashboard'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import type { FourWheelDriveMode } from '@/systems/physics'
 import { TRACKS } from './VehicleMultimedia'
+import { MultimediaStatusFooter } from './shared/MultimediaStatusFooter'
 
 export interface FiatToroUconnectVerticalProps {
   vehicle: VehicleConfig
@@ -805,6 +806,7 @@ export const FiatToroUconnectVertical = memo(function FiatToroUconnectVertical({
           <span>Ajustes</span>
         </button>
       </nav>
+      <MultimediaStatusFooter theme="amber" className="mt-0" />
     </div>
   )
 })

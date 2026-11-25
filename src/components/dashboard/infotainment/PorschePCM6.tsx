@@ -7,6 +7,7 @@ import { clamp } from '@/utils/math'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
 import { ClimateControlPanel } from './shared/ClimateControlPanel'
 import { InternetMediaCenter } from './shared/InternetMediaCenter'
+import { MultimediaStatusFooter } from './shared/MultimediaStatusFooter'
 
 interface PorschePCM6Props {
   vehicle: VehicleConfig
@@ -64,6 +65,7 @@ export const PorschePCM6 = memo(function PorschePCM6({
   const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.amber
   const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
   const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
+  const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
 
   const rpm = telemetry.tachometer.rpm
   const speed = telemetry.speedometer.speed
@@ -329,12 +331,12 @@ export const PorschePCM6 = memo(function PorschePCM6({
                 </span>
               </button>
 
-              {/* Porsche Stability & Launch Control Status */}
+              {/* Porsche Stability & Launch Control Status (somente leitura; comando físico PSM no Painel 3) */}
               <div className="p-2.5 rounded-2xl border border-white/10 bg-zinc-900/80 flex flex-col items-center justify-center gap-1 text-center">
                 <span className="text-xl">🛡️</span>
                 <strong className="text-[9px] font-black text-white">PORSCHE STABILITY (PSM)</strong>
-                <span className="text-[7px] font-bold text-emerald-400">
-                  SISTEMA ELETRÔNICO ATIVO · SPORT CHRONO
+                <span className={`text-[7px] font-bold ${tcsEnabled ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {tcsEnabled ? 'PSM ATIVO · SPORT CHRONO' : 'PSM OFF · CONSOLE FÍSICO'}
                 </span>
               </div>
             </div>
@@ -565,6 +567,7 @@ export const PorschePCM6 = memo(function PorschePCM6({
           LUZ CABINE
         </button>
       </div>
+      <MultimediaStatusFooter theme="amber" />
     </div>
   )
 })

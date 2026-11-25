@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { sharedTiltSteering } from '@/systems/input'
 
 /**
  * useSimulationLoop — Game loop principal do simulador.
@@ -28,6 +29,7 @@ export function useSimulationLoop() {
       lastTimeRef.current = timestamp
 
       if (!isPaused) {
+        sharedTiltSteering.tickFrame(deltaTime)
         update(deltaTime)
       }
 

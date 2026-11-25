@@ -18,7 +18,12 @@ import { memo, useState } from 'react'
 import type { VehicleConfig } from '@/types/vehicle'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useGarageStore } from '@/stores/useGarageStore'
-import { resolveClimateControlsLocation, resolveVehicleCabin } from '@/systems/vehicle/vehicleResolvers'
+import {
+  canControlExhaustValve,
+  resolveClimateControlsLocation,
+  resolveVehicleCabin,
+  resolveVehicleControls,
+} from '@/systems/vehicle/vehicleResolvers'
 import type { FanLevel, WindowId } from '@/systems/cabin'
 
 export interface CabinControlsBarProps {
@@ -43,15 +48,30 @@ export const CabinControlsBar = memo(function CabinControlsBar({
   const cabinSpec = resolveVehicleCabin(vehicle)
   const activeCar = useGarageStore((s) => s.resolveInstanceForVehicle(vehicle.id))
   const climateLocation = resolveClimateControlsLocation(vehicle, activeCar?.upgrades)
+  const controlsSpec = resolveVehicleControls(vehicle, activeCar?.upgrades)
+  const tcsSpec = controlsSpec.tractionControl
+  const showPhysicalTcs =
+    tcsSpec.available && tcsSpec.userToggleable && tcsSpec.panel === 'controls'
 
   const [activeDrawer, setActiveDrawer] = useState<'none' | 'all' | 'climate' | 'windows'>('none')
 
   // Bateria / Telemetria Elétrica (somente leitura informativa na cabine)
   const batteryVoltageV = useSimulationStore((s) => s.batteryVoltageV)
 
-  // Escapamento / Difusor (reutiliza estado único da useSimulationStore)
+  // Controle de Tração físico (exibido exclusivamente quando o veículo real possui tecla física no painel/console/punho)
+  const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
+  const tcsIntervening = useSimulationStore((s) => s.tcsIntervening)
+  const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
+
+  // Escapamento / Difusor (reutiliza estado único da useSimulationStore; disponível apenas com equipamento/upgrade compatível)
+  const exhaustType = useSimulationStore((s) => s.exhaustType)
+  const hasExhaustValveKit = useSimulationStore((s) => s.hasExhaustValveKit)
   const exhaustValveOpen = useSimulationStore((s) => s.exhaustValveOpen)
   const toggleExhaustValve = useSimulationStore((s) => s.toggleExhaustValve)
+  const showExhaustValveControl = canControlExhaustValve(vehicle, {
+    exhaustType: activeCar?.upgrades?.exhaustType ?? exhaustType,
+    hasExhaustValveKit: activeCar?.upgrades?.hasExhaustValveKit ?? hasExhaustValveKit,
+  })
 
   // Iluminação e Sinalização
   const headlightsMode = useSimulationStore((s) => s.headlightsMode)
@@ -385,38 +405,80 @@ export const CabinControlsBar = memo(function CabinControlsBar({
         </div>
       )}
 
-      {/* 3. VÁLVULA / DIFUSOR DE ESCAPAMENTO E REDE 12V (reutiliza useSimulationStore sem estado paralelo) */}
-      <div
-        className={`flex items-center justify-between rounded-lg border border-white/10 bg-zinc-900/70 ${
-          isCompactPanel ? 'px-1.5 py-0.5' : 'rounded-xl p-2'
-        }`}
-        data-testid="cabin-exhaust-section"
-      >
-        <div className="flex items-center gap-1.5 font-mono leading-none">
-          <span className={`${isCompactPanel ? 'text-[8px]' : 'text-[9px]'} font-black uppercase tracking-wider text-zinc-300`}>
-            🔊 Escapamento
-          </span>
-          <span className="rounded bg-zinc-950 px-1 py-0.5 text-[7.5px] font-mono text-zinc-400">
-            Rede <b className="text-emerald-400">{batteryVoltageV.toFixed(1)}V</b>
-          </span>
-        </div>
-
-        <button
-          type="button"
-          data-testid="btn-cabin-exhaust-toggle"
-          onClick={toggleExhaustValve}
-          className={`${
-            isCompactPanel ? 'h-5 px-2 text-[8px]' : 'h-7 px-3 text-[9px]'
-          } rounded-md border font-mono font-black uppercase transition-all active:scale-95 cursor-pointer ${
-            exhaustValveOpen
-              ? 'border-amber-400 bg-amber-500/25 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.35)]'
-              : 'border-white/10 bg-zinc-950 text-zinc-400 hover:text-white'
+      {/* 3. CONTROLE DE TRAÇÃO FÍSICO (somente veículos cujo comando real fica em botão físico no console/painel/punho) */}
+      {showPhysicalTcs && (
+        <div
+          className={`flex items-center justify-between rounded-lg border border-white/10 bg-zinc-900/70 ${
+            isCompactPanel ? 'px-1.5 py-0.5' : 'rounded-xl p-2'
           }`}
-          title="Alternar difusor/válvula de escapamento (Aberto / Fechado)"
+          data-testid="cabin-tcs-section"
         >
-          {exhaustValveOpen ? '⚡ ESCAPE ABERTO' : 'ESCAPE FECHADO'}
-        </button>
-      </div>
+          <div className="flex items-center gap-1.5 font-mono leading-none">
+            <span className={`${isCompactPanel ? 'text-[8px]' : 'text-[9px]'} font-black uppercase tracking-wider text-zinc-300`}>
+              🛡️ Tração ({tcsSpec.systemLabel})
+            </span>
+            {tcsIntervening && tcsEnabled && (
+              <span className="rounded bg-amber-500/20 px-1 py-0.5 text-[7px] font-black text-amber-300 animate-pulse">
+                ATUANDO
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            data-testid="btn-cabin-tcs-toggle"
+            aria-pressed={tcsEnabled}
+            onClick={() => setTcsEnabled(!tcsEnabled)}
+            className={`${
+              isCompactPanel ? 'h-5 px-2 text-[8px]' : 'h-7 px-3 text-[9px]'
+            } rounded-md border font-mono font-black uppercase transition-all active:scale-95 cursor-pointer ${
+              !tcsEnabled
+                ? 'border-amber-500/50 bg-amber-950/40 text-amber-300'
+                : tcsIntervening
+                  ? 'border-amber-400 bg-amber-500/25 text-amber-200 animate-pulse'
+                  : 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200'
+            }`}
+            title="Alternar controle eletrônico de tração/estabilidade (Tecla T)"
+          >
+            {tcsEnabled ? `${tcsSpec.systemLabel} ON` : `${tcsSpec.systemLabel} OFF`}
+          </button>
+        </div>
+      )}
+
+      {/* 4. VÁLVULA / DIFUSOR DE ESCAPAMENTO (exibida exclusivamente quando o veículo possuir escapamento/upgrade compatível) */}
+      {showExhaustValveControl && (
+        <div
+          className={`flex items-center justify-between rounded-lg border border-white/10 bg-zinc-900/70 ${
+            isCompactPanel ? 'px-1.5 py-0.5' : 'rounded-xl p-2'
+          }`}
+          data-testid="cabin-exhaust-section"
+        >
+          <div className="flex items-center gap-1.5 font-mono leading-none">
+            <span className={`${isCompactPanel ? 'text-[8px]' : 'text-[9px]'} font-black uppercase tracking-wider text-zinc-300`}>
+              🔊 Escapamento
+            </span>
+            <span className="rounded bg-zinc-950 px-1 py-0.5 text-[7.5px] font-mono text-zinc-400">
+              Rede <b className="text-emerald-400">{batteryVoltageV.toFixed(1)}V</b>
+            </span>
+          </div>
+
+          <button
+            type="button"
+            data-testid="btn-cabin-exhaust-toggle"
+            onClick={toggleExhaustValve}
+            className={`${
+              isCompactPanel ? 'h-5 px-2 text-[8px]' : 'h-7 px-3 text-[9px]'
+            } rounded-md border font-mono font-black uppercase transition-all active:scale-95 cursor-pointer ${
+              exhaustValveOpen
+                ? 'border-amber-400 bg-amber-500/25 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.35)]'
+                : 'border-white/10 bg-zinc-950 text-zinc-400 hover:text-white'
+            }`}
+            title="Alternar difusor/válvula de escapamento (Aberto / Fechado)"
+          >
+            {exhaustValveOpen ? '⚡ ESCAPE ABERTO' : 'ESCAPE FECHADO'}
+          </button>
+        </div>
+      )}
     </div>
   )
 

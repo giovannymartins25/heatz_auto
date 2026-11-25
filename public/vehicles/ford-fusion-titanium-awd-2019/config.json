@@ -225,5 +225,55 @@
     "lengthM": 4.871,
     "widthM": 1.852,
     "silhouette": "sedan"
+  },
+  "controls": {
+    "climate": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "controlType": "digital",
+      "panel": "multimedia",
+      "adjustable": "setpoint_and_fan"
+    },
+    "tractionControl": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "userToggleable": true,
+      "controlType": "digital",
+      "panel": "multimedia",
+      "systemLabel": "AdvanceTrac TCS"
+    },
+    "steeringWheel": {
+      "hasAudioControls": true,
+      "hasCruiseControls": true,
+      "confirmationStatus": "confirmed"
+    },
+    "driverAssists": {
+      "cruiseControl": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "steering_wheel_physical",
+        "panel": "controls",
+        "adjustable": "setpoint_adjustable",
+        "implementationState": "pending_sensors"
+      },
+      "adaptiveCruiseControl": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "steering_wheel_physical",
+        "panel": "controls",
+        "adjustable": "setpoint_adjustable",
+        "implementationState": "pending_sensors",
+        "notes": "ACC Stop & Go (Ford Co-Pilot360) de série no Fusion Titanium AWD 2019."
+      },
+      "laneKeepingAssist": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "stalk_physical",
+        "panel": "controls",
+        "adjustable": "toggle_only",
+        "implementationState": "pending_sensors",
+        "notes": "Botão físico de permanência em faixa na extremidade da haste de seta + ajustes digitais."
+      }
+    }
   }
 }

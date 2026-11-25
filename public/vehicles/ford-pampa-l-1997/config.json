@@ -190,5 +190,56 @@
     "lengthM": 4.432,
     "widthM": 1.646,
     "silhouette": "pickup_compact"
+  },
+  "controls": {
+    "climate": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "controlType": "physical",
+      "panel": "controls",
+      "adjustable": "vent_only"
+    },
+    "tractionControl": {
+      "available": false,
+      "confirmationStatus": "confirmed",
+      "userToggleable": false,
+      "controlType": "none",
+      "panel": "none",
+      "systemLabel": "N/A"
+    },
+    "steeringWheel": {
+      "hasAudioControls": false,
+      "hasCruiseControls": false,
+      "confirmationStatus": "confirmed"
+    },
+    "driverAssists": {
+      "cruiseControl": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": " Utilitário básico Pampa L 1997 sem assistências eletrônicas."
+      },
+      "adaptiveCruiseControl": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Inexistente em 1997."
+      },
+      "laneKeepingAssist": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Inexistente em 1997."
+      }
+    }
   }
 }

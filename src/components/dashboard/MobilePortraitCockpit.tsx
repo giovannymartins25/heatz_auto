@@ -8,7 +8,8 @@ import { useInteriorAccessories } from '@/hooks/useInteriorAccessories'
 import { useDeviceTilt } from '@/hooks/useDeviceTilt'
 import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
-import { QuickClutchButton, HudIgnitionControl, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone } from '@/components/controls'
+import { QuickClutchButton, HudIgnitionControl, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone, HandbrakeButton } from '@/components/controls'
+import { useSecondaryTouchTapBridge } from '@/utils/multitouchBridge'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { HudMinimap } from './HudMinimap'
 import { WorldMapModal } from './WorldMapModal'
@@ -43,6 +44,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   entryMode = 'drive',
 }: MobilePortraitCockpitProps) {
   const isDriveMode = entryMode !== 'cluster'
+  const secondaryTouchHandlers = useSecondaryTouchTapBridge()
 
   // Garante escuta física ininterrupta do sensor de inclinação durante toda a sessão de condução
   useDeviceTilt()
@@ -56,8 +58,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const setBrake = useSimulationStore((s) => s.setBrake)
   const setClutch = useSimulationStore((s) => s.setClutch)
   const isRunning = useSimulationStore((s) => s.isRunning)
-  const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
-  const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
   const setHorn = useSimulationStore((s) => s.setHorn)
   const toggleHandbrake = useSimulationStore((s) => s.toggleHandbrake)
   const handbrake = useSimulationStore((s) => s.handbrake)
@@ -98,6 +98,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 
   return (
     <div
+      {...secondaryTouchHandlers}
       className="fixed inset-0 w-full h-full bg-zinc-950 text-white flex flex-col select-none touch-none overflow-hidden z-40"
       style={{
         paddingLeft: 'max(0.4rem, env(safe-area-inset-left))',
@@ -174,21 +175,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           >
             📢
           </button>
-
-          {vehicle.transmission.tcs?.enabled && (
-            <button
-              type="button"
-              onClick={() => setTcsEnabled(!tcsEnabled)}
-              aria-pressed={tcsEnabled}
-              className={`w-9 h-9 rounded-full border font-mono font-black text-[8px] flex items-center justify-center transition-all cursor-pointer shadow-sm ${
-                !tcsEnabled
-                  ? 'bg-zinc-900 text-zinc-500 border-zinc-700'
-                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/60'
-              }`}
-            >
-              TCS
-            </button>
-          )}
 
           <div className={`px-2 py-0.5 rounded-full bg-zinc-900 border text-[8px] font-mono shadow-sm ${
             isTiming0to100 ? 'border-amber-400/70 text-amber-300' : 'border-white/10 text-zinc-300'
@@ -299,21 +285,13 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 
       {/* ─── 4. Zona dos polegares: botões laterais + pedais + ignição no canto inferior direito ─── */}
       <footer className="w-full grid grid-cols-[62px_1fr_86px] sm:grid-cols-[72px_1fr_94px] items-end gap-1.5 px-1 pb-0.5 flex-shrink-0">
-          {/* Coluna esquerda: Freio de mão · QuickClutch */}
+          {/* Coluna esquerda: Freio de mão multitouch · QuickClutch */}
           <div className="flex flex-col gap-1">
-            <button
-              type="button"
-              onClick={toggleHandbrake}
-              className={`h-10 rounded-xl border font-mono font-black uppercase leading-none flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer shadow-sm ${
-                handbrake
-                  ? 'bg-orange-500 text-white border-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.7)]'
-                  : 'bg-zinc-900 text-zinc-400 border-white/10'
-              }`}
-              aria-label="Freio de mão"
-            >
-              <span className="text-[11px]">(P)</span>
-              <span className="text-[6px] mt-0.5">{handbrake ? 'PUXADO' : 'F. MÃO'}</span>
-            </button>
+            <HandbrakeButton
+              active={handbrake}
+              onToggle={toggleHandbrake}
+              variant="mobile_portrait"
+            />
             {hasClutch && (
               <QuickClutchButton
                 layout="stack"

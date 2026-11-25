@@ -60,10 +60,10 @@ const SENSITIVITY_PRESET_ORDER: readonly TiltSensitivityPreset[] = ['low', 'medi
 const DEADZONE_OPTIONS: readonly number[] = [0, 2, 3, 5]
 
 /**
- * MobileQuickMenu — Menu Hambúrguer reorganizado na Fase 4.4.1.
+ * MobileQuickMenu — Menu Hambúrguer reorganizado (Fases 4.4.1 / 4.4.2.2).
  *
- * Contém apenas atalhos de ambiente/áudio, Garagem & Pista, calibração/preferências completas
- * do sensor de inclinação mobile e Sistema & Performance (sem duplicar modos de condução,
+ * Contém atalhos de ambiente/áudio, Garagem & Pista, calibração/preferências e Diagnóstico Completo
+ * do Sensor de Inclinação Mobile, e Sistema & Performance (sem duplicar modos de condução,
  * TCS, atalho do Painel 3 ou válvula de escape).
  */
 export const MobileQuickMenu = memo(function MobileQuickMenu({
@@ -98,10 +98,12 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
     requestPermission,
     calibrateNeutral,
     resetCalibration,
+    rawAngleDeg,
     calibratedAngleDeg,
     neutralAngleDeg,
     isCalibrated,
     hasValidSample,
+    diagnostics,
   } = useDeviceTilt()
 
   const graphicProfile = useUIStore((s) => s.graphicProfile)
@@ -113,6 +115,7 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
 
   const [isFullscreen, setIsFullscreen] = useState(isDocumentFullscreen())
   const [calibNotice, setCalibNotice] = useState<string | null>(null)
+  const [showSensorDiag, setShowSensorDiag] = useState(false)
 
   useEffect(() => {
     setIsFullscreen(isDocumentFullscreen())
@@ -132,7 +135,11 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
 
   const handleCalibrate = () => {
     if (!hasValidSample) {
-      setCalibNotice('Aguardando leitura física do sensor do aparelho para calibrar.')
+      setCalibNotice(
+        diagnostics.blockReason ??
+          'Não é possível calibrar ainda: aguardando primeira amostra válida do sensor do aparelho.',
+      )
+      setShowSensorDiag(true)
       return
     }
     const angle = calibrateNeutral()
@@ -161,6 +168,15 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
   }
 
   const activePresetSpec = TILT_SENSITIVITY_PRESETS[steeringSensitivityPreset]
+
+  const sourceLabel =
+    diagnostics.activeSource === 'deviceorientation'
+      ? 'DeviceOrientation (Giroscópio+Acel.)'
+      : diagnostics.activeSource === 'deviceorientationabsolute'
+        ? 'DeviceOrientationAbsolute (Acel.+Mag.)'
+        : diagnostics.activeSource === 'devicemotion_gravity'
+          ? 'DeviceMotion (Acelerômetro 3D)'
+          : 'Nenhuma fonte ativa'
 
   return (
     <div
@@ -257,7 +273,7 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
           />
         </div>
 
-        {/* Direção Mobile — Inclinação Física (Fase 4.4.1) */}
+        {/* Direção Mobile — Inclinação Física & Diagnóstico Acessível (Fase 4.4.2.2) */}
         <span className="block mb-1.5 text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
           Direção por Inclinação do Smartphone
         </span>
@@ -265,23 +281,20 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
           className="bg-zinc-900/60 border border-white/10 rounded-2xl p-3 mb-4 space-y-3"
           data-testid="menu-tilt-settings-section"
         >
-          {/* Feedback de Permissão / Suporte */}
-          {!isSupported && (
+          {/* Alertas explícitos de compatibilidade, contexto HTTPS ou permissão */}
+          {diagnostics.blockReason && (
             <div
-              data-testid="tilt-status-unsupported"
-              className="px-3 py-2 rounded-xl bg-red-950/40 border border-red-500/30 text-red-300 text-[9px] font-mono"
+              data-testid="tilt-status-alert"
+              className={`px-3 py-2 rounded-xl border text-[9px] font-mono leading-relaxed ${
+                !isSupported
+                  ? 'bg-red-950/40 border-red-500/30 text-red-300'
+                  : 'bg-amber-950/40 border-amber-500/30 text-amber-200'
+              }`}
             >
-              ⚠️ Sensor de orientação não detectado neste dispositivo/navegador.
+              ⚠️ {diagnostics.blockReason}
             </div>
           )}
-          {isSupported && permission === 'denied' && (
-            <div
-              data-testid="tilt-status-denied"
-              className="px-3 py-2 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-300 text-[9px] font-mono"
-            >
-              ⚠️ Permissão negada pelo navegador. Habilite o acesso a sensores de movimento nas configurações.
-            </div>
-          )}
+
           {isSupported && requiresPermissionPrompt && permission === 'prompt' && (
             <button
               type="button"
@@ -300,13 +313,21 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
               data-testid="btn-tilt-calibrate"
               onClick={handleCalibrate}
               className={`flex-1 h-9 rounded-xl border font-mono text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
-                isCalibrated
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400'
-                  : 'bg-amber-500/20 text-amber-300 border-amber-400'
+                !hasValidSample
+                  ? 'bg-zinc-900 text-zinc-400 border-white/15'
+                  : isCalibrated
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-400'
               }`}
             >
               <span>🎯</span>
-              <span>{isCalibrated ? `Recalibrar Centro (${neutralAngleDeg}°)` : 'Calibrar Centro Neutro'}</span>
+              <span>
+                {!hasValidSample
+                  ? 'Aguardando Sensor p/ Calibrar'
+                  : isCalibrated
+                    ? `Recalibrar Centro (${neutralAngleDeg}°)`
+                    : 'Calibrar Centro Neutro'}
+              </span>
             </button>
 
             <button
@@ -321,33 +342,105 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
           </div>
 
           {calibNotice && (
-            <div className="px-2.5 py-1 rounded-lg bg-zinc-950/80 border border-white/10 text-[8px] font-mono text-cyan-200">
+            <div
+              data-testid="tilt-calib-notice"
+              className="px-2.5 py-1.5 rounded-lg bg-zinc-950/80 border border-white/10 text-[8px] font-mono text-cyan-200"
+            >
               {calibNotice}
             </div>
           )}
 
-          {/* Telemetria do sensor atual */}
-          <div className="flex items-center justify-between text-[8px] font-mono text-zinc-400 px-1">
+          {/* Resumo de Telemetria + Botão de Diagnóstico Detalhado do Sensor */}
+          <div className="flex items-center justify-between gap-2 text-[8px] font-mono text-zinc-400 px-1">
             <span>
-              Ângulo Calibrado:{' '}
+              Ângulo:{' '}
               <b className="text-cyan-300">
-                {calibratedAngleDeg > 0 ? `+${calibratedAngleDeg}` : calibratedAngleDeg}°
+                {hasValidSample
+                  ? `${calibratedAngleDeg > 0 ? `+${calibratedAngleDeg}` : calibratedAngleDeg}°`
+                  : '--'}
               </b>
             </span>
             <span>
               Status:{' '}
-              <b className={isSupported ? 'text-emerald-400' : 'text-red-400'}>
-                {!isSupported
-                  ? 'INDISPONÍVEL'
-                  : permission === 'granted' || (!requiresPermissionPrompt && hasValidSample)
-                    ? 'ATIVO'
-                    : requiresPermissionPrompt && permission === 'prompt'
-                      ? 'AGUARDANDO PERMISSÃO'
-                      : permission === 'denied'
-                        ? 'NEGADO'
-                        : 'PRONTO'}
+              <b
+                data-testid="tilt-diagnostic-status-label"
+                className={
+                  diagnostics.status === 'active'
+                    ? 'text-emerald-400'
+                    : !isSupported
+                      ? 'text-red-400'
+                      : 'text-amber-300'
+                }
+              >
+                {diagnostics.statusLabel}
               </b>
             </span>
+          </div>
+
+          {/* Painel Expansível de Diagnóstico Técnico do Sensor (acessível ao jogador) */}
+          <div className="rounded-xl border border-white/10 bg-zinc-950/80 px-2.5 py-2">
+            <button
+              type="button"
+              data-testid="btn-toggle-sensor-diagnostics"
+              onClick={() => setShowSensorDiag((v) => !v)}
+              className="w-full flex items-center justify-between font-mono text-[8px] font-black uppercase tracking-wider text-cyan-300 cursor-pointer"
+            >
+              <span>🩺 Diagnóstico do Sensor do Aparelho</span>
+              <span>{showSensorDiag ? '▲ Ocultar' : '▼ Ver Detalhes'}</span>
+            </button>
+
+            {showSensorDiag && (
+              <div
+                data-testid="tilt-sensor-diagnostics-panel"
+                className="mt-2 pt-2 border-t border-white/10 grid grid-cols-2 gap-x-3 gap-y-1 text-[7.5px] font-mono text-zinc-300"
+              >
+                <span>
+                  Contexto HTTPS:{' '}
+                  <b className={diagnostics.secureContext ? 'text-emerald-400' : 'text-red-400'}>
+                    {diagnostics.secureContext ? 'SEGURO' : 'INSEGURO (HTTP)'}
+                  </b>
+                </span>
+                <span>
+                  Permissão: <b className="text-cyan-300">{diagnostics.permissionState.toUpperCase()}</b>
+                </span>
+                <span className="col-span-2">
+                  Fonte Ativa: <b className="text-emerald-300">{sourceLabel}</b>
+                </span>
+                <span>
+                  Recebendo Dados:{' '}
+                  <b className={diagnostics.receivingValidEvents ? 'text-emerald-400' : 'text-amber-300'}>
+                    {diagnostics.receivingValidEvents ? `SIM (${diagnostics.validEventCount})` : 'NÃO (0)'}
+                  </b>
+                </span>
+                <span>
+                  Eventos Vazios: <b>{diagnostics.nullOrInvalidEventCount}</b>
+                </span>
+                <span>
+                  Bruto / Neutro:{' '}
+                  <b>
+                    {hasValidSample ? `${rawAngleDeg}°` : '--'} / {isCalibrated ? `${neutralAngleDeg}°` : '0° (Padrão)'}
+                  </b>
+                </span>
+                <span>
+                  Tela: <b>{diagnostics.screenAngleDeg}°</b>
+                </span>
+                <span>
+                  Beta / Gamma:{' '}
+                  <b>
+                    {diagnostics.rawBetaDeg !== null ? `${diagnostics.rawBetaDeg}°` : 'null'} /{' '}
+                    {diagnostics.rawGammaDeg !== null ? `${diagnostics.rawGammaDeg}°` : 'null'}
+                  </b>
+                </span>
+                <span>
+                  Acel. 3D:{' '}
+                  <b>
+                    {diagnostics.rawGravityX !== null
+                      ? `${diagnostics.rawGravityX}, ${diagnostics.rawGravityY}`
+                      : 'inativo'}
+                  </b>
+                </span>
+              </div>
+            )}
           </div>
 
           {/* 1. Inverter Direção (sinal final) */}
@@ -389,7 +482,7 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
           {/* 2. Sensibilidade em 3 Níveis (Baixa / Média / Alta) */}
           <div>
             <div className="flex items-center justify-between text-[8px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
-              <span>Sensibilidade</span>
+              <span>Sensibilidade Progressiva</span>
               <span className="text-cyan-400 font-black">
                 {activePresetSpec.label.toUpperCase()} (~{Math.round(activePresetSpec.fullLockDeg)}° batente)
               </span>

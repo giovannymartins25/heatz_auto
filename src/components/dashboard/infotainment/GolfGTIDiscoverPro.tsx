@@ -5,8 +5,10 @@ import { BoostGauge, CircularProgressDial } from '@/components/gauges'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { clamp } from '@/utils/math'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
+import { resolveVehicleControls } from '@/systems/vehicle/vehicleResolvers'
 import { ClimateControlPanel } from './shared/ClimateControlPanel'
 import { InternetMediaCenter } from './shared/InternetMediaCenter'
+import { MultimediaStatusFooter } from './shared/MultimediaStatusFooter'
 
 interface GolfGTIDiscoverProProps {
   vehicle: VehicleConfig
@@ -59,6 +61,14 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
   const surfaceType = useSimulationStore((s) => s.surfaceType)
   const isMapOpen = useSimulationStore((s) => s.isMapOpen)
   const toggleMap = useSimulationStore((s) => s.toggleMap)
+  const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
+  const tcsIntervening = useSimulationStore((s) => s.tcsIntervening)
+  const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
+  const controlsSpec = resolveVehicleControls(vehicle)
+  const showDigitalTcs =
+    controlsSpec.tractionControl.available &&
+    controlsSpec.tractionControl.userToggleable &&
+    controlsSpec.tractionControl.panel === 'multimedia'
 
   useEffect(() => {
     const updateTime = () => {
@@ -174,11 +184,29 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
               </div>
             </div>
 
-            {/* Status Oficial VW Sport HMI */}
+            {/* Status Oficial VW Sport HMI + Controle Digital ASR/ESC */}
             <div className="w-full flex items-center justify-between px-2 py-0.5 rounded bg-black/60 border border-white/5 text-[7px] font-mono text-zinc-400 mt-0.5">
               <span>MOTOR: <b className="text-red-400">2.0 TSI EA888</b></span>
               <span>CÂMBIO: <b className="text-white">DSG DQ250</b></span>
-              <span>BOOST: <b className="text-amber-400">{boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : '0.00'} BAR</b></span>
+              {showDigitalTcs ? (
+                <button
+                  type="button"
+                  data-testid="multimedia-tcs-toggle"
+                  aria-pressed={tcsEnabled}
+                  onClick={() => setTcsEnabled(!tcsEnabled)}
+                  className={`px-1.5 py-0.5 rounded border font-black cursor-pointer transition-all ${
+                    !tcsEnabled
+                      ? 'border-amber-400/60 bg-amber-500/20 text-amber-300'
+                      : tcsIntervening
+                        ? 'border-amber-400 bg-amber-500/30 text-amber-200 animate-pulse'
+                        : 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
+                  }`}
+                >
+                  {tcsEnabled ? 'ASR ATIVO' : 'ESC SPORT / OFF'}
+                </button>
+              ) : (
+                <span>BOOST: <b className="text-amber-400">{boostPressureBar > 0 ? `+${boostPressureBar.toFixed(2)}` : '0.00'} BAR</b></span>
+              )}
             </div>
           </div>
         )}
@@ -390,6 +418,7 @@ export const GolfGTIDiscoverPro = memo(function GolfGTIDiscoverPro({
           LUZ CABINE
         </button>
       </div>
+      <MultimediaStatusFooter theme="red" />
     </div>
   )
 })

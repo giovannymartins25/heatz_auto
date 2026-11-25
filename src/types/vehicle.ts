@@ -58,6 +58,78 @@ export type ClimateSystemType =
 /** Localização canônica dos controles de climatização na interface do veículo */
 export type ClimateControlsLocation = 'multimedia' | 'panel' | 'none'
 
+/** Painel alvo na arquitetura modular de 3 painéis (Painel 2 = 'multimedia', Painel 3 = 'controls', 'none' = ausente) */
+export type ControlPanelTarget = 'controls' | 'multimedia' | 'none'
+
+/** Natureza física ou digital do comando no veículo real */
+export type ControlActuationType = 'physical' | 'digital' | 'none'
+
+/** Grau de confirmação documental do equipamento para o ano/versão do veículo */
+export type EquipmentConfirmationStatus = 'confirmed' | 'estimated_or_optional' | 'unconfirmed'
+
+/** Tipo de acionamento real de assistências de condução (preparação arquitetural) */
+export type DriverAssistControlType =
+  | 'steering_wheel_physical'
+  | 'stalk_physical'
+  | 'digital_multimedia'
+  | 'none'
+
+/** Nível de ajuste de assistências de condução */
+export type DriverAssistAdjustability = 'toggle_only' | 'setpoint_adjustable' | 'none'
+
+/** Estado de implementação na simulação (evita botões falsos para sistemas autônomos ainda sem sensores) */
+export type DriverAssistImplementationState = 'pending_sensors' | 'not_applicable'
+
+export interface VehicleClimateControlSpec {
+  available: boolean
+  confirmationStatus: EquipmentConfirmationStatus
+  controlType: ControlActuationType
+  panel: ControlPanelTarget
+  adjustable: 'setpoint_and_fan' | 'vent_only' | 'none'
+}
+
+export interface VehicleTractionControlSpec {
+  available: boolean
+  confirmationStatus: EquipmentConfirmationStatus
+  userToggleable: boolean
+  controlType: ControlActuationType
+  panel: ControlPanelTarget
+  systemLabel: string
+}
+
+export interface VehicleSteeringWheelControlsSpec {
+  hasAudioControls: boolean
+  hasCruiseControls: boolean
+  confirmationStatus: EquipmentConfirmationStatus
+}
+
+export interface VehicleDriverAssistEntry {
+  available: boolean
+  confirmationStatus: EquipmentConfirmationStatus
+  controlType: DriverAssistControlType
+  panel: ControlPanelTarget
+  adjustable: DriverAssistAdjustability
+  implementationState: DriverAssistImplementationState
+  notes?: string
+}
+
+export interface VehicleDriverAssistsSpec {
+  cruiseControl: VehicleDriverAssistEntry
+  adaptiveCruiseControl: VehicleDriverAssistEntry
+  laneKeepingAssist: VehicleDriverAssistEntry
+}
+
+/**
+ * Arquitetura declarativa unificada de distribuição dos comandos e sistemas do veículo
+ * entre Painel 2 (Multimídia) e Painel 3 (Controles do Veículo), sem duplicação.
+ */
+export interface VehicleControlsSpec {
+  climate: VehicleClimateControlSpec
+  tractionControl: VehicleTractionControlSpec
+  steeringWheel: VehicleSteeringWheelControlsSpec
+  driverAssists: VehicleDriverAssistsSpec
+}
+
 export interface VehicleCabinSpec {
   climateType: ClimateSystemType
   /** Onde os controles de climatização devem aparecer ('multimedia' = central multimídia integrada; 'panel' = Painel 3 físico; 'none' = sem climatização) */
@@ -72,6 +144,8 @@ export interface VehicleCabinSpec {
   hasFogLights?: boolean
   hasAmbientLighting?: boolean
   defaultAmbientColor?: AmbientLightColor
+  /** Capacidade declarativa de escapamento ativo de fábrica com válvula eletrônica; padrão false */
+  hasFactoryActiveExhaust?: boolean
 }
 
 /** Identificador canônico de unidade multimídia no MULTIMEDIA_REGISTRY */
@@ -355,6 +429,7 @@ export interface VehicleConfig {
   chassis?: ChassisConfig
   ignition?: VehicleIgnitionSpec
   cabin?: VehicleCabinSpec
+  controls?: VehicleControlsSpec
   multimedia?: VehicleMultimediaSpec
   visual2d?: VehicleVisual2DSpec
   aerodynamics?: VehicleAeroSpec

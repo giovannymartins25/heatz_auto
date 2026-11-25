@@ -227,5 +227,56 @@
     "widthM": 1.799,
     "silhouette": "sedan",
     "hasFrontRedStripe": true
+  },
+  "controls": {
+    "climate": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "controlType": "digital",
+      "panel": "multimedia",
+      "adjustable": "setpoint_and_fan"
+    },
+    "tractionControl": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "userToggleable": true,
+      "controlType": "digital",
+      "panel": "multimedia",
+      "systemLabel": "ASR / ESC Sport"
+    },
+    "steeringWheel": {
+      "hasAudioControls": true,
+      "hasCruiseControls": true,
+      "confirmationStatus": "confirmed"
+    },
+    "driverAssists": {
+      "cruiseControl": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "steering_wheel_physical",
+        "panel": "controls",
+        "adjustable": "setpoint_adjustable",
+        "implementationState": "pending_sensors",
+        "notes": "Integrado ao ACC no volante multifuncional GLI."
+      },
+      "adaptiveCruiseControl": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "steering_wheel_physical",
+        "panel": "controls",
+        "adjustable": "setpoint_adjustable",
+        "implementationState": "pending_sensors",
+        "notes": "ACC de série no Jetta GLI 350 TSI 2021 Brasil."
+      },
+      "laneKeepingAssist": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Lane Assist passou a equipar o Jetta GLI nacional apenas na reestilização 2022+."
+      }
+    }
   }
 }

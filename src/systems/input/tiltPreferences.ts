@@ -1,11 +1,11 @@
 /**
- * tiltPreferences.ts — Persistência validada das preferências de direção mobile por inclinação (Fase 4.4.1).
+ * tiltPreferences.ts — Persistência validada das preferências de direção mobile por inclinação (Fases 4.4.1 / 4.4.2.2).
  *
  * Persiste apenas configurações duráveis do usuário:
- * - Preset de sensibilidade ('low' | 'medium' | 'high')
+ * - Preset de sensibilidade ('low' | 'medium' | 'high') calibrado para curva progressiva natural
  * - Inversão do sinal final da direção (boolean)
  * - Zona morta em graus (number)
- * - Calibração de centro neutro (neutralAngleDeg e isCalibrated)
+ * - Calibração de centro neutro separada por eixo de orientação (paisagem vs retrato) + campo ativo retrocompatível
  *
  * Nunca persiste leituras brutas transitórias de acelerômetro/giroscópio.
  */
@@ -19,7 +19,7 @@ export interface TiltSensitivitySpec {
   label: 'Baixa' | 'Média' | 'Alta'
   /** Multiplicador de sensibilidade aplicado a baseMaxAngleDeg (30°) */
   sensitivity: number
-  /** Ângulo aproximado de inclinação para batente total das rodas (0.55 rad) */
+  /** Ângulo aproximado de inclinação física para batente total em baixa velocidade */
   fullLockDeg: number
 }
 
@@ -27,20 +27,20 @@ export const TILT_SENSITIVITY_PRESETS: Readonly<Record<TiltSensitivityPreset, Ti
   low: {
     id: 'low',
     label: 'Baixa',
-    sensitivity: 0.55,
-    fullLockDeg: 54.5,
+    sensitivity: 0.48,
+    fullLockDeg: 62.5,
   },
   medium: {
     id: 'medium',
     label: 'Média',
-    sensitivity: 0.78,
-    fullLockDeg: 38.5,
+    sensitivity: 0.68,
+    fullLockDeg: 44.1,
   },
   high: {
     id: 'high',
     label: 'Alta',
-    sensitivity: 1.12,
-    fullLockDeg: 26.8,
+    sensitivity: 0.96,
+    fullLockDeg: 31.3,
   },
 }
 
@@ -50,6 +50,10 @@ export interface PersistedTiltPreferences {
   deadzoneDeg: number
   neutralAngleDeg: number
   isCalibrated: boolean
+  neutralLandscapeDeg?: number
+  isCalibratedLandscape?: boolean
+  neutralPortraitDeg?: number
+  isCalibratedPortrait?: boolean
 }
 
 export const TILT_PREFERENCES_STORAGE_KEY = 'heatz_tilt_preferences_v1'
@@ -60,6 +64,10 @@ export const DEFAULT_TILT_PREFERENCES: Readonly<PersistedTiltPreferences> = {
   deadzoneDeg: 3.0,
   neutralAngleDeg: 0,
   isCalibrated: false,
+  neutralLandscapeDeg: 0,
+  isCalibratedLandscape: false,
+  neutralPortraitDeg: 0,
+  isCalibratedPortrait: false,
 }
 
 export function isValidTiltSensitivityPreset(val: unknown): val is TiltSensitivityPreset {
@@ -68,8 +76,8 @@ export function isValidTiltSensitivityPreset(val: unknown): val is TiltSensitivi
 
 export function resolveTiltSensitivityPresetFromValue(sens: number): TiltSensitivityPreset {
   if (!Number.isFinite(sens)) return 'medium'
-  if (sens <= 0.66) return 'low'
-  if (sens >= 0.95) return 'high'
+  if (sens <= 0.58) return 'low'
+  if (sens >= 0.84) return 'high'
   return 'medium'
 }
 
@@ -82,6 +90,15 @@ export function getStorageSafe(): Storage | null {
     // Ambiente restrito / sandbox sem localStorage
   }
   return null
+}
+
+function sanitizeAngleOrZero(rawVal: unknown, flagVal: unknown): { angle: number; calibrated: boolean } {
+  const valid = typeof rawVal === 'number' && Number.isFinite(rawVal) && Math.abs(rawVal) <= 75
+  const calibrated = Boolean(flagVal) && valid
+  return {
+    angle: calibrated ? clamp(rawVal as number, -75, 75) : 0,
+    calibrated,
+  }
 }
 
 /**
@@ -123,20 +140,26 @@ export function loadTiltPreferences(): PersistedTiltPreferences {
         ? clamp(obj.deadzoneDeg, 0, 12)
         : DEFAULT_TILT_PREFERENCES.deadzoneDeg
 
-    const hasValidNeutral =
-      typeof obj.neutralAngleDeg === 'number' &&
-      Number.isFinite(obj.neutralAngleDeg) &&
-      Math.abs(obj.neutralAngleDeg) <= 75
-
-    const isCalibrated = Boolean(obj.isCalibrated) && hasValidNeutral
-    const neutralAngleDeg = isCalibrated && hasValidNeutral ? clamp(obj.neutralAngleDeg as number, -75, 75) : 0
+    const primary = sanitizeAngleOrZero(obj.neutralAngleDeg, obj.isCalibrated)
+    const land =
+      obj.isCalibratedLandscape !== undefined
+        ? sanitizeAngleOrZero(obj.neutralLandscapeDeg, obj.isCalibratedLandscape)
+        : primary
+    const port =
+      obj.isCalibratedPortrait !== undefined
+        ? sanitizeAngleOrZero(obj.neutralPortraitDeg, obj.isCalibratedPortrait)
+        : { angle: 0, calibrated: false }
 
     return {
       sensitivityPreset,
       invertDirection,
       deadzoneDeg,
-      neutralAngleDeg,
-      isCalibrated,
+      neutralAngleDeg: primary.angle,
+      isCalibrated: primary.calibrated,
+      neutralLandscapeDeg: land.angle,
+      isCalibratedLandscape: land.calibrated,
+      neutralPortraitDeg: port.angle,
+      isCalibratedPortrait: port.calibrated,
     }
   } catch {
     return { ...DEFAULT_TILT_PREFERENCES }
@@ -148,6 +171,30 @@ export function loadTiltPreferences(): PersistedTiltPreferences {
  */
 export function saveTiltPreferencesPatch(patch: Partial<PersistedTiltPreferences>): PersistedTiltPreferences {
   const current = loadTiltPreferences()
+  const nextCalibrated = typeof patch.isCalibrated === 'boolean' ? patch.isCalibrated : current.isCalibrated
+  const nextNeutral =
+    typeof patch.neutralAngleDeg === 'number' && Number.isFinite(patch.neutralAngleDeg)
+      ? clamp(patch.neutralAngleDeg, -75, 75)
+      : current.neutralAngleDeg
+
+  const nextLandCal =
+    typeof patch.isCalibratedLandscape === 'boolean'
+      ? patch.isCalibratedLandscape
+      : current.isCalibratedLandscape ?? false
+  const nextLandDeg =
+    typeof patch.neutralLandscapeDeg === 'number' && Number.isFinite(patch.neutralLandscapeDeg)
+      ? clamp(patch.neutralLandscapeDeg, -75, 75)
+      : current.neutralLandscapeDeg ?? 0
+
+  const nextPortCal =
+    typeof patch.isCalibratedPortrait === 'boolean'
+      ? patch.isCalibratedPortrait
+      : current.isCalibratedPortrait ?? false
+  const nextPortDeg =
+    typeof patch.neutralPortraitDeg === 'number' && Number.isFinite(patch.neutralPortraitDeg)
+      ? clamp(patch.neutralPortraitDeg, -75, 75)
+      : current.neutralPortraitDeg ?? 0
+
   const next: PersistedTiltPreferences = {
     sensitivityPreset: isValidTiltSensitivityPreset(patch.sensitivityPreset)
       ? patch.sensitivityPreset
@@ -158,15 +205,12 @@ export function saveTiltPreferencesPatch(patch: Partial<PersistedTiltPreferences
       typeof patch.deadzoneDeg === 'number' && Number.isFinite(patch.deadzoneDeg)
         ? clamp(patch.deadzoneDeg, 0, 12)
         : current.deadzoneDeg,
-    isCalibrated: typeof patch.isCalibrated === 'boolean' ? patch.isCalibrated : current.isCalibrated,
-    neutralAngleDeg:
-      typeof patch.neutralAngleDeg === 'number' && Number.isFinite(patch.neutralAngleDeg)
-        ? clamp(patch.neutralAngleDeg, -75, 75)
-        : current.neutralAngleDeg,
-  }
-
-  if (!next.isCalibrated) {
-    next.neutralAngleDeg = 0
+    isCalibrated: nextCalibrated,
+    neutralAngleDeg: nextCalibrated ? nextNeutral : 0,
+    isCalibratedLandscape: nextLandCal,
+    neutralLandscapeDeg: nextLandCal ? nextLandDeg : 0,
+    isCalibratedPortrait: nextPortCal,
+    neutralPortraitDeg: nextPortCal ? nextPortDeg : 0,
   }
 
   const storage = getStorageSafe()

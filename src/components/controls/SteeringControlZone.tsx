@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useUIStore } from '@/stores/useUIStore'
 import { useDeviceTilt } from '@/hooks/useDeviceTilt'
@@ -17,6 +17,7 @@ export interface SteeringControlZoneProps {
  * - Não exibe volante virtual na interface mobile.
  * - Ocultar o indicador visual (`showTiltIndicator = false`) NÃO desativa o listener do sensor,
  *   pois `useDeviceTilt()` é mantido montado antes do retorno visual nulo.
+ * - Calibração aguarda estritamente amostra válida do sensor e informa claramente quando indisponível.
  */
 export const SteeringControlZone = memo(function SteeringControlZone({
   className = '',
@@ -24,6 +25,7 @@ export const SteeringControlZone = memo(function SteeringControlZone({
   const showTiltIndicator = useUIStore((s) => s.showTiltIndicator)
   const steeringAngle = useSimulationStore((s) => s.steeringAngle)
   const steeringInvertDirection = useSimulationStore((s) => s.steeringInvertDirection)
+  const [statusFeedback, setStatusFeedback] = useState<string | null>(null)
 
   const {
     isSupported,
@@ -32,13 +34,35 @@ export const SteeringControlZone = memo(function SteeringControlZone({
     requestPermission,
     calibrateNeutral,
     calibratedAngleDeg,
+    neutralAngleDeg,
     isCalibrated,
+    hasValidSample,
+    diagnostics,
   } = useDeviceTilt()
 
   // Se o usuário optou por ocultar no Menu Rápido, não exibe o HUD visual,
   // mas o sensor de inclinação acima (useDeviceTilt) permanece 100% ativo na escuta física.
   if (!showTiltIndicator) {
     return null
+  }
+
+  const handleCalibrateClick = () => {
+    if (!hasValidSample) {
+      const msg =
+        diagnostics.status === 'insecure_context'
+          ? 'Requer HTTPS/localhost'
+          : diagnostics.status === 'permission_denied'
+            ? 'Permissão negada'
+            : diagnostics.status === 'unsupported_browser'
+              ? 'Sem sensor'
+              : 'Sem leitura ainda (veja ☰)'
+      setStatusFeedback(msg)
+      setTimeout(() => setStatusFeedback(null), 3200)
+      return
+    }
+    const deg = calibrateNeutral()
+    setStatusFeedback(`Neutro ${deg > 0 ? `+${deg.toFixed(1)}` : deg.toFixed(1)}°`)
+    setTimeout(() => setStatusFeedback(null), 2000)
   }
 
   const steerPercent = Math.round(Math.abs(steeringAngle) * 100)
@@ -87,23 +111,43 @@ export const SteeringControlZone = memo(function SteeringControlZone({
         </span>
       </div>
 
-      {/* Botão de Calibração Neutra Rápida */}
+      {/* Botão de Calibração Neutra Rápida (protegido contra ausência de amostra válida) */}
       <button
         type="button"
-        onClick={calibrateNeutral}
+        data-testid="btn-hud-tilt-calibrate"
+        onClick={handleCalibrateClick}
         className={`h-6 px-1.5 sm:px-2 rounded-lg border font-mono text-[7px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow-sm flex items-center gap-1 shrink-0 ${
-          isCalibrated
-            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400'
-            : 'bg-amber-500/20 text-amber-300 border-amber-400 animate-pulse'
+          !hasValidSample
+            ? 'bg-zinc-900 text-zinc-400 border-white/15'
+            : isCalibrated
+              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400'
+              : 'bg-amber-500/20 text-amber-300 border-amber-400 animate-pulse'
         }`}
-        title="Calibrar posição atual do smartphone como centro neutro (0°)"
+        title={
+          hasValidSample
+            ? `Calibrar posição atual como centro neutro (atual: ${neutralAngleDeg}°)`
+            : 'Aguardando leitura válida do sensor (abra ☰ para diagnóstico)'
+        }
       >
         <span>🎯</span>
-        <span>{isCalibrated ? `${calibratedAngleDeg}° OK` : 'CALIBRAR'}</span>
+        <span>
+          {statusFeedback
+            ? statusFeedback
+            : !hasValidSample
+              ? 'SEM DADOS'
+              : isCalibrated
+                ? `${calibratedAngleDeg}° OK`
+                : 'CALIBRAR'}
+        </span>
       </button>
 
-      {/* Feedback caso permissão ou sensor requeiram atenção (botão iOS exclusivo para WebKit c/ requestPermission) */}
-      {!isSupported && (
+      {/* Feedback de estado quando bloqueado ou aguardando permissão */}
+      {diagnostics.status === 'insecure_context' && (
+        <span className="text-[7px] font-mono text-red-400 px-1" data-testid="tilt-hud-insecure">
+          ⚠️ Use HTTPS
+        </span>
+      )}
+      {!isSupported && diagnostics.status !== 'insecure_context' && (
         <span className="text-[7px] font-mono text-red-400 px-1">⚠️ Sem sensor</span>
       )}
       {isSupported && permission === 'denied' && (

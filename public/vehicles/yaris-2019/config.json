@@ -182,5 +182,56 @@
     "hasFogLights": true,
     "hasAmbientLighting": true,
     "defaultAmbientColor": "cyan"
+  },
+  "controls": {
+    "climate": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "controlType": "digital",
+      "panel": "multimedia",
+      "adjustable": "setpoint_and_fan"
+    },
+    "tractionControl": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "userToggleable": true,
+      "controlType": "physical",
+      "panel": "controls",
+      "systemLabel": "VSC / TRC"
+    },
+    "steeringWheel": {
+      "hasAudioControls": true,
+      "hasCruiseControls": true,
+      "confirmationStatus": "confirmed"
+    },
+    "driverAssists": {
+      "cruiseControl": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "stalk_physical",
+        "panel": "controls",
+        "adjustable": "setpoint_adjustable",
+        "implementationState": "pending_sensors",
+        "notes": "Alavanca satélite Toyota de controle de cruzeiro convencional no Yaris XLS 2019."
+      },
+      "adaptiveCruiseControl": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Sem ACC no Yaris 2019."
+      },
+      "laneKeepingAssist": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Toyota Safety Sense (LDA) introduzido apenas na linha 2023 do Yaris."
+      }
+    }
   }
 }

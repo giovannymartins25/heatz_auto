@@ -10,9 +10,11 @@ import { WorldMap } from '@/systems/world/WorldMap'
 import { TractionControlSystem } from '@/systems/tcs'
 import { PedalInputSystem, createInitialZeroToHundredState, stepZeroToHundredTimer, type ZeroToHundredState } from '@/systems/vehicle'
 import {
+  canControlExhaustValve,
   resolveDefaultAmbientColor,
   resolveVehicleAero,
   resolveVehicleCabin,
+  resolveVehicleControls,
   resolveVehicleDrivetrain,
   resolveVehicleFuelDefaults,
   resolveVehicleIgnition,
@@ -49,6 +51,21 @@ import type { AmbientLightColor } from '@/utils/ambientLighting'
 import { useGarageStore, type CarUpgrades, type ExhaustType, type SuspensionHeight, type RearWingPosition, type RearWingType, type TurboLevel, type EngineInternals } from './useGarageStore'
 import { useUIStore, type MapViewportSize } from './useUIStore'
 import { performanceMonitor } from '@/utils/performanceMonitor'
+
+/**
+ * Calcula o ângulo máximo efetivo das rodas dianteiras (rad) de forma sensível à velocidade (EPS progressivo).
+ * - Até 25 km/h: autoridade plena de 0.55 rad (~31.5°) para manobras e curvas travadas.
+ * - Acima de 25 km/h: atenuação progressiva contínua (sem salto), evitando respostas bruscas em média/alta velocidade.
+ */
+function computeSpeedSensitiveSteerRad(normalizedSteer: number, speedKmh: number): number {
+  if (!Number.isFinite(normalizedSteer) || Math.abs(normalizedSteer) < 1e-5) return 0
+  const safeSpeed = Number.isFinite(speedKmh) ? Math.max(0, speedKmh) : 0
+  const maxRad =
+    safeSpeed <= 25
+      ? 0.55
+      : clamp(0.55 / (1 + Math.pow((safeSpeed - 25) / 68, 1.15)), 0.12, 0.55)
+  return clamp(normalizedSteer, -1, 1) * maxRad
+}
 
 /**
  * Estado físico autoritativo desacoplado das publicações visuais do Zustand.
@@ -115,6 +132,8 @@ export interface PhysicsInternalState {
   absEngaged: boolean
   isAirbrakeActive: boolean
   engineDamageRatio: number
+  /** Transição protegida de sentido solicitada no seletor automático/DCT em movimento ('R' | 'D' | 'S' | 'M' | null) */
+  pendingDirectionShift: 'R' | 'D' | 'S' | 'M' | null
 
   // Acumuladores determinísticos de tempo simulado e contadores de publicação
   elapsedSimMs: number
@@ -304,6 +323,7 @@ function createInitialPhysicsInternalState(
     absEngaged: false,
     isAirbrakeActive: false,
     engineDamageRatio: 0,
+    pendingDirectionShift: overrides.pendingDirectionShift ?? null,
 
     elapsedSimMs: 0,
     lastVisualUpdateMs: 0,
@@ -547,6 +567,8 @@ interface SimulationState {
   isKickdown: boolean
   lastShiftReason: string     // 'none' | 'clutch_required' | 'over_rev' | 'gear_limit'
   gearSelectorPosition: 'P' | 'R' | 'N' | 'D' | 'S' | 'M'
+  pendingDirectionShift: 'R' | 'D' | 'S' | 'M' | null
+  isDirectionProtectionActive: boolean
 
   // Iluminação de Cabine e Painel
   ambientLightColor: AmbientLightColor
@@ -584,6 +606,7 @@ interface SimulationState {
   peakBoostBar: number
 
   // Escape, Efeitos & Difusor
+  hasExhaustValveKit: boolean
   exhaustValveOpen: boolean
   isBackfireFlashing: boolean
 
@@ -813,6 +836,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isKickdown: false,
   lastShiftReason: 'none',
   gearSelectorPosition: 'P',
+  pendingDirectionShift: null,
+  isDirectionProtectionActive: false,
   clutchSlipRpm: 0,
   clutchSlipRatio: 0,
   clutchTorqueTransfer: 0,
@@ -835,6 +860,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isLaunching: false,
   boostPressureBar: 0,
   peakBoostBar: 0,
+  hasExhaustValveKit: false,
   exhaustValveOpen: false,
   isBackfireFlashing: false,
   tuningStage: 0,
@@ -1079,6 +1105,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     physics.setTireCompound(initialUpgrades?.tires || 'street', false)
 
     const defaultAmbientColor: AmbientLightColor = resolveDefaultAmbientColor(config)
+    const resolvedExhaustType: ExhaustType = initialUpgrades?.exhaustType || (hasTurbo ? 'sport' : 'stock')
+    const resolvedExhaustValveKit = Boolean(initialUpgrades?.hasExhaustValveKit)
+    const resolvedCanUseExhaustValve = canControlExhaustValve(config, {
+      exhaustType: resolvedExhaustType,
+      hasExhaustValveKit: resolvedExhaustValveKit,
+    })
 
     set({
       _engine: engine,
@@ -1132,7 +1164,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isNosPurging: false,
       nosPurgeTrigger: 0,
       garageInstanceId: garageInstanceId ?? null,
-      exhaustType: initialUpgrades?.exhaustType || (hasTurbo ? 'sport' : 'stock'),
+      exhaustType: resolvedExhaustType,
+      hasExhaustValveKit: resolvedExhaustValveKit,
       intakeType: initialUpgrades?.intakeType || 'stock',
       tires: initialUpgrades?.tires || 'street',
       clutchUpgrade,
@@ -1147,7 +1180,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isLaunching: false,
       boostPressureBar: 0,
       peakBoostBar: 0,
-      exhaustValveOpen: initialUpgrades?.exhaustValveOpen ?? false,
+      exhaustValveOpen: resolvedCanUseExhaustValve ? Boolean(initialUpgrades?.exhaustValveOpen) : false,
       best0to100: null,
       last0to100: null,
       current0to100: null,
@@ -1181,6 +1214,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isBogWarning: false,
       lastShiftReason: 'none',
       gearSelectorPosition: isAutoOrCvt ? 'P' : 'N',
+      pendingDirectionShift: null,
+      isDirectionProtectionActive: false,
       clutchSlipRpm: 0,
       clutchSlipRatio: 0,
       clutchTorqueTransfer: 0,
@@ -1677,8 +1712,22 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   toggleExhaustValve: () => {
-    const next = !get().exhaustValveOpen
-    const instanceId = get().garageInstanceId
+    const state = get()
+    const allowed = canControlExhaustValve(state._config, {
+      exhaustType: state.exhaustType,
+      hasExhaustValveKit: state.hasExhaustValveKit,
+    })
+    if (!allowed) {
+      if (state.exhaustValveOpen) {
+        set({ exhaustValveOpen: false })
+        if (state.garageInstanceId) {
+          useGarageStore.getState().installUpgrade(state.garageInstanceId, { exhaustValveOpen: false })
+        }
+      }
+      return
+    }
+    const next = !state.exhaustValveOpen
+    const instanceId = state.garageInstanceId
     set({ exhaustValveOpen: next })
     if (instanceId) {
       useGarageStore.getState().installUpgrade(instanceId, { exhaustValveOpen: next })
@@ -1687,10 +1736,16 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setExhaustValve: (open: boolean) => {
-    const instanceId = get().garageInstanceId
-    set({ exhaustValveOpen: open })
+    const state = get()
+    const allowed = canControlExhaustValve(state._config, {
+      exhaustType: state.exhaustType,
+      hasExhaustValveKit: state.hasExhaustValveKit,
+    })
+    const safeOpen = allowed ? Boolean(open) : false
+    const instanceId = state.garageInstanceId
+    set({ exhaustValveOpen: safeOpen })
     if (instanceId) {
-      useGarageStore.getState().installUpgrade(instanceId, { exhaustValveOpen: open })
+      useGarageStore.getState().installUpgrade(instanceId, { exhaustValveOpen: safeOpen })
     }
   },
 
@@ -1725,7 +1780,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         upgrades.boostGaugeKit !== undefined ? upgrades.boostGaugeKit : state.hasBoostGaugeKit
       const hasNosKit =
         upgrades.hasNosKit !== undefined ? upgrades.hasNosKit : state.hasNosKit
-      const exhaustValveOpen = upgrades.exhaustValveOpen ?? state.exhaustValveOpen
+      const hasExhaustValveKit =
+        upgrades.hasExhaustValveKit !== undefined ? Boolean(upgrades.hasExhaustValveKit) : state.hasExhaustValveKit
+      const canUseExhaust = canControlExhaustValve(_config, {
+        exhaustType,
+        hasExhaustValveKit,
+      })
+      const exhaustValveOpen = canUseExhaust
+        ? (upgrades.exhaustValveOpen ?? state.exhaustValveOpen)
+        : false
       const hasPopsAndBangs =
         upgrades.hasPopsAndBangs !== undefined ? upgrades.hasPopsAndBangs : state.hasPopsAndBangs
       const popsAndBangsEnabled =
@@ -1758,6 +1821,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         hasRetrofitInfotainment,
         hasBoostGaugeKit,
         hasNosKit,
+        hasExhaustValveKit,
         exhaustValveOpen,
         hasPopsAndBangs,
         popsAndBangsEnabled,
@@ -2445,7 +2509,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   selectShifterMode: (mode: 'P' | 'R' | 'N' | 'D' | 'S' | 'M') => {
-    const { _transmission, _autoTransmission, _physics, _config, speed, isAutomaticVehicle } = get()
+    const { _transmission, _autoTransmission, _clutch, _physics, _config, speed, isAutomaticVehicle } = get()
     if (!_transmission || !_config) return
     const supported = getVehicleCapabilities(_config).supportedSelectorPositions
     if (!supported.includes(mode)) return
@@ -2456,72 +2520,136 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       if (mode === 'N') {
         _transmission.neutral()
         HapticFeedback.light()
-        set({ currentGear: 0, gearSelectorPosition: 'N' })
+        set({
+          currentGear: 0,
+          gearSelectorPosition: 'N',
+          pendingDirectionShift: null,
+          isDirectionProtectionActive: false,
+        })
       }
       return
     }
+
+    const motionDir =
+      _physics?.getMotionDirection() ??
+      (speed > 0.5 ? (get().currentGear === -1 ? -1 : 1) : 0)
+    // Limiar seguro de acoplamento reverso conforme arquitetura da transmissão (DCT mais restrito que conversor de torque)
+    const safeReversalThresholdKmh = _config.transmission.type === 'dct' ? 2.0 : 3.0
 
     switch (mode) {
       case 'P': {
         _transmission.shiftTo(-2, 0, undefined, true)
         _physics?.reset()
         HapticFeedback.gearShift()
-        set({ currentGear: -2, gearSelectorPosition: 'P', transmissionMode: 'automatic' })
+        const curPhys = get()._phys
+        curPhys.pendingDirectionShift = null
+        set({
+          currentGear: -2,
+          gearSelectorPosition: 'P',
+          transmissionMode: 'automatic',
+          pendingDirectionShift: null,
+          isDirectionProtectionActive: false,
+        })
         break
       }
       case 'R': {
+        // Proteção D -> R em movimento longitudinal positivo acima do limiar seguro
+        if (motionDir === 1 && speed > safeReversalThresholdKmh) {
+          _autoTransmission?.reset()
+          _transmission.neutral()
+          _clutch?.setPosition(1.0)
+          const curPhys = get()._phys
+          curPhys.pendingDirectionShift = 'R'
+          curPhys.gear = 0
+          HapticFeedback.light()
+          set({
+            currentGear: 0,
+            gearSelectorPosition: 'R',
+            transmissionMode: 'automatic',
+            pendingDirectionShift: 'R',
+            isDirectionProtectionActive: true,
+          })
+          break
+        }
         _autoTransmission?.reset()
         _transmission.shiftTo(-1, speed, undefined, true)
+        const curPhys = get()._phys
+        curPhys.pendingDirectionShift = null
         HapticFeedback.gearShift()
-        set({ currentGear: -1, gearSelectorPosition: 'R', transmissionMode: 'automatic' })
+        set({
+          currentGear: -1,
+          gearSelectorPosition: 'R',
+          transmissionMode: 'automatic',
+          pendingDirectionShift: null,
+          isDirectionProtectionActive: false,
+        })
         break
       }
       case 'N': {
         _transmission.neutral()
+        const curPhys = get()._phys
+        curPhys.pendingDirectionShift = null
         HapticFeedback.light()
-        set({ currentGear: 0, gearSelectorPosition: 'N', transmissionMode: 'automatic' })
+        set({
+          currentGear: 0,
+          gearSelectorPosition: 'N',
+          transmissionMode: 'automatic',
+          pendingDirectionShift: null,
+          isDirectionProtectionActive: false,
+        })
         break
       }
-      case 'D': {
+      case 'D':
+      case 'S':
+      case 'M': {
+        const currentMode = get().drivingMode
+        const nextMode = mode === 'S' && currentMode === 'eco' ? 'normal' : currentMode
+        const nextTransMode = mode === 'M' ? 'manual_simulated' : 'automatic'
+
+        // Proteção R -> D / S / M enquanto o veículo ainda se desloca em marcha à ré acima do limiar seguro
+        if (motionDir === -1 && speed > safeReversalThresholdKmh) {
+          _autoTransmission?.reset()
+          _transmission.neutral()
+          _clutch?.setPosition(1.0)
+          const curPhys = get()._phys
+          curPhys.pendingDirectionShift = mode
+          curPhys.gear = 0
+          HapticFeedback.light()
+          set({
+            currentGear: 0,
+            gearSelectorPosition: mode,
+            transmissionMode: nextTransMode,
+            drivingMode: nextMode,
+            pendingDirectionShift: mode,
+            isDirectionProtectionActive: true,
+          })
+          break
+        }
+
         const isToroRanch = _config?.id === 'fiat-toro-ranch-2025'
         const isLowMode = get().fourWheelDriveMode === '4wd_low'
-        const defaultForwardGear = isToroRanch && !isLowMode ? 2 : 1
-        const targetGear = get().currentGear > 0 ? get().currentGear : defaultForwardGear
-        _autoTransmission?.reset()
+        const defaultForwardGear = mode === 'D' && isToroRanch && !isLowMode ? 2 : 1
+        const targetGear =
+          mode === 'S' && speed < 2
+            ? 1
+            : get().currentGear > 0
+              ? get().currentGear
+              : defaultForwardGear
+
+        if (mode !== 'M') {
+          _autoTransmission?.reset()
+        }
         _transmission.shiftTo(targetGear, speed, undefined, true)
+        const curPhys = get()._phys
+        curPhys.pendingDirectionShift = null
         HapticFeedback.gearShift()
         set({
           currentGear: targetGear,
-          gearSelectorPosition: 'D',
-          transmissionMode: 'automatic',
-        })
-        break
-      }
-      case 'S': {
-        const targetGear = speed < 2 ? 1 : (get().currentGear > 0 ? get().currentGear : 1)
-        _autoTransmission?.reset()
-        _transmission.shiftTo(targetGear, speed, undefined, true)
-        HapticFeedback.gearShift()
-        // Seletor físico S: não força drivingMode='sport' (D e S são posições físicas independentes).
-        // Se estiver em ECO, comuta para NORMAL para impedir o conflito S + ECO.
-        const currentMode = get().drivingMode
-        const nextMode = currentMode === 'eco' ? 'normal' : currentMode
-        set({
-          currentGear: targetGear,
-          gearSelectorPosition: 'S',
-          transmissionMode: 'automatic',
+          gearSelectorPosition: mode,
+          transmissionMode: nextTransMode,
           drivingMode: nextMode,
-        })
-        break
-      }
-      case 'M': {
-        const gear = get().currentGear <= 0 ? 1 : get().currentGear
-        _transmission.shiftTo(gear, speed, undefined, true)
-        HapticFeedback.gearShift()
-        set({
-          currentGear: gear,
-          gearSelectorPosition: 'M',
-          transmissionMode: 'manual_simulated',
+          pendingDirectionShift: null,
+          isDirectionProtectionActive: false,
         })
         break
       }
@@ -2565,7 +2693,18 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setTcsEnabled: (enabled: boolean) => {
-    const { _tcs } = get()
+    const { _tcs, _config } = get()
+    if (_config) {
+      const tcsSpec = resolveVehicleControls(_config).tractionControl
+      if (!tcsSpec.available) {
+        _tcs?.reset()
+        set({ tcsEnabled: false, tcsIntervening: false, tcsInterventionLevel: 0 })
+        return
+      }
+      if (!tcsSpec.userToggleable && !enabled) {
+        return
+      }
+    }
     if (!enabled) {
       _tcs?.reset()
     }
@@ -2718,10 +2857,31 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       return
     }
 
-    // Ré enquanto anda para frente (>8 km/h): tranca mecânica com arranhão
-    if (targetGear === -1 && speed > 8) {
+    const motionDir =
+      get()._physics?.getMotionDirection() ??
+      (speed > 0.5 ? (get().currentGear === -1 ? -1 : 1) : 0)
+
+    // Ré enquanto anda para frente (>4 km/h): tranca mecânica sem engatar torque reverso
+    if (targetGear === -1 && motionDir === 1 && speed > 4) {
+      _transmission.neutral()
       HapticFeedback.heavy()
       set({
+        currentGear: 0,
+        gearSelectorPosition: 'N',
+        isGearGrinding: true,
+        gearGrindTrigger: Date.now(),
+        lastShiftReason: 'gear_limit',
+      })
+      return
+    }
+
+    // Marcha à frente enquanto recua em velocidade incompatível (>8 km/h em ré): tranca mecânica para impedir salto
+    if (targetGear > 0 && motionDir === -1 && speed > 8) {
+      _transmission.neutral()
+      HapticFeedback.heavy()
+      set({
+        currentGear: 0,
+        gearSelectorPosition: 'N',
         isGearGrinding: true,
         gearGrindTrigger: Date.now(),
         lastShiftReason: 'gear_limit',
@@ -3134,6 +3294,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       phys.topSpeedRecord = state.topSpeedRecord
       phys.lastPubTopSpeedRecord = state.topSpeedRecord
     }
+    phys.pendingDirectionShift = state.pendingDirectionShift
 
     const prevRevLimiting = phys.isRevLimiting
 
@@ -3285,66 +3446,106 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
         performanceMonitor.recordPhysicsTick()
 
-        // ─── 1. Tomada de Decisão da Transmissão ───
-        if (ctx.transmissionMode === 'automatic' && _autoTransmission) {
-          if (substepPhys.isLaunchControlArmed) {
-            _clutch.setPosition(0.95)
-            substepPhys.isKickdown = false
-          } else if (substepPhys.isLaunching) {
-            // Modulação progressiva da dupla embreagem úmida durante o Launch Control:
-            // mantém acoplamento alto sem travar abruptamente o virabrequim a 0 km/h (evita estol)
-            const launchEngagement = clamp(0.45 + (substepPhys.speedKmh / 28) * 0.55, 0.45, 1.0)
-            _clutch.setPosition(1.0 - launchEngagement)
-            substepPhys.isKickdown = true
+        // ─── 1. Tomada de Decisão da Transmissão & Proteção de Reversão de Sentido (D ↔ R) ───
+        let directionArrestBrake = 0
+        if (substepPhys.pendingDirectionShift !== null) {
+          const safeEngageSpeedKmh = _config.transmission.type === 'dct' ? 1.8 : 2.5
+          const currentMotionDir = _physics.getMotionDirection()
+          const targetDir = substepPhys.pendingDirectionShift === 'R' ? -1 : 1
+          const curSpeedKmh = _physics.getSpeedKmh()
+
+          if (
+            curSpeedKmh <= safeEngageSpeedKmh ||
+            currentMotionDir === 0 ||
+            currentMotionDir === targetDir
+          ) {
+            // Velocidade segura atingida: conclui o acoplamento da marcha solicitada
+            const reqMode = substepPhys.pendingDirectionShift
+            substepPhys.pendingDirectionShift = null
+            _autoTransmission?.reset()
+            if (reqMode === 'R') {
+              _transmission.shiftTo(-1, curSpeedKmh, undefined, true)
+              substepPhys.gear = -1
+            } else {
+              const isToroRanch = _config.id === 'fiat-toro-ranch-2025'
+              const isLowMode = ctx.fourWheelDriveMode === '4wd_low'
+              const defaultForwardGear = reqMode === 'D' && isToroRanch && !isLowMode ? 2 : 1
+              _transmission.shiftTo(defaultForwardGear, curSpeedKmh, undefined, true)
+              substepPhys.gear = defaultForwardGear
+            }
           } else {
-            const autoDecision = _autoTransmission.decide({
-              currentRpm: _engine.getRpm(),
-              vehicleSpeedKmh: _physics.getSpeedKmh(),
-              throttle: ctx.throttle,
-              brake: ctx.brake,
-              currentGear: _transmission.currentGear,
-              drivingMode: ctx.drivingMode,
-              selectorPosition: ctx.gearSelectorPosition,
-              fourWheelDriveMode: ctx.fourWheelDriveMode,
-              maxPowerRpm: _config.engine.maxPowerRpm,
-              maxTorqueRpm: _config.engine.maxTorqueRpm,
-              revLimiter: _config.engine.revLimiter,
-              deltaTime: dt,
-            })
+            // Ainda em movimento incompatível no sentido contrário: desacopla torque e desacelera com segurança
+            if (_transmission.currentGear !== 0) {
+              _transmission.neutral()
+            }
+            substepPhys.gear = 0
+            _clutch.setPosition(1.0)
+            substepPhys.isKickdown = false
+            directionArrestBrake = _config.transmission.type === 'dct' ? 0.48 : 0.42
+          }
+        }
 
-            substepPhys.isKickdown = autoDecision.isKickdown
+        if (substepPhys.pendingDirectionShift === null) {
+          if (ctx.transmissionMode === 'automatic' && _autoTransmission) {
+            if (substepPhys.isLaunchControlArmed) {
+              _clutch.setPosition(0.95)
+              substepPhys.isKickdown = false
+            } else if (substepPhys.isLaunching) {
+              // Modulação progressiva da dupla embreagem úmida durante o Launch Control:
+              // mantém acoplamento alto sem travar abruptamente o virabrequim a 0 km/h (evita estol)
+              const launchEngagement = clamp(0.45 + (substepPhys.speedKmh / 28) * 0.55, 0.45, 1.0)
+              _clutch.setPosition(1.0 - launchEngagement)
+              substepPhys.isKickdown = true
+            } else {
+              const autoDecision = _autoTransmission.decide({
+                currentRpm: _engine.getRpm(),
+                vehicleSpeedKmh: _physics.getSpeedKmh(),
+                throttle: ctx.throttle,
+                brake: ctx.brake,
+                currentGear: _transmission.currentGear,
+                drivingMode: ctx.drivingMode,
+                selectorPosition: ctx.gearSelectorPosition,
+                fourWheelDriveMode: ctx.fourWheelDriveMode,
+                maxPowerRpm: _config.engine.maxPowerRpm,
+                maxTorqueRpm: _config.engine.maxTorqueRpm,
+                revLimiter: _config.engine.revLimiter,
+                deltaTime: dt,
+              })
 
-            if (autoDecision.targetGear !== _transmission.currentGear) {
-              _transmission.shiftTo(autoDecision.targetGear, _physics.getSpeedKmh())
-              substepPhys.gear = autoDecision.targetGear
+              substepPhys.isKickdown = autoDecision.isKickdown
+
+              if (autoDecision.targetGear !== _transmission.currentGear) {
+                _transmission.shiftTo(autoDecision.targetGear, _physics.getSpeedKmh())
+                substepPhys.gear = autoDecision.targetGear
+              }
+
+              const autoClutchPosition = 1.0 - autoDecision.targetClutchEngagement
+              _clutch.setPosition(autoClutchPosition)
+            }
+          } else if (ctx.transmissionMode === 'manual_simulated') {
+            const speedKmh = _physics.getSpeedKmh()
+            const currentRpm = _engine.getRpm()
+
+            let targetClutchEngagement = 1.0
+            if (speedKmh < 3 && ctx.throttle < 0.05 && ctx.brake > 0.1) {
+              targetClutchEngagement = 0.0
+            } else if (speedKmh < 8 || currentRpm < _config.engine.idleRpm * 1.18) {
+              const idleRpm = _config.engine.idleRpm
+              const targetLaunchRpm = Math.max(idleRpm + 800, 1900)
+              const rpmRatio = clamp((currentRpm - idleRpm) / (targetLaunchRpm - idleRpm), 0, 1)
+              const speedRatio = clamp(speedKmh / 14, 0, 1)
+              targetClutchEngagement = clamp(
+                Math.pow(rpmRatio, 2.2) * 0.60 + speedRatio * 0.40,
+                0.05,
+                0.98,
+              )
             }
 
-            const autoClutchPosition = 1.0 - autoDecision.targetClutchEngagement
-            _clutch.setPosition(autoClutchPosition)
+            _clutch.setPosition(1.0 - targetClutchEngagement)
+            substepPhys.isKickdown = false
+          } else {
+            substepPhys.isKickdown = false
           }
-        } else if (ctx.transmissionMode === 'manual_simulated') {
-          const speedKmh = _physics.getSpeedKmh()
-          const currentRpm = _engine.getRpm()
-
-          let targetClutchEngagement = 1.0
-          if (speedKmh < 3 && ctx.throttle < 0.05 && ctx.brake > 0.1) {
-            targetClutchEngagement = 0.0
-          } else if (speedKmh < 8 || currentRpm < _config.engine.idleRpm * 1.18) {
-            const idleRpm = _config.engine.idleRpm
-            const targetLaunchRpm = Math.max(idleRpm + 800, 1900)
-            const rpmRatio = clamp((currentRpm - idleRpm) / (targetLaunchRpm - idleRpm), 0, 1)
-            const speedRatio = clamp(speedKmh / 14, 0, 1)
-            targetClutchEngagement = clamp(
-              Math.pow(rpmRatio, 2.2) * 0.60 + speedRatio * 0.40,
-              0.05,
-              0.98,
-            )
-          }
-
-          _clutch.setPosition(1.0 - targetClutchEngagement)
-          substepPhys.isKickdown = false
-        } else {
-          substepPhys.isKickdown = false
         }
 
         const gear = _transmission.currentGear
@@ -3469,13 +3670,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         _physics.setSuspensionHeight(ctx.suspensionHeight)
         _physics.setAerodynamics(ctx.rearWingPosition, ctx.isAeroWingExtended, ctx.rearWingType)
 
-        const rawBrake = Math.max(ctx.brake, ctx.handbrake || gear === -2 ? 1 : 0)
+        const rawBrake = Math.max(ctx.brake, directionArrestBrake, ctx.handbrake || gear === -2 ? 1 : 0)
         const effectiveBrake = rawBrake * substepPhys.brakeFadeFactor
         const driveTorqueAtTransmission =
-          clutchState.transmittedTorque >= 0
-            ? clutchState.transmittedTorque * totalTorqueMult
-            : clutchState.transmittedTorque
-        const steeringAngleRad = (ctx.steeringAngle || 0) * 0.55
+          substepPhys.pendingDirectionShift !== null
+            ? 0
+            : clutchState.transmittedTorque >= 0
+              ? clutchState.transmittedTorque * totalTorqueMult
+              : clutchState.transmittedTorque
+        const steeringAngleRad = computeSpeedSensitiveSteerRad(ctx.steeringAngle || 0, substepPhys.speedKmh)
         const physicsTick = _physics.tick({
           driveTorqueAtTransmission,
           gearRatio,
@@ -4115,6 +4318,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       interpolationAlpha: alpha,
       physicsIntegrityStatus: 'NORMAL',
       currentGear: phys.gear,
+      pendingDirectionShift: phys.pendingDirectionShift,
+      isDirectionProtectionActive: phys.pendingDirectionShift !== null,
       isRunning: phys.isRunning,
       isStalled: phys.isStalled,
       isBogWarning: phys.isBogWarning,
@@ -4181,15 +4386,31 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _dragTimerStart: phys.dragTimerStart,
       downforceN: Math.round(_physics.getDownforceN()),
       ...(committedWindows
-        ? {
-            windowsOpen: committedWindows.windowsOpen,
-            windowPositions: committedWindows.positions,
-            windowTargets: committedWindows.targets,
-            windowAverageOpenRatio: Math.round(committedWindows.averageOpenRatio * 1000) / 1000,
-            windowAeroDragMultiplier: Math.round(committedWindows.aeroDragMultiplier * 10000) / 10000,
-            cabinNoiseLevel: Math.round(committedWindows.cabinNoiseLevel * 1000) / 1000,
-            cabinFilterCutoffHz: committedWindows.cabinFilterCutoffHz,
-          }
+        ? (() => {
+            const p = committedWindows.positions
+            const sp = state.windowPositions
+            const samePos =
+              p.front_left === sp.front_left &&
+              p.front_right === sp.front_right &&
+              p.rear_left === sp.rear_left &&
+              p.rear_right === sp.rear_right
+            const t = committedWindows.targets
+            const st = state.windowTargets
+            const sameTgt =
+              t.front_left === st.front_left &&
+              t.front_right === st.front_right &&
+              t.rear_left === st.rear_left &&
+              t.rear_right === st.rear_right
+            return {
+              windowsOpen: committedWindows.windowsOpen,
+              windowPositions: samePos ? sp : p,
+              windowTargets: sameTgt ? st : t,
+              windowAverageOpenRatio: Math.round(committedWindows.averageOpenRatio * 1000) / 1000,
+              windowAeroDragMultiplier: Math.round(committedWindows.aeroDragMultiplier * 10000) / 10000,
+              cabinNoiseLevel: Math.round(committedWindows.cabinNoiseLevel * 1000) / 1000,
+              cabinFilterCutoffHz: committedWindows.cabinFilterCutoffHz,
+            }
+          })()
         : {}),
       ...(committedClimate
         ? {
@@ -4262,7 +4483,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       rearWingType: 'none',
       garageInstanceId: null,
       exhaustType: 'stock',
+      hasExhaustValveKit: false,
       exhaustValveOpen: false,
+      pendingDirectionShift: null,
+      isDirectionProtectionActive: false,
       intakeType: 'stock',
       tires: 'street',
       isAeroWingExtended: false,

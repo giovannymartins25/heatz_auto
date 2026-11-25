@@ -11,3 +11,4 @@ export { AutomaticShiftButton, AutomaticShiftButtons } from './AutomaticShiftBut
 export { VerticalGestureShifter } from './VerticalGestureShifter'
 export { InteractiveSteeringWheel } from './InteractiveSteeringWheel'
 export { SteeringControlZone } from './SteeringControlZone'
+export { HandbrakeButton } from './HandbrakeButton'

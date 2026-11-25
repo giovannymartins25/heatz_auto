@@ -159,5 +159,56 @@
     "hasFogLights": false,
     "hasAmbientLighting": false,
     "defaultAmbientColor": "red"
+  },
+  "controls": {
+    "climate": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "controlType": "physical",
+      "panel": "controls",
+      "adjustable": "vent_only"
+    },
+    "tractionControl": {
+      "available": false,
+      "confirmationStatus": "confirmed",
+      "userToggleable": false,
+      "controlType": "none",
+      "panel": "none",
+      "systemLabel": "N/A"
+    },
+    "steeringWheel": {
+      "hasAudioControls": false,
+      "hasCruiseControls": false,
+      "confirmationStatus": "confirmed"
+    },
+    "driverAssists": {
+      "cruiseControl": {
+        "available": false,
+        "confirmationStatus": "estimated_or_optional",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Controlador de velocidade a vácuo existiu apenas como opcional raro nos automáticos; ausente nesta unidade manual."
+      },
+      "adaptiveCruiseControl": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Inexistente em 1992."
+      },
+      "laneKeepingAssist": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Inexistente em 1992."
+      }
+    }
   }
 }

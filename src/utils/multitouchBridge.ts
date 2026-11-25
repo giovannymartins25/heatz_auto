@@ -52,7 +52,7 @@ export function useSecondaryTouchTapBridge() {
       const rawTarget = e.target as HTMLElement | null
       if (!rawTarget) return
       const interactive = rawTarget.closest(INTERACTIVE_SELECTOR) as HTMLElement | null
-      if (!interactive) return
+      if (!interactive || interactive.hasAttribute('data-prevent-secondary-tap-bridge')) return
 
       const isRange =
         interactive.tagName === 'INPUT' && (interactive as HTMLInputElement).type === 'range'
@@ -108,7 +108,7 @@ export function useSecondaryTouchTapBridge() {
       const rawTarget = e.target as HTMLElement | null
       if (!rawTarget) return
       const interactive = rawTarget.closest(INTERACTIVE_SELECTOR) as HTMLElement | null
-      if (!interactive) return
+      if (!interactive || interactive.hasAttribute('data-prevent-secondary-tap-bridge')) return
 
       const lastSynth = recentSyntheticRef.current.get(interactive)
       if (lastSynth !== undefined && performance.now() - lastSynth < DUPLICATE_CLICK_GUARD_MS) {

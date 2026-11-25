@@ -1,18 +1,19 @@
 /**
  * HEATZ AUTO — CONTROLE DE DIREÇÃO POR SENSORES DE INCLINAÇÃO (TILT STEERING)
  *
- * Controlador determinístico de esterçamento baseado em giroscópio e acelerômetro (DeviceOrientation).
+ * Controlador determinístico de esterçamento baseado em giroscópio e acelerômetro
+ * (DeviceOrientationEvent, DeviceOrientationAbsolute e fallback DeviceMotionEvent).
  *
- * Características (revisadas na Fase 4.4.1):
- * - Normalização física consistente para Paisagem (90° / 270° / 0° tablet) e Retrato (0° / 180°)
- *   com compensação de quadrante gravitacional (|beta| > 90°) sem inversão súbita de sinal.
- * - Desacoplamento de bússola/magnetômetro (não depende de alpha instável).
+ * Características (Fase 4.4.2.2):
+ * - Projeção vetorial gravitacional 3D contínua para Paisagem (90° / 270°) e Retrato (0° / 180°),
+ *   eliminando amplificação de bloqueio de cardã (gimbal lock quando |beta| -> 90° em retrato)
+ *   e inversão súbita de sinal ao cruzar a vertical.
+ * - Suporte direto a amostras brutas de acelerômetro 3D (`accelerationIncludingGravity`) para
+ *   smartphones de entrada sem giroscópio físico.
  * - Ponto neutro calibrável e validado contra amostras nulas/NaN/Infinity.
  * - Opção de inversão aplicada exclusivamente ao sinal final da direção (preserva eixo físico e calibração).
- * - Zona morta (deadzone) com transição C0 contínua sem degrau.
- * - Curva progressiva opcional (responseExponent) para precisão em linha reta.
- * - Filtro passa-baixa exponencial de camada única matematicamente independente da taxa de quadros/eventos.
- * - Saída normalizada contínua no intervalo [-1.0, +1.0].
+ * - Zona morta (deadzone) com transição C0 contínua sem degrau e curva progressiva (responseExponent).
+ * - Retorno monotônico ao centro (garantia matemática estrita contra inversão/overshoot de sinal ao centralizar).
  */
 
 import { clamp } from '@/utils/math'
@@ -50,11 +51,19 @@ export interface TiltSteeringConfig {
 
 export interface TiltSample {
   /** Rotação em torno do eixo Y (-90 a +90 graus) */
-  gamma: number | null | undefined
+  gamma?: number | null | undefined
   /** Rotação em torno do eixo X (-180 a +180 graus) */
-  beta: number | null | undefined
+  beta?: number | null | undefined
   /** Rotação em torno do eixo Z (0 a 360 graus — ignorado na direção para evitar deriva magnética) */
   alpha?: number | null | undefined
+  /** Aceleração linear + reação gravitacional X (m/s²) via DeviceMotionEvent (fallback p/ aparelhos sem giroscópio) */
+  accelIncludingGravityX?: number | null | undefined
+  /** Aceleração linear + reação gravitacional Y (m/s²) via DeviceMotionEvent */
+  accelIncludingGravityY?: number | null | undefined
+  /** Aceleração linear + reação gravitacional Z (m/s²) via DeviceMotionEvent */
+  accelIncludingGravityZ?: number | null | undefined
+  /** Se o vetor de aceleração segue convenção iOS WebKit (-g para cima) em vez de W3C Android (+g para cima) */
+  invertGravitySign?: boolean
   /** Ângulo efetivo de orientação da tela em graus (0, 90, 180, 270 ou -90) */
   orientationAngle?: number
   /** Se o viewport está na orientação paisagem */
@@ -84,6 +93,9 @@ export const DEFAULT_TILT_STEERING_CONFIG: TiltSteeringConfig = {
   invertAxis: false,
 }
 
+const DEG_TO_RAD = Math.PI / 180
+const RAD_TO_DEG = 180 / Math.PI
+
 /**
  * Converte beta W3C [-180°, +180°] em ângulo contínuo de rolagem lateral [-90°, +90°],
  * evitando salto ou saturação quando o smartphone em paisagem passa da vertical (|beta| > 90°).
@@ -103,6 +115,29 @@ function normalizeScreenAngleDeg(angle: number): 0 | 90 | 180 | 270 {
   if (mod >= 135 && mod < 225) return 180
   if (mod >= 225 && mod < 315) return 270
   return 0
+}
+
+/**
+ * Projeta um vetor unitário de reação gravitacional (ux, uy, uz) no referencial físico do dispositivo
+ * em ângulo contínuo de esterçamento lateral [-90°, +90°] (direita > 0, esquerda < 0) para a orientação da tela.
+ */
+function projectGravityVectorToRollDeg(
+  ux: number,
+  uy: number,
+  uz: number,
+  effectiveAngle: 0 | 90 | 180 | 270,
+): number {
+  if (effectiveAngle === 90) {
+    return Math.atan2(uy, Math.hypot(ux, uz)) * RAD_TO_DEG
+  }
+  if (effectiveAngle === 270) {
+    return -Math.atan2(uy, Math.hypot(ux, uz)) * RAD_TO_DEG
+  }
+  if (effectiveAngle === 180) {
+    return Math.atan2(ux, Math.hypot(uy, uz)) * RAD_TO_DEG
+  }
+  // Retrato 0° ou tablet paisagem nativa 0°: sem singularidade em |beta| = 90°
+  return Math.atan2(-ux, Math.hypot(uy, uz)) * RAD_TO_DEG
 }
 
 export class TiltSteeringController {
@@ -125,7 +160,11 @@ export class TiltSteeringController {
       merged.autoCenteringRate = clamp(customConfig.autoCenterRate, 0.5, 50)
     }
     this.config = merged
-    if (customConfig?.neutralAngleDeg !== undefined && Number.isFinite(customConfig.neutralAngleDeg) && customConfig.neutralAngleDeg !== 0) {
+    if (
+      customConfig?.neutralAngleDeg !== undefined &&
+      Number.isFinite(customConfig.neutralAngleDeg) &&
+      customConfig.neutralAngleDeg !== 0
+    ) {
       this.isCalibrated = true
     }
   }
@@ -207,11 +246,36 @@ export class TiltSteeringController {
     }
   }
 
+  private hasValidGravityAccel(sample: TiltSample): boolean {
+    const ax = sample.accelIncludingGravityX
+    const ay = sample.accelIncludingGravityY
+    if (typeof ax !== 'number' || !Number.isFinite(ax)) return false
+    if (typeof ay !== 'number' || !Number.isFinite(ay)) return false
+    const az =
+      typeof sample.accelIncludingGravityZ === 'number' && Number.isFinite(sample.accelIncludingGravityZ)
+        ? sample.accelIncludingGravityZ
+        : 0
+    if (
+      sample.accelIncludingGravityZ !== undefined &&
+      sample.accelIncludingGravityZ !== null &&
+      !Number.isFinite(sample.accelIncludingGravityZ)
+    ) {
+      return false
+    }
+    const mag = Math.hypot(ax, ay, az)
+    return mag >= 2.5 && mag <= 25.0
+  }
+
   /**
-   * Verifica se uma amostra possui o eixo numérico finito requerido pela orientação atual.
+   * Verifica se uma amostra possui dados numéricos finitos utilizáveis (Euler ou acelerômetro 3D).
    */
   isSampleUsable(sample?: TiltSample | null): boolean {
     if (!sample) return false
+
+    if (this.hasValidGravityAccel(sample)) {
+      return true
+    }
+
     const betaOk = typeof sample.beta === 'number' && Number.isFinite(sample.beta)
     const gammaOk = typeof sample.gamma === 'number' && Number.isFinite(sample.gamma)
     if (!betaOk && !gammaOk) return false
@@ -271,6 +335,8 @@ export class TiltSteeringController {
   resetCalibration(): void {
     this.config.neutralAngleDeg = 0
     this.isCalibrated = false
+    this.filteredSteer = 0
+    this.lastTargetSteer = 0
   }
 
   /**
@@ -294,19 +360,13 @@ export class TiltSteeringController {
   /**
    * Extrai o ângulo físico de rolagem lateral (como um volante: direita > 0, esquerda < 0)
    * consistente com a orientação efetiva da tela (0°, 90°, 180°, 270°):
-   * - 90° (paisagem com topo à esquerda): +foldBetaToRoll(beta)
-   * - 270° / -90° (paisagem com topo à direita): -foldBetaToRoll(beta)
-   * - 0° (retrato padrão ou tablet paisagem nativa 0°): gamma compensado contra flip |beta| > 90°
-   * - 180° (retrato invertido): -gamma compensado contra flip |beta| > 90°
+   * - Amostra de acelerômetro 3D (`accelIncludingGravity`): projeção vetorial gravitacional direta.
+   * - Amostra DeviceOrientation (`beta`, `gamma`):
+   *   · 90° / 270°: projeção exata de rolagem sem salto além de 90°.
+   *   · 0° / 180° com `beta` disponível: projeção vetorial gravitacional 3D contínua `atan2(-ux, hypot(uy, uz))`
+   *     livre de amplificação/inversão de Euler quando o celular está em pé (`|beta| -> 90°`).
    */
   extractSteeringAngleDeg(sample: TiltSample): number {
-    const beta = typeof sample.beta === 'number' && Number.isFinite(sample.beta) ? sample.beta : null
-    const gamma = typeof sample.gamma === 'number' && Number.isFinite(sample.gamma) ? sample.gamma : null
-
-    if (beta === null && gamma === null) {
-      return this.lastRawAngleDeg
-    }
-
     const effectiveAngle =
       typeof sample.orientationAngle === 'number' && Number.isFinite(sample.orientationAngle)
         ? normalizeScreenAngleDeg(sample.orientationAngle)
@@ -314,25 +374,56 @@ export class TiltSteeringController {
           ? 90
           : 0
 
+    // 1. Caminho direto por acelerômetro 3D (smartphones sem giroscópio físico)
+    if (this.hasValidGravityAccel(sample)) {
+      const sign = sample.invertGravitySign ? -1 : 1
+      const ax = (sample.accelIncludingGravityX as number) * sign
+      const ay = (sample.accelIncludingGravityY as number) * sign
+      const az =
+        (typeof sample.accelIncludingGravityZ === 'number' && Number.isFinite(sample.accelIncludingGravityZ)
+          ? sample.accelIncludingGravityZ
+          : 0) * sign
+      const mag = Math.hypot(ax, ay, az)
+      if (mag >= 2.5) {
+        return projectGravityVectorToRollDeg(ax / mag, ay / mag, az / mag, effectiveAngle)
+      }
+    }
+
+    // 2. Caminho DeviceOrientation (beta, gamma)
+    const beta = typeof sample.beta === 'number' && Number.isFinite(sample.beta) ? sample.beta : null
+    const gamma = typeof sample.gamma === 'number' && Number.isFinite(sample.gamma) ? sample.gamma : null
+
+    if (beta === null && gamma === null) {
+      return this.lastRawAngleDeg
+    }
+
     if (effectiveAngle === 90 || effectiveAngle === 270) {
       if (beta === null) return this.lastRawAngleDeg
       const rollDeg = foldBetaToRollDeg(beta)
       return effectiveAngle === 270 ? -rollDeg : rollDeg
     }
 
-    // Orientação 0° ou 180°: o eixo de rolagem da tela corresponde a gamma,
-    // mas a parametrização Euler W3C Z-X'-Y'' inverte o sinal de gamma quando |beta| > 90°
-    // (aparelho segurado levemente reclinado além da vertical). Compensamos o quadrante:
     if (gamma === null) return this.lastRawAngleDeg
-    const correctedGamma = beta !== null && Math.abs(beta) > 90 ? -gamma : gamma
-    return effectiveAngle === 180 ? -correctedGamma : correctedGamma
+
+    // Quando beta e gamma estão presentes em Retrato (0°/180°), reconstrói o vetor gravitacional 3D exato
+    // W3C Z-X'-Y'': u = (-cos(beta)*sin(gamma), sin(beta), cos(beta)*cos(gamma)).
+    // Isso elimina a amplificação 1/cos(beta) quando o usuário segura o celular quase vertical (75°..95°)
+    // e elimina completamente qualquer inversão de sinal ao cruzar |beta| = 90°!
+    if (beta !== null) {
+      const bRad = beta * DEG_TO_RAD
+      const gRad = gamma * DEG_TO_RAD
+      const cosB = Math.cos(bRad)
+      const ux = -cosB * Math.sin(gRad)
+      const uy = Math.sin(bRad)
+      const uz = cosB * Math.cos(gRad)
+      return projectGravityVectorToRollDeg(ux, uy, uz, effectiveAngle)
+    }
+
+    return effectiveAngle === 180 ? -gamma : gamma
   }
 
   /**
    * Processa uma amostra bruta dos sensores e calcula o esterçamento filtrado normalizado [-1.0, +1.0].
-   *
-   * @param sample Amostra bruta de DeviceOrientation
-   * @param deltaTime Intervalo de tempo decorrido em segundos (usado no filtro exponencial contínuo)
    */
   computeSteering(sample: TiltSample | null | undefined, deltaTime: number = 0.016): number {
     const dt = Number.isFinite(deltaTime) ? Math.max(0.0005, Math.min(deltaTime, 0.25)) : 0.016
@@ -344,7 +435,11 @@ export class TiltSteeringController {
 
     // Rejeição estrita de NaN / Infinity / null em ambos os eixos
     if (!this.isSampleUsable(sample)) {
-      if (sample.beta === null && sample.gamma === null && !this.hasReceivedValidSample) {
+      if (
+        (sample.beta === null || sample.beta === undefined) &&
+        (sample.gamma === null || sample.gamma === undefined) &&
+        !this.hasReceivedValidSample
+      ) {
         return 0
       }
       return this.filteredSteer
@@ -362,7 +457,7 @@ export class TiltSteeringController {
     while (deltaAngle > 180) deltaAngle -= 360
     while (deltaAngle < -180) deltaAngle += 360
 
-    // 2. Zona morta (deadzone) com transição contínua C0 e curva progressiva opcional
+    // 2. Zona morta (deadzone) com transição contínua C0 e curva progressiva
     const deadzone = this.config.deadzoneDeg
     const sensitivity = Math.max(0.2, this.config.sensitivity)
     const maxAngle = Math.max(deadzone + 1.0, this.config.baseMaxAngleDeg / sensitivity)
@@ -386,7 +481,8 @@ export class TiltSteeringController {
 
     this.lastTargetSteer = targetSteer
 
-    // 4. Filtro passa-baixa exponencial contínuo (independente de FPS e da taxa de eventos)
+    // 4. Filtro passa-baixa exponencial contínuo com garantia de não-overshoot ao retornar ao centro
+    const prevFiltered = this.filteredSteer
     const smoothingAlpha =
       this.config.smoothingFactor >= 0.999
         ? 1.0
@@ -394,8 +490,11 @@ export class TiltSteeringController {
 
     this.filteredSteer += (targetSteer - this.filteredSteer) * smoothingAlpha
 
-    if (Math.abs(this.filteredSteer) < 0.0005 && targetSteer === 0) {
-      this.filteredSteer = 0
+    // Garantia estrita contra esterçamento no sentido oposto ao retornar o celular para o centro
+    if (targetSteer === 0) {
+      if (prevFiltered * this.filteredSteer < 0 || Math.abs(this.filteredSteer) < 0.0015) {
+        this.filteredSteer = 0
+      }
     } else if (Math.abs(this.filteredSteer - targetSteer) < 0.0001) {
       this.filteredSteer = targetSteer
     }
@@ -410,7 +509,33 @@ export class TiltSteeringController {
   }
 
   /**
-   * Retorno gradual do volante para o centro neutro (0.0).
+   * Avança a convergência temporal do filtro com o último alvo conhecido (útil quando o SO móvel
+   * reduz a taxa de eventos `deviceorientation` com o aparelho parado na posição central).
+   */
+  stepFilterTowardLastTarget(dt: number): number {
+    if (!this.config.enabled || !this.hasReceivedValidSample) {
+      return this.stepAutoCentering(dt)
+    }
+    const safeDt = Number.isFinite(dt) ? Math.max(0.0005, Math.min(dt, 0.25)) : 0.016
+    const targetSteer = this.lastTargetSteer
+    const prevFiltered = this.filteredSteer
+    const smoothingAlpha =
+      this.config.smoothingFactor >= 0.999
+        ? 1.0
+        : clamp(1.0 - Math.exp(-this.config.smoothingFactor * 180.0 * safeDt), 0.0005, 1.0)
+
+    this.filteredSteer += (targetSteer - this.filteredSteer) * smoothingAlpha
+    if (targetSteer === 0 && (prevFiltered * this.filteredSteer < 0 || Math.abs(this.filteredSteer) < 0.0015)) {
+      this.filteredSteer = 0
+    } else if (Math.abs(this.filteredSteer - targetSteer) < 0.0001) {
+      this.filteredSteer = targetSteer
+    }
+    this.filteredSteer = clamp(this.filteredSteer, -this.config.maxSteerLimit, this.config.maxSteerLimit)
+    return this.filteredSteer
+  }
+
+  /**
+   * Retorno gradual e monotônico do volante para o centro neutro (0.0).
    */
   stepAutoCentering(dt: number): number {
     const safeDt = Number.isFinite(dt) ? Math.max(0.0005, Math.min(dt, 0.25)) : 0.016

@@ -39,11 +39,13 @@ export const AnalogPedal = memo(function AnalogPedal({
   const isPointerDownRef = useRef(false)
   const activePointerIdRef = useRef<number | null>(null)
   const animFrameRef = useRef<number>(0)
+  const currentValueRef = useRef<number>(value)
   const [internalValue, setInternalValue] = useState(value)
 
   // Sincronizar quando valor externo mudar (caso o motor desligue ou resete)
   useEffect(() => {
     if (!isPointerDownRef.current) {
+      currentValueRef.current = value
       setInternalValue(value)
     }
   }, [value])
@@ -85,6 +87,7 @@ export const AnalogPedal = memo(function AnalogPedal({
     }
 
     const newVal = calculatePedalValue(e.clientY)
+    currentValueRef.current = newVal
     setInternalValue(newVal)
     onChange(newVal)
   }
@@ -96,6 +99,7 @@ export const AnalogPedal = memo(function AnalogPedal({
     e.stopPropagation()
 
     const newVal = calculatePedalValue(e.clientY)
+    currentValueRef.current = newVal
     setInternalValue(newVal)
     onChange(newVal)
   }
@@ -117,14 +121,16 @@ export const AnalogPedal = memo(function AnalogPedal({
       // Ignora
     }
 
-    // Retorno suave e rápido a 0%
-    let current = internalValue
+    // Retorno suave e rápido a 0% usando valor vivo (imune a closure antigo do React em multitouch)
+    let current = currentValueRef.current
     const releaseLoop = () => {
       current -= 0.25 // Retorna em ~3-4 frames (~50ms)
       if (current <= 0) {
+        currentValueRef.current = 0
         setInternalValue(0)
         onChange(0)
       } else {
+        currentValueRef.current = current
         setInternalValue(current)
         onChange(current)
         animFrameRef.current = requestAnimationFrame(releaseLoop)
@@ -189,6 +195,7 @@ export const AnalogPedal = memo(function AnalogPedal({
       {/* Corpo do Pedal Interativo */}
       <div
         ref={containerRef}
+        data-testid={`analog-pedal-${colorTheme}`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

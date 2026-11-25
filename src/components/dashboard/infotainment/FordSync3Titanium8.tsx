@@ -4,7 +4,9 @@ import type { DashboardTelemetry } from '@/systems/dashboard'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { clamp } from '@/utils/math'
 import { AMBIENT_COLOR_MAP, type AmbientLightColor } from '@/utils/ambientLighting'
+import { resolveVehicleControls } from '@/systems/vehicle/vehicleResolvers'
 import { InternetMediaCenter } from './shared/InternetMediaCenter'
+import { MultimediaStatusFooter } from './shared/MultimediaStatusFooter'
 import type { FanLevel } from '@/systems/cabin'
 
 export interface FordSync3Titanium8Props {
@@ -49,6 +51,14 @@ export const FordSync3Titanium8 = memo(function FordSync3Titanium8({
   const zoneName = useSimulationStore((s) => s.zoneName)
   const surfaceType = useSimulationStore((s) => s.surfaceType)
   const toggleMap = useSimulationStore((s) => s.toggleMap)
+  const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
+  const tcsIntervening = useSimulationStore((s) => s.tcsIntervening)
+  const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
+  const controlsSpec = resolveVehicleControls(vehicle)
+  const showDigitalTcs =
+    controlsSpec.tractionControl.available &&
+    controlsSpec.tractionControl.userToggleable &&
+    controlsSpec.tractionControl.panel === 'multimedia'
 
   // Climatização Dual-Zone real (ClimateSystem)
   const cabinTempC = useSimulationStore((s) => s.cabinTempC)
@@ -348,6 +358,29 @@ export const FordSync3Titanium8 = memo(function FordSync3Titanium8({
               ))}
             </div>
 
+            {showDigitalTcs && (
+              <div className="flex items-center justify-between rounded-lg border border-sky-400/25 bg-slate-950/80 px-2 py-1">
+                <span className="font-bold text-sky-200">
+                  🛡️ {controlsSpec.tractionControl.systemLabel}
+                </span>
+                <button
+                  type="button"
+                  data-testid="multimedia-tcs-toggle"
+                  aria-pressed={tcsEnabled}
+                  onClick={() => setTcsEnabled(!tcsEnabled)}
+                  className={`rounded border px-2 py-0.5 text-[7.5px] font-black cursor-pointer transition-all ${
+                    !tcsEnabled
+                      ? 'border-amber-400/60 bg-amber-500/20 text-amber-200'
+                      : tcsIntervening
+                        ? 'border-amber-400 bg-amber-500/30 text-amber-200 animate-pulse'
+                        : 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200'
+                  }`}
+                >
+                  {tcsEnabled ? 'ATIVO' : 'DESATIVADO'}
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between rounded-lg border border-white/10 bg-slate-950/75 px-2 py-1">
               <span className="text-slate-300">ICE BLUE AMBIENT</span>
               <div className="flex gap-1">
@@ -396,6 +429,7 @@ export const FordSync3Titanium8 = memo(function FordSync3Titanium8({
           </button>
         ))}
       </div>
+      <MultimediaStatusFooter theme="sky" />
     </div>
   )
 })

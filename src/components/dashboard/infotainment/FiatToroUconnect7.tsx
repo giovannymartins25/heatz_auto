@@ -3,6 +3,7 @@ import type { VehicleConfig } from '@/types/vehicle'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { TRACKS } from './VehicleMultimedia'
+import { MultimediaStatusFooter } from './shared/MultimediaStatusFooter'
 
 export interface FiatToroUconnect7Props {
   vehicle: VehicleConfig
@@ -127,7 +128,7 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
         </div>
 
         <div className="flex items-center gap-2 text-zinc-400 text-[8.5px]">
-          <span>26°C</span>
+          <span>{Math.round(ambientTempC)}°C</span>
           <span>📶 4G</span>
           <span className="font-bold text-white">{timeStr}</span>
         </div>
@@ -556,6 +557,7 @@ export const FiatToroUconnect7 = memo(function FiatToroUconnect7({
           <span>Ajustes</span>
         </button>
       </nav>
+      <MultimediaStatusFooter theme="red" className="mt-0" />
     </div>
   )
 })

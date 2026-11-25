@@ -2,37 +2,17 @@ import { useEffect, useRef } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useUIStore } from '@/stores/useUIStore'
 import type { VehicleConfig } from '@/types'
+import { canControlExhaustValve, resolveVehicleControls } from '@/systems/vehicle/vehicleResolvers'
 import { clamp } from '@/utils/math'
 
-/**
- * Taxa de esterçamento progressivo no teclado (unidades normalizadas [-1, +1] por segundo).
- * Permite controle preciso de pequenas correções e retorno suave ao centro ao soltar a tecla.
- */
 const STEER_INPUT_RATE = 3.4
 const STEER_RETURN_RATE = 5.2
 
 /**
  * useKeyboardControls — Controles progressivos por teclado no Desktop / PC.
  *
- * Mapeamento universal:
- * - W / ArrowUp        = Acelerador (Throttle)
- * - E / ArrowDown      = Freio (Brake)
- * - A / D              = Direção Esquerda / Direita (exclusivos, rampa progressiva)
- * - Q                  = Embreagem (Clutch) — apenas veículos manuais com hasClutch
- * - Espaço             = Freio de Mão (Handbrake)
- * - [ / ] ou ← / →     = Subir / Reduzir marcha
- * - M                  = Alternar Mapa 2D
- * - H                  = Buzina
- * - T / V / L / C      = TCS / Difusor / Faróis / Clima
- * - B / X              = NOS / Purga de Nitro
- *
- * Seletor de câmbio automático (exclusivo com Shift para nunca conflitar com direção A/D):
- * - Shift + P          = Park (P)
- * - Shift + R          = Reverse (R)
- * - Shift + N          = Neutral (N)
- * - Shift + D          = Drive (D)
- * - Shift + S          = Sport (S)
- * - Shift + M (ou K)   = Manual Simulado / Tiptronic (M)
+ * Em repouso (nenhuma tecla pressionada e pedais/volante em 0), não mantém loop rAF ocioso,
+ * eliminando trabalho desnecessário por frame tanto em Mobile quanto em Desktop.
  */
 export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boolean = true) {
   const setThrottle = useSimulationStore((s) => s.setThrottle)
@@ -72,185 +52,45 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
   useEffect(() => {
     if (!enabled) {
       keysPressedRef.current = { w: false, e: false, q: false, a: false, d: false }
+      const hadKeyboardInput =
+        valuesRef.current.throttle > 0 ||
+        valuesRef.current.brake > 0 ||
+        valuesRef.current.clutch > 0 ||
+        Math.abs(valuesRef.current.steering) > 0
       valuesRef.current = { throttle: 0, brake: 0, clutch: 0, steering: 0 }
-      setThrottle(0)
-      setBrake(0)
-      setClutch(0)
-      setSteeringAngle(0, 'keyboard')
+      if (hadKeyboardInput) {
+        setThrottle(0)
+        setBrake(0)
+        setClutch(0)
+        if (useSimulationStore.getState().steeringMethod === 'keyboard') {
+          setSteeringAngle(0, 'keyboard')
+        }
+      }
       return
     }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.target instanceof HTMLInputElement ||
-        event.target instanceof HTMLTextAreaElement
-      ) {
-        return
-      }
-
-      const key = event.key.toLowerCase()
-
-      // ─── 1. Seletor de câmbio automático: Shift + P / R / N / D / S / M ───
-      // Avaliado antes das teclas simples para evitar código morto (Shift+M) e conflito com A/D.
-      if (event.shiftKey) {
-        if (key === 'm' && !event.repeat && isRunning && hasManualMode) {
-          event.preventDefault()
-          selectManual()
-          return
-        }
-        if (key === 'p' && !event.repeat && isRunning && isAutomaticVehicle) {
-          event.preventDefault()
-          selectPark()
-          return
-        }
-        if (key === 'r' && !event.repeat && isRunning && isAutomaticVehicle) {
-          event.preventDefault()
-          selectReverse()
-          return
-        }
-        if (key === 'n' && !event.repeat && isRunning) {
-          event.preventDefault()
-          selectNeutral()
-          return
-        }
-        if (key === 'd' && !event.repeat && isRunning && isAutomaticVehicle) {
-          event.preventDefault()
-          selectDrive()
-          return
-        }
-        if (key === 's' && !event.repeat && isRunning && isAutomaticVehicle) {
-          event.preventDefault()
-          setActiveKey('s', true)
-          setTimeout(() => setActiveKey('s', false), 200)
-          selectSport()
-          return
-        }
-      }
-
-      // ─── 2. Direção exclusiva (A = Esquerda, D = Direita) ───
-      if (key === 'a') {
-        keysPressedRef.current.a = true
-        setActiveKey('a', true)
-        return
-      }
-      if (key === 'd') {
-        keysPressedRef.current.d = true
-        setActiveKey('d', true)
-        return
-      }
-
-      // ─── 3. Pedais e controles de condução ───
-      if (key === 'w' || key === 'arrowup') {
-        keysPressedRef.current.w = true
-        setActiveKey('w', true)
-      } else if (key === 'e' || key === 'arrowdown') {
-        keysPressedRef.current.e = true
-        setActiveKey('e', true)
-      } else if (key === 'q') {
-        if (hasClutch) {
-          keysPressedRef.current.q = true
-          setActiveKey('q', true)
-        }
-      } else if (key === ' ') {
-        event.preventDefault()
-        setActiveKey('space', true)
-        setHandbrake(true)
-      } else if (key === 'h') {
-        setActiveKey('horn', true)
-        setHorn(true)
-      } else if ((key === '[' || key === 'arrowright') && isRunning) {
-        setActiveKey('up', true)
-        setTimeout(() => setActiveKey('up', false), 150)
-        if (!event.repeat) {
-          shiftUp()
-        }
-      } else if ((key === ']' || key === 'arrowleft') && isRunning) {
-        setActiveKey('down', true)
-        setTimeout(() => setActiveKey('down', false), 150)
-        if (!event.repeat) {
-          shiftDown()
-        }
-      } else if (key === 'm' && !event.repeat) {
-        setActiveKey('map', true)
-        setTimeout(() => setActiveKey('map', false), 200)
-        toggleMap()
-      } else if (key === 'k' && hasManualMode && !event.repeat && isRunning) {
-        toggleSimulatedManual()
-      } else if (key === 't' && !event.repeat) {
-        setTcsEnabled(!tcsEnabled)
-      } else if (key === 'v' && !event.repeat) {
-        toggleExhaustValve()
-      } else if (key === 'l' && !event.repeat) {
-        cycleHeadlights()
-      } else if (key === 'c' && !event.repeat) {
-        toggleRain()
-      } else if (key === 'b' && hasNosKit && isRunning) {
-        setNosActive(true)
-        setActiveKey('nos', true)
-      } else if (key === 'x' && !event.repeat && hasNosKit) {
-        purgeNos()
-      }
-    }
-
-    const handleKeyUp = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase()
-      if (key === 'w' || key === 'arrowup') {
-        keysPressedRef.current.w = false
-        setActiveKey('w', false)
-      } else if (key === 'e' || key === 'arrowdown') {
-        keysPressedRef.current.e = false
-        setActiveKey('e', false)
-      } else if (key === 'q') {
-        keysPressedRef.current.q = false
-        setActiveKey('q', false)
-      } else if (key === 'a') {
-        // Não zera direção se D continuar pressionada — o loop contínuo transiciona suavemente
-        keysPressedRef.current.a = false
-        setActiveKey('a', false)
-      } else if (key === 'd') {
-        // Não zera direção se A continuar pressionada — o loop contínuo transiciona suavemente
-        keysPressedRef.current.d = false
-        setActiveKey('d', false)
-      } else if (key === ' ') {
-        setActiveKey('space', false)
-        setHandbrake(false)
-      } else if (key === 'h') {
-        setActiveKey('horn', false)
-        setHorn(false)
-      } else if (key === 'm') {
-        setActiveKey('map', false)
-      } else if (key === 's') {
-        setActiveKey('s', false)
-      } else if (key === 'b') {
-        setActiveKey('nos', false)
-        setNosActive(false)
-      }
-    }
-
-    const handleWindowBlur = () => {
-      keysPressedRef.current = { w: false, e: false, q: false, a: false, d: false }
-      setActiveKey('w', false)
-      setActiveKey('e', false)
-      setActiveKey('q', false)
-      setActiveKey('a', false)
-      setActiveKey('d', false)
-      setActiveKey('space', false)
-      setActiveKey('horn', false)
-      setActiveKey('nos', false)
-      setHandbrake(false)
-      setHorn(false)
-      setNosActive(false)
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('blur', handleWindowBlur)
 
     let active = true
     let lastFrameTime = performance.now()
     let rafId = 0
 
+    const hasPendingRampWork = () => {
+      const k = keysPressedRef.current
+      const v = valuesRef.current
+      return (
+        k.w ||
+        k.e ||
+        k.q ||
+        k.a ||
+        k.d ||
+        v.throttle > 0 ||
+        v.brake > 0 ||
+        v.clutch > 0 ||
+        Math.abs(v.steering) > 0
+      )
+    }
+
     const loop = (now: number) => {
+      rafId = 0
       if (!active) return
 
       const dt = clamp((now - lastFrameTime) / 1000, 0.001, 0.05)
@@ -333,20 +173,216 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
         setSteeringAngle(vals.steering, 'keyboard')
       }
 
+      if (hasPendingRampWork()) {
+        rafId = requestAnimationFrame(loop)
+      }
+    }
+
+    const wakeLoop = () => {
+      if (!active || rafId !== 0) return
+      lastFrameTime = performance.now()
       rafId = requestAnimationFrame(loop)
     }
 
-    rafId = requestAnimationFrame(loop)
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement
+      ) {
+        return
+      }
+
+      const key = event.key.toLowerCase()
+
+      // ─── 1. Seletor de câmbio automático: Shift + P / R / N / D / S / M ───
+      if (event.shiftKey) {
+        if (key === 'm' && !event.repeat && isRunning && hasManualMode) {
+          event.preventDefault()
+          selectManual()
+          return
+        }
+        if (key === 'p' && !event.repeat && isRunning && isAutomaticVehicle) {
+          event.preventDefault()
+          selectPark()
+          return
+        }
+        if (key === 'r' && !event.repeat && isRunning && isAutomaticVehicle) {
+          event.preventDefault()
+          selectReverse()
+          return
+        }
+        if (key === 'n' && !event.repeat && isRunning) {
+          event.preventDefault()
+          selectNeutral()
+          return
+        }
+        if (key === 'd' && !event.repeat && isRunning && isAutomaticVehicle) {
+          event.preventDefault()
+          selectDrive()
+          return
+        }
+        if (key === 's' && !event.repeat && isRunning && isAutomaticVehicle) {
+          event.preventDefault()
+          setActiveKey('s', true)
+          setTimeout(() => setActiveKey('s', false), 200)
+          selectSport()
+          return
+        }
+      }
+
+      // ─── 2. Direção exclusiva (A = Esquerda, D = Direita) ───
+      if (key === 'a') {
+        keysPressedRef.current.a = true
+        setActiveKey('a', true)
+        wakeLoop()
+        return
+      }
+      if (key === 'd') {
+        keysPressedRef.current.d = true
+        setActiveKey('d', true)
+        wakeLoop()
+        return
+      }
+
+      // ─── 3. Pedais e controles de condução ───
+      if (key === 'w' || key === 'arrowup') {
+        keysPressedRef.current.w = true
+        setActiveKey('w', true)
+        wakeLoop()
+      } else if (key === 'e' || key === 'arrowdown') {
+        keysPressedRef.current.e = true
+        setActiveKey('e', true)
+        wakeLoop()
+      } else if (key === 'q') {
+        if (hasClutch) {
+          keysPressedRef.current.q = true
+          setActiveKey('q', true)
+          wakeLoop()
+        }
+      } else if (key === ' ') {
+        event.preventDefault()
+        setActiveKey('space', true)
+        setHandbrake(true)
+      } else if (key === 'h') {
+        setActiveKey('horn', true)
+        setHorn(true)
+      } else if ((key === '[' || key === 'arrowright') && isRunning) {
+        setActiveKey('up', true)
+        setTimeout(() => setActiveKey('up', false), 150)
+        if (!event.repeat) {
+          shiftUp()
+        }
+      } else if ((key === ']' || key === 'arrowleft') && isRunning) {
+        setActiveKey('down', true)
+        setTimeout(() => setActiveKey('down', false), 150)
+        if (!event.repeat) {
+          shiftDown()
+        }
+      } else if (key === 'm' && !event.repeat) {
+        setActiveKey('map', true)
+        setTimeout(() => setActiveKey('map', false), 200)
+        toggleMap()
+      } else if (key === 'k' && hasManualMode && !event.repeat && isRunning) {
+        toggleSimulatedManual()
+      } else if (key === 't' && !event.repeat) {
+        const tcsSpec = vehicle ? resolveVehicleControls(vehicle).tractionControl : null
+        if (!tcsSpec || (tcsSpec.available && tcsSpec.userToggleable)) {
+          setTcsEnabled(!tcsEnabled)
+        }
+      } else if (key === 'v' && !event.repeat) {
+        const st = useSimulationStore.getState()
+        if (
+          canControlExhaustValve(vehicle ?? st._config, {
+            exhaustType: st.exhaustType,
+            hasExhaustValveKit: st.hasExhaustValveKit,
+          })
+        ) {
+          toggleExhaustValve()
+        }
+      } else if (key === 'l' && !event.repeat) {
+        cycleHeadlights()
+      } else if (key === 'c' && !event.repeat) {
+        toggleRain()
+      } else if (key === 'b' && hasNosKit && isRunning) {
+        setNosActive(true)
+        setActiveKey('nos', true)
+      } else if (key === 'x' && !event.repeat && hasNosKit) {
+        purgeNos()
+      }
+    }
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase()
+      if (key === 'w' || key === 'arrowup') {
+        keysPressedRef.current.w = false
+        setActiveKey('w', false)
+        wakeLoop()
+      } else if (key === 'e' || key === 'arrowdown') {
+        keysPressedRef.current.e = false
+        setActiveKey('e', false)
+        wakeLoop()
+      } else if (key === 'q') {
+        keysPressedRef.current.q = false
+        setActiveKey('q', false)
+        wakeLoop()
+      } else if (key === 'a') {
+        keysPressedRef.current.a = false
+        setActiveKey('a', false)
+        wakeLoop()
+      } else if (key === 'd') {
+        keysPressedRef.current.d = false
+        setActiveKey('d', false)
+        wakeLoop()
+      } else if (key === ' ') {
+        setActiveKey('space', false)
+        setHandbrake(false)
+      } else if (key === 'h') {
+        setActiveKey('horn', false)
+        setHorn(false)
+      } else if (key === 'm') {
+        setActiveKey('map', false)
+      } else if (key === 's') {
+        setActiveKey('s', false)
+      } else if (key === 'b') {
+        setActiveKey('nos', false)
+        setNosActive(false)
+      }
+    }
+
+    const handleWindowBlur = () => {
+      keysPressedRef.current = { w: false, e: false, q: false, a: false, d: false }
+      setActiveKey('w', false)
+      setActiveKey('e', false)
+      setActiveKey('q', false)
+      setActiveKey('a', false)
+      setActiveKey('d', false)
+      setActiveKey('space', false)
+      setActiveKey('horn', false)
+      setActiveKey('nos', false)
+      setHandbrake(false)
+      setHorn(false)
+      setNosActive(false)
+      wakeLoop()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleWindowBlur)
+
+    if (hasPendingRampWork()) {
+      wakeLoop()
+    }
 
     return () => {
       active = false
-      cancelAnimationFrame(rafId)
+      if (rafId !== 0) cancelAnimationFrame(rafId)
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
       window.removeEventListener('blur', handleWindowBlur)
     }
   }, [
     enabled,
+    vehicle,
     hasClutch,
     hasManualMode,
     hasNosKit,

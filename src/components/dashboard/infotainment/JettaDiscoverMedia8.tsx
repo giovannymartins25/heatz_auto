@@ -5,7 +5,9 @@ import { BoostGauge, CircularProgressDial } from '@/components/gauges'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { clamp } from '@/utils/math'
 import { AMBIENT_COLOR_MAP, type AmbientLightColor } from '@/utils/ambientLighting'
+import { resolveVehicleControls } from '@/systems/vehicle/vehicleResolvers'
 import { InternetMediaCenter } from './shared/InternetMediaCenter'
+import { MultimediaStatusFooter } from './shared/MultimediaStatusFooter'
 import type { FanLevel } from '@/systems/cabin'
 
 export interface JettaDiscoverMedia8Props {
@@ -51,6 +53,14 @@ export const JettaDiscoverMedia8 = memo(function JettaDiscoverMedia8({
   const zoneName = useSimulationStore((s) => s.zoneName)
   const surfaceType = useSimulationStore((s) => s.surfaceType)
   const toggleMap = useSimulationStore((s) => s.toggleMap)
+  const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
+  const tcsIntervening = useSimulationStore((s) => s.tcsIntervening)
+  const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
+  const controlsSpec = resolveVehicleControls(vehicle)
+  const showDigitalTcs =
+    controlsSpec.tractionControl.available &&
+    controlsSpec.tractionControl.userToggleable &&
+    controlsSpec.tractionControl.panel === 'multimedia'
 
   // Climatronic real (ClimateSystem)
   const cabinTempC = useSimulationStore((s) => s.cabinTempC)
@@ -372,6 +382,29 @@ export const JettaDiscoverMedia8 = memo(function JettaDiscoverMedia8({
               ))}
             </div>
 
+            {showDigitalTcs && (
+              <div className="flex items-center justify-between rounded-lg border border-white/10 bg-zinc-900/80 px-2 py-1">
+                <span className="text-zinc-300 font-bold">
+                  🛡️ TRAÇÃO ({controlsSpec.tractionControl.systemLabel})
+                </span>
+                <button
+                  type="button"
+                  data-testid="multimedia-tcs-toggle"
+                  aria-pressed={tcsEnabled}
+                  onClick={() => setTcsEnabled(!tcsEnabled)}
+                  className={`rounded border px-2 py-0.5 text-[7.5px] font-black cursor-pointer transition-all ${
+                    !tcsEnabled
+                      ? 'border-amber-400/60 bg-amber-500/20 text-amber-200'
+                      : tcsIntervening
+                        ? 'border-amber-400 bg-amber-500/30 text-amber-200 animate-pulse'
+                        : 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200'
+                  }`}
+                >
+                  {tcsEnabled ? 'ASR ATIVO' : 'ESC SPORT / OFF'}
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between rounded-lg border border-white/10 bg-zinc-900/80 px-2 py-1">
               <span className="text-zinc-400">LUZ AMBIENTE</span>
               <div className="flex items-center gap-1">
@@ -430,6 +463,7 @@ export const JettaDiscoverMedia8 = memo(function JettaDiscoverMedia8({
           </button>
         ))}
       </div>
+      <MultimediaStatusFooter theme="red" />
     </div>
   )
 })

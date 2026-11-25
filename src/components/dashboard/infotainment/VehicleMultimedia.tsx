@@ -7,6 +7,7 @@ import { AMBIENT_COLOR_MAP, type AmbientLightColor } from '@/utils/ambientLighti
 import { getShortVehicleName } from '@/utils/vehicleSpecs'
 import { resolveVehicleMultimediaSpec } from '@/systems/vehicle/vehicleResolvers'
 import { resolveMultimediaEntry } from './multimediaRegistry'
+import { MultimediaStatusFooter } from './shared/MultimediaStatusFooter'
 
 export interface VehicleMultimediaProps {
   vehicle: VehicleConfig
@@ -374,6 +375,7 @@ function GenericVehicleMultimedia({
           </button>
         ))}
       </nav>
+      <MultimediaStatusFooter theme="zinc" className="mt-0" />
     </div>
   )
 }

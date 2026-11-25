@@ -182,5 +182,56 @@
     "hasFogLights": true,
     "hasAmbientLighting": true,
     "defaultAmbientColor": "red"
+  },
+  "controls": {
+    "climate": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "controlType": "digital",
+      "panel": "multimedia",
+      "adjustable": "setpoint_and_fan"
+    },
+    "tractionControl": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "userToggleable": true,
+      "controlType": "digital",
+      "panel": "multimedia",
+      "systemLabel": "ASR / ESC Sport"
+    },
+    "steeringWheel": {
+      "hasAudioControls": true,
+      "hasCruiseControls": true,
+      "confirmationStatus": "confirmed"
+    },
+    "driverAssists": {
+      "cruiseControl": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "steering_wheel_physical",
+        "panel": "controls",
+        "adjustable": "setpoint_adjustable",
+        "implementationState": "pending_sensors",
+        "notes": "Comandos físicos no braço esquerdo do volante multifuncional GTI Mk7."
+      },
+      "adaptiveCruiseControl": {
+        "available": false,
+        "confirmationStatus": "estimated_or_optional",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Dependente do Pacote Premium opcional no Golf GTI Mk7 2018 Brasil."
+      },
+      "laneKeepingAssist": {
+        "available": false,
+        "confirmationStatus": "unconfirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Lane Assist não ofertado como item padrão no Golf GTI Mk7 2018 nacional."
+      }
+    }
   }
 }

@@ -5,7 +5,7 @@ import { clamp } from '@/utils/math'
 import { CircularProgressDial } from '@/components/gauges'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
-import { InternetMediaCenter } from './shared'
+import { InternetMediaCenter, MultimediaStatusFooter } from './shared'
 
 export interface CivicSiInfotainmentProps {
   vehicle: VehicleConfig
@@ -359,6 +359,7 @@ export const CivicSiInfotainment = memo(function CivicSiInfotainment({
           LUZ CABINE
         </button>
       </div>
+      <MultimediaStatusFooter theme="red" />
     </div>
   )
 })

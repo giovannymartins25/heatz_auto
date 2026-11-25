@@ -157,5 +157,56 @@
     "hasFogLights": true,
     "hasAmbientLighting": false,
     "defaultAmbientColor": "red"
+  },
+  "controls": {
+    "climate": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "controlType": "physical",
+      "panel": "controls",
+      "adjustable": "setpoint_and_fan"
+    },
+    "tractionControl": {
+      "available": false,
+      "confirmationStatus": "confirmed",
+      "userToggleable": false,
+      "controlType": "none",
+      "panel": "none",
+      "systemLabel": "N/A"
+    },
+    "steeringWheel": {
+      "hasAudioControls": true,
+      "hasCruiseControls": false,
+      "confirmationStatus": "estimated_or_optional"
+    },
+    "driverAssists": {
+      "cruiseControl": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Sem piloto automático na configuração 1.6 MSI manual."
+      },
+      "adaptiveCruiseControl": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Sem ACC."
+      },
+      "laneKeepingAssist": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Sem LKA."
+      }
+    }
   }
 }

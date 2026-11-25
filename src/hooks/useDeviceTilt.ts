@@ -2,17 +2,18 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import {
   sharedTiltSteering,
+  isSensorSecureContext,
   requiresDeviceOrientationPermissionPrompt,
   type SharedTiltSnapshot,
 } from '@/systems/input'
 
 /**
- * useDeviceTilt — Hook gerenciador dos sensores de movimento (DeviceOrientationEvent)
+ * useDeviceTilt — Hook gerenciador dos sensores de movimento (DeviceOrientationEvent / DeviceMotionEvent)
  * para controle de direção por inclinação no HEATZ AUTO.
  *
  * Delega para o singleton `sharedTiltSteering` para garantir uma única instância de
- * TiltSteeringController, um único listener global e calibração compartilhada entre
- * todos os componentes montados simultaneamente.
+ * TiltSteeringController, listener global com fallback automático para acelerômetro 3D e
+ * diagnóstico completo entre diferentes smartphones.
  */
 export function useDeviceTilt() {
   const steeringMethod = useSimulationStore((s) => s.steeringMethod)
@@ -29,10 +30,15 @@ export function useDeviceTilt() {
 
   const requiresPermissionPrompt = requiresDeviceOrientationPermissionPrompt()
 
-  // Verifica suporte aos sensores na inicialização sem exibir prompt iOS em Android/Desktop
+  // Verifica suporte real às APIs (DeviceOrientation OU DeviceMotion) e contexto seguro HTTPS/localhost
   useEffect(() => {
-    if (typeof window === 'undefined' || !('DeviceOrientationEvent' in window)) {
+    if (typeof window === 'undefined') return
+    const hasOrientation = 'DeviceOrientationEvent' in window
+    const hasMotion = 'DeviceMotionEvent' in window
+
+    if ((!hasOrientation && !hasMotion) || !isSensorSecureContext()) {
       setSensorPermission('unsupported')
+      setSnapshot(sharedTiltSteering.getSnapshot())
       return
     }
 
@@ -51,26 +57,30 @@ export function useDeviceTilt() {
     })
   }, [tiltSteeringEnabled, steeringMethod, steeringSensitivity, steeringDeadzone, steeringInvertDirection])
 
-  // Assina o singleton compartilhado (apenas 1 listener global para toda a aplicação)
-  // Nota: em iOS, só anexa o listener quando a permissão não foi negada; se já concedida ou em Android, escuta normalmente.
+  // Assina o singleton compartilhado
   useEffect(() => {
     if (typeof window === 'undefined' || sensorPermission === 'unsupported' || sensorPermission === 'denied') {
+      setSnapshot(sharedTiltSteering.getSnapshot())
       return
     }
-    // Em iOS antes da autorização explícita, aguarda o gesto do usuário em requestPermission()
     if (requiresPermissionPrompt && sensorPermission === 'prompt') {
+      setSnapshot(sharedTiltSteering.getSnapshot())
       return
     }
     return sharedTiltSteering.subscribe(setSnapshot)
   }, [sensorPermission, requiresPermissionPrompt])
 
   /**
-   * Solicita permissão ao usuário (obrigatório em iOS Safari via gesto explícito).
-   * Evita chamadas repetidas caso já esteja concedida.
+   * Solicita permissão explícita ao usuário quando exigida pelo navegador (iOS Safari/WebKit),
+   * requisitando tanto DeviceOrientationEvent quanto DeviceMotionEvent (fallback de acelerômetro).
    */
   const requestPermission = useCallback(async (): Promise<boolean> => {
-    if (typeof window === 'undefined' || !('DeviceOrientationEvent' in window)) {
+    if (typeof window === 'undefined') return false
+    const hasOrientation = 'DeviceOrientationEvent' in window
+    const hasMotion = 'DeviceMotionEvent' in window
+    if ((!hasOrientation && !hasMotion) || !isSensorSecureContext()) {
       setSensorPermission('unsupported')
+      setSnapshot(sharedTiltSteering.getSnapshot())
       return false
     }
 
@@ -78,27 +88,44 @@ export function useDeviceTilt() {
       return true
     }
 
-    const DeviceOrientation = window.DeviceOrientationEvent as unknown as {
-      requestPermission?: () => Promise<'granted' | 'denied'>
-    }
+    const DeviceOrientation = (window as unknown as {
+      DeviceOrientationEvent?: { requestPermission?: () => Promise<'granted' | 'denied'> }
+    }).DeviceOrientationEvent
+    const DeviceMotion = (window as unknown as {
+      DeviceMotionEvent?: { requestPermission?: () => Promise<'granted' | 'denied'> }
+    }).DeviceMotionEvent
 
-    if (typeof DeviceOrientation.requestPermission === 'function') {
+    let grantedAny = false
+    let askedAny = false
+
+    if (typeof DeviceOrientation?.requestPermission === 'function') {
+      askedAny = true
       try {
-        const response = await DeviceOrientation.requestPermission()
-        if (response === 'granted') {
-          setSensorPermission('granted')
-          return true
-        }
-        setSensorPermission('denied')
-        return false
+        const res = await DeviceOrientation.requestPermission()
+        if (res === 'granted') grantedAny = true
       } catch (err) {
-        console.warn('[HEATZ TILT] Erro ao solicitar permissão de orientação:', err)
-        setSensorPermission('denied')
-        return false
+        console.warn('[HEATZ TILT] Erro ao solicitar DeviceOrientationEvent.requestPermission:', err)
       }
     }
 
+    if (typeof DeviceMotion?.requestPermission === 'function') {
+      askedAny = true
+      try {
+        const res = await DeviceMotion.requestPermission()
+        if (res === 'granted') grantedAny = true
+      } catch (err) {
+        console.warn('[HEATZ TILT] Erro ao solicitar DeviceMotionEvent.requestPermission:', err)
+      }
+    }
+
+    if (askedAny) {
+      setSensorPermission(grantedAny ? 'granted' : 'denied')
+      setSnapshot(sharedTiltSteering.getSnapshot())
+      return grantedAny
+    }
+
     setSensorPermission('granted')
+    setSnapshot(sharedTiltSteering.getSnapshot())
     return true
   }, [setSensorPermission])
 
@@ -111,7 +138,10 @@ export function useDeviceTilt() {
   }, [])
 
   return {
-    isSupported: sensorPermission !== 'unsupported',
+    isSupported:
+      sensorPermission !== 'unsupported' &&
+      snapshot.diagnostics.status !== 'unsupported_browser' &&
+      snapshot.diagnostics.status !== 'insecure_context',
     requiresPermissionPrompt,
     permission: sensorPermission,
     rawAngleDeg: snapshot.rawAngleDeg,
@@ -119,6 +149,7 @@ export function useDeviceTilt() {
     neutralAngleDeg: snapshot.neutralAngleDeg,
     isCalibrated: snapshot.isCalibrated,
     hasValidSample: snapshot.hasValidSample,
+    diagnostics: snapshot.diagnostics,
     requestPermission,
     calibrateNeutral,
     resetCalibration,

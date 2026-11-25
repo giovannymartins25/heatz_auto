@@ -230,5 +230,56 @@
     "lengthM": 4.713,
     "widthM": 1.827,
     "silhouette": "sedan"
+  },
+  "controls": {
+    "climate": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "controlType": "digital",
+      "panel": "multimedia",
+      "adjustable": "setpoint_and_fan"
+    },
+    "tractionControl": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "userToggleable": true,
+      "controlType": "digital",
+      "panel": "multimedia",
+      "systemLabel": "DSC / DTC"
+    },
+    "steeringWheel": {
+      "hasAudioControls": true,
+      "hasCruiseControls": true,
+      "confirmationStatus": "confirmed"
+    },
+    "driverAssists": {
+      "cruiseControl": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "steering_wheel_physical",
+        "panel": "controls",
+        "adjustable": "setpoint_adjustable",
+        "implementationState": "pending_sensors",
+        "notes": "Integrado ao conjunto ACC no volante M Sport G20 LCI."
+      },
+      "adaptiveCruiseControl": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "steering_wheel_physical",
+        "panel": "controls",
+        "adjustable": "setpoint_adjustable",
+        "implementationState": "pending_sensors",
+        "notes": "ACC Stop & Go de série no 320i M Sport 2024 Brasil (Driving Assistant)."
+      },
+      "laneKeepingAssist": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "digital_multimedia",
+        "panel": "multimedia",
+        "adjustable": "toggle_only",
+        "implementationState": "pending_sensors",
+        "notes": "Assistente de faixa configurado no BMW OS 8 / tecla Driving Assistant."
+      }
+    }
   }
 }

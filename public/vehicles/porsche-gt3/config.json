@@ -203,5 +203,56 @@
     "hasFogLights": true,
     "hasAmbientLighting": true,
     "defaultAmbientColor": "amber"
+  },
+  "controls": {
+    "climate": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "controlType": "digital",
+      "panel": "multimedia",
+      "adjustable": "setpoint_and_fan"
+    },
+    "tractionControl": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "userToggleable": true,
+      "controlType": "physical",
+      "panel": "controls",
+      "systemLabel": "PSM"
+    },
+    "steeringWheel": {
+      "hasAudioControls": true,
+      "hasCruiseControls": true,
+      "confirmationStatus": "confirmed"
+    },
+    "driverAssists": {
+      "cruiseControl": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "stalk_physical",
+        "panel": "controls",
+        "adjustable": "setpoint_adjustable",
+        "implementationState": "pending_sensors",
+        "notes": "Alavanca física de Tempostat na coluna de direção (992 Turbo S)."
+      },
+      "adaptiveCruiseControl": {
+        "available": false,
+        "confirmationStatus": "estimated_or_optional",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Opcional de fábrica (Porsche InnoDrive / ACC); não incluído como série sem confirmação da unidade."
+      },
+      "laneKeepingAssist": {
+        "available": false,
+        "confirmationStatus": "estimated_or_optional",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Opcional vinculado ao pacote Lane Keep Assist / InnoDrive no 992."
+      }
+    }
   }
 }

@@ -4,7 +4,9 @@ import type { DashboardTelemetry } from '@/systems/dashboard'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { clamp } from '@/utils/math'
 import { AMBIENT_COLOR_MAP, type AmbientLightColor } from '@/utils/ambientLighting'
+import { resolveVehicleControls } from '@/systems/vehicle/vehicleResolvers'
 import { InternetMediaCenter } from './shared/InternetMediaCenter'
+import { MultimediaStatusFooter } from './shared/MultimediaStatusFooter'
 import type { FanLevel } from '@/systems/cabin'
 
 export interface BMWiDrive8CurvedProps {
@@ -47,6 +49,14 @@ export const BMWiDrive8Curved = memo(function BMWiDrive8Curved({
   const zoneName = useSimulationStore((s) => s.zoneName)
   const surfaceType = useSimulationStore((s) => s.surfaceType)
   const toggleMap = useSimulationStore((s) => s.toggleMap)
+  const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
+  const tcsIntervening = useSimulationStore((s) => s.tcsIntervening)
+  const setTcsEnabled = useSimulationStore((s) => s.setTcsEnabled)
+  const controlsSpec = resolveVehicleControls(vehicle)
+  const showDigitalTcs =
+    controlsSpec.tractionControl.available &&
+    controlsSpec.tractionControl.userToggleable &&
+    controlsSpec.tractionControl.panel === 'multimedia'
 
   // Climatização Tri-Zone integrada ao ClimateSystem
   const cabinTempC = useSimulationStore((s) => s.cabinTempC)
@@ -236,6 +246,29 @@ export const BMWiDrive8Curved = memo(function BMWiDrive8Curved({
                 ))}
               </div>
 
+              {showDigitalTcs && (
+                <div className="flex items-center justify-between rounded-lg border border-white/10 bg-zinc-900/80 px-2 py-1 text-[7.5px]">
+                  <span className="font-bold text-zinc-300">
+                    🛡️ TRAÇÃO ({controlsSpec.tractionControl.systemLabel})
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="multimedia-tcs-toggle"
+                    aria-pressed={tcsEnabled}
+                    onClick={() => setTcsEnabled(!tcsEnabled)}
+                    className={`rounded border px-2 py-0.5 font-black cursor-pointer transition-all ${
+                      !tcsEnabled
+                        ? 'border-amber-400/60 bg-amber-500/20 text-amber-200'
+                        : tcsIntervening
+                          ? 'border-amber-400 bg-amber-500/30 text-amber-200 animate-pulse'
+                          : 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
+                    }`}
+                  >
+                    {tcsEnabled ? 'DSC ATIVO' : 'DSC OFF'}
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center justify-between rounded-lg border border-white/10 bg-zinc-900/70 px-2 py-1 text-[7.5px]">
                 <span className="text-zinc-400">AMBIENT LIGHT</span>
                 <div className="flex items-center gap-1">
@@ -418,19 +451,8 @@ export const BMWiDrive8Curved = memo(function BMWiDrive8Curved({
         </div>
       </div>
 
-      {/* Barra inferior permanente de clima OS 8 */}
-      <div className="mt-1 flex shrink-0 items-center justify-between border-t border-white/10 pt-1 text-[7.5px] text-zinc-300">
-        <button
-          type="button"
-          onClick={() => setView('trizone')}
-          className="font-bold text-cyan-300 hover:underline cursor-pointer"
-        >
-          ❄️ {climateTargetTempC.toFixed(1)}°C | {passTempC.toFixed(1)}°C | {rearTempC.toFixed(1)}°C
-        </button>
-        <span className="text-zinc-400">
-          {climateAcEnabled ? 'A/C ON' : 'VENT'} · FAN {climateFanLevel}/5
-        </span>
-      </div>
+      {/* Rodapé informativo BMW OS 8: Horário local + Temperatura interna e externa simuladas */}
+      <MultimediaStatusFooter theme="cyan" />
     </div>
   )
 })

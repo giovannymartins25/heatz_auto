@@ -108,6 +108,11 @@
     "launchControl": {
       "enabled": false,
       "launchRpm": 5000
+    },
+    "tcs": {
+      "enabled": true,
+      "slipThreshold": 1.18,
+      "torqueReduction": 0.22
     }
   },
   "audio": {
@@ -161,5 +166,56 @@
     "hasFogLights": true,
     "hasAmbientLighting": false,
     "defaultAmbientColor": "red"
+  },
+  "controls": {
+    "climate": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "controlType": "physical",
+      "panel": "controls",
+      "adjustable": "setpoint_and_fan"
+    },
+    "tractionControl": {
+      "available": true,
+      "confirmationStatus": "confirmed",
+      "userToggleable": true,
+      "controlType": "physical",
+      "panel": "controls",
+      "systemLabel": "VSA"
+    },
+    "steeringWheel": {
+      "hasAudioControls": true,
+      "hasCruiseControls": true,
+      "confirmationStatus": "confirmed"
+    },
+    "driverAssists": {
+      "cruiseControl": {
+        "available": true,
+        "confirmationStatus": "confirmed",
+        "controlType": "steering_wheel_physical",
+        "panel": "controls",
+        "adjustable": "setpoint_adjustable",
+        "implementationState": "pending_sensors",
+        "notes": "Teclas físicas CRUISE/DECEL/ACCEL no raio direito do volante Civic Si 2008."
+      },
+      "adaptiveCruiseControl": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Sem ACC na geração FA5 2008."
+      },
+      "laneKeepingAssist": {
+        "available": false,
+        "confirmationStatus": "confirmed",
+        "controlType": "none",
+        "panel": "none",
+        "adjustable": "none",
+        "implementationState": "not_applicable",
+        "notes": "Sem LKA na geração FA5 2008."
+      }
+    }
   }
 }
