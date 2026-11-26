@@ -206,7 +206,8 @@
     "windowControlType": "electric",
     "hasFogLights": true,
     "hasAmbientLighting": true,
-    "defaultAmbientColor": "red"
+    "hasConfigurableAmbientRgb": false,
+    "defaultAmbientColor": "white"
   },
   "controls": {
     "climate": {

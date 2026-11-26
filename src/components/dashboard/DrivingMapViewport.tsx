@@ -3,6 +3,7 @@ import type { MapViewportSize } from '@/stores/useUIStore'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import type { VehicleConfig } from '@/types/vehicle'
 import { useSimulationStore } from '@/stores/useSimulationStore'
+import { WORLD_GEOMETRY } from '@/systems/world/WorldGeometry'
 import { DrivingWorldCanvas } from './DrivingWorldCanvas'
 
 export interface MapNavigationTelemetry {
@@ -20,6 +21,7 @@ export interface DrivingMapViewportProps {
   telemetry?: DashboardTelemetry
   vehicle?: VehicleConfig
   navigation?: MapNavigationTelemetry
+  onOpenDragStrip?: () => void
 }
 
 const ZOOM_MIN = 2.2
@@ -54,7 +56,8 @@ export function areDrivingMapPropsEqual(
     prev.className === next.className &&
     prevSpeed === nextSpeed &&
     sameNav &&
-    prev.onSizeChange === next.onSizeChange
+    prev.onSizeChange === next.onSizeChange &&
+    prev.onOpenDragStrip === next.onOpenDragStrip
   )
 }
 
@@ -74,6 +77,7 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
   telemetry,
   vehicle,
   navigation,
+  onOpenDragStrip,
 }: DrivingMapViewportProps) {
   const [cameraMode, setCameraMode] = useState<'follow' | 'north_up'>('follow')
   const [zoomScale, setZoomScale] = useState<number>(4.2)
@@ -85,7 +89,17 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
   const absEngaged = useSimulationStore((s) => s.absEngaged)
   const isAirbrakeActive = useSimulationStore((s) => s.isAirbrakeActive)
   const downforceN = useSimulationStore((s) => s.downforceN)
+  const positionX = useSimulationStore((s) => s.positionX)
+  const positionY = useSimulationStore((s) => s.positionY)
+  const dragStage = useSimulationStore((s) => s.dragStage)
   const resetPosition = useSimulationStore((s) => s.resetPosition)
+
+  const isAtDragStaging =
+    Boolean(onOpenDragStrip) &&
+    dragStage === 'idle' &&
+    Math.abs(positionY - WORLD_GEOMETRY.dragStrip.yCenter) <= WORLD_GEOMETRY.dragStrip.halfWidth + 4 &&
+    positionX >= WORLD_GEOMETRY.dragStrip.startX - 20 &&
+    positionX <= WORLD_GEOMETRY.dragStrip.startX + 35
 
   // Alerta contextual temporário de próxima curva (exibido apenas em aproximação <= 120 m)
   const curveInfo = useMemo(() => {
@@ -142,9 +156,22 @@ export const DrivingMapViewport = memo(function DrivingMapViewport({
         />
       </div>
 
-      {/* ── 2. Alertas Temporários Contextuais (ABS / Airbrake / Aproximação de Curva) ── */}
-      {(absEngaged || isAirbrakeActive || curveInfo.isAlert) && (
+      {/* ── 2. Alertas Temporários Contextuais (ABS / Airbrake / Aproximação de Curva / Alinhamento 402m) ── */}
+      {(absEngaged || isAirbrakeActive || curveInfo.isAlert || isAtDragStaging) && (
         <div className="relative z-10 mx-auto mt-1.5 flex flex-col items-center gap-1 px-2 pointer-events-none">
+          {isAtDragStaging && onOpenDragStrip && (
+            <button
+              type="button"
+              data-testid="btn-contextual-drag-strip"
+              onClick={onOpenDragStrip}
+              style={{ touchAction: 'manipulation' }}
+              className="pointer-events-auto flex items-center gap-1 rounded-full border border-amber-400/70 bg-amber-950/90 px-2.5 py-0.5 font-mono text-[8px] font-black uppercase tracking-wider text-amber-200 shadow-lg backdrop-blur-md active:scale-95 cursor-pointer"
+              title="Abrir Árvore de Natal NHRA na Pista de Arrancada 402m"
+            >
+              <span>🏁</span>
+              <span>LARGADA 402M</span>
+            </button>
+          )}
           {(absEngaged || isAirbrakeActive) && (
             <div className="flex items-center gap-1 rounded-full border border-white/10 bg-black/80 px-2 py-0.5 backdrop-blur-md">
               {absEngaged && (

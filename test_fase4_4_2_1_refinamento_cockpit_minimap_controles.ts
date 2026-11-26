@@ -85,9 +85,10 @@ console.log('\n=== FASE 4.4.2.1 — 1. MINIMAPA COMPACTO, DISCRETO E SIMPLIFICAD
   )
   assert(
     !minimapCode.includes('hud-minimap-nav-hint') &&
-      !minimapCode.includes('computeMinimapNavigationHint') &&
-      !minimapCode.includes('drag_route'),
-    'HudMinimap removeu completamente textos de próxima curva/interseção, distâncias e rotas sobrepostas',
+      minimapCode.includes('hud-minimap-context-bar') &&
+      minimapCode.includes('computeMinimapNavigationHint') &&
+      minimapCode.includes('computeAsphaltGuidance'),
+    'HudMinimap mantém o canvas interno sem textos sobrepostos às vias e exibe micro-barra contextual externa real (Fase 4.4.3)',
   )
 }
 
@@ -320,14 +321,14 @@ console.log('\n=== FASE 4.4.2.1 — 5. ARQUITETURA DECLARATIVA DE CONTROLES E AU
     'validateVehicleConfig() rejeita conflito declarativo (TCS indisponível com userToggleable=true)',
   )
 
-  // Harmonia com upgrade aftermarket 2-DIN para climatização sem redundância
+  // Fase 4.4.3: Preservação dos controles físicos de ventilação no Painel 3 mesmo com upgrade aftermarket 2-DIN
   const pampa = loadVehicle('ford-pampa-l-1997')
   assert(
     resolveVehicleControls(pampa, { multimediaKit: false }).climate.panel === 'controls' &&
-      resolveVehicleControls(pampa, { multimediaKit: true }).climate.panel === 'multimedia' &&
+      resolveVehicleControls(pampa, { multimediaKit: true }).climate.panel === 'controls' &&
       resolveClimateControlsLocation(pampa, { multimediaKit: false }) === 'panel' &&
-      resolveClimateControlsLocation(pampa, { multimediaKit: true }) === 'multimedia',
-    'resolveVehicleControls e resolveClimateControlsLocation permanecem 100% sincronizados com e sem upgrade aftermarket',
+      resolveClimateControlsLocation(pampa, { multimediaKit: true }) === 'panel',
+    'resolveVehicleControls e resolveClimateControlsLocation preservam controles físicos no Painel 3 com e sem upgrade aftermarket',
   )
 
   // Teste funcional em runtime da store para veículos com e sem TCS

@@ -181,6 +181,7 @@
     "windowControlType": "electric",
     "hasFogLights": true,
     "hasAmbientLighting": true,
+    "hasConfigurableAmbientRgb": false,
     "defaultAmbientColor": "red"
   },
   "controls": {

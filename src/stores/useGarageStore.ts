@@ -65,6 +65,8 @@ interface GarageStoreActions {
   /** Resolve qual unidade da garagem corresponde a um modelo (prioriza a preferida/ativa) */
   resolveInstanceForVehicle: (vehicleId: string, preferredInstanceId?: string | null) => GarageCarInstance | undefined
   addCredits: (amount: number) => void
+  /** Acumula quilometragem real percorrida na simulação para a instância da garagem */
+  addMileageKm: (instanceId: string, deltaKm: number) => void
   toggleSandboxMode: () => void
   resetToDefaults: () => void
 }
@@ -73,6 +75,7 @@ type GarageStore = GarageStoreState & GarageStoreActions
 
 const STORAGE_KEY = 'heatz_garage_v2'
 const POPS_DEFAULT_MIGRATION_KEY = 'heatz_pops_default_off_v1'
+const CIVIC_OEM_RADIO_MIGRATION_KEY = 'heatz_civic_oem_radio_v1'
 
 export function createDefaultUpgrades(vehicleId: string, config?: VehicleConfig): CarUpgrades {
   return resolveDefaultUpgradesForVehicle(vehicleId, config)
@@ -173,6 +176,21 @@ function loadStoredState(): { ownedCars: GarageCarInstance[]; activeCarInstanceI
             upgrades: { ...car.upgrades, exhaustValveOpen: false },
           }))
           localStorage.setItem(POPS_DEFAULT_MIGRATION_KEY, '1')
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+              ...parsed,
+              ownedCars: normalizedCars,
+            }),
+          )
+        }
+        if (!localStorage.getItem(CIVIC_OEM_RADIO_MIGRATION_KEY)) {
+          normalizedCars = normalizedCars.map((car) =>
+            car.instanceId === 'inst-civic-si-default'
+              ? { ...car, upgrades: { ...car.upgrades, multimediaKit: false } }
+              : car,
+          )
+          localStorage.setItem(CIVIC_OEM_RADIO_MIGRATION_KEY, '1')
           localStorage.setItem(
             STORAGE_KEY,
             JSON.stringify({
@@ -355,6 +373,28 @@ export const useGarageStore = create<GarageStore>((set, get) => ({
       ownedCars,
       activeCarInstanceId,
       credits: updatedCredits,
+      sandboxMode,
+    })
+  },
+
+  addMileageKm: (instanceId: string, deltaKm: number) => {
+    if (!instanceId || !Number.isFinite(deltaKm) || deltaKm <= 0) return
+    const { ownedCars, activeCarInstanceId, credits, sandboxMode } = get()
+    let changed = false
+    const updatedCars = ownedCars.map((c) => {
+      if (c.instanceId !== instanceId) return c
+      changed = true
+      return {
+        ...c,
+        mileageKm: Math.round((c.mileageKm + deltaKm) * 1000) / 1000,
+      }
+    })
+    if (!changed) return
+    set({ ownedCars: updatedCars })
+    persistState({
+      ownedCars: updatedCars,
+      activeCarInstanceId,
+      credits,
       sandboxMode,
     })
   },

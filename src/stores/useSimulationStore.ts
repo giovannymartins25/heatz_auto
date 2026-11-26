@@ -17,7 +17,9 @@ import {
   resolveVehicleControls,
   resolveVehicleDrivetrain,
   resolveVehicleFuelDefaults,
+  resolveVehicleHasAbs,
   resolveVehicleIgnition,
+  supportsConfigurableAmbientRgb,
 } from '@/systems/vehicle/vehicleResolvers'
 import {
   ClimateSystem,
@@ -35,7 +37,7 @@ import {
   type TurnSignalSelection,
   type LightingStateSnapshot,
 } from '@/systems/cabin'
-import type { IgnitionPosition, IgnitionStartInterlock, IgnitionType } from '@/types/vehicle'
+import type { DrivetrainLayout, IgnitionPosition, IgnitionStartInterlock, IgnitionType } from '@/types/vehicle'
 import type { SensorPermissionState, SteeringMethod } from '@/systems/input'
 import {
   TILT_SENSITIVITY_PRESETS,
@@ -57,6 +59,16 @@ import { performanceMonitor } from '@/utils/performanceMonitor'
  * Permite que todos os subsistemas integrem a 120 Hz sem perda nem quantização
  * mesmo quando a UI recebe snapshots em 35 Hz (ECO), 60 Hz (NORMAL) ou ~6.6 Hz (telemetria lenta).
  */
+export type RangeEstimationSource =
+  | 'out_of_fuel'
+  | 'cruise_reference'
+  | 'blended_transition'
+  | 'measured_trip'
+
+export type DrivetrainTorqueSplitSource =
+  | 'measured_axle_torque'
+  | 'nominal_idle_coupling'
+
 export interface PhysicsInternalState {
   boostPressureBar: number
   peakBoostBar: number
@@ -117,6 +129,28 @@ export interface PhysicsInternalState {
   absEngaged: boolean
   isAirbrakeActive: boolean
   engineDamageRatio: number
+  /** Telemetria mecânica e energética instantânea real derivada do integrador (fonte única) */
+  liveTorqueNm: number
+  livePowerHp: number
+  instantFuelBurnLh: number
+  instantConsumptionKmL: number
+  hasMeasuredAvgConsumption: boolean
+  avgConsumptionKmL: number
+  cruiseReferenceConsumptionKmL: number
+  estimatedRangeKm: number
+  rangeEstimationSource: RangeEstimationSource
+  tripDistanceKm: number
+  tripFuelUsedLiters: number
+  tripDurationSec: number
+  avgSpeedKmh: number
+  odometerKm: number
+  persistedMileageFloorKm: number
+  awdRearCoupling: number
+  frontAxleTorqueNm: number
+  rearAxleTorqueNm: number
+  frontTorqueSplitPercent: number
+  rearTorqueSplitPercent: number
+  torqueSplitSource: DrivetrainTorqueSplitSource
   /** Transição protegida de sentido solicitada no seletor automático/DCT em movimento ('R' | 'D' | 'S' | 'M' | null) */
   pendingDirectionShift: 'R' | 'D' | 'S' | 'M' | null
 
@@ -228,6 +262,210 @@ function cloneRuntimeCandidate(candidate: SimulationRuntimeCandidate): Simulatio
   }
 }
 
+function interpolateEngineTorqueAtRpm(
+  points: readonly { rpm: number; torque: number }[],
+  rpm: number,
+): number {
+  if (!points || points.length === 0) return 150
+  if (rpm <= points[0].rpm) return points[0].torque
+  const last = points[points.length - 1]
+  if (rpm >= last.rpm) return last.torque
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i]
+    const p1 = points[i + 1]
+    if (rpm >= p0.rpm && rpm <= p1.rpm) {
+      const t = p1.rpm > p0.rpm ? (rpm - p0.rpm) / (p1.rpm - p0.rpm) : 0
+      return p0.torque + (p1.torque - p0.torque) * t
+    }
+  }
+  return last.torque
+}
+
+/**
+ * Calcula o consumo físico em regime permanente de cruzeiro (80 km/h na última marcha)
+ * diretamente a partir da equação real de queima da simulação, das resistências de
+ * rolamento/aerodinâmica de VehiclePhysics, da relação final e da curva de torque do veículo.
+ * Zero constantes inventadas por veículo — serve exclusivamente como referência física inicial
+ * nos primeiros metros antes de acumular combustível/distância medidos na sessão.
+ */
+export function computePhysicsSteadyCruiseKmL(
+  config: VehicleConfig,
+  fuelType: FuelType,
+  tuningStage: 0 | 1 | 2 | 3,
+): number {
+  const cruiseSpeedKmh = 80
+  const cruiseSpeedMs = cruiseSpeedKmh / 3.6
+  const isMoto = config.info.category === 'motorcycle'
+  const mass = config.chassis?.totalMass ?? config.info.weight
+  const gravity = config.chassis?.gravity ?? 9.81
+  const wheelRadius = Math.max(0.15, config.info.wheelDiameter / 2)
+  const efficiency = isMoto ? 0.93 : 0.90
+  const aeroConst = isMoto ? 0.25 : 0.40
+
+  const ratios = config.transmission.gearRatios
+  const topRatio = ratios.length > 0 ? ratios[ratios.length - 1].ratio : 1.0
+  const totalRatio = Math.max(0.2, topRatio * config.transmission.finalDrive)
+
+  const wheelAngVel = cruiseSpeedMs / wheelRadius
+  const rawCruiseRpm = (wheelAngVel * totalRatio * 60) / (2 * Math.PI)
+  const cruiseRpm = clamp(rawCruiseRpm, config.engine.idleRpm, config.engine.revLimiter)
+
+  const rollingForceN = mass * gravity * 0.015
+  const aeroForceN = aeroConst * cruiseSpeedMs * cruiseSpeedMs
+  const wheelTorqueRequiredNm = (rollingForceN + aeroForceN) * wheelRadius
+  const engineTorqueRequiredNm = wheelTorqueRequiredNm / (totalRatio * efficiency)
+
+  const stageTorqueMult =
+    tuningStage === 1 ? 1.25 : tuningStage === 2 ? 1.5 : tuningStage === 3 ? 1.85 : 1.0
+  const availableTorqueNm = Math.max(
+    20,
+    interpolateEngineTorqueAtRpm(config.engine.torqueCurve, cruiseRpm) * stageTorqueMult,
+  )
+  const effectiveThrottle = clamp(engineTorqueRequiredNm / availableTorqueNm, 0.02, 1.0)
+  const exponent = config.engine.throttleProgressionExponent ?? 1.45
+  const cruiseThrottle = clamp(Math.pow(effectiveThrottle, 1 / exponent), 0.02, 1.0)
+
+  const fuelMult = fuelType === 'ethanol_e100' ? 1.34 : 1.0
+  const stageFuelFactor =
+    tuningStage === 1 ? 1.2 : tuningStage === 2 ? 1.4 : tuningStage === 3 ? 1.8 : 1.0
+  const burnLh =
+    (0.85 + cruiseThrottle * 22.0 + (cruiseRpm / Math.max(1000, config.engine.maxRpm)) * 8.5) *
+    stageFuelFactor *
+    fuelMult
+
+  return Math.round(clamp(cruiseSpeedKmh / Math.max(0.1, burnLh), 0.5, 99.9) * 100) / 100
+}
+
+function computeConsumptionAndRangeSnapshot(
+  config: VehicleConfig,
+  fuelType: FuelType,
+  tuningStage: 0 | 1 | 2 | 3,
+  fuelLevelLiters: number,
+  tripDistanceKm: number,
+  tripFuelUsedLiters: number,
+): {
+  hasMeasuredAvgConsumption: boolean
+  avgConsumptionKmL: number
+  cruiseReferenceConsumptionKmL: number
+  estimatedRangeKm: number
+  rangeEstimationSource: RangeEstimationSource
+} {
+  const cruiseRefKmL = computePhysicsSteadyCruiseKmL(config, fuelType, tuningStage)
+  const hasMeasuredAvg = tripDistanceKm >= 0.02 && tripFuelUsedLiters > 0.0001
+  const measuredAvgKmL = hasMeasuredAvg
+    ? clamp(tripDistanceKm / tripFuelUsedLiters, 0.1, 99.9)
+    : 0
+
+  if (fuelLevelLiters <= 0) {
+    return {
+      hasMeasuredAvgConsumption: hasMeasuredAvg,
+      avgConsumptionKmL: measuredAvgKmL,
+      cruiseReferenceConsumptionKmL: cruiseRefKmL,
+      estimatedRangeKm: 0,
+      rangeEstimationSource: 'out_of_fuel',
+    }
+  }
+
+  if (!hasMeasuredAvg) {
+    return {
+      hasMeasuredAvgConsumption: false,
+      avgConsumptionKmL: 0,
+      cruiseReferenceConsumptionKmL: cruiseRefKmL,
+      estimatedRangeKm: Math.round(fuelLevelLiters * cruiseRefKmL),
+      rangeEstimationSource: 'cruise_reference',
+    }
+  }
+
+  if (tripDistanceKm < 0.25) {
+    const blend = clamp((tripDistanceKm - 0.02) / (0.25 - 0.02), 0, 1)
+    const effectiveRangeKmL = cruiseRefKmL * (1 - blend) + measuredAvgKmL * blend
+    return {
+      hasMeasuredAvgConsumption: true,
+      avgConsumptionKmL: measuredAvgKmL,
+      cruiseReferenceConsumptionKmL: cruiseRefKmL,
+      estimatedRangeKm: Math.round(fuelLevelLiters * effectiveRangeKmL),
+      rangeEstimationSource: 'blended_transition',
+    }
+  }
+
+  return {
+    hasMeasuredAvgConsumption: true,
+    avgConsumptionKmL: measuredAvgKmL,
+    cruiseReferenceConsumptionKmL: cruiseRefKmL,
+    estimatedRangeKm: Math.round(fuelLevelLiters * measuredAvgKmL),
+    rangeEstimationSource: 'measured_trip',
+  }
+}
+
+function computeAxleTorqueSplitPercent(
+  drivetrain: DrivetrainLayout,
+  fourWheelDriveMode: FourWheelDriveMode,
+  awdRearCoupling: number,
+  frontAxleTorqueNm: number,
+  rearAxleTorqueNm: number,
+): {
+  frontPercent: number
+  rearPercent: number
+  coupling: number
+  source: DrivetrainTorqueSplitSource
+} {
+  const totalTorque = Math.max(0, frontAxleTorqueNm) + Math.max(0, rearAxleTorqueNm)
+  if (totalTorque > 1.0) {
+    const frontPct = Math.round(clamp((Math.max(0, frontAxleTorqueNm) / totalTorque) * 100, 0, 100))
+    return {
+      frontPercent: frontPct,
+      rearPercent: 100 - frontPct,
+      coupling: clamp(awdRearCoupling, 0, 1),
+      source: 'measured_axle_torque',
+    }
+  }
+  if (drivetrain === 'fwd') {
+    return { frontPercent: 100, rearPercent: 0, coupling: 0, source: 'nominal_idle_coupling' }
+  }
+  if (drivetrain === 'rwd') {
+    return { frontPercent: 0, rearPercent: 100, coupling: 1, source: 'nominal_idle_coupling' }
+  }
+  if (drivetrain === 'awd_ptm') {
+    // Em repouso/roda-livre (0 Nm nos eixos), PTM permanece no acoplamento mínimo calibrado (gama_min=0.15 => front=7.5%, rear=92.5%)
+    const idlePtmFrontShare = 0.5 * 0.15
+    const frontPct = Math.round(idlePtmFrontShare * 100)
+    return {
+      frontPercent: frontPct,
+      rearPercent: 100 - frontPct,
+      coupling: 1 - idlePtmFrontShare,
+      source: 'nominal_idle_coupling',
+    }
+  }
+  if (
+    drivetrain === '4x4_selectable' &&
+    (fourWheelDriveMode === '4wd' || fourWheelDriveMode === '4wd_low')
+  ) {
+    return { frontPercent: 50, rearPercent: 50, coupling: 1, source: 'nominal_idle_coupling' }
+  }
+  // awd_ondemand / 4x4_selectable em AUTO sem torque motriz ativo: pré-carga nominal de cruzeiro (96/4)
+  return { frontPercent: 96, rearPercent: 4, coupling: 0.08, source: 'nominal_idle_coupling' }
+}
+
+/**
+ * Persiste de forma atômica e idempotente o incremento líquido de quilometragem na useGarageStore,
+ * atualizando `persistedMileageFloorKm` ANTES da chamada externa para impedir duplicação em
+ * trocas de veículo, reinícios ou alternância entre modos.
+ */
+function flushPendingMileageToGarage(
+  garageInstanceId: string | null | undefined,
+  phys: PhysicsInternalState,
+  minDeltaKm = 0.05,
+): number {
+  if (!garageInstanceId) return 0
+  const unpersistedKm = phys.odometerKm - phys.persistedMileageFloorKm
+  if (!Number.isFinite(unpersistedKm) || unpersistedKm < minDeltaKm) {
+    return 0
+  }
+  phys.persistedMileageFloorKm = phys.odometerKm
+  useGarageStore.getState().addMileageKm(garageInstanceId, unpersistedKm)
+  return unpersistedKm
+}
+
 function createInitialPhysicsInternalState(
   overrides: Partial<PhysicsInternalState> = {},
 ): PhysicsInternalState {
@@ -308,6 +546,27 @@ function createInitialPhysicsInternalState(
     absEngaged: false,
     isAirbrakeActive: false,
     engineDamageRatio: 0,
+    liveTorqueNm: 0,
+    livePowerHp: 0,
+    instantFuelBurnLh: 0,
+    instantConsumptionKmL: 0,
+    hasMeasuredAvgConsumption: overrides.hasMeasuredAvgConsumption ?? false,
+    avgConsumptionKmL: overrides.avgConsumptionKmL ?? 0,
+    cruiseReferenceConsumptionKmL: overrides.cruiseReferenceConsumptionKmL ?? 0,
+    estimatedRangeKm: overrides.estimatedRangeKm ?? 0,
+    rangeEstimationSource: overrides.rangeEstimationSource ?? 'cruise_reference',
+    tripDistanceKm: overrides.tripDistanceKm ?? 0,
+    tripFuelUsedLiters: overrides.tripFuelUsedLiters ?? 0,
+    tripDurationSec: overrides.tripDurationSec ?? 0,
+    avgSpeedKmh: overrides.avgSpeedKmh ?? 0,
+    odometerKm: overrides.odometerKm ?? 0,
+    persistedMileageFloorKm: overrides.persistedMileageFloorKm ?? (overrides.odometerKm ?? 0),
+    awdRearCoupling: overrides.awdRearCoupling ?? 0,
+    frontAxleTorqueNm: 0,
+    rearAxleTorqueNm: 0,
+    frontTorqueSplitPercent: overrides.frontTorqueSplitPercent ?? 100,
+    rearTorqueSplitPercent: overrides.rearTorqueSplitPercent ?? 0,
+    torqueSplitSource: overrides.torqueSplitSource ?? 'nominal_idle_coupling',
     pendingDirectionShift: overrides.pendingDirectionShift ?? null,
 
     elapsedSimMs: 0,
@@ -379,6 +638,8 @@ interface SimulationActions {
   stepBackIgnitionKey: () => void
   /** Define estado de descarga da bateria para simulação de falha de partida */
   setBatteryDischarged: (discharged: boolean) => void
+  /** Define falha/anomalia explícita no módulo ABS (apenas veículos equipados com ABS) */
+  setAbsFault: (fault: boolean) => void
   /** Desliga o motor */
   stopEngine: () => void
   /** Define a posição do acelerador (0-1) */
@@ -518,6 +779,8 @@ interface SimulationActions {
   setFourWheelDriveMode: (mode: FourWheelDriveMode) => void
   /** Reseta dados de performance */
   resetPerformanceStats: () => void
+  /** Reseta computador de viagem parcial (distância, combustível gasto, tempo e médias da viagem) */
+  resetTripStats: () => void
   /** Atualiza a simulação (chamado pelo game loop) */
   update: (frameTime: number) => void
   /** Reseta a simulação */
@@ -651,7 +914,9 @@ interface SimulationState {
   collisionBoundaryName: string | null
   surfaceType: string
   zoneName: string
+  hasAbs: boolean
   absEngaged: boolean
+  absFault: boolean
   isAirbrakeActive: boolean
   isMapOpen: boolean
   mapViewportSize: MapViewportSize
@@ -668,11 +933,31 @@ interface SimulationState {
   topSpeedRecord: number
   _timer0to100State: ZeroToHundredState
 
-  // Sistema de Combustível
+  // Sistema de Combustível & Computador de Bordo Real (Fonte Única)
   fuelLevelLiters: number
   fuelCapacityLiters: number
   fuelType: FuelType
   isOutOfFuel: boolean
+  liveTorqueNm: number
+  livePowerHp: number
+  instantFuelBurnLh: number
+  instantConsumptionKmL: number
+  hasMeasuredAvgConsumption: boolean
+  avgConsumptionKmL: number
+  cruiseReferenceConsumptionKmL: number
+  estimatedRangeKm: number
+  rangeEstimationSource: RangeEstimationSource
+  tripDistanceKm: number
+  tripFuelUsedLiters: number
+  tripDurationSec: number
+  avgSpeedKmh: number
+  odometerKm: number
+  awdRearCoupling: number
+  frontAxleTorqueNm: number
+  rearAxleTorqueNm: number
+  frontTorqueSplitPercent: number
+  rearTorqueSplitPercent: number
+  torqueSplitSource: DrivetrainTorqueSplitSource
 
   // Dinâmica Térmica & Danos
   coolantTemp: number
@@ -874,7 +1159,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   collisionBoundaryName: null,
   surfaceType: 'asphalt',
   zoneName: 'Rotatória Central',
+  hasAbs: true,
   absEngaged: false,
+  absFault: false,
   isAirbrakeActive: false,
   isMapOpen: true,
   mapViewportSize: 'balanced',
@@ -887,11 +1174,31 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   topSpeedRecord: 0,
   _timer0to100State: createInitialZeroToHundredState(),
 
-  // Sistema de Combustível
+  // Sistema de Combustível & Computador de Bordo Real
   fuelLevelLiters: 45,
   fuelCapacityLiters: 50,
   fuelType: 'common_gasoline',
   isOutOfFuel: false,
+  liveTorqueNm: 0,
+  livePowerHp: 0,
+  instantFuelBurnLh: 0,
+  instantConsumptionKmL: 0,
+  hasMeasuredAvgConsumption: false,
+  avgConsumptionKmL: 0,
+  cruiseReferenceConsumptionKmL: 0,
+  estimatedRangeKm: 0,
+  rangeEstimationSource: 'cruise_reference',
+  tripDistanceKm: 0,
+  tripFuelUsedLiters: 0,
+  tripDurationSec: 0,
+  avgSpeedKmh: 0,
+  odometerKm: 0,
+  awdRearCoupling: 0,
+  frontAxleTorqueNm: 0,
+  rearAxleTorqueNm: 0,
+  frontTorqueSplitPercent: 100,
+  rearTorqueSplitPercent: 0,
+  torqueSplitSource: 'nominal_idle_coupling',
 
   // Dinâmica Térmica & Danos
   coolantTemp: 88,
@@ -985,6 +1292,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   _phys: createInitialPhysicsInternalState(),
 
   init: (config: VehicleConfig, initialUpgrades?: Partial<CarUpgrades>, garageInstanceId?: string | null) => {
+    const prevBeforeInit = get()
+    if (prevBeforeInit._isInitialized && prevBeforeInit.garageInstanceId) {
+      flushPendingMileageToGarage(prevBeforeInit.garageInstanceId, prevBeforeInit._phys, 0.001)
+    }
+
     const caps = getVehicleCapabilities(config)
     const isAutoOrCvt =
       caps.transmissionType === 'automatic' ||
@@ -1056,7 +1368,40 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     transmission.shiftTo(isAutoOrCvt ? -2 : 0, 0, undefined, true)
 
-    const initialPhys = createInitialPhysicsInternalState({ gear: isAutoOrCvt ? -2 : 0 })
+    const declaredFuelCapacity =
+      config.dashboard.fuelCapacity && config.dashboard.fuelCapacity > 0
+        ? config.dashboard.fuelCapacity
+        : 50
+    const initialFuelLevel = Math.round(declaredFuelCapacity * 0.9 * 1000) / 1000
+    const initialFuelType: FuelType = initialUpgrades?.fuelType || resolvedFuel.defaultFuelType
+    const initialTuningStage: 0 | 1 | 2 | 3 = initialUpgrades?.tuningStage ?? 0
+    const initialCruiseRefKmL = computePhysicsSteadyCruiseKmL(
+      config,
+      initialFuelType,
+      initialTuningStage,
+    )
+    const initialEstimatedRangeKm = Math.round(initialFuelLevel * initialCruiseRefKmL)
+    const initialAxleSplit = computeAxleTorqueSplitPercent(resolvedDrivetrain, 'auto', 0, 0, 0)
+    const matchedGarageCar = garageInstanceId
+      ? useGarageStore.getState().getCarById(garageInstanceId)
+      : useGarageStore.getState().resolveInstanceForVehicle(config.id)
+    const baseMileageKm = matchedGarageCar?.mileageKm ?? 0
+
+    const initialPhys = createInitialPhysicsInternalState({
+      gear: isAutoOrCvt ? -2 : 0,
+      fuelLevelLiters: initialFuelLevel,
+      hasMeasuredAvgConsumption: false,
+      avgConsumptionKmL: 0,
+      cruiseReferenceConsumptionKmL: initialCruiseRefKmL,
+      estimatedRangeKm: initialEstimatedRangeKm,
+      rangeEstimationSource: 'cruise_reference',
+      odometerKm: baseMileageKm,
+      persistedMileageFloorKm: baseMileageKm,
+      awdRearCoupling: initialAxleSplit.coupling,
+      frontTorqueSplitPercent: initialAxleSplit.frontPercent,
+      rearTorqueSplitPercent: initialAxleSplit.rearPercent,
+      torqueSplitSource: initialAxleSplit.source,
+    })
     const initialCandidate: SimulationRuntimeCandidate = {
       phys: initialPhys,
       timer0to100State: createInitialZeroToHundredState(),
@@ -1132,7 +1477,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       collisionBoundaryName: null,
       surfaceType: 'asphalt',
       zoneName: 'Rotatória Central',
+      hasAbs: resolveVehicleHasAbs(config),
       absEngaged: false,
+      absFault: false,
       isAirbrakeActive: false,
       isAutomaticVehicle: isAutoOrCvt,
       ambientLightColor: defaultAmbientColor,
@@ -1215,10 +1562,30 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       tcsEnabled: hasTcs,
       tcsIntervening: false,
       tcsInterventionLevel: 0,
-      fuelType: initialUpgrades?.fuelType || resolvedFuel.defaultFuelType,
-      fuelLevelLiters: 45,
-      fuelCapacityLiters: 50,
+      fuelType: initialFuelType,
+      fuelLevelLiters: initialFuelLevel,
+      fuelCapacityLiters: declaredFuelCapacity,
       isOutOfFuel: false,
+      liveTorqueNm: 0,
+      livePowerHp: 0,
+      instantFuelBurnLh: 0,
+      instantConsumptionKmL: 0,
+      hasMeasuredAvgConsumption: false,
+      avgConsumptionKmL: 0,
+      cruiseReferenceConsumptionKmL: initialCruiseRefKmL,
+      estimatedRangeKm: initialEstimatedRangeKm,
+      rangeEstimationSource: 'cruise_reference',
+      tripDistanceKm: 0,
+      tripFuelUsedLiters: 0,
+      tripDurationSec: 0,
+      avgSpeedKmh: 0,
+      odometerKm: baseMileageKm,
+      awdRearCoupling: initialAxleSplit.coupling,
+      frontAxleTorqueNm: 0,
+      rearAxleTorqueNm: 0,
+      frontTorqueSplitPercent: initialAxleSplit.frontPercent,
+      rearTorqueSplitPercent: initialAxleSplit.rearPercent,
+      torqueSplitSource: initialAxleSplit.source,
       coolantTemp: 88,
       oilTemp: 92,
       isRadiatorFanOn: false,
@@ -1573,12 +1940,28 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setBatteryDischarged: (discharged: boolean) => {
-    const { _ignition } = get()
+    const { _ignition, hasAbs, absFault, _phys } = get()
     _ignition?.setBatteryDischarged(discharged)
     const snap = _ignition?.getStateSnapshot()
+    if (discharged || !hasAbs || absFault) {
+      _phys.absEngaged = false
+    }
     set({
       isBatteryDischarged: Boolean(discharged),
       batteryVoltageV: snap?.batteryVoltageV ?? (discharged ? 8.4 : IGNITION_CALIBRATION.BATTERY_REST_VOLTAGE_V),
+      absEngaged: discharged ? false : get().absEngaged,
+    })
+  },
+
+  setAbsFault: (fault: boolean) => {
+    const { hasAbs, _phys } = get()
+    const nextFault = hasAbs ? Boolean(fault) : false
+    if (nextFault || !hasAbs) {
+      _phys.absEngaged = false
+    }
+    set({
+      absFault: nextFault,
+      absEngaged: nextFault || !hasAbs ? false : get().absEngaged,
     })
   },
 
@@ -1604,6 +1987,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       isStalled: false,
       status: 'off',
       rpm: 0,
+      liveTorqueNm: 0,
+      livePowerHp: 0,
+      instantFuelBurnLh: 0,
+      instantConsumptionKmL: 0,
       throttle: 0,
       throttleLock: false,
       isKickdown: false,
@@ -1692,6 +2079,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setAmbientLightColor: (color: AmbientLightColor) => {
+    const { _config } = get()
+    if (_config && !supportsConfigurableAmbientRgb(_config)) {
+      return
+    }
     set({ ambientLightColor: color })
     HapticFeedback.light()
   },
@@ -1742,7 +2133,34 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setTuningStage: (stage: 0 | 1 | 2 | 3) => {
-    set({ tuningStage: stage })
+    set((s) => {
+      if (!s._config) return { tuningStage: stage }
+      const snap = computeConsumptionAndRangeSnapshot(
+        s._config,
+        s.fuelType,
+        stage,
+        s.fuelLevelLiters,
+        s._phys.tripDistanceKm,
+        s._phys.tripFuelUsedLiters,
+      )
+      const pubAvg = Math.round(snap.avgConsumptionKmL * 10) / 10
+      return {
+        tuningStage: stage,
+        hasMeasuredAvgConsumption: snap.hasMeasuredAvgConsumption,
+        avgConsumptionKmL: pubAvg,
+        cruiseReferenceConsumptionKmL: snap.cruiseReferenceConsumptionKmL,
+        estimatedRangeKm: snap.estimatedRangeKm,
+        rangeEstimationSource: snap.rangeEstimationSource,
+        _phys: {
+          ...s._phys,
+          hasMeasuredAvgConsumption: snap.hasMeasuredAvgConsumption,
+          avgConsumptionKmL: snap.avgConsumptionKmL,
+          cruiseReferenceConsumptionKmL: snap.cruiseReferenceConsumptionKmL,
+          estimatedRangeKm: snap.estimatedRangeKm,
+          rangeEstimationSource: snap.rangeEstimationSource,
+        },
+      }
+    })
     HapticFeedback.medium()
   },
 
@@ -2309,7 +2727,33 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       }
     }
 
-    set({ fourWheelDriveMode: mode, fourWheelDriveWarning: null })
+    set((s) => {
+      if (!s._config) {
+        return { fourWheelDriveMode: mode, fourWheelDriveWarning: null }
+      }
+      const nextSplit = computeAxleTorqueSplitPercent(
+        resolveVehicleDrivetrain(s._config),
+        mode,
+        s._phys.awdRearCoupling,
+        s._phys.frontAxleTorqueNm,
+        s._phys.rearAxleTorqueNm,
+      )
+      return {
+        fourWheelDriveMode: mode,
+        fourWheelDriveWarning: null,
+        awdRearCoupling: Math.round(nextSplit.coupling * 1000) / 1000,
+        frontTorqueSplitPercent: nextSplit.frontPercent,
+        rearTorqueSplitPercent: nextSplit.rearPercent,
+        torqueSplitSource: nextSplit.source,
+        _phys: {
+          ...s._phys,
+          awdRearCoupling: nextSplit.coupling,
+          frontTorqueSplitPercent: nextSplit.frontPercent,
+          rearTorqueSplitPercent: nextSplit.rearPercent,
+          torqueSplitSource: nextSplit.source,
+        },
+      }
+    })
   },
 
   toggleSimulatedManual: () => {
@@ -2918,14 +3362,38 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       const nextFuel = Math.min(s.fuelCapacityLiters, s._phys.fuelLevelLiters + (liters ?? s.fuelCapacityLiters))
       const nextDamageReason = s.damageReason === 'Pane Seca: Sem combustível!' ? null : s.damageReason
       const publishedFuel = Math.round(nextFuel * 1000) / 1000
+      if (!s._config) {
+        return {
+          fuelLevelLiters: publishedFuel,
+          isOutOfFuel: false,
+          damageReason: nextDamageReason,
+        }
+      }
+      const snap = computeConsumptionAndRangeSnapshot(
+        s._config,
+        s.fuelType,
+        s.tuningStage,
+        publishedFuel,
+        s._phys.tripDistanceKm,
+        s._phys.tripFuelUsedLiters,
+      )
       return {
         fuelLevelLiters: publishedFuel,
+        hasMeasuredAvgConsumption: snap.hasMeasuredAvgConsumption,
+        cruiseReferenceConsumptionKmL: snap.cruiseReferenceConsumptionKmL,
+        estimatedRangeKm: snap.estimatedRangeKm,
+        rangeEstimationSource: snap.rangeEstimationSource,
         isOutOfFuel: false,
         damageReason: nextDamageReason,
         _phys: {
           ...s._phys,
           fuelLevelLiters: nextFuel,
           lastPubFuelLevelLiters: publishedFuel,
+          hasMeasuredAvgConsumption: snap.hasMeasuredAvgConsumption,
+          avgConsumptionKmL: snap.avgConsumptionKmL,
+          cruiseReferenceConsumptionKmL: snap.cruiseReferenceConsumptionKmL,
+          estimatedRangeKm: snap.estimatedRangeKm,
+          rangeEstimationSource: snap.rangeEstimationSource,
           isOutOfFuel: false,
           lastPubIsOutOfFuel: false,
           damageReason: nextDamageReason,
@@ -2936,13 +3404,41 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setFuelType: (type: FuelType) => {
-    set({ fuelType: type })
+    set((s) => {
+      if (!s._config) return { fuelType: type }
+      const snap = computeConsumptionAndRangeSnapshot(
+        s._config,
+        type,
+        s.tuningStage,
+        s.fuelLevelLiters,
+        s._phys.tripDistanceKm,
+        s._phys.tripFuelUsedLiters,
+      )
+      const pubAvg = Math.round(snap.avgConsumptionKmL * 10) / 10
+      return {
+        fuelType: type,
+        hasMeasuredAvgConsumption: snap.hasMeasuredAvgConsumption,
+        avgConsumptionKmL: pubAvg,
+        cruiseReferenceConsumptionKmL: snap.cruiseReferenceConsumptionKmL,
+        estimatedRangeKm: snap.estimatedRangeKm,
+        rangeEstimationSource: snap.rangeEstimationSource,
+        _phys: {
+          ...s._phys,
+          hasMeasuredAvgConsumption: snap.hasMeasuredAvgConsumption,
+          avgConsumptionKmL: snap.avgConsumptionKmL,
+          cruiseReferenceConsumptionKmL: snap.cruiseReferenceConsumptionKmL,
+          estimatedRangeKm: snap.estimatedRangeKm,
+          rangeEstimationSource: snap.rangeEstimationSource,
+        },
+      }
+    })
     HapticFeedback.light()
   },
 
   repairEngine: () => {
     set((s) => {
-      const nextFuel = Math.max(s._phys.fuelLevelLiters, 15)
+      const minEmergencyFuel = Math.min(s.fuelCapacityLiters, Math.max(4, s.fuelCapacityLiters * 0.3))
+      const nextFuel = Math.min(s.fuelCapacityLiters, Math.max(s._phys.fuelLevelLiters, minEmergencyFuel))
       const publishedFuel = Math.round(nextFuel * 1000) / 1000
       return {
         isEngineBlown: false,
@@ -3111,6 +3607,40 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         lastPubTopSpeedRecord: 0,
       },
     }))
+  },
+
+  resetTripStats: () => {
+    set((s) => {
+      const refKmL = s._config
+        ? computePhysicsSteadyCruiseKmL(s._config, s.fuelType, s.tuningStage)
+        : s.cruiseReferenceConsumptionKmL
+      const nextSource: RangeEstimationSource =
+        s.fuelLevelLiters <= 0 ? 'out_of_fuel' : 'cruise_reference'
+      const nextRange = s.fuelLevelLiters <= 0 ? 0 : Math.round(s.fuelLevelLiters * refKmL)
+      return {
+        tripDistanceKm: 0,
+        tripFuelUsedLiters: 0,
+        tripDurationSec: 0,
+        avgSpeedKmh: 0,
+        hasMeasuredAvgConsumption: false,
+        avgConsumptionKmL: 0,
+        cruiseReferenceConsumptionKmL: refKmL,
+        estimatedRangeKm: nextRange,
+        rangeEstimationSource: nextSource,
+        _phys: {
+          ...s._phys,
+          tripDistanceKm: 0,
+          tripFuelUsedLiters: 0,
+          tripDurationSec: 0,
+          avgSpeedKmh: 0,
+          hasMeasuredAvgConsumption: false,
+          avgConsumptionKmL: 0,
+          cruiseReferenceConsumptionKmL: refKmL,
+          estimatedRangeKm: nextRange,
+          rangeEstimationSource: nextSource,
+        },
+      }
+    })
   },
 
   setNosActive: (active: boolean) => {
@@ -3689,8 +4219,33 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         substepPhys.collisionBoundaryName = physicsTick.collisionBoundaryName
         substepPhys.surfaceType = physicsTick.surfaceType
         substepPhys.zoneName = physicsTick.zoneName
-        substepPhys.absEngaged = physicsTick.absEngaged
+        substepPhys.absEngaged =
+          state.hasAbs && !state.absFault && !state.isBatteryDischarged
+            ? physicsTick.absEngaged
+            : false
         substepPhys.isAirbrakeActive = physicsTick.isAirbrakeActive
+        substepPhys.frontAxleTorqueNm = physicsTick.frontAxleTorqueNm
+        substepPhys.rearAxleTorqueNm = physicsTick.rearAxleTorqueNm
+        const liveSplit = computeAxleTorqueSplitPercent(
+          resolveVehicleDrivetrain(_config),
+          ctx.fourWheelDriveMode,
+          physicsTick.awdRearCoupling,
+          physicsTick.frontAxleTorqueNm,
+          physicsTick.rearAxleTorqueNm,
+        )
+        substepPhys.awdRearCoupling = liveSplit.coupling
+        substepPhys.frontTorqueSplitPercent = liveSplit.frontPercent
+        substepPhys.rearTorqueSplitPercent = liveSplit.rearPercent
+        substepPhys.torqueSplitSource = liveSplit.source
+
+        if (substepPhys.isRunning && substepPhys.rpm > 1) {
+          const liveTorque = Math.max(0, _engine.getTorqueOutput() * totalTorqueMult)
+          substepPhys.liveTorqueNm = liveTorque
+          substepPhys.livePowerHp = (liveTorque * substepPhys.rpm) / 7023.496
+        } else {
+          substepPhys.liveTorqueNm = 0
+          substepPhys.livePowerHp = 0
+        }
 
         const prevSubstepSpeed = substepPhys.speedKmh
         substepPhys.speedKmh = gear === -2 ? 0 : physicsTick.speedKmh
@@ -3861,13 +4416,32 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           ? clamp(1.0 - ((substepPhys.brakeDiscTemp - fadeThreshold) / 250) * 0.55, 0.45, 1.0)
           : 1.0
 
-        // Sistema Real de Combustível & Consumo Dinâmico
+        // Sistema Real de Combustível, Consumo Dinâmico & Computador de Bordo Físico
+        const stepDistanceKm = Math.max(0, (substepPhys.speedKmh * dt) / 3600)
+        substepPhys.tripDistanceKm += stepDistanceKm
+        substepPhys.odometerKm += stepDistanceKm
+        if (substepPhys.isRunning || substepPhys.speedKmh > 0.2) {
+          substepPhys.tripDurationSec += dt
+        }
+        substepPhys.avgSpeedKmh =
+          substepPhys.tripDurationSec >= 1.0
+            ? substepPhys.tripDistanceKm / (substepPhys.tripDurationSec / 3600)
+            : 0
+
         if (substepPhys.isRunning) {
           const hours = dt / 3600
           const fuelMult = ctx.fuelType === 'ethanol_e100' ? 1.34 : 1.0
           const stageFuelFactor = stage === 1 ? 1.2 : stage === 2 ? 1.4 : stage === 3 ? 1.8 : 1.0
           const burnPerHour = (0.85 + ctx.throttle * 22.0 + (substepPhys.rpm / _config.engine.maxRpm) * 8.5) * stageFuelFactor * fuelMult
+          const prevFuel = substepPhys.fuelLevelLiters
           substepPhys.fuelLevelLiters = Math.max(0, substepPhys.fuelLevelLiters - burnPerHour * hours)
+          const burnedDeltaLiters = Math.max(0, prevFuel - substepPhys.fuelLevelLiters)
+          substepPhys.tripFuelUsedLiters += burnedDeltaLiters
+          substepPhys.instantFuelBurnLh = burnPerHour
+          substepPhys.instantConsumptionKmL =
+            substepPhys.speedKmh >= 2.0 && burnPerHour > 0.01
+              ? clamp(substepPhys.speedKmh / burnPerHour, 0, 99.9)
+              : 0
 
           if (substepPhys.fuelLevelLiters <= 0.005) {
             substepPhys.fuelLevelLiters = 0
@@ -3875,9 +4449,30 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             substepPhys.isRunning = false
             substepPhys.isStalled = true
             substepPhys.status = 'stalled'
+            substepPhys.instantFuelBurnLh = 0
+            substepPhys.instantConsumptionKmL = 0
+            substepPhys.liveTorqueNm = 0
+            substepPhys.livePowerHp = 0
             _engine.stop()
           }
+        } else {
+          substepPhys.instantFuelBurnLh = 0
+          substepPhys.instantConsumptionKmL = 0
         }
+
+        const consumptionSnap = computeConsumptionAndRangeSnapshot(
+          _config,
+          ctx.fuelType,
+          stage,
+          substepPhys.fuelLevelLiters,
+          substepPhys.tripDistanceKm,
+          substepPhys.tripFuelUsedLiters,
+        )
+        substepPhys.hasMeasuredAvgConsumption = consumptionSnap.hasMeasuredAvgConsumption
+        substepPhys.avgConsumptionKmL = consumptionSnap.avgConsumptionKmL
+        substepPhys.cruiseReferenceConsumptionKmL = consumptionSnap.cruiseReferenceConsumptionKmL
+        substepPhys.estimatedRangeKm = consumptionSnap.estimatedRangeKm
+        substepPhys.rangeEstimationSource = consumptionSnap.rangeEstimationSource
 
         // Dinâmica Térmica do Motor, Termostática, Ventoinha (com Histerese) e Óleo
         const targetCoolant = _config.dashboard.coolantTempTarget ?? 88
@@ -4277,6 +4872,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const pubBrakeDiscTemp = shouldUpdateSlow ? Math.round(phys.brakeDiscTemp * 10) / 10 : state.brakeDiscTemp
     const pubBrakeFadeFactor = shouldUpdateSlow ? phys.brakeFadeFactor : state.brakeFadeFactor
     const pubNosPressure = Math.round(phys.nosPressurePercent * 10) / 10
+    if (shouldUpdateSlow) {
+      flushPendingMileageToGarage(state.garageInstanceId, phys, 0.5)
+    }
 
     phys.lastPubBoost = pubBoost
     phys.lastPubPeakBoost = pubPeakBoost
@@ -4352,6 +4950,40 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       // Telemetria secundária desacoplada para evitar re-renderizações desnecessárias a 120Hz
       fuelLevelLiters: pubFuel,
       isOutOfFuel: pubOutOfFuel,
+      liveTorqueNm: Math.round(phys.liveTorqueNm * 10) / 10,
+      livePowerHp: Math.round(phys.livePowerHp * 10) / 10,
+      instantFuelBurnLh: Math.round(phys.instantFuelBurnLh * 100) / 100,
+      instantConsumptionKmL: Math.round(phys.instantConsumptionKmL * 10) / 10,
+      hasMeasuredAvgConsumption: shouldUpdateSlow
+        ? phys.hasMeasuredAvgConsumption
+        : state.hasMeasuredAvgConsumption,
+      avgConsumptionKmL: shouldUpdateSlow
+        ? Math.round(phys.avgConsumptionKmL * 10) / 10
+        : state.avgConsumptionKmL,
+      cruiseReferenceConsumptionKmL: shouldUpdateSlow
+        ? phys.cruiseReferenceConsumptionKmL
+        : state.cruiseReferenceConsumptionKmL,
+      estimatedRangeKm: shouldUpdateSlow ? phys.estimatedRangeKm : state.estimatedRangeKm,
+      rangeEstimationSource: shouldUpdateSlow
+        ? phys.rangeEstimationSource
+        : state.rangeEstimationSource,
+      tripDistanceKm: shouldUpdateSlow
+        ? Math.round(phys.tripDistanceKm * 100) / 100
+        : state.tripDistanceKm,
+      tripFuelUsedLiters: shouldUpdateSlow
+        ? Math.round(phys.tripFuelUsedLiters * 1000) / 1000
+        : state.tripFuelUsedLiters,
+      tripDurationSec: shouldUpdateSlow ? Math.floor(phys.tripDurationSec) : state.tripDurationSec,
+      avgSpeedKmh: shouldUpdateSlow
+        ? Math.round(phys.avgSpeedKmh * 10) / 10
+        : state.avgSpeedKmh,
+      odometerKm: shouldUpdateSlow ? Math.round(phys.odometerKm * 10) / 10 : state.odometerKm,
+      awdRearCoupling: Math.round(phys.awdRearCoupling * 1000) / 1000,
+      frontAxleTorqueNm: Math.round(phys.frontAxleTorqueNm),
+      rearAxleTorqueNm: Math.round(phys.rearAxleTorqueNm),
+      frontTorqueSplitPercent: phys.frontTorqueSplitPercent,
+      rearTorqueSplitPercent: phys.rearTorqueSplitPercent,
+      torqueSplitSource: phys.torqueSplitSource,
       coolantTemp: pubCoolant,
       oilTemp: pubOil,
       isRadiatorFanOn: phys.isRadiatorFanOn,
@@ -4446,8 +5078,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   reset: () => {
-    const isManual = !get().isAutomaticVehicle
-    const supported = get()._config?.transmission.supportedSelectorPositions ?? []
+    const prevState = get()
+    if (prevState.garageInstanceId) {
+      flushPendingMileageToGarage(prevState.garageInstanceId, prevState._phys, 0.001)
+    }
+    const isManual = !prevState.isAutomaticVehicle
+    const supported = prevState._config?.transmission.supportedSelectorPositions ?? []
     const defaultSelector = isManual
       ? (supported.includes('N') ? 'N' : (supported[0] ?? 'N'))
       : (supported.includes('P') ? 'P' : (supported[0] ?? 'N'))
@@ -4507,7 +5143,28 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       current0to100: null,
       _timer0to100State: createInitialZeroToHundredState(),
       fuelLevelLiters: 45,
+      fuelCapacityLiters: 50,
       isOutOfFuel: false,
+      liveTorqueNm: 0,
+      livePowerHp: 0,
+      instantFuelBurnLh: 0,
+      instantConsumptionKmL: 0,
+      hasMeasuredAvgConsumption: false,
+      avgConsumptionKmL: 0,
+      cruiseReferenceConsumptionKmL: 0,
+      estimatedRangeKm: 0,
+      rangeEstimationSource: 'cruise_reference',
+      tripDistanceKm: 0,
+      tripFuelUsedLiters: 0,
+      tripDurationSec: 0,
+      avgSpeedKmh: 0,
+      odometerKm: 0,
+      awdRearCoupling: 0,
+      frontAxleTorqueNm: 0,
+      rearAxleTorqueNm: 0,
+      frontTorqueSplitPercent: 100,
+      rearTorqueSplitPercent: 0,
+      torqueSplitSource: 'nominal_idle_coupling',
       coolantTemp: 88,
       oilTemp: 92,
       isRadiatorFanOn: false,
@@ -4600,7 +5257,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       collisionBoundaryName: null,
       surfaceType: 'asphalt',
       zoneName: 'Rotatória Central',
+      hasAbs: true,
       absEngaged: false,
+      absFault: false,
       isAirbrakeActive: false,
       _phys: createInitialPhysicsInternalState({
         gear: initialGear,

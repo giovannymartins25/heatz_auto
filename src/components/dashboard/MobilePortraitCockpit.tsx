@@ -13,7 +13,7 @@ import { useSecondaryTouchTapBridge } from '@/utils/multitouchBridge'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { HudMinimap } from './HudMinimap'
 import { WorldMapModal } from './WorldMapModal'
-import { CockpitPanelCarousel } from '@/components/cockpit'
+import { CockpitPanelCarousel, PanelModeInteriorView } from '@/components/cockpit'
 import { useUIStore } from '@/stores/useUIStore'
 import { MobileQuickMenu } from './MobileQuickMenu'
 import { formatZeroToHundredSeconds } from '@/systems/vehicle'
@@ -148,20 +148,29 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
 
         {/* Lado direito do header */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <button
-            type="button"
-            onClick={toggleWorldMap}
-            data-testid="btn-world-map"
-            className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all active:scale-95 cursor-pointer shadow-sm ${
-              isWorldMapOpen
-                ? 'bg-sky-500/25 text-sky-200 border-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.6)]'
-                : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:text-white'
-            }`}
-            title="Abrir Mapa do Mundo 2D"
-            aria-label="Abrir mapa do mundo"
-          >
-            🗺️
-          </button>
+          {isDriveMode ? (
+            <button
+              type="button"
+              onClick={toggleWorldMap}
+              data-testid="btn-world-map"
+              className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all active:scale-95 cursor-pointer shadow-sm ${
+                isWorldMapOpen
+                  ? 'bg-sky-500/25 text-sky-200 border-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.6)]'
+                  : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:text-white'
+              }`}
+              title="Abrir Mapa do Mundo 2D"
+              aria-label="Abrir mapa do mundo"
+            >
+              🗺️
+            </button>
+          ) : (
+            <span
+              data-testid="badge-panel-mode"
+              className="px-2 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-500/35 text-[7.5px] font-mono font-black uppercase text-cyan-300"
+            >
+              PAINEL
+            </span>
+          )}
 
           <button
             type="button"
@@ -176,13 +185,15 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             📢
           </button>
 
-          <div className={`px-2 py-0.5 rounded-full bg-zinc-900 border text-[8px] font-mono shadow-sm ${
-            isTiming0to100 ? 'border-amber-400/70 text-amber-300' : 'border-white/10 text-zinc-300'
-          }`}>
-            0-100: <b className={last0to100 !== null ? 'text-amber-400 font-bold' : 'text-zinc-500 font-normal'}>
-              {formatZeroToHundredSeconds(last0to100)}
-            </b>
-          </div>
+          {isDriveMode && (
+            <div className={`px-2 py-0.5 rounded-full bg-zinc-900 border text-[8px] font-mono shadow-sm ${
+              isTiming0to100 ? 'border-amber-400/70 text-amber-300' : 'border-white/10 text-zinc-300'
+            }`}>
+              0-100: <b className={last0to100 !== null ? 'text-amber-400 font-bold' : 'text-zinc-500 font-normal'}>
+                {formatZeroToHundredSeconds(last0to100)}
+              </b>
+            </div>
+          )}
         </div>
       </header>
 
@@ -218,6 +229,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
                   compact
                   telemetry={telemetry}
                   vehicle={vehicle}
+                  onOpenDragStrip={() => setIsDragStripOpen(true)}
                 />
               </div>
             )}
@@ -237,19 +249,16 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             </div>
           </div>
         ) : (
-          /* MODO PAINEL: Foco no carrossel modular de 3 painéis */
-          <div className="w-full h-full flex items-center justify-center min-h-0 self-stretch relative">
-            <CockpitPanelCarousel
-              telemetry={telemetry}
-              vehicle={vehicle}
-              expanded={true}
-              supportsPaddleShifters={caps.supportsPaddleShifters}
-              isManualActive={isManualActive}
-              hasTurbo={hasTurbo}
-              showAftermarketBoostGauge={showAftermarketBoostGauge}
-              boostPressureBar={boostPressureBar}
-            />
-          </div>
+          /* MODO PAINEL DIRIGÍVEL: Controles no topo (ex-GPS) · Cluster centralizado · Multimídia abaixo */
+          <PanelModeInteriorView
+            layout="mobile_portrait"
+            telemetry={telemetry}
+            vehicle={vehicle}
+            carInstance={activeCar}
+            hasTurbo={hasTurbo}
+            showAftermarketBoostGauge={showAftermarketBoostGauge}
+            boostPressureBar={boostPressureBar}
+          />
         )}
       </main>
 
@@ -275,9 +284,9 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         </div>
       </div>
 
-      {/* ─── 3.5. Faixa Superior aos Pedais: Minimapa Fixo de Condução + Indicador de Direção Mobile ─── */}
-      <div className="w-full flex items-center justify-between gap-1.5 py-0.5 px-1.5 flex-shrink-0">
-        <HudMinimap variant="mobile_portrait" />
+      {/* ─── 3.5. Faixa Superior aos Pedais: Minimapa Contextual (apenas Dirigir) + Indicador de Direção Mobile ─── */}
+      <div className="w-full flex items-end justify-between gap-1.5 py-0.5 px-1.5 flex-shrink-0">
+        {isDriveMode && <HudMinimap variant="mobile_portrait" />}
         <div className="flex-1 flex items-center justify-end min-w-0">
           <SteeringControlZone vehicle={vehicle} />
         </div>
@@ -414,8 +423,8 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         onExit={onBack}
       />
 
-      {isDragStripOpen && <DragStripTree onClose={() => setIsDragStripOpen(false)} />}
-      <WorldMapModal vehicle={vehicle} />
+      {isDriveMode && isDragStripOpen && <DragStripTree onClose={() => setIsDragStripOpen(false)} />}
+      {isDriveMode && <WorldMapModal vehicle={vehicle} />}
       {isDynoOpen && (
         <DynoTestModal config={vehicle} upgrades={activeCar?.upgrades} onClose={() => setIsDynoOpen(false)} />
       )}

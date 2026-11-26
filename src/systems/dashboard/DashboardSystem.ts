@@ -1,8 +1,12 @@
 import type { VehicleConfig, DashboardConfig, DashboardTheme, DrivingMode } from '@/types'
+import type { IgnitionPosition } from '@/types/vehicle'
 import type { EngineStatus } from '@/types/simulation'
 import type { TransmissionMode } from '@/stores/useSimulationStore'
+import { resolveVehicleHasAbs } from '@/systems/vehicle/vehicleResolvers'
 import { clamp, mapRange } from '@/utils/math'
 import { formatGear } from '@/utils/format'
+
+export type AbsOperationalStatus = 'unavailable' | 'off' | 'standby' | 'active' | 'fault'
 
 export interface DashboardInput {
   rpm: number
@@ -23,6 +27,12 @@ export interface DashboardInput {
   hasClutch: boolean
   throttle: number
   brake: number
+  handbrake?: boolean
+  ignitionPosition?: IgnitionPosition
+  hasAbs?: boolean
+  absEngaged?: boolean
+  absFault?: boolean
+  isBatteryDischarged?: boolean
   clutchPosition: number
   clutchSlipRpm: number
   clutchSlipRatio: number
@@ -99,11 +109,26 @@ export interface DashboardTelemetry {
     intervening: boolean
     interventionLevel: number
   }
+  abs: {
+    available: boolean
+    status: AbsOperationalStatus
+    active: boolean
+    fault: boolean
+  }
   warningLights: {
     checkEngine: boolean
     oil: boolean
     battery: boolean
+    /** Luz espia de freio de estacionamento no painel ((P) / (!)) — acionada pelo freio de mão, nunca pelo freio de serviço */
     brake: boolean
+    /** Freio de mão (estacionamento) acionado */
+    parkingBrake: boolean
+    /** Pedal/manete de freio de serviço acionado */
+    serviceBrake: boolean
+    /** Módulo ABS modulando ativamente a frenagem no limite de aderência */
+    absActive: boolean
+    /** Falha/anomalia no sistema ABS */
+    absFault: boolean
     tcs: boolean
     tcsFlash: boolean
     temp: boolean
@@ -149,6 +174,12 @@ export class DashboardSystem {
       hasClutch,
       throttle,
       brake,
+      handbrake,
+      ignitionPosition,
+      hasAbs: inputHasAbs,
+      absEngaged,
+      absFault,
+      isBatteryDischarged,
       clutchPosition,
       clutchSlipRpm,
       clutchSlipRatio,
@@ -258,22 +289,60 @@ export class DashboardSystem {
     const coolantTemp = inputCoolantTemp ?? tempTarget
     const oilTemp = inputOilTemp ?? coolantTemp + 4
 
-    // 7. Luzes de aviso automotivas (Tell-tales baseadas em estados reais)
+    // 7. Luzes de aviso automotivas (Tell-tales baseadas em estados reais e posição da ignição)
+    const isIgnitionOff = ignitionPosition === 'OFF'
+    const isAccessoryOnly = ignitionPosition === 'ACC'
+    const isPanelPowered = !isIgnitionOff && !isAccessoryOnly
+    const parkingBrakeActive = Boolean(handbrake)
+    const serviceBrakeActive = brake > 0.05
+    const absAvailable = inputHasAbs ?? true
+    // Falha de ABS: somente quando equipado com ABS, painel energizado (ON/CRANK) e houver falha explícita
+    // do módulo ou subtensão severa da bateria (<9.6V / descarregada) que inibe a bomba eletro-hidráulica.
+    const absFaultActive =
+      absAvailable && isPanelPowered && (Boolean(absFault) || Boolean(isBatteryDischarged))
+    // ABS atuando normalmente: somente quando equipado, sem falha ativa e com modulação real de roda (absEngaged).
+    // Pisar no freio normalmente sem escorregar roda NÃO ativa absActive nem absFault.
+    const absModulatingActive =
+      absAvailable && !isIgnitionOff && !absFaultActive && Boolean(absEngaged)
+    const absStatus: AbsOperationalStatus = !absAvailable
+      ? 'unavailable'
+      : !isPanelPowered
+        ? 'off'
+        : absFaultActive
+          ? 'fault'
+          : absModulatingActive
+            ? 'active'
+            : 'standby'
+
     const warningLights = {
-      // Check engine: acende se motor estolou, fundiu ou no auto-teste durante partida
-      checkEngine: engineStatus === 'stalled' || engineStatus === 'starting' || Boolean(isEngineBlown),
-      // Luz de óleo: acende se motor desligado ou estolado (bomba sem pressão)
-      oil: engineStatus === 'off' || engineStatus === 'stalled',
-      // Bateria/Alternador: acende se não está gerando carga com motor ligado
-      battery: engineStatus === 'off' || engineStatus === 'starting' || engineStatus === 'stalled',
-      // Freio: acende quando pedal de freio está pressionado
-      brake: brake > 0.05,
-      // TCS: acende fixo quando TCS desativado
-      tcs: !tcsEnabled,
-      // TCS flash: pisca durante intervenção
-      tcsFlash: tcsEnabled && tcsIntervening,
-      // Temperatura: acende se temperatura >= 115°C ou motor superaqueceu
-      temp: coolantTemp >= 115 || Boolean(isEngineBlown),
+      // Check engine: apagado em OFF/ACC; acende se motor estolou, fundiu ou no auto-teste durante partida
+      checkEngine:
+        isPanelPowered &&
+        (engineStatus === 'stalled' || engineStatus === 'starting' || Boolean(isEngineBlown)),
+      // Luz de óleo: apagada em OFF/ACC; acende na ignição ON com motor desligado ou estolado (bomba sem pressão)
+      oil: isPanelPowered && (engineStatus === 'off' || engineStatus === 'stalled'),
+      // Bateria/Alternador: apagada em OFF; em ACC só se descarregada; em ON acende sem carga do alternador ou bateria baixa
+      battery: isIgnitionOff
+        ? false
+        : isAccessoryOnly
+          ? Boolean(isBatteryDischarged)
+          : engineStatus === 'off' ||
+            engineStatus === 'starting' ||
+            engineStatus === 'stalled' ||
+            Boolean(isBatteryDischarged),
+      // Freio no cluster ((P)): reflete exclusivamente o freio de mão, nunca o simples toque no freio de serviço
+      brake: !isIgnitionOff && parkingBrakeActive,
+      parkingBrake: parkingBrakeActive,
+      serviceBrake: serviceBrakeActive,
+      // ABS ativo (modulação dinâmica real) separado estritamente de falha de ABS e de ABS indisponível
+      absActive: absModulatingActive,
+      absFault: absFaultActive,
+      // TCS: apagado em OFF/ACC; acende fixo quando TCS desativado
+      tcs: isPanelPowered && !tcsEnabled,
+      // TCS flash: pisca durante intervenção real
+      tcsFlash: isPanelPowered && tcsEnabled && tcsIntervening,
+      // Temperatura: apagada em OFF; acende se temperatura >= 115°C ou motor superaqueceu
+      temp: !isIgnitionOff && (coolantTemp >= 115 || Boolean(isEngineBlown)),
       // Clutch slip: indica patinão ativa da embreagem
       clutchSlip: hasClutch && (isClutchSlipping ?? false),
       // Bog warning: motor amarrando (pré-afogamento)
@@ -339,6 +408,12 @@ export class DashboardSystem {
         intervening: tcsIntervening,
         interventionLevel: tcsInterventionLevel,
       },
+      abs: {
+        available: absAvailable,
+        status: absStatus,
+        active: absModulatingActive,
+        fault: absFaultActive,
+      },
       warningLights,
       auxGauges: {
         fuelLevel,
@@ -371,6 +446,12 @@ export class DashboardSystem {
       isKickdown: boolean
       throttle: number
       brake: number
+      handbrake?: boolean
+      ignitionPosition?: IgnitionPosition
+      hasAbs?: boolean
+      absEngaged?: boolean
+      absFault?: boolean
+      isBatteryDischarged?: boolean
       clutchPosition: number
       clutchSlipRpm: number
       clutchSlipRatio: number
@@ -406,6 +487,12 @@ export class DashboardSystem {
       hasClutch: config.transmission.hasClutch,
       throttle: state.throttle,
       brake: state.brake,
+      handbrake: state.handbrake,
+      ignitionPosition: state.ignitionPosition,
+      hasAbs: state.hasAbs ?? resolveVehicleHasAbs(config),
+      absEngaged: state.absEngaged,
+      absFault: state.absFault,
+      isBatteryDischarged: state.isBatteryDischarged,
       clutchPosition: state.clutchPosition,
       clutchSlipRpm: state.clutchSlipRpm,
       clutchSlipRatio: state.clutchSlipRatio,

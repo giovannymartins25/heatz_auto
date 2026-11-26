@@ -29,7 +29,6 @@ export const Pedals = memo(function Pedals({ vehicle: propVehicle }: PedalsProps
   const setThrottle = useSimulationStore((s) => s.setThrottle)
   const setBrake = useSimulationStore((s) => s.setBrake)
   const setClutch = useSimulationStore((s) => s.setClutch)
-  const isRunning = useSimulationStore((s) => s.isRunning)
 
   const hasClutch = vehicle?.transmission.hasClutch ?? false
   const category = vehicle?.info.category ?? 'car'
@@ -43,7 +42,7 @@ export const Pedals = memo(function Pedals({ vehicle: propVehicle }: PedalsProps
           category="motorcycle"
           value={clutchPosition}
           onChange={setClutch}
-          disabled={!isRunning}
+          disabled={false}
         />
       )}
 
@@ -55,7 +54,7 @@ export const Pedals = memo(function Pedals({ vehicle: propVehicle }: PedalsProps
             category="car"
             value={clutchPosition}
             onChange={setClutch}
-            disabled={!isRunning}
+            disabled={false}
           />
         )}
 
@@ -68,7 +67,7 @@ export const Pedals = memo(function Pedals({ vehicle: propVehicle }: PedalsProps
           colorTheme="red"
           widthClass="w-15 xl:w-16"
           heightClass="h-28 xl:h-36"
-          disabled={!isRunning}
+          disabled={false}
           showPercent={true}
         />
 
@@ -81,7 +80,7 @@ export const Pedals = memo(function Pedals({ vehicle: propVehicle }: PedalsProps
           colorTheme="accent"
           widthClass="w-14"
           heightClass="h-28 xl:h-36"
-          disabled={!isRunning}
+          disabled={false}
           showPercent={true}
         />
       </div>

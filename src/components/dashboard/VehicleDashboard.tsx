@@ -70,6 +70,11 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const isRunning = useSimulationStore((s) => s.isRunning)
   const handbrake = useSimulationStore((s) => s.handbrake)
   const toggleHandbrake = useSimulationStore((s) => s.toggleHandbrake)
+  const ignitionPosition = useSimulationStore((s) => s.ignitionPosition)
+  const hasAbs = useSimulationStore((s) => s.hasAbs)
+  const absEngaged = useSimulationStore((s) => s.absEngaged)
+  const absFault = useSimulationStore((s) => s.absFault)
+  const isBatteryDischarged = useSimulationStore((s) => s.isBatteryDischarged)
   const setHorn = useSimulationStore((s) => s.setHorn)
   const isMuted = useSimulationStore((s) => s.isMuted)
   const toggleMute = useSimulationStore((s) => s.toggleMute)
@@ -108,6 +113,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const instanceIdFromUrl = searchParams.get('instance')
   const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const activeCar = resolveInstanceForVehicle(vehicle.id, instanceIdFromUrl)
+  const activeCarInstanceId = activeCar?.instanceId ?? null
 
   const [isTuningOpen, setIsTuningOpen] = useState(false)
   const [isDragStripOpen, setIsDragStripOpen] = useState(false)
@@ -123,9 +129,14 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const mapViewportSize = useUIStore((s) => s.mapViewportSize)
   const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
 
-  // Inicializar a física com as especificações do veículo e peças equipadas da unidade exata da garagem
+  // Inicializar a física apenas quando o veículo, a instância selecionada ou o modo mudarem
+  // (NÃO depender da referência mutável `activeCar`, evitando reiniciar a sessão quando addMileageKm
+  // ou installUpgrade atualizam o objeto na useGarageStore).
   useEffect(() => {
-    init(vehicle, activeCar?.upgrades, activeCar?.instanceId)
+    const currentInstance = useGarageStore
+      .getState()
+      .resolveInstanceForVehicle(vehicle.id, instanceIdFromUrl)
+    init(vehicle, currentInstance?.upgrades, currentInstance?.instanceId)
     // No modo DIRIGIR, garante a abertura automática do mundo 2D dirigível
     if (entryMode === 'drive') {
       useUIStore.getState().setMapOpen(true)
@@ -136,7 +147,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
       useUIStore.getState().closeWorldMap()
       reset()
     }
-  }, [vehicle, activeCar, init, reset, entryMode])
+  }, [vehicle, activeCarInstanceId, instanceIdFromUrl, init, reset, entryMode])
 
   // Disparar loop de física (120Hz)
   useSimulationLoop()
@@ -164,6 +175,12 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
       isKickdown,
       throttle,
       brake,
+      handbrake,
+      ignitionPosition,
+      hasAbs,
+      absEngaged,
+      absFault,
+      isBatteryDischarged,
       clutchPosition,
       clutchSlipRpm,
       clutchSlipRatio,
@@ -196,6 +213,12 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
     isKickdown,
     throttle,
     brake,
+    handbrake,
+    ignitionPosition,
+    hasAbs,
+    absEngaged,
+    absFault,
+    isBatteryDischarged,
     clutchPosition,
     clutchSlipRpm,
     clutchSlipRatio,
@@ -221,25 +244,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
     exhaustType: activeCar?.upgrades?.exhaustType ?? exhaustType,
     hasExhaustValveKit: activeCar?.upgrades?.hasExhaustValveKit ?? hasExhaustValveKit,
   })
-
-  // ── Separação Completa do Modo Painel (Interior do Veículo — Fase 4.4.2.2) ──
-  // Renderiza experiência dedicada de interior em Desktop, Mobile Portrait e Mobile Landscape,
-  // sem minimapa, sem mapa 2D e sem HUD/pedais de direção.
-  if (entryMode === 'cluster') {
-    return (
-      <PanelModeInteriorView
-        telemetry={telemetry}
-        vehicle={vehicle}
-        onBack={handleBack}
-        carInstance={activeCar}
-        hasTurbo={hasTurbo}
-        showAftermarketBoostGauge={showAftermarketBoostGauge}
-        boostPressureBar={boostPressureBar}
-        isTuningOpen={isTuningOpen}
-        setIsTuningOpen={setIsTuningOpen}
-      />
-    )
-  }
+  const isDriveMode = entryMode !== 'cluster'
 
   const isManualSimulated = transmissionMode === 'manual_simulated'
   const hasAutoManualToggle =
@@ -335,31 +340,35 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             <span>{tuningStage === 0 ? 'OFICINA' : `STAGE ${tuningStage}`}</span>
           </button>
 
-          {/* Botão Pista de Arrancada (Drag Strip 402m) */}
-          <button
-            onClick={() => setIsDragStripOpen(true)}
-            className="px-2.5 py-1 text-xs rounded-lg border border-amber-500/40 bg-amber-950/40 text-amber-300 hover:bg-amber-500/30 font-mono font-bold transition-all cursor-pointer flex items-center gap-1 shadow-md shadow-amber-950/40"
-            title="Abrir Pista de Arrancada 402m (Árvore de Natal NHRA)"
-          >
-            <span>🏁</span>
-            <span>402M DRAG</span>
-          </button>
+          {/* Botão Pista de Arrancada (Drag Strip 402m — exclusivo do Modo Dirigir) */}
+          {isDriveMode && (
+            <button
+              onClick={() => setIsDragStripOpen(true)}
+              className="px-2.5 py-1 text-xs rounded-lg border border-amber-500/40 bg-amber-950/40 text-amber-300 hover:bg-amber-500/30 font-mono font-bold transition-all cursor-pointer flex items-center gap-1 shadow-md shadow-amber-950/40"
+              title="Abrir Pista de Arrancada 402m (Árvore de Natal NHRA)"
+            >
+              <span>🏁</span>
+              <span>402M DRAG</span>
+            </button>
+          )}
 
-          {/* Botão Mapa do Mundo (visão ampla do mundo 2D e posição real do veículo) */}
-          <button
-            type="button"
-            onClick={toggleWorldMap}
-            aria-label="Abrir mapa do mundo"
-            data-testid="btn-world-map"
-            className={`px-2.5 py-1 text-xs rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${isWorldMapOpen
-              ? 'bg-sky-500/25 border-sky-400 text-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.45)]'
-              : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:bg-sky-500/15 hover:border-sky-400'
-              }`}
-            title="Abrir Mapa do Mundo 2D com sua posição atual"
-          >
-            <span>🗺️</span>
-            <span>MAPA</span>
-          </button>
+          {/* Botão Mapa do Mundo (exclusivo do Modo Dirigir) */}
+          {isDriveMode && (
+            <button
+              type="button"
+              onClick={toggleWorldMap}
+              aria-label="Abrir mapa do mundo"
+              data-testid="btn-world-map"
+              className={`px-2.5 py-1 text-xs rounded-lg border font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${isWorldMapOpen
+                ? 'bg-sky-500/25 border-sky-400 text-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.45)]'
+                : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:bg-sky-500/15 hover:border-sky-400'
+                }`}
+              title="Abrir Mapa do Mundo 2D com sua posição atual"
+            >
+              <span>🗺️</span>
+              <span>MAPA</span>
+            </button>
+          )}
 
           {/* Botão Vidros Elétricos & Acústica */}
           {vehicle.info.category !== 'motorcycle' && (
@@ -377,32 +386,43 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           )}
         </div>
 
-        {/* Centro do Topo: Seletor de Modo de Visualização (Cluster / Cockpit) + PerformanceBox */}
+        {/* Centro do Topo: Seletor de Modo de Visualização (Modo Dirigir) ou Identificação do Modo Painel */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-zinc-950/80 p-1 rounded-full border border-white/10 text-[9px] font-mono shadow-md">
-            <button
-              onClick={() => setViewMode('cluster')}
-              className={`px-3 py-1 rounded-full transition-all cursor-pointer ${viewMode === 'cluster'
-                ? 'bg-zinc-700 text-white font-bold shadow'
-                : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-            >
-              CLUSTER
-            </button>
-            <button
-              onClick={() => setViewMode('cockpit')}
-              className={`px-3 py-1 rounded-full transition-all cursor-pointer ${viewMode === 'cockpit'
-                ? 'bg-zinc-700 text-white font-bold shadow'
-                : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              title="Modo Cockpit com pista 3D e velocidade dinâmica"
-            >
-              COCKPIT
-            </button>
-          </div>
+          {isDriveMode ? (
+            <>
+              <div className="flex items-center gap-1 bg-zinc-950/80 p-1 rounded-full border border-white/10 text-[9px] font-mono shadow-md">
+                <button
+                  onClick={() => setViewMode('cluster')}
+                  className={`px-3 py-1 rounded-full transition-all cursor-pointer ${viewMode === 'cluster'
+                    ? 'bg-zinc-700 text-white font-bold shadow'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                >
+                  CLUSTER
+                </button>
+                <button
+                  onClick={() => setViewMode('cockpit')}
+                  className={`px-3 py-1 rounded-full transition-all cursor-pointer ${viewMode === 'cockpit'
+                    ? 'bg-zinc-700 text-white font-bold shadow'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  title="Modo Cockpit com pista 3D e velocidade dinâmica"
+                >
+                  COCKPIT
+                </button>
+              </div>
 
-          {/* Performance Box (0-100 km/h Dragy Timer) */}
-          <PerformanceBox />
+              {/* Performance Box (0-100 km/h Dragy Timer) */}
+              <PerformanceBox />
+            </>
+          ) : (
+            <span
+              data-testid="badge-panel-mode"
+              className="px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/40 font-mono text-[10px] font-black uppercase tracking-widest text-cyan-300"
+            >
+              🎛️ MODO PAINEL · INTERIOR DIRIGÍVEL
+            </span>
+          )}
         </div>
 
         {/* Informações do veículo e Atalhos */}
@@ -524,18 +544,20 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             </button>
           )}
 
-          {/* Botão de Faróis */}
-          <button
-            onClick={cycleHeadlights}
-            className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${headlightsMode !== 'off'
-              ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-[0_0_10px_rgba(56,189,248,0.4)]'
-              : 'bg-zinc-950/70 border-white/10 text-zinc-500'
-              }`}
-            title="Tecla L — Alterna Faróis (Desligado, Lanterna, Farol Baixo, Farol Alto)"
-          >
-            <span>💡</span>
-            <span>{headlightsMode.toUpperCase()}</span>
-          </button>
+          {/* Botão de Faróis (no Modo Painel já está visível logo abaixo nos Comandos Físicos da Cabine) */}
+          {isDriveMode && (
+            <button
+              onClick={cycleHeadlights}
+              className={`px-3 py-1 rounded-full border font-mono text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${headlightsMode !== 'off'
+                ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-[0_0_10px_rgba(56,189,248,0.4)]'
+                : 'bg-zinc-950/70 border-white/10 text-zinc-500'
+                }`}
+              title="Tecla L — Alterna Faróis (Desligado, Lanterna, Farol Baixo, Farol Alto)"
+            >
+              <span>💡</span>
+              <span>{headlightsMode.toUpperCase()}</span>
+            </button>
+          )}
 
           {/* Botão de Clima & Chuva */}
           <button
@@ -550,64 +572,66 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           </button>
         </div>
 
-        {/* ── Barra de Telemetria de Realismo: Combustível, Térmica e Freios ── */}
-        <div className="flex flex-wrap items-center justify-center gap-2 text-[10px] font-mono">
-          {/* Nível de Combustível */}
-          <div
-            className={`flex items-center gap-1 px-3 py-1 rounded-full border ${isOutOfFuel
-              ? 'border-red-500 bg-red-950/70 text-red-300 animate-pulse font-black'
-              : fuelLevelLiters < 8
-                ? 'border-amber-500 bg-amber-950/60 text-amber-300 font-bold'
-                : 'border-white/10 bg-black/60 text-neutral-300'
-              }`}
-          >
-            <span>⛽</span>
-            <span>{isOutOfFuel ? 'PANE SECA' : `${fuelLevelLiters.toFixed(1)}L`}</span>
-            <span className="text-[8.5px] uppercase opacity-75">
-              ({fuelType === 'ethanol_e100' ? 'Etanol E100' : fuelType === 'premium_podium' ? 'Podium 102' : 'Comum'})
-            </span>
-          </div>
-
-          {/* Arrefecimento do Motor & Temperatura do Óleo */}
-          <div
-            className={`flex items-center gap-1 px-3 py-1 rounded-full border ${isEngineBlown
-              ? 'border-red-500 bg-red-950/80 text-red-400 font-black animate-pulse'
-              : coolantTemp >= 115
-                ? 'border-red-500 bg-red-950/70 text-red-300 animate-pulse font-bold'
-                : 'border-white/10 bg-black/60 text-neutral-300'
-              }`}
-          >
-            <span>🌡️</span>
-            <span>H2O: <strong className={coolantTemp >= 115 ? 'text-red-400' : 'text-white'}>{Math.round(coolantTemp)}°C</strong></span>
-            <span className="text-neutral-500">|</span>
-            <span>ÓLEO: <strong>{Math.round(oilTemp)}°C</strong></span>
-          </div>
-
-          {/* Temperatura de Freios & Brake Fade */}
-          <div
-            className={`flex items-center gap-1 px-3 py-1 rounded-full border ${brakeDiscTemp > 650
-              ? 'border-purple-500 bg-purple-950/70 text-purple-300 animate-pulse font-bold'
-              : isBrakeGlowing
-                ? 'border-red-500 bg-red-950/70 text-red-400 animate-pulse'
-                : 'border-white/10 bg-black/60 text-neutral-300'
-              }`}
-          >
-            <span>🛑</span>
-            <span>DISCOS: <strong>{Math.round(brakeDiscTemp)}°C</strong></span>
-            {isBrakeGlowing && <span className="font-bold text-red-400">🔥 AO RUBRO</span>}
-            {brakeDiscTemp > 650 && (
-              <span className="font-black text-purple-300">
-                ⚠️ BRAKE FADE ({Math.round(brakeFadeFactor * 100)}%)
+        {/* ── Barra de Telemetria de Realismo: Combustível, Térmica e Freios (Modo Dirigir) ── */}
+        {isDriveMode && (
+          <div className="flex flex-wrap items-center justify-center gap-2 text-[10px] font-mono">
+            {/* Nível de Combustível */}
+            <div
+              className={`flex items-center gap-1 px-3 py-1 rounded-full border ${isOutOfFuel
+                ? 'border-red-500 bg-red-950/70 text-red-300 animate-pulse font-black'
+                : fuelLevelLiters < 8
+                  ? 'border-amber-500 bg-amber-950/60 text-amber-300 font-bold'
+                  : 'border-white/10 bg-black/60 text-neutral-300'
+                }`}
+            >
+              <span>⛽</span>
+              <span>{isOutOfFuel ? 'PANE SECA' : `${fuelLevelLiters.toFixed(1)}L`}</span>
+              <span className="text-[8.5px] uppercase opacity-75">
+                ({fuelType === 'ethanol_e100' ? 'Etanol E100' : fuelType === 'premium_podium' ? 'Podium 102' : 'Comum'})
               </span>
-            )}
+            </div>
+
+            {/* Arrefecimento do Motor & Temperatura do Óleo */}
+            <div
+              className={`flex items-center gap-1 px-3 py-1 rounded-full border ${isEngineBlown
+                ? 'border-red-500 bg-red-950/80 text-red-400 font-black animate-pulse'
+                : coolantTemp >= 115
+                  ? 'border-red-500 bg-red-950/70 text-red-300 animate-pulse font-bold'
+                  : 'border-white/10 bg-black/60 text-neutral-300'
+                }`}
+            >
+              <span>🌡️</span>
+              <span>H2O: <strong className={coolantTemp >= 115 ? 'text-red-400' : 'text-white'}>{Math.round(coolantTemp)}°C</strong></span>
+              <span className="text-neutral-500">|</span>
+              <span>ÓLEO: <strong>{Math.round(oilTemp)}°C</strong></span>
+            </div>
+
+            {/* Temperatura de Freios & Brake Fade */}
+            <div
+              className={`flex items-center gap-1 px-3 py-1 rounded-full border ${brakeDiscTemp > 650
+                ? 'border-purple-500 bg-purple-950/70 text-purple-300 animate-pulse font-bold'
+                : isBrakeGlowing
+                  ? 'border-red-500 bg-red-950/70 text-red-400 animate-pulse'
+                  : 'border-white/10 bg-black/60 text-neutral-300'
+                }`}
+            >
+              <span>🛑</span>
+              <span>DISCOS: <strong>{Math.round(brakeDiscTemp)}°C</strong></span>
+              {isBrakeGlowing && <span className="font-bold text-red-400">🔥 AO RUBRO</span>}
+              {brakeDiscTemp > 650 && (
+                <span className="font-black text-purple-300">
+                  ⚠️ BRAKE FADE ({Math.round(brakeFadeFactor * 100)}%)
+                </span>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* HUD Interativo de Teclas Físicas do PC */}
-        <KeyboardHUD hasClutch={vehicle.transmission.hasClutch} />
+        {/* HUD Interativo de Teclas Físicas do PC (Modo Dirigir) */}
+        {isDriveMode && <KeyboardHUD hasClutch={vehicle.transmission.hasClutch} />}
 
-        {/* ── Viewport do Mapa 2D Dirigível (Desktop) ── */}
-        {isMapOpen && (
+        {/* ── Viewport do Mapa 2D Dirigível (Desktop — exclusivo do Modo Dirigir) ── */}
+        {isDriveMode && isMapOpen && (
           <div
             className={`w-full max-w-4xl px-2 animate-in fade-in zoom-in-95 duration-200 transition-all flex-shrink-0 ${mapViewportSize === 'compact'
               ? 'h-[128px] xl:h-[168px]'
@@ -621,6 +645,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
               onSizeChange={setMapViewportSize}
               telemetry={telemetry}
               vehicle={vehicle}
+              onOpenDragStrip={() => setIsDragStripOpen(true)}
             />
           </div>
         )}
@@ -641,15 +666,27 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           </div>
         )}
 
-        {/* ── Cockpit Modular Desktop: Painel 1 (Cluster sempre visível) + Painel 2/3 (Multimídia ↔ Controles) ── */}
-        <DesktopCockpitLayout
-          telemetry={telemetry}
-          vehicle={vehicle}
-          viewMode={viewMode}
-          showAftermarketBoostGauge={showAftermarketBoostGauge}
-          hasTurbo={hasTurbo}
-          boostPressureBar={boostPressureBar}
-        />
+        {/* ── Palco Central: Modo Dirigir (Cluster + Painel 2/3) vs Modo Painel (Controles no topo · Cluster centralizado · Multimídia abaixo) ── */}
+        {isDriveMode ? (
+          <DesktopCockpitLayout
+            telemetry={telemetry}
+            vehicle={vehicle}
+            viewMode={viewMode}
+            showAftermarketBoostGauge={showAftermarketBoostGauge}
+            hasTurbo={hasTurbo}
+            boostPressureBar={boostPressureBar}
+          />
+        ) : (
+          <PanelModeInteriorView
+            layout="desktop"
+            telemetry={telemetry}
+            vehicle={vehicle}
+            carInstance={activeCar}
+            hasTurbo={hasTurbo}
+            showAftermarketBoostGauge={showAftermarketBoostGauge}
+            boostPressureBar={boostPressureBar}
+          />
+        )}
 
         {/* ── Telemetria Analógica dos Pedais (0-100%) ── */}
         <PedalTelemetry
@@ -660,10 +697,10 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
         />
       </main>
 
-      {/* Seção Inferior: Controles de Pilotagem + Pedais + Ignição no canto inferior direito */}
-      <footer className="w-full max-w-[1440px] mx-auto flex flex-wrap items-end justify-center gap-3 sm:gap-5 px-2 pt-0.5 flex-shrink-0">
-        {/* Controles: Buzina, Mapa, Freio de Mão, NOS & Shifter */}
-        <div className="flex flex-wrap items-center justify-center gap-3">
+      {/* Seção Inferior: Controles de Pilotagem + Pedais + Ignição fixos nas mesmas posições em Dirigir e Painel */}
+      <footer className="w-full max-w-[1440px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_auto] items-end gap-3 sm:gap-5 px-2 pt-0.5 flex-shrink-0">
+        {/* Coluna Esquerda/Central: Buzina, Mapa (apenas Dirigir), Freio de Mão, NOS, Shifter e Minimapa (apenas Dirigir) */}
+        <div className="flex flex-wrap items-end justify-center lg:justify-end gap-3">
           <div className="flex items-center gap-2">
             {/* Buzina Desktop */}
             <button
@@ -676,19 +713,21 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
               📢
             </button>
 
-            {/* Mapa do Mundo Desktop */}
-            <button
-              type="button"
-              onClick={toggleWorldMap}
-              className={`w-10 h-10 rounded-xl border flex items-center justify-center text-sm transition-all active:scale-95 cursor-pointer ${isWorldMapOpen
-                ? 'bg-sky-500/25 text-sky-200 border-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.55)]'
-                : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:text-white'
-                }`}
-              title="Abrir Mapa do Mundo 2D"
-              aria-label="Abrir mapa do mundo (atalho rodapé)"
-            >
-              🗺️
-            </button>
+            {/* Mapa do Mundo Desktop (exclusivo do Modo Dirigir) */}
+            {isDriveMode && (
+              <button
+                type="button"
+                onClick={toggleWorldMap}
+                className={`w-10 h-10 rounded-xl border flex items-center justify-center text-sm transition-all active:scale-95 cursor-pointer ${isWorldMapOpen
+                  ? 'bg-sky-500/25 text-sky-200 border-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.55)]'
+                  : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:text-white'
+                  }`}
+                title="Abrir Mapa do Mundo 2D"
+                aria-label="Abrir mapa do mundo (atalho rodapé)"
+              >
+                🗺️
+              </button>
+            )}
 
             {/* Freio de mão Desktop */}
             <HandbrakeButton
@@ -732,13 +771,13 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           <div className="flex items-center gap-1.5">
             <GearShift size="compact" />
           </div>
+
+          {/* Minimapa contextual exclusivo do Modo Dirigir */}
+          {isDriveMode && <HudMinimap variant="desktop" />}
         </div>
 
-        {/* Minimapa radar na região superior-lateral dos pedais + Pedais interativos + Ignição real à direita */}
-        <div className="flex items-end gap-3">
-          <div className="self-start pt-1">
-            <HudMinimap variant="desktop" />
-          </div>
+        {/* Coluna Direita Ancorada: Pedais interativos + Ignição real nas exatas mesmas posições e dimensões */}
+        <div className="flex items-end justify-center lg:justify-end gap-3">
           <Pedals vehicle={vehicle} />
           <HudIgnitionControl vehicle={vehicle} variant="desktop" />
         </div>
@@ -750,11 +789,11 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
       <BurnoutSmokeEffect />
       <EngineBlownSmokeEffect />
 
-      {/* Pista de Arrancada 402m (Drag Strip Modal) */}
-      {isDragStripOpen && <DragStripTree onClose={() => setIsDragStripOpen(false)} />}
+      {/* Pista de Arrancada 402m (Drag Strip Modal — apenas Modo Dirigir) */}
+      {isDriveMode && isDragStripOpen && <DragStripTree onClose={() => setIsDragStripOpen(false)} />}
 
-      {/* Mapa do Mundo 2D (Visão ampla sincronizada com a simulação) */}
-      <WorldMapModal vehicle={vehicle} />
+      {/* Mapa do Mundo 2D (exclusivo do Modo Dirigir) */}
+      {isDriveMode && <WorldMapModal vehicle={vehicle} />}
 
       {/* Modal da Oficina de Peças & Preparação */}
       {isTuningOpen && (

@@ -143,6 +143,8 @@ export interface VehicleCabinSpec {
   windowControlType: 'none' | 'manual_crank' | 'electric'
   hasFogLights?: boolean
   hasAmbientLighting?: boolean
+  /** Indica se a iluminação ambiente permite seleção multicor RGB pelo usuário (false = cor OEM fixa de fábrica) */
+  hasConfigurableAmbientRgb?: boolean
   defaultAmbientColor?: AmbientLightColor
   /** Capacidade declarativa de escapamento ativo de fábrica com válvula eletrônica; padrão false */
   hasFactoryActiveExhaust?: boolean
@@ -186,6 +188,21 @@ export type VehicleVisual2DSilhouette =
   | 'pickup_compact'
   | 'pickup_mid'
   | 'motorcycle'
+  | 'truck_light'
+  | 'truck_medium'
+  | 'truck_heavy'
+
+/** Preparação arquitetural declarativa para futuros caminhões e veículos comerciais pesados */
+export type TruckAxleConfig = '4x2' | '6x2' | '6x4' | '8x2' | '8x4'
+export type TruckBrakeSystemType = 'hydraulic' | 'pneumatic_air'
+
+export interface VehicleHeavyDutySpec {
+  axleConfig?: TruckAxleConfig
+  brakeSystemType?: TruckBrakeSystemType
+  hasExhaustBrake?: boolean
+  dragAreaCdA?: number
+  grossCombinedWeightKg?: number
+}
 
 export interface VehicleVisual2DSpec {
   bodyColor: string
@@ -331,6 +348,8 @@ export interface TransmissionConfig {
   manualShiftControls?: ManualShiftControl[]
   supportsPaddleShifters?: boolean
   supportsNos?: boolean
+  /** Indica declarativamente se o veículo possui freios ABS de fábrica (false em clássicos pré-ABS) */
+  hasAbs?: boolean
   tcs?: TcsConfig
   launchControl?: LaunchControlConfig
 }
@@ -433,6 +452,7 @@ export interface VehicleConfig {
   multimedia?: VehicleMultimediaSpec
   visual2d?: VehicleVisual2DSpec
   aerodynamics?: VehicleAeroSpec
+  heavyDuty?: VehicleHeavyDutySpec
 }
 
 /** Manifest de veículos disponíveis (índice) */

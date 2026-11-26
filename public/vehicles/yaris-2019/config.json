@@ -180,7 +180,8 @@
     "windowCount": 4,
     "windowControlType": "electric",
     "hasFogLights": true,
-    "hasAmbientLighting": true,
+    "hasAmbientLighting": false,
+    "hasConfigurableAmbientRgb": false,
     "defaultAmbientColor": "cyan"
   },
   "controls": {

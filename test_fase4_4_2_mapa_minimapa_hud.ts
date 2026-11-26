@@ -67,7 +67,6 @@ const EXPECTED_MULTIMEDIA_CLIMATE_IDS = [
   'yaris-2019',
   'porsche-gt3',
   'golf-gti',
-  'fiat-toro-endurance-2025',
   'fiat-toro-ranch-2025',
   'jetta-gli-2021',
   'bmw-320i-msport-2024',
@@ -81,6 +80,7 @@ const EXPECTED_PANEL_CLIMATE_IDS = [
   'ford-pampa-l-1997',
   'civic-si',
   'ford-fusion-sel-2012',
+  'fiat-toro-endurance-2025',
 ] as const
 
 assert(manifest.vehicles.length === 15, `Catálogo contém exatamente 15 veículos (${manifest.vehicles.length})`)
@@ -118,12 +118,12 @@ for (const id of EXPECTED_PANEL_CLIMATE_IDS) {
     `[cb1000r] motocicleta mantém climateControlsLocation='none'`,
   )
 
-  // Upgrade aftermarket 2-DIN em carro de rádio convencional migra controles para a central aftermarket sem duplicar
+  // Fase 4.4.3: Upgrade aftermarket 2-DIN preserva os controles físicos de ventilação/A/C no Painel 3
   const golG6 = loadVehicle('gol-g6')
   assert(
     resolveClimateControlsLocation(golG6, { multimediaKit: false }) === 'panel' &&
-      resolveClimateControlsLocation(golG6, { multimediaKit: true }) === 'multimedia',
-    `[gol-g6] troca declarativa coerente: 'panel' com rádio 1-DIN original -> 'multimedia' ao instalar kit 2-DIN aftermarket`,
+      resolveClimateControlsLocation(golG6, { multimediaKit: true }) === 'panel',
+    `[gol-g6] controles físicos de A/C permanecem no Painel 3 ('panel') mesmo ao instalar kit 2-DIN aftermarket`,
   )
 
   // Rádio 2-DIN OEM Honda H-Audio (Civic Si 2008) e Console SYNC 1 VFD 2-DIN (Fusion SEL 2012) NÃO são tratados como central multimídia touchscreen

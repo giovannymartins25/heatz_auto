@@ -15,7 +15,7 @@ import { resolveVehicleIgnition } from '@/systems/vehicle/vehicleResolvers'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { HudMinimap } from './HudMinimap'
 import { WorldMapModal } from './WorldMapModal'
-import { CockpitPanelCarousel } from '@/components/cockpit'
+import { CockpitPanelCarousel, PanelModeInteriorView } from '@/components/cockpit'
 import { MobileQuickMenu } from './MobileQuickMenu'
 import { formatZeroToHundredSeconds } from '@/systems/vehicle'
 import { formatVehicleHeaderInfo, getShortVehicleName } from '@/utils/vehicleSpecs'
@@ -167,8 +167,12 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             </span>
           </div>
 
-          {/* Minimapa fixo acima da região dos pedais (sem sobrepor pedais ou embreagem) */}
-          <HudMinimap variant="mobile_landscape" />
+          {/* Minimapa contextual acima da região dos pedais (exclusivo do Modo Dirigir) */}
+          {isDriveMode && (
+            <div className="self-center">
+              <HudMinimap variant="mobile_landscape" />
+            </div>
+          )}
 
           <div className="flex items-end justify-center gap-1.5 sm:gap-2 min-h-0">
             {hasClutch && (
@@ -257,6 +261,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                     onSizeChange={setMapViewportSize}
                     telemetry={telemetry}
                     vehicle={vehicle}
+                    onOpenDragStrip={() => setIsDragStripOpen(true)}
                   />
 
                   {/* Telemetria e Calibração de Direção por Inclinação Mobile (Fase 1.6.2) */}
@@ -282,41 +287,47 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               </div>
             </div>
           ) : (
-            /* MODO PAINEL: Foco exclusivo no carrossel modular de 3 painéis */
-            <div className="w-full h-full flex items-center justify-center min-h-0 self-stretch relative">
-              <CockpitPanelCarousel
-                telemetry={telemetry}
-                vehicle={vehicle}
-                expanded={true}
-                supportsPaddleShifters={caps.supportsPaddleShifters}
-                isManualActive={isManualActive}
-                hasTurbo={hasTurbo}
-                showAftermarketBoostGauge={showAftermarketBoostGauge}
-                boostPressureBar={boostPressureBar}
-              />
-            </div>
+            /* MODO PAINEL DIRIGÍVEL: Controles no topo (ex-GPS) + Tilt · Cluster centralizado · Multimídia abaixo */
+            <PanelModeInteriorView
+              layout="mobile_landscape"
+              telemetry={telemetry}
+              vehicle={vehicle}
+              carInstance={activeCar}
+              hasTurbo={hasTurbo}
+              showAftermarketBoostGauge={showAftermarketBoostGauge}
+              boostPressureBar={boostPressureBar}
+            />
           )}
         </main>
 
         {/* ═══ 3. DIREITA: CONTROLES (BUZINA/TCS no topo alinhado ao mapa · CÂMBIO · START) ═══ */}
         <aside className="flex flex-col items-stretch justify-between h-full pt-0 pb-0.5 px-1.5 border-l border-white/5 flex-shrink-0 gap-1 w-[162px] sm:w-[172px]">
-        {/* Direita superior: [ 📢 ] [ TCS ] em cima, 0–100 no meio, e botão NOS abaixo */}
+        {/* Direita superior: Mapa (apenas Dirigir) / Badge Painel + Buzina, 0–100 (apenas Dirigir) e botão NOS */}
         <div className="flex flex-col items-end gap-0.5 flex-shrink-0 w-full">
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={toggleWorldMap}
-              data-testid="btn-world-map"
-              className={`w-7 h-7 rounded-full border flex items-center justify-center text-xs transition-all active:scale-95 cursor-pointer shadow-sm ${
-                isWorldMapOpen
-                  ? 'bg-sky-500/25 text-sky-200 border-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.6)]'
-                  : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:text-white'
-              }`}
-              title="Abrir Mapa do Mundo 2D"
-              aria-label="Abrir mapa do mundo"
-            >
-              🗺️
-            </button>
+            {isDriveMode ? (
+              <button
+                type="button"
+                onClick={toggleWorldMap}
+                data-testid="btn-world-map"
+                className={`w-7 h-7 rounded-full border flex items-center justify-center text-xs transition-all active:scale-95 cursor-pointer shadow-sm ${
+                  isWorldMapOpen
+                    ? 'bg-sky-500/25 text-sky-200 border-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.6)]'
+                    : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:text-white'
+                }`}
+                title="Abrir Mapa do Mundo 2D"
+                aria-label="Abrir mapa do mundo"
+              >
+                🗺️
+              </button>
+            ) : (
+              <span
+                data-testid="badge-panel-mode"
+                className="px-1.5 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-500/35 text-[7px] font-mono font-black uppercase text-cyan-300"
+              >
+                PAINEL
+              </span>
+            )}
 
             <button
               type="button"
@@ -332,17 +343,19 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             </button>
           </div>
 
-          <div
-            aria-label="Cronômetro 0 a 100 km/h"
-            className={`px-1.5 sm:px-2 py-0.5 rounded-full bg-zinc-900/95 border text-[7.5px] sm:text-[8px] font-mono leading-none flex items-center gap-1 whitespace-nowrap shadow-sm ${
-              isTiming0to100 ? 'border-amber-400/60 text-amber-300' : 'border-white/10 text-zinc-400'
-            }`}
-          >
-            <span>0–100</span>
-            <b className={last0to100 !== null ? 'text-amber-400 font-black' : 'text-zinc-500 font-bold'}>
-              {formatZeroToHundredSeconds(last0to100)}
-            </b>
-          </div>
+          {isDriveMode && (
+            <div
+              aria-label="Cronômetro 0 a 100 km/h"
+              className={`px-1.5 sm:px-2 py-0.5 rounded-full bg-zinc-900/95 border text-[7.5px] sm:text-[8px] font-mono leading-none flex items-center gap-1 whitespace-nowrap shadow-sm ${
+                isTiming0to100 ? 'border-amber-400/60 text-amber-300' : 'border-white/10 text-zinc-400'
+              }`}
+            >
+              <span>0–100</span>
+              <b className={last0to100 !== null ? 'text-amber-400 font-black' : 'text-zinc-500 font-bold'}>
+                {formatZeroToHundredSeconds(last0to100)}
+              </b>
+            </div>
+          )}
 
           {/* Botão NOS oficial reposicionado abaixo do 0–100 */}
           {hasNosKit && (
@@ -438,8 +451,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
         onExit={onBack}
       />
 
-      {isDragStripOpen && <DragStripTree onClose={() => setIsDragStripOpen(false)} />}
-      <WorldMapModal vehicle={vehicle} />
+      {isDriveMode && isDragStripOpen && <DragStripTree onClose={() => setIsDragStripOpen(false)} />}
+      {isDriveMode && <WorldMapModal vehicle={vehicle} />}
       {isDynoOpen && (
         <DynoTestModal config={vehicle} upgrades={activeCar?.upgrades} onClose={() => setIsDynoOpen(false)} />
       )}

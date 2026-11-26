@@ -181,7 +181,7 @@
   },
   "cabin": {
     "climateType": "manual_ac",
-    "climateControlsLocation": "multimedia",
+    "climateControlsLocation": "panel",
     "hasAcCompressor": true,
     "hasHeater": true,
     "hasSeatHeating": false,
@@ -191,14 +191,15 @@
     "windowControlType": "electric",
     "hasFogLights": false,
     "hasAmbientLighting": false,
+    "hasConfigurableAmbientRgb": false,
     "defaultAmbientColor": "red"
   },
   "controls": {
     "climate": {
       "available": true,
       "confirmationStatus": "confirmed",
-      "controlType": "digital",
-      "panel": "multimedia",
+      "controlType": "physical",
+      "panel": "controls",
       "adjustable": "setpoint_and_fan"
     },
     "tractionControl": {

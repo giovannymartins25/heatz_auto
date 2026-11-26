@@ -1,6 +1,8 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { WorldMap } from '@/systems/world/WorldMap'
+import { computeMinimapNavigationHint } from '@/systems/world/minimapNavigation'
+import { computeAsphaltGuidance } from '@/systems/world/asphaltGuidance'
 import type { RoadArc } from '@/systems/world/WorldGeometry'
 
 export interface HudMinimapProps {
@@ -42,6 +44,32 @@ export const HUD_MINIMAP_SPECS: Readonly<
     scalePxPerMeter: 0.48,
     headingUpAnchorYRatio: 0.70,
   },
+}
+
+interface MinimapContextualSnapshot {
+  cardinal: string
+  primaryLabel: string
+  recommendedSpeedKmh: number | null
+  shouldSlowDown: boolean
+}
+
+const CARDINAL_LABELS = ['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO'] as const
+
+export function formatHeadingCardinal(headingDeg: number): string {
+  const norm = (((headingDeg % 360) + 360) % 360)
+  const idx = Math.round(norm / 45) % 8
+  return CARDINAL_LABELS[idx]
+}
+
+function shortenZoneName(zoneName: string): string {
+  const trimmed = (zoneName || '').trim()
+  if (!trimmed) return 'Via Livre'
+  return trimmed
+    .replace('Rotatória Central', 'Rotatória')
+    .replace('Anel Viário ', 'Anel ')
+    .replace('Avenida ', 'Av. ')
+    .replace('Circuito ', 'Circ. ')
+    .slice(0, 16)
 }
 
 function toCanvasArcAngles(arc: RoadArc): { start: number; end: number; anticlockwise: boolean } {
@@ -117,8 +145,8 @@ function getMinimapRoadLayer(): CachedMinimapLayer | null {
     octx.moveTo(seg.x1, toCanvasY(seg.y1))
     octx.lineTo(seg.x2, toCanvasY(seg.y2))
     octx.strokeStyle =
-      seg.roadClass === 'drag_strip' ? 'rgba(245,158,11,0.72)' : 'rgba(203,213,225,0.62)'
-    octx.lineWidth = 1.1
+      seg.roadClass === 'drag_strip' ? 'rgba(245,158,11,0.78)' : 'rgba(203,213,225,0.68)'
+    octx.lineWidth = 1.15
     octx.setLineDash([7, 6])
     octx.stroke()
     octx.setLineDash([])
@@ -136,8 +164,8 @@ function getMinimapRoadLayer(): CachedMinimapLayer | null {
 
     octx.beginPath()
     octx.arc(arc.cx, toCanvasY(arc.cy), arc.radius, start, end, anticlockwise)
-    octx.strokeStyle = 'rgba(56,189,248,0.65)'
-    octx.lineWidth = 1.05
+    octx.strokeStyle = 'rgba(56,189,248,0.70)'
+    octx.lineWidth = 1.1
     octx.setLineDash([6, 6])
     octx.stroke()
     octx.setLineDash([])
@@ -150,7 +178,7 @@ function getMinimapRoadLayer(): CachedMinimapLayer | null {
       octx.arc(inter.x, toCanvasY(inter.y), 14, 0, Math.PI * 2)
       octx.fillStyle = '#071a12'
       octx.fill()
-      octx.strokeStyle = 'rgba(239,68,68,0.75)'
+      octx.strokeStyle = 'rgba(239,68,68,0.80)'
       octx.lineWidth = 1.6
       octx.stroke()
       continue
@@ -173,23 +201,32 @@ function getMinimapRoadLayer(): CachedMinimapLayer | null {
 }
 
 /**
- * HudMinimap — Radar viário equilibrado para antecipação do traçado à frente (Fase 4.4.2.2).
+ * HudMinimap — Radar viário equilibrado com micro-moldura contextual externa (Fase 4.4.3 — Etapa 2).
  *
- * Características:
- * - Dimensões equilibradas (`132×82` Desktop, `120×68` Mobile Landscape, `112×66` Mobile Portrait)
- *   sem atrapalhar acelerador, freio, embreagem ou freio de mão.
- * - Zoom radar mais distante (`0.48–0.56 px/m`) exibindo ~95–110m à frente do veículo.
- * - Veículo centralizado horizontalmente com prioridade à área dianteira (`70%` à frente em `heading_up`).
- * - Alternância `heading_up` ↔ `north_up` preservada; zero textos, distâncias ou rotas poluindo a tela.
+ * Exibido exclusivamente no Modo Dirigir (`entryMode === 'drive'`):
+ * - Canvas interno 100% limpo com geometria real (`WorldMap.getGeometry()`), alcance ~95–110m à frente
+ *   e marcador sutil no próximo ponto geométrico real quando em aproximação.
+ * - Micro-barra contextual externa (fora do canvas) alimentada exclusivamente por dados reais da simulação
+ *   (`computeMinimapNavigationHint` + `computeAsphaltGuidance` + `zoneName` + rumo cardeal), sem rotas falsas.
  */
 export const HudMinimap = memo(function HudMinimap({
   variant = 'desktop',
   className = '',
 }: HudMinimapProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const compassBadgeRef = useRef<HTMLSpanElement | null>(null)
   const [orientationMode, setOrientationMode] = useState<'heading_up' | 'north_up'>('heading_up')
+  const [contextSnap, setContextSnap] = useState<MinimapContextualSnapshot>({
+    cardinal: 'N',
+    primaryLabel: 'Rotatória',
+    recommendedSpeedKmh: null,
+    shouldSlowDown: false,
+  })
   const modeRef = useRef<'heading_up' | 'north_up'>('heading_up')
+  const lastTargetRef = useRef<{ x: number; y: number; active: boolean }>({
+    x: 0,
+    y: 0,
+    active: false,
+  })
   const spec = HUD_MINIMAP_SPECS[variant]
 
   useEffect(() => {
@@ -203,11 +240,12 @@ export const HudMinimap = memo(function HudMinimap({
     if (!ctx) return
 
     const staticLayer = getMinimapRoadLayer()
+    const geo = WorldMap.getGeometry()
     const toCanvasY = (y: number) => -y
     const scalePxPerMeter = spec.scalePxPerMeter
 
     let rafId = 0
-    let lastBadgeUpdateMs = 0
+    let lastContextUpdateMs = -1000
 
     const render = (nowMs: number) => {
       const rect = canvas.getBoundingClientRect()
@@ -228,20 +266,48 @@ export const HudMinimap = memo(function HudMinimap({
       const headingDeg = Number.isFinite(st.visualHeadingDeg) ? st.visualHeadingDeg : st.headingDeg
       const headingRad = (headingDeg * Math.PI) / 180
 
-      if (nowMs - lastBadgeUpdateMs >= 200) {
-        lastBadgeUpdateMs = nowMs
-        if (compassBadgeRef.current) {
-          const txt = modeRef.current === 'heading_up' ? '▲' : 'N'
-          if (compassBadgeRef.current.textContent !== txt) {
-            compassBadgeRef.current.textContent = txt
+      // Atualização desacelerada (5 Hz) da micro-moldura contextual externa usando dados reais do mundo
+      if (nowMs - lastContextUpdateMs >= 200) {
+        lastContextUpdateMs = nowMs
+        const dragActive = st.dragStage !== 'idle'
+        const navHint = computeMinimapNavigationHint(posX, posY, headingDeg, geo, dragActive)
+        const guidance = computeAsphaltGuidance(posX, posY, headingDeg, st.isRaining, geo, st.speed)
+        const cardinal = formatHeadingCardinal(headingDeg)
+        const primaryLabel =
+          navHint.kind !== 'clear' ? navHint.label : `📍 ${shortenZoneName(st.zoneName)}`
+        const recommendedSpeedKmh = guidance ? guidance.recommendedSpeedKmh : null
+        const shouldSlowDown =
+          recommendedSpeedKmh !== null && st.speed > recommendedSpeedKmh + 5
+
+        lastTargetRef.current =
+          navHint.kind !== 'clear' &&
+          navHint.targetX !== undefined &&
+          navHint.targetY !== undefined
+            ? { x: navHint.targetX, y: navHint.targetY, active: true }
+            : { x: 0, y: 0, active: false }
+
+        setContextSnap((prev) => {
+          if (
+            prev.cardinal === cardinal &&
+            prev.primaryLabel === primaryLabel &&
+            prev.recommendedSpeedKmh === recommendedSpeedKmh &&
+            prev.shouldSlowDown === shouldSlowDown
+          ) {
+            return prev
           }
-        }
+          return {
+            cardinal,
+            primaryLabel,
+            recommendedSpeedKmh,
+            shouldSlowDown,
+          }
+        })
       }
 
       ctx.save()
       ctx.scale(dpr, dpr)
 
-      // 1. Fundo radar escuro
+      // 1. Fundo radar escuro profundo
       ctx.fillStyle = '#050911'
       ctx.fillRect(0, 0, cssW, cssH)
 
@@ -270,14 +336,37 @@ export const HudMinimap = memo(function HudMinimap({
         )
       }
 
+      // Marcador geométrico discreto no ponto real da próxima curva/interseção (sem inventar rota)
+      if (lastTargetRef.current.active) {
+        const tx = lastTargetRef.current.x
+        const ty = toCanvasY(lastTargetRef.current.y)
+        ctx.beginPath()
+        ctx.arc(tx, ty, 6.2, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.24)'
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(tx, ty, 2.8, 0, Math.PI * 2)
+        ctx.fillStyle = '#38bdf8'
+        ctx.fill()
+      }
+
       ctx.restore()
 
-      // Anel de alcance radar sutil (auxilia leitura espacial sem texto)
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.10)'
-      ctx.lineWidth = 0.8
+      // Anel de alcance radar sutil (~45m) + marcação de Norte real na borda do anel
+      const ringRadiusPx = 45 * scalePxPerMeter
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.14)'
+      ctx.lineWidth = 0.85
       ctx.beginPath()
-      ctx.arc(anchorX, anchorY, 45 * scalePxPerMeter, 0, Math.PI * 2)
+      ctx.arc(anchorX, anchorY, ringRadiusPx, 0, Math.PI * 2)
       ctx.stroke()
+
+      const northAngleRad = isHeadingUp ? -headingRad - Math.PI / 2 : -Math.PI / 2
+      const nx = anchorX + Math.cos(northAngleRad) * ringRadiusPx
+      const ny = anchorY + Math.sin(northAngleRad) * ringRadiusPx
+      ctx.beginPath()
+      ctx.arc(nx, ny, 2.1, 0, Math.PI * 2)
+      ctx.fillStyle = '#f87171'
+      ctx.fill()
 
       // 3. Indicador de Posição + Cone Direcional do Veículo
       ctx.save()
@@ -291,7 +380,7 @@ export const HudMinimap = memo(function HudMinimap({
       ctx.lineTo(-10, -22)
       ctx.lineTo(10, -22)
       ctx.closePath()
-      ctx.fillStyle = 'rgba(34, 211, 238, 0.20)'
+      ctx.fillStyle = 'rgba(34, 211, 238, 0.22)'
       ctx.fill()
 
       ctx.beginPath()
@@ -317,37 +406,80 @@ export const HudMinimap = memo(function HudMinimap({
     }
   }, [spec])
 
+  const widthOnlyClass =
+    variant === 'desktop'
+      ? 'w-[132px]'
+      : variant === 'mobile_landscape'
+        ? 'w-[120px]'
+        : 'w-[112px]'
+
   return (
     <div
       data-testid="hud-minimap"
       data-variant={variant}
       style={{ touchAction: 'none' }}
-      className={`relative overflow-hidden rounded-xl border border-white/15 bg-[#050911]/92 shadow-[0_4px_12px_rgba(0,0,0,0.82)] select-none flex-shrink-0 ${spec.sizeClass} ${className}`}
-      aria-label="Radar viário compacto"
+      className={`flex flex-col overflow-hidden rounded-xl border border-sky-500/25 bg-[#050911]/95 shadow-[0_4px_14px_rgba(0,0,0,0.86)] select-none flex-shrink-0 ${widthOnlyClass} ${className}`}
+      aria-label="Radar viário contextual"
     >
-      <canvas
-        ref={canvasRef}
-        data-testid="hud-minimap-canvas"
-        className="block w-full h-full pointer-events-none"
-      />
+      {/* Área do Canvas Radar (sem textos internos poluindo as vias) */}
+      <div className={`relative overflow-hidden ${spec.sizeClass}`}>
+        <canvas
+          ref={canvasRef}
+          data-testid="hud-minimap-canvas"
+          className="block w-full h-full pointer-events-none"
+        />
 
-      <button
-        type="button"
-        data-testid="btn-hud-minimap-orientation"
-        onClick={(e) => {
-          e.stopPropagation()
-          setOrientationMode((m) => (m === 'heading_up' ? 'north_up' : 'heading_up'))
-        }}
-        style={{ touchAction: 'manipulation' }}
-        title={
-          orientationMode === 'heading_up'
-            ? 'Minimapa acompanhando direção do veículo (toque para Norte fixo)'
-            : 'Minimapa com Norte fixo (toque para acompanhar direção do veículo)'
-        }
-        className="absolute top-1 right-1 rounded bg-black/80 px-1.5 py-0.5 font-mono text-[7.5px] font-black text-cyan-300 border border-white/15 active:scale-95 cursor-pointer leading-none"
+        {/* Pílula compacta de Rumo Cardeal + Alternância Heading-Up / North-Up */}
+        <button
+          type="button"
+          data-testid="btn-hud-minimap-orientation"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOrientationMode((m) => (m === 'heading_up' ? 'north_up' : 'heading_up'))
+          }}
+          style={{ touchAction: 'manipulation' }}
+          title={
+            orientationMode === 'heading_up'
+              ? 'Minimapa acompanhando direção do veículo (toque para Norte fixo)'
+              : 'Minimapa com Norte fixo (toque para acompanhar direção do veículo)'
+          }
+          className="absolute top-1 right-1 rounded bg-black/85 px-1.5 py-0.5 font-mono text-[7px] font-black text-cyan-300 border border-white/15 active:scale-95 cursor-pointer leading-none flex items-center gap-0.5"
+        >
+          <span>{orientationMode === 'heading_up' ? '▲' : 'N'}</span>
+          <span className="text-zinc-400">·</span>
+          <span data-testid="hud-minimap-cardinal" className="text-sky-200">
+            {contextSnap.cardinal}
+          </span>
+        </button>
+      </div>
+
+      {/* Micro-barra Contextual Externa (próxima referência real + velocidade recomendada em aproximação) */}
+      <div
+        data-testid="hud-minimap-context-bar"
+        className="flex items-center justify-between gap-1 border-t border-white/10 bg-zinc-950/95 px-1.5 py-0.5 font-mono leading-none"
       >
-        <span ref={compassBadgeRef}>▲</span>
-      </button>
+        <span
+          data-testid="hud-minimap-context-label"
+          className="truncate text-[7px] font-bold text-slate-200"
+          title={contextSnap.primaryLabel}
+        >
+          {contextSnap.primaryLabel}
+        </span>
+
+        {contextSnap.recommendedSpeedKmh !== null && (
+          <span
+            data-testid="hud-minimap-rec-speed"
+            className={`flex-shrink-0 rounded px-1 py-px text-[6.5px] font-black ${
+              contextSnap.shouldSlowDown
+                ? 'bg-rose-500/30 text-rose-200 border border-rose-400/60'
+                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+            }`}
+            title={`Velocidade física recomendada na aproximação: ${contextSnap.recommendedSpeedKmh} km/h`}
+          >
+            {contextSnap.recommendedSpeedKmh}
+          </span>
+        )}
+      </div>
     </div>
   )
 })

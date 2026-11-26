@@ -528,19 +528,19 @@ console.log('\n=== 7. Menu Hambúrguer Limpo, Escape no Painel 3 e Ignição For
   assert(!menuSrc.includes('setActiveCockpitPanel'), 'Menu Hambúrguer NÃO contém atalho redundante Cabine / PAINEL 3')
   assert(!menuSrc.includes('toggleExhaustValve'), 'Menu Hambúrguer NÃO contém tile de Escape (movido para Painel 3)')
 
-  // Itens obrigatoriamente presentes no MobileQuickMenu
+  // Itens obrigatoriamente presentes/removidos no MobileQuickMenu (evoluído na Fase 4.4.3 Etapa 2: Faróis e 402M removidos do menu rápido)
   assert(
-    menuSrc.includes('menu-tile-headlights') &&
+    !menuSrc.includes('menu-tile-headlights') &&
+      !menuSrc.includes('menu-tile-drag') &&
       menuSrc.includes('menu-tile-rain') &&
       menuSrc.includes('menu-tile-sound') &&
       menuSrc.includes('menu-tile-tuning') &&
-      menuSrc.includes('menu-tile-drag') &&
       menuSrc.includes('menu-tile-dyno') &&
       menuSrc.includes('menu-tile-fullscreen') &&
       menuSrc.includes('menu-tile-graphics') &&
       menuSrc.includes('menu-tile-diagnostics') &&
       menuSrc.includes('btn-exit-garage'),
-    'Menu Hambúrguer preserva Faróis, Clima, Som, Oficina, 402M, Dyno, Tela Cheia, Gráficos, Diagnóstico e Sair',
+    'Menu Hambúrguer remove Faróis/402M (Fase 4.4.3) e preserva Clima, Som, Oficina, Dyno, Tela Cheia, Gráficos, Diagnóstico e Sair',
   )
   assert(
     menuSrc.includes('btn-tilt-invert-normal') &&

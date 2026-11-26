@@ -190,8 +190,8 @@ console.log('\n=== 2. Minimapa Radar Equilibrado (Dimensões, Escala Distante e 
       minimapSrc.includes("'heading_up'") &&
       minimapSrc.includes("'north_up'") &&
       !minimapSrc.includes('computeUpcomingNavigation') &&
-      !minimapSrc.includes('hud-minimap-next'),
-    'Prioriza área à frente do veículo, preserva heading_up/north_up e mantém zero textos/rotas poluindo o HUD',
+      minimapSrc.includes('hud-minimap-context-bar'),
+    'Prioriza área à frente do veículo, preserva heading_up/north_up e organiza contexto real em micro-barra externa ao canvas (Fase 4.4.3)',
   )
 }
 
@@ -656,10 +656,18 @@ console.log('\n=== 7. Proteção de Mudança de Sentido D ↔ R (Automático, DC
   )
 }
 
-// ─── 8. SEPARAÇÃO COMPLETA DO MODO PAINEL (INTERIOR) VS MODO DIRIGIR ───
-console.log('\n=== 8. Separação Completa do Modo Painel (`entryMode === "cluster"`) ===')
+// ─── 8. MODO PAINEL DIRIGÍVEL (`entryMode === "cluster"`, EVOLUÍDO NA FASE 4.4.3 ETAPA 2) ───
+console.log('\n=== 8. Modo Painel Dirigível (`entryMode === "cluster"`, Fase 4.4.3 Etapa 2) ===')
 {
   const dashSrc = fs.readFileSync(path.join(REPO, 'src', 'components', 'dashboard', 'VehicleDashboard.tsx'), 'utf8')
+  const portraitSrc = fs.readFileSync(
+    path.join(REPO, 'src', 'components', 'dashboard', 'MobilePortraitCockpit.tsx'),
+    'utf8',
+  )
+  const landscapeSrc = fs.readFileSync(
+    path.join(REPO, 'src', 'components', 'dashboard', 'MobileLandscapeCockpit.tsx'),
+    'utf8',
+  )
   const panelInteriorSrc = fs.readFileSync(
     path.join(REPO, 'src', 'components', 'cockpit', 'PanelModeInteriorView.tsx'),
     'utf8',
@@ -669,27 +677,27 @@ console.log('\n=== 8. Separação Completa do Modo Painel (`entryMode === "clust
     .replace(/(^|\s)\/\/.*$/gm, '')
 
   assert(
-    dashSrc.includes("if (entryMode === 'cluster')") && dashSrc.includes('<PanelModeInteriorView'),
-    'VehicleDashboard separa completamente a renderização de entryMode="cluster" via PanelModeInteriorView antes do HUD de direção',
+    dashSrc.includes("const isDriveMode = entryMode !== 'cluster'") &&
+      dashSrc.includes('<PanelModeInteriorView') &&
+      portraitSrc.includes('<PanelModeInteriorView') &&
+      landscapeSrc.includes('<PanelModeInteriorView'),
+    'VehicleDashboard, MobilePortraitCockpit e MobileLandscapeCockpit integram PanelModeInteriorView mantendo pedais, câmbio, freio de mão e ignição',
   )
   assert(
     !panelExecutableSrc.includes('HudMinimap') &&
       !panelExecutableSrc.includes('DrivingMapViewport') &&
-      !panelExecutableSrc.includes('AnalogPedal') &&
-      !panelExecutableSrc.includes('<Pedals') &&
-      !panelExecutableSrc.includes('SteeringControlZone'),
-    'PanelModeInteriorView NÃO importa nem renderiza minimapa, mapa 2D, pedais de condução ou SteeringControlZone',
+      !panelExecutableSrc.includes('WorldMapModal') &&
+      !panelExecutableSrc.includes('AsphaltGuidanceTracker'),
+    'PanelModeInteriorView NÃO importa nem renderiza minimapa, mapa 2D, WorldMapModal ou guias de asfalto',
   )
   assert(
     panelInteriorSrc.includes('<InstrumentClusterPanel') &&
       panelInteriorSrc.includes('<MultimediaPanel') &&
       panelInteriorSrc.includes('<VehicleControlsPanel') &&
-      panelInteriorSrc.includes('<HudIgnitionControl') &&
-      panelInteriorSrc.includes('btn-panel-rev-engine') &&
-      panelInteriorSrc.includes('mobile_portrait') &&
-      panelInteriorSrc.includes('mobile_landscape') &&
+      panelInteriorSrc.includes('data-layout="mobile_portrait"') &&
+      panelInteriorSrc.includes('data-layout="mobile_landscape"') &&
       panelInteriorSrc.includes('data-layout="desktop"'),
-    'PanelModeInteriorView organiza Instrumentos + Multimídia + Controles + Ignição/Giro em Desktop, Portrait e Landscape',
+    'PanelModeInteriorView organiza Controles (ex-GPS) + Cluster centralizado + Multimídia abaixo em Desktop, Portrait e Landscape',
   )
 }
 

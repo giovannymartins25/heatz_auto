@@ -184,15 +184,24 @@ for (const baselineId of Object.keys(baseline)) {
     `[${cfg.id}] capabilities paridade exata`,
     `diff: ${JSON.stringify(actualCapabilities)} vs ${JSON.stringify(expected.capabilities)}`,
   )
+  const expectedUpgradesFor4_4_3 =
+    cfg.id === 'civic-si'
+      ? { ...expected.defaultUpgrades, multimediaKit: false }
+      : expected.defaultUpgrades
+  const expectedStoreInitFor4_4_3 =
+    cfg.id === 'fiat-toro-ranch-2025'
+      ? { ...expected.storeInit, ambientLightColor: 'white' }
+      : expected.storeInit
+
   assert(
-    deepEqual(actualUpgrades, expected.defaultUpgrades),
-    `[${cfg.id}] defaultUpgrades paridade exata`,
-    `diff: ${JSON.stringify(actualUpgrades)} vs ${JSON.stringify(expected.defaultUpgrades)}`,
+    deepEqual(actualUpgrades, expectedUpgradesFor4_4_3),
+    `[${cfg.id}] defaultUpgrades paridade exata (com evolução declarativa Fase 4.4.3)`,
+    `diff: ${JSON.stringify(actualUpgrades)} vs ${JSON.stringify(expectedUpgradesFor4_4_3)}`,
   )
   assert(
-    deepEqual(actualStoreInit, expected.storeInit),
-    `[${cfg.id}] storeInit paridade exata`,
-    `diff: ${JSON.stringify(actualStoreInit)} vs ${JSON.stringify(expected.storeInit)}`,
+    deepEqual(actualStoreInit, expectedStoreInitFor4_4_3),
+    `[${cfg.id}] storeInit paridade exata (com evolução declarativa Fase 4.4.3)`,
+    `diff: ${JSON.stringify(actualStoreInit)} vs ${JSON.stringify(expectedStoreInitFor4_4_3)}`,
   )
   assert(
     deepEqual(actualPhysics, expected.physicsSample),

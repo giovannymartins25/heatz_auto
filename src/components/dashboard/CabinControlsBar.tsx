@@ -23,7 +23,9 @@ import {
   resolveClimateControlsLocation,
   resolveVehicleCabin,
   resolveVehicleControls,
+  resolveVehicleDrivetrain,
 } from '@/systems/vehicle/vehicleResolvers'
+import type { FourWheelDriveMode } from '@/systems/physics'
 import type { FanLevel, WindowId } from '@/systems/cabin'
 
 export interface CabinControlsBarProps {
@@ -52,11 +54,20 @@ export const CabinControlsBar = memo(function CabinControlsBar({
   const tcsSpec = controlsSpec.tractionControl
   const showPhysicalTcs =
     tcsSpec.available && tcsSpec.userToggleable && tcsSpec.panel === 'controls'
+  const showSelectable4x4 = resolveVehicleDrivetrain(vehicle) === '4x4_selectable'
 
   const [activeDrawer, setActiveDrawer] = useState<'none' | 'all' | 'climate' | 'windows'>('none')
 
   // Bateria / Telemetria Elétrica (somente leitura informativa na cabine)
   const batteryVoltageV = useSimulationStore((s) => s.batteryVoltageV)
+
+  // Seletor Físico 4x4 (Fiat Toro Ranch 2025 e picapes/utilitários 4x4 selecionáveis)
+  const fourWheelDriveMode = useSimulationStore((s) => s.fourWheelDriveMode)
+  const fourWheelDriveWarning = useSimulationStore((s) => s.fourWheelDriveWarning)
+  const setFourWheelDriveMode = useSimulationStore((s) => s.setFourWheelDriveMode)
+  const frontTorqueSplitPercent = useSimulationStore((s) => s.frontTorqueSplitPercent)
+  const rearTorqueSplitPercent = useSimulationStore((s) => s.rearTorqueSplitPercent)
+  const currentSpeedKmh = useSimulationStore((s) => s.speed)
 
   // Controle de Tração físico (exibido exclusivamente quando o veículo real possui tecla física no painel/console/punho)
   const tcsEnabled = useSimulationStore((s) => s.tcsEnabled)
@@ -442,6 +453,78 @@ export const CabinControlsBar = memo(function CabinControlsBar({
           >
             {tcsEnabled ? `${tcsSpec.systemLabel} ON` : `${tcsSpec.systemLabel} OFF`}
           </button>
+        </div>
+      )}
+
+      {/* 3.5. SELETOR FÍSICO 4X4 NO PAINEL 3 (exclusivo para veículos 4x4_selectable, ex.: Fiat Toro Ranch) */}
+      {showSelectable4x4 && (
+        <div
+          className={`flex flex-col gap-1 rounded-lg border border-white/10 bg-zinc-900/70 ${
+            isCompactPanel ? 'px-1.5 py-0.5' : 'rounded-xl p-2'
+          }`}
+          data-testid="cabin-4x4-section"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-1.5 font-mono leading-none">
+            <div className="flex items-center gap-1.5">
+              <span className={`${isCompactPanel ? 'text-[8px]' : 'text-[9px]'} font-black uppercase tracking-wider text-zinc-300`}>
+                ⛰️ Seletor 4x4
+              </span>
+              <span
+                data-testid="cabin-4x4-split-badge"
+                className="rounded bg-zinc-950 px-1 py-0.5 text-[7.5px] font-mono text-amber-300 border border-amber-500/25"
+              >
+                Eixos {frontTorqueSplitPercent}/{rearTorqueSplitPercent}%
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1" role="group" aria-label="Modo de tração 4x4">
+              {(
+                [
+                  { id: 'auto', label: 'AUTO', title: 'Tração integral sob demanda (prioridade dianteira)' },
+                  { id: '4wd', label: '4WD', title: 'Bloqueio 50/50 entre os eixos dianteiro e traseiro' },
+                  {
+                    id: '4wd_low',
+                    label: currentSpeedKmh > 3.0 && fourWheelDriveMode !== '4wd_low' ? '4WD LOW 🔒' : '4WD LOW',
+                    title: 'Reduzida off-road (pare o veículo <= 3 km/h para engatar)',
+                  },
+                ] as const satisfies readonly { id: FourWheelDriveMode; label: string; title: string }[]
+              ).map((opt) => {
+                const isActive = fourWheelDriveMode === opt.id
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    data-testid={`btn-cabin-4x4-${opt.id}`}
+                    aria-pressed={isActive}
+                    onClick={() => setFourWheelDriveMode(opt.id)}
+                    title={opt.title}
+                    className={`${
+                      isCompactPanel ? 'h-5 px-1.5 text-[7.5px]' : 'h-7 px-2.5 text-[8.5px]'
+                    } rounded-md border font-mono font-black uppercase transition-all active:scale-95 cursor-pointer ${
+                      isActive
+                        ? opt.id === '4wd_low'
+                          ? 'border-amber-400 bg-amber-500/30 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
+                          : opt.id === '4wd'
+                            ? 'border-emerald-400 bg-emerald-500/25 text-emerald-200 shadow-[0_0_8px_rgba(16,185,129,0.35)]'
+                            : 'border-cyan-400 bg-cyan-500/25 text-cyan-200'
+                        : 'border-white/10 bg-zinc-950 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {fourWheelDriveWarning && (
+            <div
+              data-testid="cabin-4x4-warning"
+              className="rounded border border-amber-500/50 bg-amber-950/60 px-1.5 py-0.5 font-mono text-[7.5px] font-bold text-amber-200"
+            >
+              ⚠️ {fourWheelDriveWarning}
+            </div>
+          )}
         </div>
       )}
 

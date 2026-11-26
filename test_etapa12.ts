@@ -37,7 +37,12 @@ async function runEtapa12Tests() {
   // ─── RECURSO 1: SISTEMA REAL DE COMBUSTÍVEL & PANE SECA ───
   console.log('▶ [1/6] Sistema de Combustível, Consumo Dinâmico & Pane Seca')
   useSimulationStore.getState().init(golG6Config)
-  assert(useSimulationStore.getState().fuelLevelLiters === 45, 'Tanque inicializado com 45 Litros')
+  const expectedGolInitFuel = Math.round((golG6Config.dashboard.fuelCapacity ?? 50) * 0.9 * 1000) / 1000
+  assert(
+    useSimulationStore.getState().fuelCapacityLiters === 55 &&
+      useSimulationStore.getState().fuelLevelLiters === expectedGolInitFuel,
+    `Tanque do Gol G6 inicializado respeitando capacidade real (${expectedGolInitFuel}L / 55L)`,
+  )
   assert(useSimulationStore.getState().fuelType === 'common_gasoline', 'Combustível padrão é Gasolina Comum')
 
   // Troca de combustível para Etanol E100
@@ -51,7 +56,7 @@ async function runEtapa12Tests() {
     useSimulationStore.getState().update(0.1) // 5 segundos sob aceleração plena
   }
   const fuelAfterBurn = useSimulationStore.getState().fuelLevelLiters
-  assert(fuelAfterBurn < 45, `Combustível consumido sob plena carga: ${fuelAfterBurn.toFixed(2)}L restando`)
+  assert(fuelAfterBurn < expectedGolInitFuel, `Combustível consumido sob plena carga: ${fuelAfterBurn.toFixed(2)}L restando`)
 
   // Simular tanque quase vazio para testar pane seca
   useSimulationStore.setState({ fuelLevelLiters: 0.001 })

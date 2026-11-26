@@ -346,9 +346,11 @@ export function resolveVehicleCabin(vehicle: VehicleConfig): VehicleCabinSpec {
       ? 'red'
       : vehicle.id === 'porsche-gt3'
         ? 'amber'
-        : vehicle.id.includes('yaris')
-          ? 'cyan'
-          : 'red'
+        : vehicle.id === 'fiat-toro-ranch-2025'
+          ? 'white'
+          : vehicle.id.includes('yaris')
+            ? 'cyan'
+            : 'red'
 
   if (vehicle.id === 'gol-quadrado-turbo' || vehicle.id === 'opala-4100') {
     return {
@@ -377,6 +379,7 @@ export function resolveVehicleCabin(vehicle: VehicleConfig): VehicleCabinSpec {
       windowControlType: 'electric',
       hasFogLights: true,
       hasAmbientLighting: true,
+      hasConfigurableAmbientRgb: vehicle.id === 'porsche-gt3',
       defaultAmbientColor,
     }
   }
@@ -391,7 +394,8 @@ export function resolveVehicleCabin(vehicle: VehicleConfig): VehicleCabinSpec {
       windowCount: 4,
       windowControlType: 'electric',
       hasFogLights: true,
-      hasAmbientLighting: vehicle.id === 'yaris-2019',
+      hasAmbientLighting: false,
+      hasConfigurableAmbientRgb: false,
       defaultAmbientColor,
     }
   }
@@ -413,6 +417,28 @@ export function resolveVehicleCabin(vehicle: VehicleConfig): VehicleCabinSpec {
 
 export function resolveDefaultAmbientColor(vehicle: VehicleConfig): AmbientLightColor {
   return resolveVehicleCabin(vehicle).defaultAmbientColor ?? 'red'
+}
+
+/**
+ * Resolve declarativamente se o veículo possui iluminação ambiente multicor RGB configurável
+ * de fábrica pelo motorista (distinguindo de iluminação OEM de cor única fixa, como o vermelho
+ * do Golf GTI 2018 ou o branco de cortesia da Toro Ranch 2025).
+ */
+export function supportsConfigurableAmbientRgb(vehicle?: VehicleConfig | null): boolean {
+  if (!vehicle) return false
+  const cabin = resolveVehicleCabin(vehicle)
+  if (!cabin.hasAmbientLighting) return false
+  if (cabin.hasConfigurableAmbientRgb !== undefined) {
+    return cabin.hasConfigurableAmbientRgb
+  }
+  if (
+    vehicle.id === 'golf-gti' ||
+    vehicle.id === 'fiat-toro-ranch-2025' ||
+    vehicle.id === 'yaris-2019'
+  ) {
+    return false
+  }
+  return true
 }
 
 function createUnavailableAssist(
@@ -441,24 +467,20 @@ function createUnavailableAssist(
  */
 export function resolveVehicleControls(
   vehicle: VehicleConfig,
-  upgrades?: { multimediaKit?: boolean } | null,
+  _upgrades?: { multimediaKit?: boolean } | null,
 ): VehicleControlsSpec {
   const cabin = resolveVehicleCabin(vehicle)
-  const media = resolveVehicleMultimediaSpec(vehicle, upgrades)
   const isMoto = vehicle.info.category === 'motorcycle'
-  const isAftermarketRetrofit = media.unitId === 'retrofit_2din' && media.type === 'aftermarket'
 
-  // 1. Climatização
+  // 1. Climatização — controles físicos de ventilação/A/C permanecem SEMPRE no Painel 3 ('controls'),
+  // mesmo quando o veículo recebe upgrade de multimídia aftermarket 2-DIN ('retrofit_2din').
   let climatePanel: ControlPanelTarget = 'none'
   let climateControlType: ControlActuationType = 'none'
   let climateAdjustable: 'setpoint_and_fan' | 'vent_only' | 'none' = 'none'
 
   if (cabin.climateType !== 'none' && !isMoto) {
     climateAdjustable = cabin.hasAcCompressor || cabin.hasHeater ? 'setpoint_and_fan' : 'vent_only'
-    if (isAftermarketRetrofit) {
-      climatePanel = 'multimedia'
-      climateControlType = 'digital'
-    } else if (vehicle.controls?.climate) {
+    if (vehicle.controls?.climate) {
       climatePanel = vehicle.controls.climate.panel
       climateControlType = vehicle.controls.climate.controlType
       climateAdjustable = vehicle.controls.climate.adjustable
@@ -466,14 +488,17 @@ export function resolveVehicleControls(
       climatePanel = cabin.climateControlsLocation === 'panel' ? 'controls' : cabin.climateControlsLocation
       climateControlType = climatePanel === 'multimedia' ? 'digital' : 'physical'
     } else {
+      const oemMedia = resolveVehicleMultimediaSpec(vehicle, { multimediaKit: false })
       const isConventionalRadioOrBlank =
-        media.type === 'radio' ||
-        media.type === 'none' ||
-        media.unitId === 'honda_haudio' ||
-        media.unitId === 'ford_sync1_2012' ||
-        media.unitId === 'ford_pampa_radio_1din' ||
-        media.unitId === 'classic_radio_1din' ||
-        media.unitId === 'classic_blank_console'
+        oemMedia.type === 'radio' ||
+        oemMedia.type === 'none' ||
+        oemMedia.unitId === 'honda_haudio' ||
+        oemMedia.unitId === 'ford_sync1_2012' ||
+        oemMedia.unitId === 'ford_pampa_radio_1din' ||
+        oemMedia.unitId === 'classic_radio_1din' ||
+        oemMedia.unitId === 'classic_blank_console' ||
+        cabin.climateType === 'manual_vent' ||
+        cabin.climateType === 'manual_ac'
       climatePanel = isConventionalRadioOrBlank ? 'controls' : 'multimedia'
       climateControlType = climatePanel === 'multimedia' ? 'digital' : 'physical'
     }
@@ -761,11 +786,11 @@ export function resolveVehicleMultimediaSpec(
   }
 
   if (vehicle.id.includes('civic-si')) {
-    // Civic Si mantém Honda H-Audio 2-DIN OEM como unidade dedicada na multimídia,
-    // mas no capabilities histórico reportava aftermarket quando multimediaKit = true.
+    // Civic Si mantém Honda H-Audio 2-DIN OEM como unidade dedicada de fábrica,
+    // podendo receber Central 2-DIN Heatz Performance ('retrofit_2din') quando adquirido na Oficina.
     if (hasAftermarketMedia) {
       return {
-        unitId: 'honda_haudio',
+        unitId: 'retrofit_2din',
         type: 'aftermarket',
         layout: 'horizontal',
         screenSize: 7.0,
@@ -916,7 +941,8 @@ export function resolveDefaultUpgradesForVehicle(
   if (config) {
     const isOriginallyTurbo = Boolean(config.engine.turbo?.enabled)
     const multimediaSpec = resolveVehicleMultimediaSpec(config)
-    const hasDefaultMultimedia = multimediaSpec.type === 'factory'
+    const hasDefaultMultimedia =
+      multimediaSpec.type === 'factory' && !multimediaSpec.supportsAftermarketUpgrade
     const aero = resolveVehicleAero(config)
     const fuelDefaults = resolveVehicleFuelDefaults(config)
     const defaultFuel: FuelType =
@@ -978,7 +1004,6 @@ export function resolveDefaultUpgradesForVehicle(
     vehicleId === 'ford-fusion-titanium-awd-2019' ||
     vehicleId === 'porsche-gt3' ||
     vehicleId === 'yaris-2019' ||
-    vehicleId === 'civic-si' ||
     vehicleId === 'fiat-toro-endurance-2025' ||
     vehicleId === 'fiat-toro-ranch-2025'
 
@@ -1044,6 +1069,26 @@ export function canControlExhaustValve(
   return exhaustType === 'cat_back' || exhaustType === 'downpipe'
 }
 
+/**
+ * Resolve declarativamente se o veículo possui sistema antitravamento de freios (ABS).
+ * Clássicos nacionais dos anos 90 sem ABS de série (Opala 1992, Gol Quadrado 1994, Pampa L 1997)
+ * retornam `false` ('unavailable'); veículos modernos e esportivos equipados retornam `true`.
+ */
+export function resolveVehicleHasAbs(vehicle?: VehicleConfig | null): boolean {
+  if (!vehicle) return false
+  if (vehicle.transmission?.hasAbs !== undefined) {
+    return vehicle.transmission.hasAbs
+  }
+  if (
+    vehicle.id === 'opala-4100' ||
+    vehicle.id === 'gol-quadrado-turbo' ||
+    vehicle.id === 'ford-pampa-l-1997'
+  ) {
+    return false
+  }
+  return true
+}
+
 // ─── 8. Runtime Config Validation ────────────────────────────────────────────
 
 const VALID_IGNITION_TYPES = new Set(['key', 'push_button'])
@@ -1081,6 +1126,9 @@ const VALID_SILHOUETTES = new Set([
   'pickup_compact',
   'pickup_mid',
   'motorcycle',
+  'truck_light',
+  'truck_medium',
+  'truck_heavy',
 ])
 const VALID_MULTIMEDIA_UNITS: ReadonlySet<MultimediaUnitId> = new Set([
   'toro_uconnect_7',
@@ -1171,6 +1219,9 @@ export function validateVehicleConfig(config: VehicleConfig): VehicleConfigValid
     }
     if (config.cabin.hasAcCompressor && (config.cabin.climateType === 'none' || config.cabin.climateType === 'manual_vent')) {
       warnings.push('cabin.hasAcCompressor=true com climateType sem A/C.')
+    }
+    if (config.cabin.hasConfigurableAmbientRgb === true && !config.cabin.hasAmbientLighting) {
+      errors.push('cabin.hasConfigurableAmbientRgb=true exige cabin.hasAmbientLighting=true.')
     }
   }
 

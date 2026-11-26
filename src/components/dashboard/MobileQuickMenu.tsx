@@ -10,7 +10,7 @@ export interface MobileQuickMenuProps {
   isOpen: boolean
   onClose: () => void
   vehicle: VehicleConfig
-  onOpenDragStrip: () => void
+  onOpenDragStrip?: () => void
   onOpenDyno: () => void
   onOpenTuning: () => void
   onExit: () => void
@@ -70,19 +70,15 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
   isOpen,
   onClose,
   vehicle,
-  onOpenDragStrip,
   onOpenDyno,
   onOpenTuning,
   onExit,
 }: MobileQuickMenuProps) {
-  const headlightsMode = useSimulationStore((s) => s.headlightsMode)
-  const cycleHeadlights = useSimulationStore((s) => s.cycleHeadlights)
   const isRaining = useSimulationStore((s) => s.isRaining)
   const toggleRain = useSimulationStore((s) => s.toggleRain)
   const isMuted = useSimulationStore((s) => s.isMuted)
   const toggleMute = useSimulationStore((s) => s.toggleMute)
   const tuningStage = useSimulationStore((s) => s.tuningStage)
-  const best0to100 = useSimulationStore((s) => s.best0to100)
 
   const steeringSensitivityPreset = useSimulationStore((s) => s.steeringSensitivityPreset)
   const setSteeringSensitivityPreset = useSimulationStore((s) => s.setSteeringSensitivityPreset)
@@ -153,15 +149,6 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
 
   if (!isOpen) return null
 
-  const headlightLabel =
-    headlightsMode === 'off'
-      ? 'DESLIG.'
-      : headlightsMode === 'parking'
-        ? 'LANTERNA'
-        : headlightsMode === 'low'
-          ? 'BAIXO'
-          : 'ALTO'
-
   const openAndClose = (fn: () => void) => () => {
     fn()
     onClose()
@@ -211,20 +198,11 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
           </button>
         </div>
 
-        {/* Ambiente & Áudio Rápido */}
+        {/* Ambiente & Áudio Rápido (Faróis concentrados no Painel 3 da Cabine) */}
         <span className="block mb-1.5 text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
           Ambiente & Áudio
         </span>
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          <Tile
-            icon="💡"
-            label="Faróis"
-            sub={headlightLabel}
-            active={headlightsMode !== 'off'}
-            activeClass="bg-sky-500/20 border-sky-400 text-sky-200"
-            testId="menu-tile-headlights"
-            onClick={cycleHeadlights}
-          />
+        <div className="grid grid-cols-2 gap-2 mb-4">
           <Tile
             icon={isRaining ? '🌧️' : '☀️'}
             label="Clima"
@@ -245,24 +223,17 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
           />
         </div>
 
-        {/* Garagem & Pista */}
+        {/* Garagem & Preparação (402M acionado contextualmente na pista no Modo Dirigir) */}
         <span className="block mb-1.5 text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
-          Garagem & Pista
+          Garagem & Preparação
         </span>
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="grid grid-cols-2 gap-2 mb-4">
           <Tile
             icon="🔧"
             label="Oficina"
             sub={tuningStage > 0 ? `STAGE ${tuningStage}` : 'STOCK'}
             testId="menu-tile-tuning"
             onClick={openAndClose(onOpenTuning)}
-          />
-          <Tile
-            icon="🏁"
-            label="402M"
-            sub={best0to100 ? `0-100 ${best0to100.toFixed(2)}s` : 'ARRANCADA'}
-            testId="menu-tile-drag"
-            onClick={openAndClose(onOpenDragStrip)}
           />
           <Tile
             icon="📈"
