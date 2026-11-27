@@ -779,8 +779,8 @@ console.log('\n=== ETAPA 1.5 — AUDITORIA COMPLEMENTAR (AWD/PTM, CONSUMO/AUTONO
     'utf8',
   )
   assert(
-    dashboardSrc.includes('[vehicle, activeCarInstanceId, instanceIdFromUrl, init, reset, entryMode]'),
-    '[Ciclo de vida VehicleDashboard] useEffect depende de activeCarInstanceId estável (addMileageKm não reinicia a simulação)',
+    dashboardSrc.includes('[vehicle, activeCarInstanceId, instanceIdFromUrl, init, reset]'),
+    '[Ciclo de vida VehicleDashboard] useEffect depende de activeCarInstanceId estável e não reinicia em addMileageKm nem ao alternar entryMode',
   )
 
   // 1.5.4 — Diferenciação completa de ABS: indisponível (clássicos anos 90) vs standby vs modulação ativa vs falha

@@ -29,17 +29,19 @@ export interface MobilePortraitCockpitProps {
   telemetry: DashboardTelemetry
   vehicle: VehicleConfig
   onBack: () => void
+  onToggleSessionMode?: () => void
   carInstance?: GarageCarInstance
   entryMode?: SessionEntryMode
 }
 
 /**
- * MobilePortraitCockpit — Cockpit vertical para celulares em modo Retrato (Fase 1.5).
+ * MobilePortraitCockpit — Cockpit vertical para celulares em modo Retrato (Fase 1.5 / 4.4.3).
  */
 export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   telemetry,
   vehicle,
   onBack,
+  onToggleSessionMode,
   carInstance,
   entryMode = 'drive',
 }: MobilePortraitCockpitProps) {
@@ -92,10 +94,6 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
   const caps = getVehicleCapabilities(vehicle)
   const isManualActive = telemetry.gear.transmissionMode === 'manual_simulated' || telemetry.gear.gearSelectorPosition === 'M'
 
-  // Larguras dos pedais adaptadas para caber 3 pedais + colunas laterais
-  const pedalWidth = hasClutch ? 'w-11 sm:w-13' : 'w-14 sm:w-16'
-  const pedalHeight = 'h-32 sm:h-36'
-
   return (
     <div
       {...secondaryTouchHandlers}
@@ -146,8 +144,25 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           </div>
         </div>
 
-        {/* Lado direito do header */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        {/* Lado direito do header: Alternância Direta Modo Dirigir <-> Modo Painel + Mapa/Buzina */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {onToggleSessionMode && (
+            <button
+              type="button"
+              data-testid="btn-toggle-session-mode"
+              onClick={onToggleSessionMode}
+              className={`h-8 px-2 rounded-full border font-mono text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm ${
+                isDriveMode
+                  ? 'border-cyan-500/45 bg-cyan-950/60 text-cyan-300'
+                  : 'border-emerald-500/50 bg-emerald-950/65 text-emerald-300'
+              }`}
+              title={isDriveMode ? 'Alternar para Modo Painel' : 'Alternar para Modo Dirigir'}
+            >
+              <span>{isDriveMode ? '🎛️' : '🛣️'}</span>
+              <span>{isDriveMode ? 'PAINEL' : 'DIRIGIR'}</span>
+            </button>
+          )}
+
           {isDriveMode ? (
             <button
               type="button"
@@ -166,7 +181,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           ) : (
             <span
               data-testid="badge-panel-mode"
-              className="px-2 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-500/35 text-[7.5px] font-mono font-black uppercase text-cyan-300"
+              className="px-2 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-500/35 text-[7px] font-mono font-black uppercase text-cyan-300"
             >
               PAINEL
             </span>
@@ -186,7 +201,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
           </button>
 
           {isDriveMode && (
-            <div className={`px-2 py-0.5 rounded-full bg-zinc-900 border text-[8px] font-mono shadow-sm ${
+            <div className={`px-1.5 py-0.5 rounded-full bg-zinc-900 border text-[7.5px] font-mono shadow-sm ${
               isTiming0to100 ? 'border-amber-400/70 text-amber-300' : 'border-white/10 text-zinc-300'
             }`}>
               0-100: <b className={last0to100 !== null ? 'text-amber-400 font-bold' : 'text-zinc-500 font-normal'}>
@@ -263,150 +278,166 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
         )}
       </main>
 
-      {/* ─── 3. Câmbio e Perfis de Condução ─── */}
-      <div className="w-full flex flex-col gap-1 pt-1 pb-1 border-t border-white/5 px-1 flex-shrink-0">
-        <div className="w-full flex items-center justify-between gap-1.5 min-w-0">
-          <div className="flex items-center justify-center gap-1.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
-            <GearShift size="compact" orientation="horizontal" showPaddles={false} />
-            {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
-              <VerticalGestureShifter size="compact" orientation="horizontal" />
-            )}
+      {/* ─── 3. Câmbio e Perfis de Condução (sem compressão lateral em M + modos, preservando footer fixo em 0 px) ─── */}
+      <div className="w-full flex flex-col items-center justify-center gap-1 pt-1 pb-1 border-t border-white/5 px-1 flex-shrink-0">
+        {caps.supportedDrivingModes.length > 1 && (
+          <div className="flex items-center justify-center w-full">
+            <DrivingModesSelector
+              supportedModes={caps.supportedDrivingModes}
+              orientation="horizontal"
+              size="compact"
+              isMotorcycle={isMotorcycle}
+            />
           </div>
-          {caps.supportedDrivingModes.length > 1 && (
-            <div className="flex-shrink-0 flex items-center">
-              <DrivingModesSelector
-                supportedModes={caps.supportedDrivingModes}
-                orientation="horizontal"
-                size="compact"
-                isMotorcycle={isMotorcycle}
-              />
-            </div>
+        )}
+        <div className="w-full flex items-center justify-center gap-1.5 min-w-0">
+          <GearShift size="compact" orientation="horizontal" showPaddles={false} />
+          {caps.manualShiftControls.includes('gear_selector_gesture') && isManualActive && (
+            <VerticalGestureShifter size="compact" orientation="horizontal" />
           )}
         </div>
       </div>
 
-      {/* ─── 3.5. Faixa Superior aos Pedais: Minimapa Contextual (apenas Dirigir) + Indicador de Direção Mobile ─── */}
-      <div className="w-full flex items-end justify-between gap-1.5 py-0.5 px-1.5 flex-shrink-0">
-        {isDriveMode && <HudMinimap variant="mobile_portrait" />}
-        <div className="flex-1 flex items-center justify-end min-w-0">
-          <SteeringControlZone vehicle={vehicle} />
+      {/* ─── 3.5. Faixa Superior aos Pedais: Minimapa Contextual + Direção Mobile (exclusivos do Modo Dirigir) ─── */}
+      {isDriveMode && (
+        <div className="w-full flex items-end justify-between gap-1.5 py-0.5 px-1.5 flex-shrink-0">
+          <HudMinimap variant="mobile_portrait" />
+          <div className="flex-1 flex items-center justify-end min-w-0">
+            <SteeringControlZone vehicle={vehicle} />
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* ─── 4. Zona dos polegares: botões laterais + pedais + ignição no canto inferior direito ─── */}
-      <footer className="w-full grid grid-cols-[62px_1fr_86px] sm:grid-cols-[72px_1fr_94px] items-end gap-1.5 px-1 pb-0.5 flex-shrink-0">
-          {/* Coluna esquerda: Freio de mão multitouch · QuickClutch */}
-          <div className="flex flex-col gap-1">
+      {/* ─── 4. Zona dos polegares: 3 Slots Geométricos Fixos de Pedais + Colunas Laterais de Dimensão Constante ─── */}
+      <footer className="w-full grid grid-cols-[58px_1fr_84px] items-end gap-1.5 px-1 pb-0.5 flex-shrink-0">
+        {/* Coluna esquerda constante (58px): Freio de mão (oculto no Painel) · QuickClutch (oculto sem embreagem) */}
+        <div className="w-[58px] flex flex-col gap-1 justify-end flex-shrink-0">
+          <div className={!isDriveMode ? 'invisible pointer-events-none' : ''}>
             <HandbrakeButton
               active={handbrake}
               onToggle={toggleHandbrake}
               variant="mobile_portrait"
             />
-            {hasClutch && (
-              <QuickClutchButton
-                layout="stack"
-                className="h-11 w-full rounded-xl"
-                label={isMotorcycle ? 'MANETE' : 'EMBR'}
-                sublabel="100%"
-              />
-            )}
           </div>
+          <div className={!hasClutch ? 'invisible pointer-events-none' : ''}>
+            <QuickClutchButton
+              layout="stack"
+              className="h-11 w-full rounded-xl"
+              label={isMotorcycle ? 'MANETE' : 'EMBR'}
+              sublabel="100%"
+            />
+          </div>
+        </div>
 
-          {/* Centro: pedais */}
-          <div className="flex items-end justify-center gap-1.5 sm:gap-2.5">
-            {hasClutch && (
+        {/* Centro: 3 Slots Geométricos Fixos [EMBR/Vazio 48px | FREIO 52px | ACEL 48px] (0 px de deslocamento) */}
+        <div
+          data-testid="pedal-slots-grid"
+          className="grid grid-cols-[48px_52px_48px] items-end justify-center gap-1.5"
+        >
+          <div data-testid="pedal-slot-clutch" className="w-12 flex items-end justify-center">
+            {hasClutch ? (
               <AnalogPedal
                 label={isMotorcycle ? 'MANETE' : 'EMBR'}
                 sublabel={isMotorcycle ? 'EMBREAGEM' : 'CLUTCH'}
                 value={clutchPosition}
                 onChange={setClutch}
                 colorTheme="amber"
-                widthClass={pedalWidth}
-                heightClass={pedalHeight}
+                widthClass="w-12"
+                heightClass="h-32"
                 disabled={false}
                 showPercent={true}
               />
+            ) : (
+              <div aria-hidden="true" className="w-12 h-32 pointer-events-none opacity-0" />
             )}
+          </div>
+
+          <div data-testid="pedal-slot-brake" className="w-[52px] flex items-end justify-center">
             <AnalogPedal
               label={isMotorcycle ? 'F. TRAS' : 'FREIO'}
               sublabel={isMotorcycle ? 'TRASEIRO' : 'BRAKE'}
               value={brake}
               onChange={setBrake}
               colorTheme="red"
-              widthClass={pedalWidth}
-              heightClass={pedalHeight}
+              widthClass="w-[52px]"
+              heightClass="h-32"
               disabled={false}
               showPercent={true}
             />
-            <div className="flex flex-col items-center">
-              <button
-                type="button"
-                onClick={toggleThrottleLock}
-                onPointerDown={(e) => { e.stopPropagation() }}
-                onTouchStart={(e) => { e.stopPropagation() }}
-                style={{ touchAction: 'none' }}
-                className={`py-0.5 mb-1 px-2 rounded-lg font-mono text-[7px] font-black uppercase tracking-wider border transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-0.5 shadow-sm ${
-                  throttleLock
-                    ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.85)] animate-pulse'
-                    : 'bg-zinc-900/90 text-zinc-400 border-white/10 hover:text-white'
-                }`}
-                title="Trava acelerador"
-              >
-                <span>{throttleLock ? '🔒' : '🔓'}</span>
-                <span>{throttleLock ? 'TRAV' : 'TRAVA'}</span>
-              </button>
-              <AnalogPedal
-                label={isMotorcycle ? 'PUNHO' : 'ACEL'}
-                sublabel={isMotorcycle ? 'ACELERAR' : 'GAS'}
-                value={throttle}
-                onChange={setThrottle}
-                colorTheme="accent"
-                widthClass={pedalWidth}
-                heightClass={pedalHeight}
-                disabled={false}
-                showPercent={true}
-              />
-            </div>
           </div>
 
-          {/* Coluna direita (canto inferior direito do HUD): Moto freio dianteiro / NOS + Ignição real do veículo */}
-          <div className="flex flex-col gap-1 items-stretch justify-end">
-            {isMotorcycle && (
-              <button
-                type="button"
-                onPointerDown={() => setBrake(1)}
-                onPointerUp={() => setBrake(0)}
-                onPointerLeave={() => setBrake(0)}
-                onPointerCancel={() => setBrake(0)}
-                className="h-9 rounded-xl border border-red-400/50 bg-red-950/50 font-mono text-[8px] font-black text-red-200 active:bg-red-500/40"
-              >
-                F. DIANT.
-              </button>
-            )}
-            {hasNosKit && (
-              <button
-                type="button"
-                onPointerDown={() => setNosActive(true)}
-                onPointerUp={() => setNosActive(false)}
-                onPointerLeave={() => setNosActive(false)}
-                onPointerCancel={() => setNosActive(false)}
-                disabled={nosPressurePercent <= 0 || !isRunning}
-                aria-label="Disparar Nitro NOS"
-                className={`h-10 rounded-xl border font-mono text-[8px] font-black uppercase flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer shadow-sm ${
-                  nosActive
-                    ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.9)] animate-pulse'
-                    : nosPressurePercent <= 0
-                    ? 'bg-zinc-900/50 text-zinc-600 border-zinc-800'
-                    : 'bg-cyan-950/70 text-cyan-300 border-cyan-500/50'
-                }`}
-              >
-                <span>NOS</span>
-                <span>{Math.round(nosPressurePercent)}%</span>
-              </button>
-            )}
-            <HudIgnitionControl vehicle={vehicle} variant="mobile_portrait" />
+          <div data-testid="pedal-slot-throttle" className="w-12 flex flex-col items-center justify-end">
+            <button
+              type="button"
+              onClick={toggleThrottleLock}
+              onPointerDown={(e) => { e.stopPropagation() }}
+              onTouchStart={(e) => { e.stopPropagation() }}
+              style={{ touchAction: 'none' }}
+              className={`w-12 py-0.5 mb-1 rounded-lg font-mono text-[6.5px] font-black uppercase tracking-wider border transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-0.5 shadow-sm ${
+                throttleLock
+                  ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.85)] animate-pulse'
+                  : 'bg-zinc-900/90 text-zinc-400 border-white/10 hover:text-white'
+              }`}
+              title="Trava acelerador"
+            >
+              <span>{throttleLock ? '🔒' : '🔓'}</span>
+              <span>{throttleLock ? 'TRAV' : 'TRAVA'}</span>
+            </button>
+            <AnalogPedal
+              label={isMotorcycle ? 'PUNHO' : 'ACEL'}
+              sublabel={isMotorcycle ? 'ACELERAR' : 'GAS'}
+              value={throttle}
+              onChange={setThrottle}
+              colorTheme="accent"
+              widthClass="w-12"
+              heightClass="h-32"
+              disabled={false}
+              showPercent={true}
+            />
           </div>
-        </footer>
+        </div>
+
+        {/* Coluna direita constante (84px): Moto freio dianteiro / NOS + Ignição real do veículo */}
+        <div
+          data-testid="ignition-column-slot"
+          className="w-[84px] flex flex-col gap-1 items-stretch justify-end flex-shrink-0"
+        >
+          {isMotorcycle && (
+            <button
+              type="button"
+              onPointerDown={() => setBrake(1)}
+              onPointerUp={() => setBrake(0)}
+              onPointerLeave={() => setBrake(0)}
+              onPointerCancel={() => setBrake(0)}
+              className="h-9 rounded-xl border border-red-400/50 bg-red-950/50 font-mono text-[8px] font-black text-red-200 active:bg-red-500/40"
+            >
+              F. DIANT.
+            </button>
+          )}
+          {hasNosKit && (
+            <button
+              type="button"
+              onPointerDown={() => setNosActive(true)}
+              onPointerUp={() => setNosActive(false)}
+              onPointerLeave={() => setNosActive(false)}
+              onPointerCancel={() => setNosActive(false)}
+              disabled={nosPressurePercent <= 0 || !isRunning}
+              aria-label="Disparar Nitro NOS"
+              className={`h-10 rounded-xl border font-mono text-[8px] font-black uppercase flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer shadow-sm ${
+                nosActive
+                  ? 'bg-cyan-400 text-black border-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.9)] animate-pulse'
+                  : nosPressurePercent <= 0
+                  ? 'bg-zinc-900/50 text-zinc-600 border-zinc-800'
+                  : 'bg-cyan-950/70 text-cyan-300 border-cyan-500/50'
+              }`}
+            >
+              <span>NOS</span>
+              <span>{Math.round(nosPressurePercent)}%</span>
+            </button>
+          )}
+          <HudIgnitionControl vehicle={vehicle} variant="mobile_portrait" />
+        </div>
+      </footer>
 
       {/* ── Efeitos & Modais ── */}
       <BackfireFlameFlash />

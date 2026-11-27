@@ -148,6 +148,7 @@ export interface PhysicsInternalState {
   avgSpeedKmh: number
   odometerKm: number
   persistedMileageFloorKm: number
+  persistedFuelLiters: number | null
   awdRearCoupling: number
   frontAxleTorqueNm: number
   rearAxleTorqueNm: number
@@ -470,6 +471,29 @@ function flushPendingMileageToGarage(
   return unpersistedKm
 }
 
+/**
+ * Persiste o nível real de combustível na instância da garagem sem gravar a 120 Hz:
+ * grava apenas em checkpoints (delta >= minDeltaLiters) ou de forma exata ao sair/alternar modo/abastecer.
+ */
+function flushFuelToGarage(
+  garageInstanceId: string | null | undefined,
+  phys: PhysicsInternalState,
+  force = false,
+  minDeltaLiters = 0.05,
+): void {
+  if (!garageInstanceId || !Number.isFinite(phys.fuelLevelLiters)) return
+  const roundedFuel = Math.max(0, Math.round(phys.fuelLevelLiters * 1000) / 1000)
+  if (
+    !force &&
+    phys.persistedFuelLiters !== null &&
+    Math.abs(roundedFuel - phys.persistedFuelLiters) < minDeltaLiters
+  ) {
+    return
+  }
+  phys.persistedFuelLiters = roundedFuel
+  useGarageStore.getState().setFuelLevelLiters(garageInstanceId, roundedFuel)
+}
+
 function createInitialPhysicsInternalState(
   overrides: Partial<PhysicsInternalState> = {},
 ): PhysicsInternalState {
@@ -566,6 +590,7 @@ function createInitialPhysicsInternalState(
     avgSpeedKmh: overrides.avgSpeedKmh ?? 0,
     odometerKm: overrides.odometerKm ?? 0,
     persistedMileageFloorKm: overrides.persistedMileageFloorKm ?? (overrides.odometerKm ?? 0),
+    persistedFuelLiters: overrides.persistedFuelLiters ?? null,
     awdRearCoupling: overrides.awdRearCoupling ?? 0,
     frontAxleTorqueNm: 0,
     rearAxleTorqueNm: 0,
@@ -623,6 +648,8 @@ interface SimulationActions {
   ) => void
   /** Alterna a modalidade de sessão ('drive' | 'panel') preservando combustível, odômetro e upgrades */
   setSessionMode: (mode: SimulationSessionMode) => void
+  /** Persiste imediatamente quilometragem pendente e combustível real na instância da garagem */
+  persistCurrentVehicleState: () => void
   /** Atualiza peças e upgrades equipados */
   setEquippedUpgrades: (upgrades: Partial<CarUpgrades>) => void
   /** Asa traseira aerodinâmica (Porsche / Supercarros) */
@@ -1314,12 +1341,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     sessionMode: SimulationSessionMode = 'drive',
   ) => {
     const prevBeforeInit = get()
-    if (
-      prevBeforeInit._isInitialized &&
-      prevBeforeInit.garageInstanceId &&
-      prevBeforeInit.sessionMode === 'drive'
-    ) {
-      flushPendingMileageToGarage(prevBeforeInit.garageInstanceId, prevBeforeInit._phys, 0.001)
+    if (prevBeforeInit._isInitialized && prevBeforeInit.garageInstanceId) {
+      if (prevBeforeInit.sessionMode === 'drive') {
+        flushPendingMileageToGarage(prevBeforeInit.garageInstanceId, prevBeforeInit._phys, 0.001)
+      }
+      flushFuelToGarage(prevBeforeInit.garageInstanceId, prevBeforeInit._phys, true)
     }
 
     const caps = getVehicleCapabilities(config)
@@ -1397,7 +1423,21 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       config.dashboard.fuelCapacity && config.dashboard.fuelCapacity > 0
         ? config.dashboard.fuelCapacity
         : 50
-    const initialFuelLevel = Math.round(declaredFuelCapacity * 0.9 * 1000) / 1000
+    const matchedGarageCar =
+      garageInstanceId === null
+        ? undefined
+        : garageInstanceId
+          ? useGarageStore.getState().getCarById(garageInstanceId)
+          : useGarageStore.getState().resolveInstanceForVehicle(config.id)
+    const persistedGarageFuel =
+      garageInstanceId && matchedGarageCar && typeof matchedGarageCar.fuelLevelLiters === 'number' && Number.isFinite(matchedGarageCar.fuelLevelLiters)
+        ? clamp(matchedGarageCar.fuelLevelLiters, 0, declaredFuelCapacity)
+        : undefined
+    const initialFuelLevel =
+      persistedGarageFuel !== undefined
+        ? Math.round(persistedGarageFuel * 1000) / 1000
+        : Math.round(declaredFuelCapacity * 0.9 * 1000) / 1000
+    const initialIsOutOfFuel = initialFuelLevel <= 0
     const initialFuelType: FuelType = initialUpgrades?.fuelType || resolvedFuel.defaultFuelType
     const initialTuningStage: 0 | 1 | 2 | 3 = initialUpgrades?.tuningStage ?? 0
     const initialCruiseRefKmL = computePhysicsSteadyCruiseKmL(
@@ -1405,21 +1445,24 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       initialFuelType,
       initialTuningStage,
     )
-    const initialEstimatedRangeKm = Math.round(initialFuelLevel * initialCruiseRefKmL)
+    const initialRangeSource: RangeEstimationSource = initialIsOutOfFuel ? 'out_of_fuel' : 'cruise_reference'
+    const initialEstimatedRangeKm = initialIsOutOfFuel ? 0 : Math.round(initialFuelLevel * initialCruiseRefKmL)
     const initialAxleSplit = computeAxleTorqueSplitPercent(resolvedDrivetrain, 'auto', 0, 0, 0)
-    const matchedGarageCar = garageInstanceId
+    const mileageSourceCar = garageInstanceId
       ? useGarageStore.getState().getCarById(garageInstanceId)
       : useGarageStore.getState().resolveInstanceForVehicle(config.id)
-    const baseMileageKm = matchedGarageCar?.mileageKm ?? 0
+    const baseMileageKm = mileageSourceCar?.mileageKm ?? 0
 
     const initialPhys = createInitialPhysicsInternalState({
       gear: isAutoOrCvt ? -2 : 0,
       fuelLevelLiters: initialFuelLevel,
+      isOutOfFuel: initialIsOutOfFuel,
+      persistedFuelLiters: persistedGarageFuel !== undefined ? initialFuelLevel : null,
       hasMeasuredAvgConsumption: false,
       avgConsumptionKmL: 0,
       cruiseReferenceConsumptionKmL: initialCruiseRefKmL,
       estimatedRangeKm: initialEstimatedRangeKm,
-      rangeEstimationSource: 'cruise_reference',
+      rangeEstimationSource: initialRangeSource,
       odometerKm: baseMileageKm,
       persistedMileageFloorKm: baseMileageKm,
       awdRearCoupling: initialAxleSplit.coupling,
@@ -1592,7 +1635,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       fuelType: initialFuelType,
       fuelLevelLiters: initialFuelLevel,
       fuelCapacityLiters: declaredFuelCapacity,
-      isOutOfFuel: false,
+      isOutOfFuel: initialIsOutOfFuel,
       liveTorqueNm: 0,
       livePowerHp: 0,
       instantFuelBurnLh: 0,
@@ -1601,7 +1644,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       avgConsumptionKmL: 0,
       cruiseReferenceConsumptionKmL: initialCruiseRefKmL,
       estimatedRangeKm: initialEstimatedRangeKm,
-      rangeEstimationSource: 'cruise_reference',
+      rangeEstimationSource: initialRangeSource,
       tripDistanceKm: 0,
       tripFuelUsedLiters: 0,
       tripDurationSec: 0,
@@ -1667,7 +1710,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       fogLightsLit: false,
       isMapOpen: sessionMode === 'drive',
       mapViewportSize: 'balanced',
-      shifterLayout: sessionMode === 'panel' ? 'sequential' : !isAutoOrCvt ? 'h_pattern' : 'sequential',
+      shifterLayout: !isAutoOrCvt ? 'h_pattern' : 'sequential',
       isGearGrinding: false,
       gearGrindTrigger: 0,
       dragStage: 'idle',
@@ -1686,16 +1729,42 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (prev.sessionMode === 'drive' && prev.garageInstanceId) {
       flushPendingMileageToGarage(prev.garageInstanceId, prev._phys, 0.001)
     }
-    prev._physics?.setSpeedKmh(0)
+    // Ao sair do Modo Painel para o Modo Dirigir, zera a velocidade estacionária do rolo por segurança;
+    // ao entrar no Modo Painel vindo do Modo Dirigir, preserva a velocidade longitudinal atual do conjunto
+    // motor/transmissão (evitando calço artificial em veículos manuais engatados).
+    const nextSpeedKmh = mode === 'drive' ? 0 : prev._phys.speedKmh
+    let nextGear = prev.currentGear
+    if (mode === 'drive') {
+      prev._physics?.setSpeedKmh(0)
+      if (
+        prev.transmissionMode === 'automatic' &&
+        prev._autoTransmission &&
+        prev._transmission &&
+        prev.currentGear > 1
+      ) {
+        const stopForwardGear =
+          prev.gearSelectorPosition === 'D' &&
+          prev._config?.id === 'fiat-toro-ranch-2025' &&
+          prev.fourWheelDriveMode !== '4wd_low'
+            ? 2
+            : 1
+        prev._autoTransmission.reset()
+        prev._transmission.shiftTo(stopForwardGear, 0, undefined, true)
+        nextGear = stopForwardGear
+      }
+    }
     const syncedFuel = Math.round(prev._phys.fuelLevelLiters * 1000) / 1000
     const syncedTripDist = Math.round(prev._phys.tripDistanceKm * 100) / 100
+    const syncedTripFuel = Math.round(prev._phys.tripFuelUsedLiters * 1000) / 1000
+    const syncedAvgKmL = Math.round(prev._phys.avgConsumptionKmL * 10) / 10
     const syncedOdo = Math.round(prev._phys.odometerKm * 10) / 10
     const nextPhys: PhysicsInternalState = {
       ...prev._phys,
+      gear: nextGear,
       fuelLevelLiters: syncedFuel,
       lastPubFuelLevelLiters: syncedFuel,
-      speedKmh: 0,
-      lastPubSpeedKmh: 0,
+      speedKmh: nextSpeedKmh,
+      lastPubSpeedKmh: nextSpeedKmh,
       lateralSpeedMs: 0,
       slipAngleDeg: 0,
       lateralAccelG: 0,
@@ -1707,24 +1776,35 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       instantFuelBurnLh: mode === 'panel' ? 0 : prev._phys.instantFuelBurnLh,
       instantConsumptionKmL: mode === 'panel' ? 0 : prev._phys.instantConsumptionKmL,
     }
+    if (prev.garageInstanceId) {
+      flushFuelToGarage(prev.garageInstanceId, nextPhys, true)
+    }
     if (prev._integrator && prev._physics) {
       const cand = prev._integrator.getState()
       cand.phys = nextPhys
       cand.physics = prev._physics.getStateSnapshot()
+      if (prev._transmission) cand.transmission = prev._transmission.getStateSnapshot()
+      if (prev._autoTransmission) cand.autoTransmission = prev._autoTransmission.getStateSnapshot()
       prev._integrator.setState(cand)
     }
     set({
       sessionMode: mode,
+      currentGear: nextGear,
       fuelLevelLiters: syncedFuel,
       tripDistanceKm: syncedTripDist,
+      tripFuelUsedLiters: syncedTripFuel,
+      hasMeasuredAvgConsumption: prev._phys.hasMeasuredAvgConsumption,
+      avgConsumptionKmL: syncedAvgKmL,
+      estimatedRangeKm: prev._phys.estimatedRangeKm,
+      rangeEstimationSource: prev._phys.rangeEstimationSource,
       odometerKm: syncedOdo,
       throttle: 0,
       throttleLock: false,
       brake: 0,
       handbrake: false,
       steeringAngle: 0,
-      speed: 0,
-      visualSpeed: 0,
+      speed: nextSpeedKmh,
+      visualSpeed: nextSpeedKmh,
       lateralSpeedMs: 0,
       slipAngleDeg: 0,
       lateralAccelG: 0,
@@ -1736,9 +1816,17 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       instantFuelBurnLh: mode === 'panel' ? 0 : prev.instantFuelBurnLh,
       instantConsumptionKmL: mode === 'panel' ? 0 : prev.instantConsumptionKmL,
       isMapOpen: mode === 'drive',
-      shifterLayout: mode === 'panel' ? 'sequential' : !prev.isAutomaticVehicle ? 'h_pattern' : 'sequential',
       _phys: nextPhys,
     })
+  },
+
+  persistCurrentVehicleState: () => {
+    const st = get()
+    if (!st._isInitialized || !st.garageInstanceId) return
+    if (st.sessionMode === 'drive') {
+      flushPendingMileageToGarage(st.garageInstanceId, st._phys, 0.001)
+    }
+    flushFuelToGarage(st.garageInstanceId, st._phys, true)
   },
 
   startEngine: (options?: { enforceInterlock?: boolean; alreadyAuthorizedCrank?: boolean }) => {
@@ -1759,7 +1847,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     // Se já estiver no processo de partida (cranking), ignora para evitar reiniciar o arranque
     if (_engine.getStatus() === 'starting') return
 
-    const enforceInterlock = Boolean(options?.enforceInterlock) && get().sessionMode === 'drive'
+    const enforceInterlock = Boolean(options?.enforceInterlock)
     if (_ignition && !options?.alreadyAuthorizedCrank) {
       const attempt = _ignition.attemptCrank({
         brake,
@@ -1872,8 +1960,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   pressPushButtonIgnition: (enforceInterlock = true) => {
-    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel, sessionMode } = get()
-    const effectiveEnforce = Boolean(enforceInterlock) && sessionMode === 'drive'
+    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel } = get()
+    const effectiveEnforce = Boolean(enforceInterlock)
     if (!_ignition) {
       if (_engine?.getIsRunning()) {
         get().stopEngine()
@@ -1944,8 +2032,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setIgnitionPosition: (pos: IgnitionPosition, enforceInterlock = true) => {
-    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel, sessionMode } = get()
-    const effectiveEnforce = Boolean(enforceInterlock) && sessionMode === 'drive'
+    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel } = get()
+    const effectiveEnforce = Boolean(enforceInterlock)
     if (!_ignition) return false
 
     if (pos === 'CRANK') {
@@ -2123,10 +2211,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setBrake: (value: number) => {
-    if (get().sessionMode === 'panel') {
-      if (get().brake !== 0) set({ brake: 0 })
-      return
-    }
     const clamped = clamp(value, 0, 1)
     // Tocar no freio (>= 10%) destrava automaticamente o acelerador travado (segurança estilo cruise control)
     if (clamped >= 0.1 && get().throttleLock) {
@@ -2932,12 +3016,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       return
     }
 
-    // Modo 'manual' convencional (Gol G6, CB1000R, Opala, etc.) com validação de embreagem (auto-assistida no Modo Painel)
+    // Modo 'manual' convencional (Gol G6, CB1000R, Opala, Pampa, Civic Si) com validação real de embreagem em ambos os modos
     if (!_clutch) return
-    if (get().sessionMode === 'panel') {
-      _transmission.setClutch(1.0)
-      _clutch.setPosition(1.0)
-    }
     const result = _transmission.shiftUp(_engine.getRpm(), speed, _config.engine.maxRpm)
 
     if (result.success) {
@@ -3027,10 +3107,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       }
     }
 
-    if (get().sessionMode === 'panel') {
-      _transmission.setClutch(1.0)
-      _clutch.setPosition(1.0)
-    }
     const result = _transmission.shiftDown(_engine.getRpm(), speed, _config.engine.maxRpm)
 
     if (result.success) {
@@ -3389,8 +3465,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       return
     }
 
-    // Validação de embreagem em câmbio manual com o veículo em movimento (>6 km/h) — dispensada no Modo Painel (sem pedal de embreagem)
-    if (get().sessionMode !== 'panel' && !isAutomaticVehicle && speed > 6 && clutchPosition < 0.45) {
+    // Validação real de embreagem em câmbio manual com o veículo em movimento (>6 km/h) em ambos os modos
+    if (!isAutomaticVehicle && speed > 6 && clutchPosition < 0.45) {
       // Sincronizador arranha violentamente!
       HapticFeedback.heavy()
       set({
@@ -3515,6 +3591,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         },
       }
     })
+    const postRefuel = get()
+    if (postRefuel.garageInstanceId) {
+      flushFuelToGarage(postRefuel.garageInstanceId, postRefuel._phys, true)
+    }
     HapticFeedback.medium()
   },
 
@@ -3586,6 +3666,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         },
       }
     })
+    const postRepair = get()
+    if (postRepair.garageInstanceId) {
+      flushFuelToGarage(postRepair.garageInstanceId, postRepair._phys, true)
+    }
     HapticFeedback.medium()
   },
 
@@ -4175,29 +4259,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             _clutch.setPosition(1.0 - targetClutchEngagement)
             substepPhys.isKickdown = false
           } else {
+            // Veículos manuais e motocicleta: embreagem controlada efetivamente pelo ClutchSystem em ambos os modos (zero auto-clutch artificial)
             substepPhys.isKickdown = false
-            // No Modo Painel (sem pedal de embreagem), gerencia automaticamente o acoplamento em carros/motos manuais
-            if (ctx.sessionMode === 'panel') {
-              const curGear = _transmission.currentGear
-              const speedKmh = _physics.getSpeedKmh()
-              const currentRpm = _engine.getRpm()
-              if (curGear === 0 || curGear === -2) {
-                _clutch.setPosition(1.0)
-              } else if (speedKmh < 2.5 && ctx.throttle < 0.03) {
-                _clutch.setPosition(1.0)
-              } else {
-                const isMoto = Boolean(_config.info.category === 'motorcycle')
-                const slipReleaseKmh = isMoto ? 34 : 16
-                const initialSlip = isMoto ? 0.68 : 0.52
-                if (curGear === 1 && speedKmh < slipReleaseKmh) {
-                  _clutch.setPosition(Math.max(0, initialSlip - (speedKmh / slipReleaseKmh) * initialSlip))
-                } else if (currentRpm < _config.engine.idleRpm * 1.12) {
-                  _clutch.setPosition(0.58)
-                } else {
-                  _clutch.setPosition(0.0)
-                }
-              }
-            }
           }
         }
 
@@ -4324,16 +4387,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         _physics.setAerodynamics(ctx.rearWingPosition, ctx.isAeroWingExtended, ctx.rearWingType)
 
         const isPanelMode = ctx.sessionMode === 'panel'
-        const panelIdleHoldBrake =
-          isPanelMode && ctx.throttle < 0.02 && _physics.getSpeedKmh() < 1.8 && gear !== 0
-            ? 0.45
-            : 0
         const rawBrake = isPanelMode
-          ? Math.max(directionArrestBrake, panelIdleHoldBrake, gear === -2 ? 1 : 0)
+          ? Math.max(ctx.brake, directionArrestBrake, gear === -2 ? 1 : 0)
           : Math.max(ctx.brake, directionArrestBrake, ctx.handbrake || gear === -2 ? 1 : 0)
         const effectiveBrake = rawBrake * substepPhys.brakeFadeFactor
         const driveTorqueAtTransmission =
-          substepPhys.pendingDirectionShift !== null || panelIdleHoldBrake > 0
+          substepPhys.pendingDirectionShift !== null
             ? 0
             : clutchState.transmittedTorque >= 0
               ? clutchState.transmittedTorque * totalTorqueMult
@@ -4367,7 +4426,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         substepPhys.surfaceType = physicsTick.surfaceType
         substepPhys.zoneName = physicsTick.zoneName
         substepPhys.absEngaged =
-          !isPanelMode && state.hasAbs && !state.absFault && !state.isBatteryDischarged
+          state.hasAbs && !state.absFault && !state.isBatteryDischarged
             ? physicsTick.absEngaged
             : false
         substepPhys.isAirbrakeActive = physicsTick.isAirbrakeActive
@@ -5043,6 +5102,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const pubNosPressure = Math.round(phys.nosPressurePercent * 10) / 10
     if (shouldUpdateSlow && state.sessionMode === 'drive') {
       flushPendingMileageToGarage(state.garageInstanceId, phys, 0.5)
+      flushFuelToGarage(state.garageInstanceId, phys, false, 0.05)
     }
 
     phys.lastPubBoost = pubBoost
@@ -5249,8 +5309,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   reset: () => {
     const prevState = get()
-    if (prevState.garageInstanceId && prevState.sessionMode === 'drive') {
-      flushPendingMileageToGarage(prevState.garageInstanceId, prevState._phys, 0.001)
+    if (prevState._isInitialized && prevState.garageInstanceId) {
+      if (prevState.sessionMode === 'drive') {
+        flushPendingMileageToGarage(prevState.garageInstanceId, prevState._phys, 0.001)
+      }
+      flushFuelToGarage(prevState.garageInstanceId, prevState._phys, true)
     }
     const isManual = !prevState.isAutomaticVehicle
     const supported = prevState._config?.transmission.supportedSelectorPositions ?? []

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useSimulationStore } from '@/stores/useSimulationStore'
 import { useGarageStore } from '@/stores/useGarageStore'
 import { useUIStore } from '@/stores/useUIStore'
+import { useSessionStore, type SessionEntryMode } from '@/stores/useSessionStore'
 import { useSimulationLoop } from '@/hooks/useSimulationLoop'
 import { useAudio } from '@/hooks/useAudio'
 import { useKeyboardControls } from '@/hooks/useKeyboardControls'
@@ -25,11 +26,10 @@ import { BackfireFlameFlash, RainWindshieldEffect } from '@/components/effects'
 import { BurnoutSmokeEffect } from '@/components/effects/BurnoutSmokeEffect'
 import { EngineBlownSmokeEffect } from '@/components/effects/EngineBlownSmokeEffect'
 import { DragStripTree } from './DragStripTree'
-import { TuningGarageModal } from '@/components/tuning'
+import { TuningGarageModal, DynoTestModal } from '@/components/tuning'
 import { toggleAppFullscreen } from '@/utils/fullscreen'
 import type { VehicleConfig, DrivingMode } from '@/types'
 import { getVehicleCapabilities } from '@/types'
-import type { SessionEntryMode } from '@/stores/useSessionStore'
 
 interface VehicleDashboardProps {
   vehicle: VehicleConfig
@@ -40,6 +40,9 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const navigate = useNavigate()
   const init = useSimulationStore((s) => s.init)
   const reset = useSimulationStore((s) => s.reset)
+  const setSessionMode = useSimulationStore((s) => s.setSessionMode)
+  const initialEntryModeRef = useRef<SessionEntryMode>(entryMode)
+  initialEntryModeRef.current = entryMode
 
   // Estados em tempo real da store
   const rpm = useSimulationStore((s) => s.rpm)
@@ -109,7 +112,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const setNosActive = useSimulationStore((s) => s.setNosActive)
   const purgeNos = useSimulationStore((s) => s.purgeNos)
 
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const instanceIdFromUrl = searchParams.get('instance')
   const resolveInstanceForVehicle = useGarageStore((s) => s.resolveInstanceForVehicle)
   const activeCar = resolveInstanceForVehicle(vehicle.id, instanceIdFromUrl)
@@ -117,6 +120,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
 
   const [isTuningOpen, setIsTuningOpen] = useState(false)
   const [isDragStripOpen, setIsDragStripOpen] = useState(false)
+  const [isDynoOpen, setIsDynoOpen] = useState(false)
   const { showAftermarketBoostGauge } = useInteriorAccessories(vehicle)
 
   const viewMode = useUIStore((s) => s.viewMode)
@@ -129,26 +133,32 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const mapViewportSize = useUIStore((s) => s.mapViewportSize)
   const setMapViewportSize = useUIStore((s) => s.setMapViewportSize)
 
-  // Inicializar a física apenas quando o veículo, a instância selecionada ou o modo mudarem
-  // (NÃO depender da referência mutável `activeCar`, evitando reiniciar a sessão quando addMileageKm
-  // ou installUpgrade atualizam o objeto na useGarageStore).
+  // Inicializar a física apenas quando o veículo ou a instância selecionada mudarem
+  // (NÃO reinicializar ao alternar Modo Dirigir <-> Modo Painel nem quando addMileageKm / setFuelLevelLiters atualizam a garagem).
   useEffect(() => {
     const currentInstance = useGarageStore
       .getState()
       .resolveInstanceForVehicle(vehicle.id, instanceIdFromUrl)
-    const targetSessionMode = entryMode === 'cluster' ? 'panel' : 'drive'
+    const initialMode = initialEntryModeRef.current
+    const targetSessionMode = initialMode === 'cluster' ? 'panel' : 'drive'
     init(vehicle, currentInstance?.upgrades, currentInstance?.instanceId, targetSessionMode)
-    // No modo DIRIGIR, garante a abertura automática do mundo 2D dirigível
-    if (entryMode === 'drive') {
-      useUIStore.getState().setMapOpen(true)
-    } else if (entryMode === 'cluster') {
-      useUIStore.getState().setMapOpen(false)
-    }
+    useUIStore.getState().setMapOpen(initialMode === 'drive')
     return () => {
+      useSimulationStore.getState().persistCurrentVehicleState()
       useUIStore.getState().closeWorldMap()
       reset()
     }
-  }, [vehicle, activeCarInstanceId, instanceIdFromUrl, init, reset, entryMode])
+  }, [vehicle, activeCarInstanceId, instanceIdFromUrl, init, reset])
+
+  // Alternar Modo Dirigir <-> Modo Painel preservando motor, marcha, combustível, viagem e odômetro
+  useEffect(() => {
+    const targetSessionMode = entryMode === 'cluster' ? 'panel' : 'drive'
+    setSessionMode(targetSessionMode)
+    useUIStore.getState().setMapOpen(entryMode === 'drive')
+    if (entryMode === 'cluster') {
+      useUIStore.getState().closeWorldMap()
+    }
+  }, [entryMode, setSessionMode])
 
   // Disparar loop de física (120Hz)
   useSimulationLoop()
@@ -236,16 +246,37 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
     isEngineBlown,
   ])
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
+    useSimulationStore.getState().persistCurrentVehicleState()
     reset()
     navigate('/')
-  }
+  }, [navigate, reset])
 
   const showExhaustValveButton = canControlExhaustValve(vehicle, {
     exhaustType: activeCar?.upgrades?.exhaustType ?? exhaustType,
     hasExhaustValveKit: activeCar?.upgrades?.hasExhaustValveKit ?? hasExhaustValveKit,
   })
   const isDriveMode = entryMode !== 'cluster'
+
+  const handleToggleSessionMode = useCallback(() => {
+    const nextEntryMode: SessionEntryMode = isDriveMode ? 'cluster' : 'drive'
+    const nextSimMode = nextEntryMode === 'cluster' ? 'panel' : 'drive'
+    useSimulationStore.getState().setSessionMode(nextSimMode)
+    useSessionStore.getState().setEntryMode(nextEntryMode)
+    useUIStore.getState().setMapOpen(nextEntryMode === 'drive')
+    if (nextEntryMode === 'cluster') {
+      useUIStore.getState().closeWorldMap()
+      setIsDragStripOpen(false)
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('mode', nextEntryMode)
+        return next
+      },
+      { replace: true },
+    )
+  }, [isDriveMode, setSearchParams])
 
   const isManualSimulated = transmissionMode === 'manual_simulated'
   const hasAutoManualToggle =
@@ -257,37 +288,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const caps = getVehicleCapabilities(vehicle)
   const supportedModes = caps.supportedDrivingModes
 
-  // ── MODO PAINEL (?mode=cluster): Simulador Independente de Painel e Aceleração (sem mundo/mapa/freio/embreagem/inclinação) ──
-  if (!isDriveMode) {
-    if (isMobileDevice && isPortrait && !allowPortraitCockpit) {
-      return (
-        <RotateDeviceOverlay
-          onAttemptLock={lockLandscape}
-          onPlayInPortrait={() => setAllowPortraitCockpit(true)}
-          onBack={handleBack}
-        />
-      )
-    }
-    const panelLayout = isMobileDevice
-      ? isPortrait
-        ? 'mobile_portrait'
-        : 'mobile_landscape'
-      : 'desktop'
-    return (
-      <PanelModeInteriorView
-        layout={panelLayout}
-        telemetry={telemetry}
-        vehicle={vehicle}
-        carInstance={activeCar}
-        hasTurbo={hasTurbo}
-        showAftermarketBoostGauge={showAftermarketBoostGauge}
-        boostPressureBar={boostPressureBar}
-        onBack={handleBack}
-      />
-    )
-  }
-
-  // ── Em dispositivos móveis verticais (Modo Dirigir): permitir jogar no Portrait Cockpit ou virar o celular ──
+  // ── Em dispositivos móveis verticais: permitir jogar no Portrait Cockpit ou virar o celular (ambos os modos) ──
   if (isMobileDevice && isPortrait) {
     if (allowPortraitCockpit) {
       return (
@@ -295,6 +296,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           telemetry={telemetry}
           vehicle={vehicle}
           onBack={handleBack}
+          onToggleSessionMode={handleToggleSessionMode}
           carInstance={activeCar}
           entryMode={entryMode}
         />
@@ -309,13 +311,14 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
     )
   }
 
-  // ── Em dispositivos móveis horizontais: cockpit dedicado para mobile ──
+  // ── Em dispositivos móveis horizontais: cockpit dedicado para mobile (ambos os modos com os mesmos slots fixos) ──
   if (isMobileDevice && isLandscape) {
     return (
       <MobileLandscapeCockpit
         telemetry={telemetry}
         vehicle={vehicle}
         onBack={handleBack}
+        onToggleSessionMode={handleToggleSessionMode}
         carInstance={activeCar}
         entryMode={entryMode}
       />
@@ -371,6 +374,17 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             <span>{tuningStage === 0 ? 'OFICINA' : `STAGE ${tuningStage}`}</span>
           </button>
 
+          {/* Botão Dinamômetro (Dyno) */}
+          <button
+            type="button"
+            onClick={() => setIsDynoOpen(true)}
+            className="px-2.5 py-1 text-xs rounded-lg border border-white/10 bg-zinc-900 text-zinc-300 hover:text-white font-mono font-bold transition-all cursor-pointer flex items-center gap-1"
+            title="Dinamômetro de Rolo (Dyno)"
+          >
+            <span>📈</span>
+            <span>DYNO</span>
+          </button>
+
           {/* Botão Pista de Arrancada (Drag Strip 402m — exclusivo do Modo Dirigir) */}
           {isDriveMode && (
             <button
@@ -417,8 +431,27 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           )}
         </div>
 
-        {/* Centro do Topo: Seletor de Modo de Visualização (Modo Dirigir) ou Identificação do Modo Painel */}
-        <div className="flex items-center gap-3">
+        {/* Centro do Topo: Alternância Direta Modo Dirigir <-> Modo Painel + Seletor de Visualização */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="btn-toggle-session-mode"
+            onClick={handleToggleSessionMode}
+            className={`px-3 py-1 rounded-full border font-mono text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 ${
+              isDriveMode
+                ? 'border-cyan-500/45 bg-cyan-950/50 text-cyan-300 hover:bg-cyan-900/60'
+                : 'border-emerald-500/50 bg-emerald-950/60 text-emerald-300 hover:bg-emerald-900/60'
+            }`}
+            title={
+              isDriveMode
+                ? 'Alternar para Modo Painel preservando estado do veículo'
+                : 'Alternar para Modo Dirigir preservando estado do veículo'
+            }
+          >
+            <span>{isDriveMode ? '🎛️' : '🛣️'}</span>
+            <span>{isDriveMode ? 'MODO PAINEL' : 'MODO DIRIGIR'}</span>
+          </button>
+
           {isDriveMode ? (
             <>
               <div className="flex items-center gap-1 bg-zinc-950/80 p-1 rounded-full border border-white/10 text-[9px] font-mono shadow-md">
@@ -451,7 +484,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
               data-testid="badge-panel-mode"
               className="px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/40 font-mono text-[10px] font-black uppercase tracking-widest text-cyan-300"
             >
-              🎛️ MODO PAINEL · INTERIOR DIRIGÍVEL
+              🎛️ MODO PAINEL · ESTACIONÁRIO
             </span>
           )}
         </div>
@@ -761,12 +794,14 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
               </button>
             )}
 
-            {/* Freio de mão Desktop */}
-            <HandbrakeButton
-              active={handbrake}
-              onToggle={toggleHandbrake}
-              variant="desktop"
-            />
+            {/* Freio de mão Desktop (slot reservado constante; desabilitado/oculto no Modo Painel) */}
+            <div className={!isDriveMode ? 'invisible pointer-events-none' : ''}>
+              <HandbrakeButton
+                active={handbrake}
+                onToggle={toggleHandbrake}
+                variant="desktop"
+              />
+            </div>
 
             {/* Injeção de Nitro (NOS) & Purga */}
             {hasNosKit && (
@@ -808,10 +843,15 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
           {isDriveMode && <HudMinimap variant="desktop" />}
         </div>
 
-        {/* Coluna Direita Ancorada: Pedais interativos + Ignição real nas exatas mesmas posições e dimensões */}
-        <div className="flex items-end justify-center lg:justify-end gap-3">
+        {/* Coluna Direita Ancorada: 3 Slots Geométricos Fixos de Pedais + Coluna de Ignição com largura constante */}
+        <div className="flex items-end justify-center lg:justify-end gap-3 flex-shrink-0">
           <Pedals vehicle={vehicle} />
-          <HudIgnitionControl vehicle={vehicle} variant="desktop" />
+          <div
+            data-testid="ignition-column-slot"
+            className="w-[144px] flex items-end justify-end flex-shrink-0"
+          >
+            <HudIgnitionControl vehicle={vehicle} variant="desktop" />
+          </div>
         </div>
       </footer>
 
@@ -826,6 +866,11 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
 
       {/* Mapa do Mundo 2D (exclusivo do Modo Dirigir) */}
       {isDriveMode && <WorldMapModal vehicle={vehicle} />}
+
+      {/* Dinamômetro */}
+      {isDynoOpen && (
+        <DynoTestModal config={vehicle} upgrades={activeCar?.upgrades} onClose={() => setIsDynoOpen(false)} />
+      )}
 
       {/* Modal da Oficina de Peças & Preparação */}
       {isTuningOpen && (

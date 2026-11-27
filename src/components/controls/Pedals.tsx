@@ -35,43 +35,47 @@ export const Pedals = memo(function Pedals({ vehicle: propVehicle }: PedalsProps
   const isMotorcycle = category === 'motorcycle'
 
   return (
-    <div className="flex flex-col items-center w-full max-w-sm px-2 select-none touch-none">
-      {/* Manete de Embreagem para Motocicletas */}
-      {hasClutch && isMotorcycle && (
-        <ClutchControl
-          category="motorcycle"
-          value={clutchPosition}
-          onChange={setClutch}
-          disabled={false}
-        />
-      )}
-
-      {/* Conjunto de Pedais Inferiores */}
-      <div className="flex items-end justify-center gap-5 sm:gap-7 w-full">
-        {/* Pedal de Embreagem (Apenas para Carros Manuais) */}
-        {hasClutch && !isMotorcycle && (
+    <div
+      data-testid="pedal-slots-grid"
+      className="grid grid-cols-[56px_64px_56px] items-end gap-5 w-[216px] flex-shrink-0 select-none touch-none"
+    >
+      {/* Slot 1 fixo (56px): Embreagem / Manete ou Slot Vazio reservado (FREIO e ACEL nunca mudam de posição) */}
+      <div data-testid="pedal-slot-clutch" className="w-[56px] flex items-end justify-center">
+        {hasClutch ? (
           <ClutchControl
-            category="car"
+            category={category}
             value={clutchPosition}
             onChange={setClutch}
             disabled={false}
+            compactSlot={true}
           />
+        ) : (
+          <div aria-hidden="true" className="flex flex-col items-center justify-end pointer-events-none opacity-0">
+            <span className="mb-1 text-[7.5px] font-mono font-bold px-1 py-0.5 rounded border leading-none">
+              Acoplada
+            </span>
+            <div className="w-14 h-28 xl:h-36" />
+          </div>
         )}
+      </div>
 
-        {/* Pedal do Freio (0-100%) */}
+      {/* Slot 2 fixo (64px): Pedal do Freio (0-100%) */}
+      <div data-testid="pedal-slot-brake" className="w-[64px] flex items-end justify-center">
         <AnalogPedal
-          label="FREIO"
-          sublabel="BRAKE"
+          label={isMotorcycle ? 'F. TRAS' : 'FREIO'}
+          sublabel={isMotorcycle ? 'TRASEIRO' : 'BRAKE'}
           value={brake}
           onChange={setBrake}
           colorTheme="red"
-          widthClass="w-15 xl:w-16"
+          widthClass="w-16"
           heightClass="h-28 xl:h-36"
           disabled={false}
           showPercent={true}
         />
+      </div>
 
-        {/* Pedal do Acelerador (0-100%) */}
+      {/* Slot 3 fixo (56px): Pedal do Acelerador (0-100%) */}
+      <div data-testid="pedal-slot-throttle" className="w-[56px] flex items-end justify-center">
         <AnalogPedal
           label="RUN"
           sublabel="ACEL."

@@ -11,7 +11,6 @@ import { AnalogPedal } from '@/components/controls/AnalogPedal'
 import { GearShift } from '@/components/controls/GearShift'
 import { QuickClutchButton, HudIgnitionControl, DrivingModesSelector, VerticalGestureShifter, SteeringControlZone, HandbrakeButton } from '@/components/controls'
 import { useSecondaryTouchTapBridge } from '@/utils/multitouchBridge'
-import { resolveVehicleIgnition } from '@/systems/vehicle/vehicleResolvers'
 import { DrivingMapViewport } from './DrivingMapViewport'
 import { HudMinimap } from './HudMinimap'
 import { WorldMapModal } from './WorldMapModal'
@@ -30,30 +29,16 @@ export interface MobileLandscapeCockpitProps {
   telemetry: DashboardTelemetry
   vehicle: VehicleConfig
   onBack: () => void
+  onToggleSessionMode?: () => void
   carInstance?: GarageCarInstance
   entryMode?: SessionEntryMode
 }
 
-/**
- * MobileLandscapeCockpit — Cockpit horizontal responsivo para dispositivos móveis (Fase 1.5).
- *
- * Características principais:
- * - Separação estrita dos modos PAINEL vs DIRIGIR decidida na Garagem.
- * - Em modo PAINEL: Foco 100% no cluster original do veículo, sem mapa e sem pedais,
- *   com alternância para multimídia por swipe horizontal ou botão pill.
- * - Em modo DIRIGIR: Cockpit completo:
- *   · Mapa superior amplo e centralizado com proporções corretas.
- *   · Slot inferior idêntico compartilhado entre o painel original e a central multimídia via swipe.
- *   · Pedais à esquerda com alturas seguras para Android (sem corte inferior).
- *   · Câmbio, freio de mão e botão START à direita com alturas compactas anti-corte.
- *   · Reivindicação total do espaço lateral ocupado anteriormente pelas abas.
- *   · Remoção da barra de aviso fixa de troca de marcha (shift light no cluster preservada).
- *   · Sessão persistente sem botão de retorno para PAINEL durante a condução.
- */
 export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
   telemetry,
   vehicle,
   onBack,
+  onToggleSessionMode,
   carInstance,
   entryMode = 'drive',
 }: MobileLandscapeCockpitProps) {
@@ -132,9 +117,9 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           </div>
         )}
 
-        {/* ═══ 1. ESQUERDA: MENU + IDENTIFICAÇÃO CURTA (topo) · PEDAIS (base) ═══ */}
-        <aside className="flex flex-col justify-between items-start h-full pt-0 pb-0.5 pr-1.5 border-r border-white/5 flex-shrink-0 gap-1">
-          <div className="flex items-center gap-1 min-w-0" data-vehicle-id>
+        {/* ═══ 1. ESQUERDA FIXA (180px): MENU + IDENTIFICAÇÃO (topo) · 3 SLOTS GEOMÉTRICOS FIXOS DE PEDAIS (base) ═══ */}
+        <aside className="w-[180px] flex flex-col justify-between items-start h-full pt-0 pb-0.5 pr-1.5 border-r border-white/5 flex-shrink-0 gap-1">
+          <div className="flex items-center gap-1 min-w-0 w-full" data-vehicle-id>
             <button
               type="button"
               onClick={() => setIsMenuOpen(true)}
@@ -160,7 +145,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               <span className="hidden sm:inline">Garagem</span>
             </button>
             <span
-              className="text-[9px] font-black font-mono tracking-wider text-zinc-400 truncate max-w-[76px]"
+              className="text-[8.5px] font-black font-mono tracking-wider text-zinc-400 truncate flex-1 min-w-0"
               title={`${vehicleHeader.title} · ${vehicleHeader.specsSummary}`}
             >
               {shortName}
@@ -174,49 +159,59 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
             </div>
           )}
 
-          <div className="flex items-end justify-center gap-1.5 sm:gap-2 min-h-0">
-            {hasClutch && (
-              <div className="flex flex-col items-center justify-end gap-1 h-full">
-                <QuickClutchButton
-                  layout="stack"
-                  className="w-12 sm:w-13 h-9 sm:h-10 flex-shrink-0"
-                  label={isMotorcycle ? 'MANETE' : 'EMBR'}
-                  sublabel="100%"
-                />
-                <AnalogPedal
-                  label={isMotorcycle ? 'MANETE' : 'EMBR'}
-                  sublabel={isMotorcycle ? 'EMBREAGEM' : 'CLUTCH'}
-                  value={clutchPosition}
-                  onChange={setClutch}
-                  colorTheme="amber"
-                  widthClass="w-12 sm:w-13"
-                  heightClass="h-28 sm:h-32"
-                  disabled={false}
-                  showPercent={true}
-                />
-              </div>
-            )}
+          {/* 3 Slots Geométricos Fixos [EMBR/Vazio 52px | FREIO 52px | ACEL 52px] (0 px de deslocamento) */}
+          <div
+            data-testid="pedal-slots-grid"
+            className="grid grid-cols-[52px_52px_52px] items-end gap-1.5 w-[168px] min-h-0"
+          >
+            <div data-testid="pedal-slot-clutch" className="w-[52px] flex flex-col items-center justify-end gap-1">
+              {hasClutch ? (
+                <>
+                  <QuickClutchButton
+                    layout="stack"
+                    className="w-[52px] h-9 flex-shrink-0"
+                    label={isMotorcycle ? 'MANETE' : 'EMBR'}
+                    sublabel="100%"
+                  />
+                  <AnalogPedal
+                    label={isMotorcycle ? 'MANETE' : 'EMBR'}
+                    sublabel={isMotorcycle ? 'EMBREAGEM' : 'CLUTCH'}
+                    value={clutchPosition}
+                    onChange={setClutch}
+                    colorTheme="amber"
+                    widthClass="w-[52px]"
+                    heightClass="h-32"
+                    disabled={false}
+                    showPercent={true}
+                  />
+                </>
+              ) : (
+                <div aria-hidden="true" className="w-[52px] h-32 pointer-events-none opacity-0" />
+              )}
+            </div>
 
-            <AnalogPedal
-              label={isMotorcycle ? 'F. TRAS' : 'FREIO'}
-              sublabel={isMotorcycle ? 'TRASEIRO' : 'BRAKE'}
-              value={brake}
-              onChange={setBrake}
-              colorTheme="red"
-              widthClass="w-12 sm:w-13"
-              heightClass="h-32 sm:h-36"
-              disabled={false}
-              showPercent={true}
-            />
+            <div data-testid="pedal-slot-brake" className="w-[52px] flex items-end justify-center">
+              <AnalogPedal
+                label={isMotorcycle ? 'F. TRAS' : 'FREIO'}
+                sublabel={isMotorcycle ? 'TRASEIRO' : 'BRAKE'}
+                value={brake}
+                onChange={setBrake}
+                colorTheme="red"
+                widthClass="w-[52px]"
+                heightClass="h-36"
+                disabled={false}
+                showPercent={true}
+              />
+            </div>
 
-            <div className="flex flex-col items-center justify-end h-full">
+            <div data-testid="pedal-slot-throttle" className="w-[52px] flex flex-col items-center justify-end">
               <button
                 type="button"
                 onClick={toggleThrottleLock}
                 onPointerDown={(e) => { e.stopPropagation() }}
                 onTouchStart={(e) => { e.stopPropagation() }}
                 style={{ touchAction: 'none' }}
-                className={`w-12 sm:w-13 py-0.5 mb-1 rounded-lg font-mono text-[7.5px] font-black uppercase tracking-wider border transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-0.5 shadow-sm ${
+                className={`w-[52px] py-0.5 mb-1 rounded-lg font-mono text-[7px] font-black uppercase tracking-wider border transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-0.5 shadow-sm ${
                   throttleLock
                     ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.85)] animate-pulse'
                     : 'bg-zinc-900/90 text-zinc-400 border-white/10 hover:text-white'
@@ -232,8 +227,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
                 value={throttle}
                 onChange={setThrottle}
                 colorTheme="accent"
-                widthClass="w-12 sm:w-13"
-                heightClass="h-28 sm:h-32"
+                widthClass="w-[52px]"
+                heightClass="h-32"
                 disabled={false}
                 showPercent={true}
               />
@@ -241,8 +236,8 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           </div>
         </aside>
 
-        {/* ═══ 2. CENTRO: MAPA SUPERIOR + SLOT INFERIOR (PAINEL ↔ MULTIMÍDIA) ═══ */}
-        <main className={`relative flex-1 flex flex-col items-center min-w-0 h-full ${isDriveMode ? 'px-1 sm:px-1.5' : 'px-1'}`}>
+        {/* ═══ 2. CENTRO: MAPA SUPERIOR + SLOT INFERIOR (DIRIGIR) OU PALCO MODO PAINEL ═══ */}
+        <main className="relative flex-1 flex flex-col items-center min-w-0 h-full px-1.5">
           {isDriveMode ? (
             <div className="flex-1 flex min-h-0 w-full h-full flex-col gap-0.5 overflow-hidden self-stretch items-center">
               {/* 1. MAPA DE CONDUÇÃO — PARTE SUPERIOR DA REGIÃO CENTRAL */}
@@ -301,48 +296,64 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           )}
         </main>
 
-        {/* ═══ 3. DIREITA: CONTROLES (BUZINA/TCS no topo alinhado ao mapa · CÂMBIO · START) ═══ */}
-        <aside className="flex flex-col items-stretch justify-between h-full pt-0 pb-0.5 px-1.5 border-l border-white/5 flex-shrink-0 gap-1 w-[162px] sm:w-[172px]">
-        {/* Direita superior: Mapa (apenas Dirigir) / Badge Painel + Buzina, 0–100 (apenas Dirigir) e botão NOS */}
-        <div className="flex flex-col items-end gap-0.5 flex-shrink-0 w-full">
-          <div className="flex items-center gap-1.5">
-            {isDriveMode ? (
+        {/* ═══ 3. DIREITA FIXA (172px): ALTERNÂNCIA DE MODO + BUZINA · CÂMBIO · IGNIÇÃO CONSTANTE ═══ */}
+        <aside className="w-[172px] flex flex-col items-stretch justify-between h-full pt-0 pb-0.5 px-1.5 border-l border-white/5 flex-shrink-0 gap-1">
+          <div className="flex flex-col items-end gap-0.5 flex-shrink-0 w-full">
+            <div className="flex items-center justify-end gap-1 w-full">
+              {onToggleSessionMode && (
+                <button
+                  type="button"
+                  data-testid="btn-toggle-session-mode"
+                  onClick={onToggleSessionMode}
+                  className={`h-7 px-2 rounded-full border font-mono text-[7.5px] font-black uppercase tracking-wider flex items-center gap-0.5 transition-all active:scale-95 cursor-pointer shadow-sm ${
+                    isDriveMode
+                      ? 'border-cyan-500/45 bg-cyan-950/60 text-cyan-300'
+                      : 'border-emerald-500/50 bg-emerald-950/65 text-emerald-300'
+                  }`}
+                  title={isDriveMode ? 'Alternar para Modo Painel' : 'Alternar para Modo Dirigir'}
+                >
+                  <span>{isDriveMode ? '🎛️' : '🛣️'}</span>
+                  <span>{isDriveMode ? 'PAINEL' : 'DIRIGIR'}</span>
+                </button>
+              )}
+
+              {isDriveMode ? (
+                <button
+                  type="button"
+                  onClick={toggleWorldMap}
+                  data-testid="btn-world-map"
+                  className={`w-7 h-7 rounded-full border flex items-center justify-center text-xs transition-all active:scale-95 cursor-pointer shadow-sm ${
+                    isWorldMapOpen
+                      ? 'bg-sky-500/25 text-sky-200 border-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.6)]'
+                      : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:text-white'
+                  }`}
+                  title="Abrir Mapa do Mundo 2D"
+                  aria-label="Abrir mapa do mundo"
+                >
+                  🗺️
+                </button>
+              ) : (
+                <span
+                  data-testid="badge-panel-mode"
+                  className="px-1.5 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-500/35 text-[6.5px] font-mono font-black uppercase text-cyan-300"
+                >
+                  PAINEL
+                </span>
+              )}
+
               <button
                 type="button"
-                onClick={toggleWorldMap}
-                data-testid="btn-world-map"
-                className={`w-7 h-7 rounded-full border flex items-center justify-center text-xs transition-all active:scale-95 cursor-pointer shadow-sm ${
-                  isWorldMapOpen
-                    ? 'bg-sky-500/25 text-sky-200 border-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.6)]'
-                    : 'bg-zinc-900 border-sky-500/35 text-sky-300 hover:text-white'
-                }`}
-                title="Abrir Mapa do Mundo 2D"
-                aria-label="Abrir mapa do mundo"
+                onPointerDown={() => setHorn(true)}
+                onPointerUp={() => setHorn(false)}
+                onPointerLeave={() => setHorn(false)}
+                onPointerCancel={() => setHorn(false)}
+                className="w-7 h-7 rounded-full bg-zinc-900 border border-white/15 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-xs transition-all active:scale-95 cursor-pointer shadow-sm"
+                title="Buzina (H)"
+                aria-label="Buzina"
               >
-                🗺️
+                📢
               </button>
-            ) : (
-              <span
-                data-testid="badge-panel-mode"
-                className="px-1.5 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-500/35 text-[7px] font-mono font-black uppercase text-cyan-300"
-              >
-                PAINEL
-              </span>
-            )}
-
-            <button
-              type="button"
-              onPointerDown={() => setHorn(true)}
-              onPointerUp={() => setHorn(false)}
-              onPointerLeave={() => setHorn(false)}
-              onPointerCancel={() => setHorn(false)}
-              className="w-7 h-7 rounded-full bg-zinc-900 border border-white/15 active:bg-amber-500/20 active:border-amber-400 flex items-center justify-center text-xs transition-all active:scale-95 cursor-pointer shadow-sm"
-              title="Buzina (H)"
-              aria-label="Buzina"
-            >
-              📢
-            </button>
-          </div>
+            </div>
 
           {isDriveMode && (
             <div
@@ -418,19 +429,18 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
           </div>
         </div>
 
-        {/* Base (canto inferior direito do HUD): Freio de mão + Ignição real do veículo (Start/Stop ou Chave Física) */}
+        {/* Base constante (canto inferior direito): Slot fixo de Freio de Mão (44px) + Coluna de Ignição (1fr) */}
         <div
-          className={`grid gap-1 flex-shrink-0 ${
-            resolveVehicleIgnition(vehicle).type === 'key'
-              ? 'grid-cols-[44px_1fr]'
-              : 'grid-cols-2 gap-1.5'
-          }`}
+          data-testid="ignition-column-slot"
+          className="grid grid-cols-[44px_1fr] gap-1 items-end flex-shrink-0 w-full"
         >
-          <HandbrakeButton
-            active={handbrake}
-            onToggle={toggleHandbrake}
-            variant="mobile_landscape"
-          />
+          <div className={!isDriveMode ? 'invisible pointer-events-none' : ''}>
+            <HandbrakeButton
+              active={handbrake}
+              onToggle={toggleHandbrake}
+              variant="mobile_landscape"
+            />
+          </div>
           <HudIgnitionControl vehicle={vehicle} variant="mobile_landscape" />
         </div>
       </aside>

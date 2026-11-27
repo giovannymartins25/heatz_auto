@@ -43,6 +43,8 @@ export interface GarageCarInstance {
   customName: string
   upgrades: CarUpgrades
   mileageKm: number
+  /** Nível real de combustível persistido em litros (undefined = tanque inicial padrão de 90%) */
+  fuelLevelLiters?: number
   acquiredAt: number
 }
 
@@ -67,6 +69,8 @@ interface GarageStoreActions {
   addCredits: (amount: number) => void
   /** Acumula quilometragem real percorrida na simulação para a instância da garagem */
   addMileageKm: (instanceId: string, deltaKm: number) => void
+  /** Persiste o nível real de combustível (em litros) na instância da garagem */
+  setFuelLevelLiters: (instanceId: string, liters: number) => void
   toggleSandboxMode: () => void
   resetToDefaults: () => void
 }
@@ -88,9 +92,14 @@ function normalizeCar(car: GarageCarInstance): GarageCarInstance {
   if (car.vehicleId === 'porsche-gt3' && customName === 'Porsche 911 GT3 RS PDK') {
     customName = 'Porsche 911 Turbo S (992) PDK'
   }
+  const normalizedFuel =
+    typeof car.fuelLevelLiters === 'number' && Number.isFinite(car.fuelLevelLiters)
+      ? Math.max(0, Math.round(car.fuelLevelLiters * 1000) / 1000)
+      : undefined
   return {
     ...car,
     customName,
+    ...(normalizedFuel !== undefined ? { fuelLevelLiters: normalizedFuel } : {}),
     upgrades: { ...createDefaultUpgrades(car.vehicleId), ...(car.upgrades || {}) },
   }
 }
@@ -387,6 +396,30 @@ export const useGarageStore = create<GarageStore>((set, get) => ({
       return {
         ...c,
         mileageKm: Math.round((c.mileageKm + deltaKm) * 1000) / 1000,
+      }
+    })
+    if (!changed) return
+    set({ ownedCars: updatedCars })
+    persistState({
+      ownedCars: updatedCars,
+      activeCarInstanceId,
+      credits,
+      sandboxMode,
+    })
+  },
+
+  setFuelLevelLiters: (instanceId: string, liters: number) => {
+    if (!instanceId || !Number.isFinite(liters)) return
+    const roundedLiters = Math.max(0, Math.round(liters * 1000) / 1000)
+    const { ownedCars, activeCarInstanceId, credits, sandboxMode } = get()
+    let changed = false
+    const updatedCars = ownedCars.map((c) => {
+      if (c.instanceId !== instanceId) return c
+      if (c.fuelLevelLiters === roundedLiters) return c
+      changed = true
+      return {
+        ...c,
+        fuelLevelLiters: roundedLiters,
       }
     })
     if (!changed) return

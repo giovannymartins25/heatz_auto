@@ -250,19 +250,17 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
         return
       }
 
-      // ─── 3. Pedais e controles de condução ───
+      // ─── 3. Pedais e controles de condução (Freio e Embreagem ativos tanto em Dirigir quanto em Painel) ───
       if (key === 'w' || key === 'arrowup') {
         keysPressedRef.current.w = true
         setActiveKey('w', true)
         wakeLoop()
       } else if (key === 'e' || key === 'arrowdown') {
-        if (isDriveSession) {
-          keysPressedRef.current.e = true
-          setActiveKey('e', true)
-          wakeLoop()
-        }
+        keysPressedRef.current.e = true
+        setActiveKey('e', true)
+        wakeLoop()
       } else if (key === 'q') {
-        if (isDriveSession && hasClutch) {
+        if (hasClutch) {
           keysPressedRef.current.q = true
           setActiveKey('q', true)
           wakeLoop()

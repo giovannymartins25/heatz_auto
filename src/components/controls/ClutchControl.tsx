@@ -8,6 +8,8 @@ export interface ClutchControlProps {
   value: number
   onChange: (value: number) => void
   disabled?: boolean
+  /** Quando true, renderiza em formato de slot vertical compacto alinhado exatamente pela base dos pedais */
+  compactSlot?: boolean
 }
 
 /** Retorna o estado textual e cor da embreagem conforme a zona de acoplamento */
@@ -45,8 +47,34 @@ export const ClutchControl = memo(function ClutchControl({
   value,
   onChange,
   disabled = false,
+  compactSlot = false,
 }: ClutchControlProps) {
   const zone = getClutchZone(value)
+
+  // ─── Renderização em slot geométrico fixo (Desktop 3 slots fixos: base 100% alinhada com FREIO e ACEL) ───
+  if (compactSlot) {
+    const isMoto = category === 'motorcycle'
+    return (
+      <div className="flex flex-col items-center justify-end">
+        <span
+          className={`mb-1 text-[7.5px] font-mono font-bold px-1 py-0.5 rounded border whitespace-nowrap leading-none ${zone.badgeClass}`}
+        >
+          {zone.status}
+        </span>
+        <AnalogPedal
+          label={isMoto ? 'MANETE' : 'CLUTCH'}
+          sublabel="EMBR."
+          value={value}
+          onChange={onChange}
+          colorTheme={isMoto ? 'amber' : 'blue'}
+          widthClass="w-14"
+          heightClass="h-28 xl:h-36"
+          disabled={disabled}
+          showPercent={true}
+        />
+      </div>
+    )
+  }
 
   // ─── Renderização para Motocicletas (Manete de Guidão) ───
   if (category === 'motorcycle') {
@@ -62,7 +90,12 @@ export const ClutchControl = memo(function ClutchControl({
 
   // ─── Renderização para Carros (Pedal de Embreagem) ───
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center justify-end">
+      <span
+        className={`mb-1 text-[8px] font-mono font-bold px-1.5 py-0.5 rounded border ${zone.badgeClass}`}
+      >
+        {zone.status}
+      </span>
       <AnalogPedal
         label="CLUTCH"
         sublabel="EMBR."
@@ -74,12 +107,6 @@ export const ClutchControl = memo(function ClutchControl({
         disabled={disabled}
         showPercent={true}
       />
-      {/* Indicador de Zona de Fricção do Carro */}
-      <span
-        className={`mt-1 text-[8px] font-mono font-bold px-1.5 py-0.5 rounded border ${zone.badgeClass}`}
-      >
-        {zone.status}
-      </span>
     </div>
   )
 })

@@ -108,7 +108,8 @@ console.log('\n=== ETAPA 2.1 — ARQUITETURA DO PANEL MODE E DRIVING MODE (ATUAL
     dashSrc.includes('{isDriveMode && isMapOpen && (') &&
       dashSrc.includes('{isDriveMode && <HudMinimap variant="desktop" />}') &&
       dashSrc.includes('{isDriveMode && <WorldMapModal vehicle={vehicle} />}') &&
-      portraitSrc.includes('{isDriveMode && <HudMinimap variant="mobile_portrait" />}') &&
+      portraitSrc.includes('{isDriveMode && (') &&
+      portraitSrc.includes('<HudMinimap variant="mobile_portrait" />') &&
       portraitSrc.includes('{isDriveMode && <WorldMapModal vehicle={vehicle} />}') &&
       landscapeSrc.includes('{isDriveMode && (') &&
       landscapeSrc.includes('<HudMinimap variant="mobile_landscape" />') &&
@@ -127,8 +128,9 @@ console.log('\n=== ETAPA 2.1 — ARQUITETURA DO PANEL MODE E DRIVING MODE (ATUAL
     'PanelModeInteriorView não cria simulação paralela, console falso de bancada, mapa, minimapa ou guias de pista',
   )
 
-  // Na Etapa 3, em todos os 3 layouts de PanelModeInteriorView, o Cluster é o elemento visual principal (hero)
-  // vindo ANTES da Multimídia, dos Controles e do Deck de Telemetria + Acelerador.
+  // Em todos os 3 layouts de PanelModeInteriorView, o Cluster é o elemento visual principal (hero)
+  // vindo ANTES da Multimídia, dos Controles e da Telemetria Real ao Vivo, enquanto os 3 slots fixos de pedais
+  // são compartilhados na casca externa unificada do cockpit (Etapa 3A).
   for (const layoutId of ['mobile_portrait', 'mobile_landscape', 'desktop'] as const) {
     const startIdx = panelSrc.indexOf(`data-layout="${layoutId}"`)
     const nextIdx = panelSrc.indexOf('data-testid="panel-mode-interior-root"', startIdx + 1)
@@ -136,10 +138,10 @@ console.log('\n=== ETAPA 2.1 — ARQUITETURA DO PANEL MODE E DRIVING MODE (ATUAL
     const idxCluster = block.indexOf('data-testid="panel-mode-cluster-region"')
     const idxMultimedia = block.indexOf('data-testid="panel-mode-multimedia-region"')
     const idxControls = block.indexOf('data-testid="panel-mode-controls-region"')
-    const idxAccelDeck = block.indexOf('data-testid="panel-mode-accelerator-deck"')
+    const idxLiveStrip = block.indexOf('<PanelModeLiveTelemetryStrip')
     assert(
-      idxCluster > 0 && idxMultimedia > idxCluster && idxControls > idxCluster && idxAccelDeck > idxCluster,
-      `[Layout ${layoutId}] hierarquia Etapa 3 correta: Hero Cluster principal -> Multimídia & Controles dedicados -> Telemetria + Acelerador`,
+      idxCluster > 0 && idxMultimedia > idxCluster && idxControls > idxCluster && idxLiveStrip > idxCluster,
+      `[Layout ${layoutId}] hierarquia Etapa 3/3A correta: Hero Cluster principal -> Multimídia & Controles dedicados -> Telemetria ao Vivo`,
     )
   }
 

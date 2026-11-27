@@ -131,21 +131,16 @@ console.log('\n=== ETAPA 3.1 — SEPARAÇÃO ESTRUTURAL DO MODO PAINEL (SEM MUND
       !panelExec.includes('SteeringControlZone') &&
       !panelExec.includes('useDeviceTilt') &&
       !panelExec.includes('HandbrakeButton') &&
-      !panelExec.includes('QuickClutchButton') &&
-      !panelExec.includes('<Pedals') &&
-      !panelExec.includes('setBrake') &&
-      !panelExec.includes('setClutch') &&
       !panelExec.includes('toggleHandbrake'),
-    'PanelModeInteriorView omite 100% de mapa, minimapa, direção por inclinação, pedal de freio, embreagem e freio de mão',
+    'PanelModeInteriorView omite 100% de mapa, minimapa, direção por inclinação e freio de mão',
   )
 
   assert(
     panelExec.includes('panel-mode-cluster-region') &&
       panelExec.includes('panel-mode-multimedia-region') &&
       panelExec.includes('panel-mode-controls-region') &&
-      panelExec.includes('panel-mode-telemetry-strip') &&
-      panelExec.includes('panel-mode-accelerator-deck'),
-    'PanelModeInteriorView estrutura Hero Cluster, Multimídia dedicada, Controles organizados e Telemetria + Acelerador nos 3 formatos',
+      panelExec.includes('panel-mode-telemetry-strip'),
+    'PanelModeInteriorView estrutura Hero Cluster, Multimídia dedicada, Controles organizados e Telemetria ao vivo nos 3 formatos',
   )
 
   assert(
@@ -163,7 +158,7 @@ console.log('\n=== ETAPA 3.2 — SIMULAÇÃO ESTACIONÁRIA DO MODO PAINEL + CONG
   const startGarageMileage = garageCar?.mileageKm ?? 0
 
   sim.reset()
-  sim.init(porsche, garageCar?.upgrades, garageCar?.instanceId, 'panel')
+  sim.init(porsche, garageCar?.upgrades, null, 'panel')
 
   const initSt = useSimulationStore.getState()
   const startX = initSt.positionX
@@ -173,25 +168,33 @@ console.log('\n=== ETAPA 3.2 — SIMULAÇÃO ESTACIONÁRIA DO MODO PAINEL + CONG
   const startRange = initSt.estimatedRangeKm
   const startOdo = initSt.odometerKm
 
-  // 1. Partida Start/Stop no Modo Painel NÃO exige pedal de freio (inexistente no Modo Painel)
+  // 1. Partida Start/Stop no Modo Painel respeita o intertravamento real de freio (Etapa 3A)
+  sim.pressPushButtonIgnition(true)
+  assert(
+    !useSimulationStore.getState().isRunning,
+    '[Modo Painel · Porsche] botão Start/Stop exige pisar no pedal de freio real (intertravamento preservado)',
+  )
+  sim.setBrake(0.8)
   sim.pressPushButtonIgnition(true)
   stepSeconds(0.65)
+  sim.setBrake(0)
   assert(
     useSimulationStore.getState().isRunning && useSimulationStore.getState().ignitionPosition === 'ON',
-    '[Modo Painel · Porsche] botão Start/Stop liga o motor sem exigir pedal de freio ausente',
+    '[Modo Painel · Porsche] botão Start/Stop liga o motor ao pisar no freio real',
   )
 
-  // 2. Tentativas de acionar freio, freio de mão ou direção são bloqueadas no Modo Painel
-  sim.setBrake(1.0)
+  // 2. Tentativas de acionar freio de mão ou direção permanecem bloqueadas no Modo Painel, enquanto freio de serviço funciona
+  sim.setBrake(0.75)
   sim.setHandbrake(true)
   sim.setSteeringAngle(0.9, 'keyboard')
   sharedTiltSteering.processSample({ beta: 22, gamma: 0, isLandscape: true, orientationAngle: 90 }, 1 / 60, true)
   assert(
-    useSimulationStore.getState().brake === 0 &&
+    useSimulationStore.getState().brake === 0.75 &&
       useSimulationStore.getState().handbrake === false &&
       useSimulationStore.getState().steeringAngle === 0,
-    '[Modo Painel] freio, freio de mão e esterço permanecem bloqueados em 0 / false',
+    '[Modo Painel] freio de serviço ativo (75%), enquanto freio de mão e esterço permanecem bloqueados em false / 0',
   )
+  sim.setBrake(0)
 
   // 3. Giro livre em P / N: RPM sobe com resposta real, velocímetro permanece 0 km/h
   sim.selectNeutral()
@@ -241,7 +244,7 @@ console.log('\n=== ETAPA 3.2 — SIMULAÇÃO ESTACIONÁRIA DO MODO PAINEL + CONG
     `[Modo Painel] COMBUSTÍVEL E ODÔMETRO 100% INTACTOS (tanque=${panelRunSt.fuelLevelLiters}L === ${startFuel}L, tripFuel=0, auton=${panelRunSt.estimatedRangeKm} km, odo=${panelRunSt.odometerKm} km)`,
   )
 
-  // 5. Motocicleta manual com chave (CB1000R) no Modo Painel: parte na chave e troca marchas 1ª -> 2ª -> 3ª sem manete de embreagem
+  // 5. Motocicleta manual com chave (CB1000R) no Modo Painel: parte na chave e troca marchas 1ª -> 2ª -> 3ª com acionamento real da manete de embreagem (Etapa 3A)
   const cb1000r = loadVehicle('cb1000r')
   sim.reset()
   sim.init(cb1000r, undefined, null, 'panel')
@@ -252,12 +255,20 @@ console.log('\n=== ETAPA 3.2 — SIMULAÇÃO ESTACIONÁRIA DO MODO PAINEL + CONG
   sim.setIgnitionPosition('CRANK', true)
   stepSeconds(0.65)
   sim.releaseIgnitionKey()
-  sim.shiftUp() // 1ª marcha sem precisar de manete de embreagem no Modo Painel
+  sim.setClutch(1.0)
+  sim.shiftUp() // 1ª marcha com manete pressionada
   sim.setThrottle(0.95)
-  stepSeconds(6.0) // 1ª marcha longa de superbike (sobe até a faixa nobre de giro)
+  sim.setClutch(0.35)
+  stepSeconds(0.8)
+  sim.setClutch(0.0)
+  stepSeconds(5.2)
+  sim.setClutch(1.0)
   sim.shiftUp() // 2ª marcha
+  sim.setClutch(0.0)
   stepSeconds(1.5)
+  sim.setClutch(1.0)
   sim.shiftUp() // 3ª marcha
+  sim.setClutch(0.0)
   stepSeconds(1.2)
   const motoPanelSt = useSimulationStore.getState()
   assert(
@@ -267,7 +278,7 @@ console.log('\n=== ETAPA 3.2 — SIMULAÇÃO ESTACIONÁRIA DO MODO PAINEL + CONG
       motoPanelSt.fuelLevelLiters === motoStartFuel &&
       motoPanelSt.positionX === motoStartX &&
       motoPanelSt.positionY === motoStartY,
-    `[Modo Painel · CB1000R] parte na chave e troca 1ª->2ª->3ª sem embreagem (${motoPanelSt.speed.toFixed(1)} km/h), zero deslocamento e tanque intacto (${motoPanelSt.fuelLevelLiters}L)`,
+    `[Modo Painel · CB1000R] parte na chave e troca 1ª->2ª->3ª com embreagem real (${motoPanelSt.speed.toFixed(1)} km/h), zero deslocamento e tanque intacto (${motoPanelSt.fuelLevelLiters}L)`,
   )
 
   // Restaura quilometragem original caso houvesse instância
