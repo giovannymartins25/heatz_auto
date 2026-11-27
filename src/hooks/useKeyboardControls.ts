@@ -15,6 +15,8 @@ const STEER_RETURN_RATE = 5.2
  * eliminando trabalho desnecessário por frame tanto em Mobile quanto em Desktop.
  */
 export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boolean = true) {
+  const sessionMode = useSimulationStore((s) => s.sessionMode)
+  const isDriveSession = sessionMode === 'drive'
   const setThrottle = useSimulationStore((s) => s.setThrottle)
   const setBrake = useSimulationStore((s) => s.setBrake)
   const setClutch = useSimulationStore((s) => s.setClutch)
@@ -230,17 +232,21 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
         }
       }
 
-      // ─── 2. Direção exclusiva (A = Esquerda, D = Direita) ───
+      // ─── 2. Direção exclusiva (A = Esquerda, D = Direita — apenas no Modo Dirigir) ───
       if (key === 'a') {
-        keysPressedRef.current.a = true
-        setActiveKey('a', true)
-        wakeLoop()
+        if (isDriveSession) {
+          keysPressedRef.current.a = true
+          setActiveKey('a', true)
+          wakeLoop()
+        }
         return
       }
       if (key === 'd') {
-        keysPressedRef.current.d = true
-        setActiveKey('d', true)
-        wakeLoop()
+        if (isDriveSession) {
+          keysPressedRef.current.d = true
+          setActiveKey('d', true)
+          wakeLoop()
+        }
         return
       }
 
@@ -250,19 +256,23 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
         setActiveKey('w', true)
         wakeLoop()
       } else if (key === 'e' || key === 'arrowdown') {
-        keysPressedRef.current.e = true
-        setActiveKey('e', true)
-        wakeLoop()
+        if (isDriveSession) {
+          keysPressedRef.current.e = true
+          setActiveKey('e', true)
+          wakeLoop()
+        }
       } else if (key === 'q') {
-        if (hasClutch) {
+        if (isDriveSession && hasClutch) {
           keysPressedRef.current.q = true
           setActiveKey('q', true)
           wakeLoop()
         }
       } else if (key === ' ') {
         event.preventDefault()
-        setActiveKey('space', true)
-        setHandbrake(true)
+        if (isDriveSession) {
+          setActiveKey('space', true)
+          setHandbrake(true)
+        }
       } else if (key === 'h') {
         setActiveKey('horn', true)
         setHorn(true)
@@ -279,9 +289,11 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
           shiftDown()
         }
       } else if (key === 'm' && !event.repeat) {
-        setActiveKey('map', true)
-        setTimeout(() => setActiveKey('map', false), 200)
-        toggleMap()
+        if (isDriveSession) {
+          setActiveKey('map', true)
+          setTimeout(() => setActiveKey('map', false), 200)
+          toggleMap()
+        }
       } else if (key === 'k' && hasManualMode && !event.repeat && isRunning) {
         toggleSimulatedManual()
       } else if (key === 't' && !event.repeat) {
@@ -382,6 +394,7 @@ export function useKeyboardControls(vehicle?: VehicleConfig | null, enabled: boo
     }
   }, [
     enabled,
+    isDriveSession,
     vehicle,
     hasClutch,
     hasManualMode,

@@ -2,7 +2,6 @@ import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { clamp, mapRange } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { useGarageStore } from '@/stores/useGarageStore'
 
 export interface FordPampa1997ClusterProps {
   telemetry: DashboardTelemetry
@@ -10,15 +9,7 @@ export interface FordPampa1997ClusterProps {
 
 /**
  * FordPampa1997Cluster — Quadro de Instrumentos Analógico Utilitário (1997)
- * exclusivo da Ford Pampa L 1.8i CFI 1997.
- *
- * Fidelidade histórica ao painel retangular Ford/Autolatina dos anos 90:
- * - Carcaça plástica cinza-grafite fosca sem qualquer tela digital moderna
- * - Retroiluminação incandescente esverdeada suave nos mostradores e ponteiros alaranjados
- * - Velocímetro analógico 0–180 km/h com hodômetro mecânico de 6 tambores (5 pretos + 1 branco de décimos)
- * - Mostradores verticais centrais de Combustível (V - 1/2 - C, 66 L) e Temperatura (F - NORMAL - Q)
- * - Conta-giros analógico compatível da linha Ford AP (0–60 x100 RPM, faixa vermelha aos 5.500 RPM)
- * - Lentes quadradas translúcidas para luzes espia (Bateria, Óleo, Injeção CFI EEC-IV, Freio, Setas e Farol)
+ * exclusivo da Ford Pampa L 1.8i CFI 1997 (sem ABS, sem telas modernas, iluminação incandescente esverdeada).
  */
 export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
   telemetry,
@@ -26,23 +17,20 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
   const { tachometer, speedometer, warningLights, auxGauges } = telemetry
 
   const currentGear = useSimulationStore((s) => s.currentGear)
-  const isRunning = useSimulationStore((s) => s.isRunning)
-  const isStalled = useSimulationStore((s) => s.isStalled)
   const ignitionPosition = useSimulationStore((s) => s.ignitionPosition)
-  const handbrake = useSimulationStore((s) => s.handbrake)
   const leftIndicatorLit = useSimulationStore((s) => s.leftIndicatorLit)
   const rightIndicatorLit = useSimulationStore((s) => s.rightIndicatorLit)
   const headlightsMode = useSimulationStore((s) => s.headlightsMode)
-  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
+  const odometerKm = useSimulationStore((s) => s.odometerKm)
 
-  const maxSpeed = 180
-  const maxRpm = 6000
-  const redlineStart = 5500
+  const maxSpeed = speedometer.maxSpeed || 180
+  const maxRpm = tachometer.maxRpm || 6000
+  const redlineStart = tachometer.redlineStart || 5500
 
   const speed = clamp(Number.isFinite(speedometer.speed) ? speedometer.speed : 0, 0, maxSpeed)
   const rpm = clamp(Number.isFinite(tachometer.rpm) ? tachometer.rpm : 0, 0, maxRpm)
   const coolantTemp = clamp(auxGauges.coolantTemp || 89, 50, 130)
-  const fuelPercent = clamp(auxGauges.fuelLevel ?? 75, 0, 100)
+  const fuelPercent = clamp(auxGauges.fuelPercent, 0, 100)
 
   const startAngle = -220
   const endAngle = 40
@@ -60,7 +48,7 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
       })
     }
     return arr
-  }, [])
+  }, [maxSpeed])
 
   const rpmMarks = useMemo(() => {
     const arr: { angle: number; label: string; major: boolean; red: boolean }[] = []
@@ -74,18 +62,16 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
       })
     }
     return arr
-  }, [])
+  }, [maxRpm, redlineStart])
 
   // Tambores do hodômetro mecânico (5 dígitos inteiros + 1 dígito decimal branco)
-  const totalTenths = Math.round(Math.max(0, mileageKm) * 10)
+  const totalTenths = Math.round(Math.max(0, odometerKm) * 10)
   const tenthDigit = String(totalTenths % 10)
   const wholeDigits = String(Math.floor(totalTenths / 10) % 100000).padStart(5, '0')
 
   const gearLabel = currentGear === -1 ? 'R' : currentGear === 0 ? 'N' : String(currentGear)
-  const backlightOn = headlightsMode !== 'off' || ignitionPosition === 'ON'
-  const keyInOnWithoutEngine = !isRunning && (ignitionPosition === 'ON' || ignitionPosition === 'CRANK')
+  const backlightOn = ignitionPosition !== 'OFF' && headlightsMode !== 'off'
 
-  // Ângulos dos ponteiros auxiliares (Combustível e Temperatura)
   const fuelNeedleY = mapRange(fuelPercent, 0, 100, 72, 18)
   const tempNeedleY = mapRange(coolantTemp, 50, 125, 72, 18)
 
@@ -94,7 +80,7 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
       className="relative flex w-full max-w-4xl flex-col items-center rounded-xl border-4 border-zinc-700 bg-gradient-to-b from-[#25282c] via-[#17191c] to-[#0f1113] p-2 font-mono text-zinc-100 shadow-[inset_0_2px_10px_rgba(0,0,0,0.9)] select-none"
       data-testid="cluster-ford-pampa-1997"
     >
-      {/* Faixa superior de lentes quadradas estilo anos 90 */}
+      {/* Faixa superior de lentes quadradas incandescentes estilo anos 90 */}
       <div className="mb-1.5 flex w-full items-center justify-between rounded border border-zinc-700 bg-[#0d0f10] px-2.5 py-1 text-[8.5px] font-black">
         <div className="flex items-center gap-1.5">
           <span
@@ -111,11 +97,10 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
           </span>
         </div>
 
-        {/* Lentes espia incandescentes */}
         <div className="flex items-center gap-1">
           <span
             className={`rounded-xs border px-1.5 py-0.5 text-[7.5px] ${
-              keyInOnWithoutEngine || isStalled
+              warningLights.battery
                 ? 'border-red-400 bg-red-600 text-white'
                 : 'border-zinc-800 bg-[#221111] text-red-950'
             }`}
@@ -124,7 +109,7 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
           </span>
           <span
             className={`rounded-xs border px-1.5 py-0.5 text-[7.5px] ${
-              warningLights.oil || keyInOnWithoutEngine
+              warningLights.oil
                 ? 'border-red-400 bg-red-600 text-white'
                 : 'border-zinc-800 bg-[#221111] text-red-950'
             }`}
@@ -133,7 +118,7 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
           </span>
           <span
             className={`rounded-xs border px-1.5 py-0.5 text-[7.5px] ${
-              warningLights.checkEngine || ignitionPosition === 'CRANK'
+              warningLights.checkEngine
                 ? 'border-amber-300 bg-amber-500 text-black'
                 : 'border-zinc-800 bg-[#241c0e] text-amber-950'
             }`}
@@ -142,12 +127,22 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
           </span>
           <span
             className={`rounded-xs border px-1.5 py-0.5 text-[7.5px] ${
-              handbrake
+              warningLights.brake
+                ? 'border-red-400 bg-red-600 text-white'
+                : 'border-zinc-800 bg-[#221111] text-red-950'
+            }`}
+            title="Freio de Estacionamento"
+          >
+            ( P )
+          </span>
+          <span
+            className={`rounded-xs border px-1.5 py-0.5 text-[7.5px] ${
+              warningLights.temp
                 ? 'border-red-400 bg-red-600 text-white'
                 : 'border-zinc-800 bg-[#221111] text-red-950'
             }`}
           >
-            ( ! )
+            TEMP
           </span>
           <span
             className={`rounded-xs border px-1.5 py-0.5 text-[7.5px] ${
@@ -173,7 +168,7 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
         </span>
       </div>
 
-      {/* Binnacle Retangular Analógico: Velocímetro 180 km/h | Auxiliares Verticais | Conta-Giros AP */}
+      {/* Binnacle Retangular Analógico: Velocímetro 180 km/h | Auxiliares Verticais (66L + Temp) | Conta-Giros AP */}
       <div className="grid w-full grid-cols-[1fr_0.72fr_1fr] items-center gap-1.5 rounded-lg border-2 border-zinc-800 bg-[#0b0d0c] p-1.5">
         {/* 1. VELOCÍMETRO ANALÓGICO 0–180 KM/H + HODÔMETRO DE TAMBOR */}
         <div className="flex flex-col items-center">
@@ -225,7 +220,6 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
               km/h
             </text>
 
-            {/* Janela mecânica de 6 tambores do hodômetro */}
             <rect x="64" y="128" width="82" height="17" rx="2" fill="#050505" stroke="#52525b" strokeWidth="1" />
             {wholeDigits.split('').map((d, i) => (
               <g key={i}>
@@ -240,7 +234,6 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
               {tenthDigit}
             </text>
 
-            {/* Ponteiro mecânico laranja */}
             <g transform={`rotate(${speedAngle} 105 105)`}>
               <line x1="88" y1="105" x2="176" y2="105" stroke="#f97316" strokeWidth="3.2" strokeLinecap="round" />
             </g>
@@ -251,9 +244,8 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
         {/* 2. COLUNA CENTRAL ANALÓGICA: COMBUSTÍVEL (66L) + TEMPERATURA + MARCHA MANUAL */}
         <div className="flex flex-col items-center justify-between gap-1.5 rounded border border-zinc-800 bg-[#101412] px-2 py-2">
           <div className="grid w-full grid-cols-2 gap-1.5">
-            {/* Escala vertical de Combustível */}
             <div className="flex flex-col items-center rounded border border-zinc-800 bg-black/70 p-1">
-              <span className="text-[7px] font-bold text-emerald-300">COMB.</span>
+              <span className="text-[7px] font-bold text-emerald-300">COMB. 66L</span>
               <svg viewBox="0 0 56 90" className="w-12">
                 <line x1="16" y1="18" x2="16" y2="72" stroke="#52525b" strokeWidth="2" />
                 <line x1="12" y1="18" x2="22" y2="18" stroke="#bbf7d0" strokeWidth="2" />
@@ -276,7 +268,6 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
               <span className="text-[7px] text-zinc-400">{Math.round(fuelPercent)}%</span>
             </div>
 
-            {/* Escala vertical de Temperatura */}
             <div className="flex flex-col items-center rounded border border-zinc-800 bg-black/70 p-1">
               <span className="text-[7px] font-bold text-emerald-300">TEMP.</span>
               <svg viewBox="0 0 56 90" className="w-12">
@@ -302,7 +293,6 @@ export const FordPampa1997Cluster = memo(function FordPampa1997Cluster({
             </div>
           </div>
 
-          {/* Indicador mecânico discreto de marcha (para auxiliar pilotagem manual) */}
           <div className="flex w-full items-center justify-between rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[8px]">
             <span className="text-zinc-400">CÂMBIO 5M</span>
             <span className="rounded bg-black px-2 py-0.5 text-xs font-black text-amber-400">{gearLabel}</span>

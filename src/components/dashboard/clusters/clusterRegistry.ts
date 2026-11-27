@@ -61,7 +61,7 @@ export const CLUSTER_REGISTRY: Readonly<Record<DashboardTheme, ClusterRegistryEn
   },
   supercar: {
     theme: 'supercar',
-    label: 'Porsche 911 (992) Tacômetro Central',
+    label: 'Porsche 911 Turbo S (992.1) Tacômetro Central',
     component: Porsche992GT3RealCluster,
     profile: { width: 770, height: 268 },
   },

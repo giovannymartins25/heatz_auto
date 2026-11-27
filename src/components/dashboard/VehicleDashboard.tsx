@@ -136,7 +136,8 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
     const currentInstance = useGarageStore
       .getState()
       .resolveInstanceForVehicle(vehicle.id, instanceIdFromUrl)
-    init(vehicle, currentInstance?.upgrades, currentInstance?.instanceId)
+    const targetSessionMode = entryMode === 'cluster' ? 'panel' : 'drive'
+    init(vehicle, currentInstance?.upgrades, currentInstance?.instanceId, targetSessionMode)
     // No modo DIRIGIR, garante a abertura automática do mundo 2D dirigível
     if (entryMode === 'drive') {
       useUIStore.getState().setMapOpen(true)
@@ -256,7 +257,37 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
   const caps = getVehicleCapabilities(vehicle)
   const supportedModes = caps.supportedDrivingModes
 
-  // ── Em dispositivos móveis verticais: permitir jogar no Portrait Cockpit ou virar o celular ──
+  // ── MODO PAINEL (?mode=cluster): Simulador Independente de Painel e Aceleração (sem mundo/mapa/freio/embreagem/inclinação) ──
+  if (!isDriveMode) {
+    if (isMobileDevice && isPortrait && !allowPortraitCockpit) {
+      return (
+        <RotateDeviceOverlay
+          onAttemptLock={lockLandscape}
+          onPlayInPortrait={() => setAllowPortraitCockpit(true)}
+          onBack={handleBack}
+        />
+      )
+    }
+    const panelLayout = isMobileDevice
+      ? isPortrait
+        ? 'mobile_portrait'
+        : 'mobile_landscape'
+      : 'desktop'
+    return (
+      <PanelModeInteriorView
+        layout={panelLayout}
+        telemetry={telemetry}
+        vehicle={vehicle}
+        carInstance={activeCar}
+        hasTurbo={hasTurbo}
+        showAftermarketBoostGauge={showAftermarketBoostGauge}
+        boostPressureBar={boostPressureBar}
+        onBack={handleBack}
+      />
+    )
+  }
+
+  // ── Em dispositivos móveis verticais (Modo Dirigir): permitir jogar no Portrait Cockpit ou virar o celular ──
   if (isMobileDevice && isPortrait) {
     if (allowPortraitCockpit) {
       return (
@@ -685,6 +716,7 @@ export function VehicleDashboard({ vehicle, entryMode = 'drive' }: VehicleDashbo
             hasTurbo={hasTurbo}
             showAftermarketBoostGauge={showAftermarketBoostGauge}
             boostPressureBar={boostPressureBar}
+            onBack={handleBack}
           />
         )}
 

@@ -1,8 +1,7 @@
 import { memo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
-import { mapRange } from '@/utils/math'
+import { clamp, mapRange } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { useGarageStore } from '@/stores/useGarageStore'
 import { useUIStore, type GraphicProfile } from '@/stores/useUIStore'
 import { AMBIENT_COLOR_MAP } from '@/utils/ambientLighting'
 import { ClusterIndicatorIcon } from '@/components/gauges'
@@ -79,10 +78,6 @@ const TACH_REDLINE_ARC = describeArc(
   END_ANGLE,
 )
 
-/**
- * Face estática memoizada do tacômetro Optitron do Yaris:
- * isola gradientes, anéis, arcos e marcações graduadas (zero CSS drop-shadow na GPU).
- */
 const YarisTachometerStaticFace = memo(function YarisTachometerStaticFace() {
   return (
     <>
@@ -100,7 +95,6 @@ const YarisTachometerStaticFace = memo(function YarisTachometerStaticFace() {
         </linearGradient>
       </defs>
 
-      {/* Halo ciano nativo SVG (substitui CSS drop-shadow custoso na GPU mobile) */}
       <circle
         cx={DIAL_CENTER}
         cy={DIAL_CENTER}
@@ -118,8 +112,6 @@ const YarisTachometerStaticFace = memo(function YarisTachometerStaticFace() {
         stroke="url(#optitronCyanRing)"
         strokeWidth="2.5"
       />
-
-      {/* Fundo escuro azulado Optitron */}
       <circle
         cx={DIAL_CENTER}
         cy={DIAL_CENTER}
@@ -129,7 +121,6 @@ const YarisTachometerStaticFace = memo(function YarisTachometerStaticFace() {
         strokeWidth="2"
       />
 
-      {/* Inscrição x1000r/min típica da Toyota */}
       <text
         x={DIAL_CENTER}
         y={DIAL_CENTER - 32}
@@ -139,7 +130,6 @@ const YarisTachometerStaticFace = memo(function YarisTachometerStaticFace() {
         x1000 r/min
       </text>
 
-      {/* Faixa vermelha de redline (6200 a 8000 RPM) com brilho SVG nativo */}
       <path
         d={TACH_REDLINE_ARC}
         fill="none"
@@ -156,7 +146,6 @@ const YarisTachometerStaticFace = memo(function YarisTachometerStaticFace() {
         strokeLinecap="round"
       />
 
-      {/* Marcações pré-computadas do Tacômetro */}
       {TACH_MARKS.map((m, i) => (
         <g key={i}>
           <line
@@ -186,10 +175,6 @@ const YarisTachometerStaticFace = memo(function YarisTachometerStaticFace() {
   )
 })
 
-/**
- * Face estática memoizada do velocímetro central Optitron do Yaris:
- * elimina 14 filtros CSS drop-shadow em labels/aros e evita recálculo trigonométrico por frame.
- */
 const YarisSpeedometerStaticFace = memo(function YarisSpeedometerStaticFace() {
   return (
     <>
@@ -202,7 +187,6 @@ const YarisSpeedometerStaticFace = memo(function YarisSpeedometerStaticFace() {
         </radialGradient>
       </defs>
 
-      {/* Halo externo acetinado nativo SVG */}
       <circle
         cx={DIAL_CENTER}
         cy={DIAL_CENTER}
@@ -220,8 +204,6 @@ const YarisSpeedometerStaticFace = memo(function YarisSpeedometerStaticFace() {
         stroke="#94a3b8"
         strokeWidth="4"
       />
-
-      {/* Halo ciano Optitron interno */}
       <circle
         cx={DIAL_CENTER}
         cy={DIAL_CENTER}
@@ -231,7 +213,6 @@ const YarisSpeedometerStaticFace = memo(function YarisSpeedometerStaticFace() {
         strokeWidth="1.5"
       />
 
-      {/* Inscrição "km/h" central */}
       <text
         x={DIAL_CENTER}
         y={DIAL_CENTER - 36}
@@ -241,7 +222,6 @@ const YarisSpeedometerStaticFace = memo(function YarisSpeedometerStaticFace() {
         km/h
       </text>
 
-      {/* Marcações pré-computadas de Velocidade */}
       {SPEED_MARKS.map((m, i) => (
         <g key={i}>
           <line
@@ -272,7 +252,6 @@ const YarisSpeedometerStaticFace = memo(function YarisSpeedometerStaticFace() {
 const YarisOptitronNeedle = memo(function YarisOptitronNeedle({ angle }: { angle: number }) {
   return (
     <g transform={`rotate(${angle} ${DIAL_CENTER} ${DIAL_CENTER})`}>
-      {/* Brilho da agulha em camada SVG nativa (sem drop-shadow CSS) */}
       <line
         x1={DIAL_CENTER}
         y1={DIAL_CENTER}
@@ -317,12 +296,7 @@ const YarisOptitronNeedle = memo(function YarisOptitronNeedle({ angle }: { angle
 })
 
 /**
- * ToyotaYarisRealCluster — Réplica fiel do painel Optitron 3D do Toyota Yaris XLS (Hatch/Sedan).
- *
- * Otimizações de performance mobile (Fase 1.5.4):
- * - Remoção de 17 filtros CSS drop-shadow nos elementos SVG dos mostradores (eliminando re-rasterização offscreen na GPU).
- * - Faces estáticas dos mostradores isoladas em subcomponentes memoizados com coordenadas pré-calculadas.
- * - Barras da tela TFT animadas por escala GPU (transform: scaleX) sem transition-all em width.
+ * ToyotaYarisRealCluster — Painel Optitron 3D + TFT 4,2" do Toyota Yaris 1.5 XLS Hatch (2019).
  */
 export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
   telemetry,
@@ -333,80 +307,105 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
     speedometer,
     gear,
     engine,
+    pedals,
     warningLights,
     auxGauges,
     shiftLight,
+    abs,
   } = telemetry
 
-  // ── Ângulo do Tacômetro (0 a 8.000 RPM) ──
-  const clampedRpm = Math.min(Math.max(tachometer.rpm, 0), 8000)
+  const leftIndicatorLit = useSimulationStore((s) => s.leftIndicatorLit)
+  const rightIndicatorLit = useSimulationStore((s) => s.rightIndicatorLit)
+  const headlightsMode = useSimulationStore((s) => s.headlightsMode)
+  const odometerKm = useSimulationStore((s) => s.odometerKm)
+  const estimatedRangeKm = useSimulationStore((s) => s.estimatedRangeKm)
+  const avgConsumptionKmL = useSimulationStore((s) => s.avgConsumptionKmL)
+  const hasMeasuredAvgConsumption = useSimulationStore((s) => s.hasMeasuredAvgConsumption)
+  const storeGraphicProfile = useUIStore((s) => s.graphicProfile)
+
+  const clampedRpm = clamp(tachometer.rpm, 0, 8000)
   const tachAngle = mapRange(clampedRpm, 0, 8000, START_ANGLE, END_ANGLE)
 
-  // ── Ângulo do Velocímetro Central (0 a 220 km/h) ──
-  const clampedSpeed = Math.min(Math.max(speedometer.speed, 0), 220)
+  const clampedSpeed = clamp(speedometer.speed, 0, 220)
   const speedAngle = mapRange(clampedSpeed, 0, 220, START_ANGLE, END_ANGLE)
 
-  // Barra de condução Eco da Toyota (0 a 100% de suavidade no acelerador)
-  const ecoPercent = Math.max(0, Math.min(100, Math.round((clampedRpm / 3500) * 100)))
+  // Eco Driving Indicator real baseado na carga de pedal e regime de rotação do CVT Multidrive
+  const ecoPercent = engine.isRunning
+    ? clamp(Math.round(pedals.throttlePercent * 0.75 + (clampedRpm / 6300) * 25), 0, 100)
+    : 0
   const ecoScale = ecoPercent / 100
-  const fuelScale = Math.max(0, Math.min(1, auxGauges.fuelPercent / 100))
-  const tempPercent = Math.min(100, Math.max(10, ((auxGauges.coolantTemp - 50) / 80) * 100))
+  const fuelPercent = clamp(auxGauges.fuelPercent, 0, 100)
+  const fuelScale = fuelPercent / 100
+  const tempPercent = clamp(((auxGauges.coolantTemp - 50) / 80) * 100, 10, 100)
   const tempScale = tempPercent / 100
-  const isEcoActive = clampedRpm > 0 && clampedRpm < 2600 && engine.status === 'RUNNING'
+  const isEcoActive = engine.isRunning && ecoPercent <= 55 && clampedRpm < 2600
 
-  // Posição do Câmbio Automático Multidrive Toyota
   const isManualSimulated = gear.transmissionMode === 'manual_simulated'
-  const ambientLightColor = useSimulationStore((s) => s.ambientLightColor)
-  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
-  const storeGraphicProfile = useUIStore((s) => s.graphicProfile)
   const graphicProfile = graphicProfileProp ?? storeGraphicProfile
   const isEcoGraphic = graphicProfile === 'eco'
-  const ambientTheme = AMBIENT_COLOR_MAP[ambientLightColor] || AMBIENT_COLOR_MAP.cyan
+  const ambientTheme = AMBIENT_COLOR_MAP.cyan
 
   const activePos =
     gear.gearSelectorPosition ||
     (gear.isPark || gear.label === 'P'
       ? 'P'
       : gear.isReverse || gear.label === 'R'
-      ? 'R'
-      : gear.isNeutral || gear.label === 'N'
-      ? 'N'
-      : isManualSimulated || gear.label.startsWith('M')
-      ? 'M'
-      : 'D')
+        ? 'R'
+        : gear.isNeutral || gear.label === 'N'
+          ? 'N'
+          : isManualSimulated || gear.label.startsWith('M')
+            ? 'M'
+            : 'D')
 
   return (
     <div
+      data-testid="cluster-toyota-yaris"
       className={`@container relative flex flex-col items-center w-full max-w-4xl p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-[#060d16] via-[#03070d] to-black border-2 ${ambientTheme.borderClass} ${isEcoGraphic ? '' : ambientTheme.shadowClass} select-none transition-colors duration-300`}
     >
-      {/* Luz ambiente de fundo Optitron sincronizada */}
       <div
         className={`absolute inset-x-12 top-0 h-1 bg-gradient-to-r ${ambientTheme.haloGradient} rounded-t-full`}
         style={isEcoGraphic ? undefined : { boxShadow: `0 0 20px ${ambientTheme.glowRgba}` }}
       />
 
-      {/* ── Faixa Superior: 6 Luzes-Espia Reais Toyota ── */}
+      {/* Faixa Superior: Setas Reais + Luzes-Espia Toyota */}
       <div className="flex items-center justify-between w-full max-w-xl px-3 py-0.5 mb-0.5 rounded-xl bg-sky-950/20 border border-sky-500/10">
-        <div className="w-5 h-4 flex items-center justify-center text-emerald-400 font-bold text-xs">
+        <div
+          className={`w-5 h-4 flex items-center justify-center font-bold text-xs transition-opacity ${
+            leftIndicatorLit ? 'text-emerald-400 opacity-100' : 'text-zinc-700 opacity-30'
+          }`}
+        >
           ◀
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <ClusterIndicatorIcon kind="checkEngine" active={warningLights.checkEngine} sizeClass="w-3.5 h-3.5" />
           <ClusterIndicatorIcon kind="oil" active={warningLights.oil} sizeClass="w-3.5 h-3.5" />
           <ClusterIndicatorIcon kind="battery" active={warningLights.battery} sizeClass="w-3.5 h-3.5" />
+          {abs.available && (
+            <ClusterIndicatorIcon
+              kind="abs"
+              active={warningLights.absFault}
+              flashing={warningLights.absActive && !warningLights.absFault}
+              sizeClass="w-3.5 h-3.5"
+            />
+          )}
           <span
             className={`px-1 rounded text-[9.5px] font-mono font-bold transition-opacity duration-150 ${
               warningLights.brake
                 ? `bg-red-600 text-white opacity-100 ${isEcoGraphic ? '' : 'shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`
                 : 'text-zinc-800 opacity-30'
             }`}
-            title="Freio"
+            title="Freio de Estacionamento"
           >
             (P)
           </span>
           <ClusterIndicatorIcon kind="tcs" active={warningLights.tcs} flashing={warningLights.tcsFlash} sizeClass="w-3.5 h-3.5" />
           <ClusterIndicatorIcon kind="temp" active={warningLights.temp} sizeClass="w-3.5 h-3.5" />
+          {headlightsMode !== 'off' && (
+            <span className={`text-[8px] font-mono font-black ${headlightsMode === 'high' ? 'text-sky-400' : 'text-emerald-400'}`}>
+              ≡D
+            </span>
+          )}
           {shiftLight.isActive && (
             <span className="px-1.5 py-0.2 rounded bg-red-600 text-white text-[9px] font-mono font-black animate-pulse">
               REDLINE
@@ -414,16 +413,18 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
           )}
         </div>
 
-        <div className="w-5 h-4 flex items-center justify-center text-emerald-400 font-bold text-xs">
+        <div
+          className={`w-5 h-4 flex items-center justify-center font-bold text-xs transition-opacity ${
+            rightIndicatorLit ? 'text-emerald-400 opacity-100' : 'text-zinc-700 opacity-30'
+          }`}
+        >
           ▶
         </div>
       </div>
 
-      {/* ── Conjunto de 3 Cilíndros Optitron 3D da Toyota ── */}
+      {/* Conjunto de 3 Cilindros Optitron 3D da Toyota */}
       <div className="flex items-center justify-center gap-2 sm:gap-4 w-full flex-wrap @[640px]:flex-nowrap">
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* 1. CILINDRO ESQUERDO: TACÔMETRO OPTITRON                           */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* 1. CILINDRO ESQUERDO: TACÔMETRO OPTITRON */}
         <div className="relative flex flex-col items-center">
           <svg viewBox={`0 0 ${DIAL_SIZE} ${DIAL_SIZE}`} className="w-[242px] sm:w-[258px]">
             <YarisTachometerStaticFace />
@@ -431,14 +432,11 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
           </svg>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* 2. CILINDRO CENTRAL: VELOCÍMETRO + GATE DE CÂMBIO AUTOMÁTICO       */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* 2. CILINDRO CENTRAL: VELOCÍMETRO + GATE CVT MULTIDRIVE */}
         <div className="relative flex flex-col items-center">
           <svg viewBox={`0 0 ${DIAL_SIZE} ${DIAL_SIZE}`} className="w-[258px] sm:w-[274px]">
             <YarisSpeedometerStaticFace />
 
-            {/* ── Display Inferior Integrado: P-R-N-D e Temperatura Externa ── */}
             <g transform={`translate(${DIAL_CENTER}, ${DIAL_CENTER + 44})`}>
               <rect
                 x="-54"
@@ -450,7 +448,6 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
                 stroke="#0284c7"
                 strokeWidth="1"
               />
-              {/* Gate de Marchas Automático Multidrive Toyota */}
               <text
                 x="-40"
                 y="3"
@@ -488,7 +485,7 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
               </text>
 
               <text x="0" y="11" textAnchor="middle" className="fill-zinc-400 font-mono text-[7px]">
-                ODO {Math.round(mileageKm).toLocaleString('pt-BR')} km
+                ODO {Math.round(odometerKm).toLocaleString('pt-BR')} km
               </text>
             </g>
 
@@ -496,35 +493,30 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
           </svg>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* 3. CILINDRO DIREITO: DISPLAY TFT COLORIDO 4.2" (TOYOTA MID)        */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* 3. CILINDRO DIREITO: DISPLAY TFT COLORIDO 4.2" (TOYOTA MID) */}
         <div
           className={`relative flex flex-col items-center justify-between w-48 sm:w-54 h-58 p-3 rounded-2xl bg-zinc-950 border-2 border-sky-900/60 ${
             isEcoGraphic ? '' : 'shadow-[inset_0_2px_15px_rgba(0,0,0,0.9),0_0_20px_rgba(56,189,248,0.1)]'
           }`}
         >
-          {/* Tela TFT de Alta Resolução da Toyota */}
           <div
             className={`w-full flex-1 flex flex-col justify-between p-2.5 rounded-xl bg-gradient-to-b from-[#021020] via-[#05182e] to-[#010811] border border-cyan-500/20 ${
               isEcoGraphic ? '' : 'shadow-[inset_0_0_20px_rgba(6,182,212,0.12)]'
             }`}
           >
-            {/* Topo do TFT: Modo de Condução e Selo ECO */}
             <div className="flex items-center justify-between w-full border-b border-sky-800/40 pb-1.5">
               <span
                 className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
                   gear.drivingMode === 'eco'
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                     : gear.drivingMode === 'sport'
-                    ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                    : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
+                      ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                      : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
                 }`}
               >
                 {gear.drivingMode === 'eco' ? 'ECO MODE' : gear.drivingMode === 'sport' ? 'SPORT' : 'NORMAL'}
               </span>
 
-              {/* Selo Verde ECO Indicator Toyota */}
               <span
                 className={`text-[9px] font-sans font-black px-1 rounded flex items-center gap-1 transition-opacity duration-150 ${
                   isEcoActive
@@ -532,14 +524,13 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
                     : 'text-zinc-600 opacity-40'
                 }`}
               >
-                🌱 ECO
+                ECO
               </span>
             </div>
 
-            {/* Barra Gráfica Eco Driving Bar da Toyota (animada via transform GPU scaleX, zero layout thrashing) */}
             <div className="w-full my-1.5">
               <div className="flex justify-between text-[7px] font-mono text-zinc-400 mb-0.5">
-                <span className="text-emerald-400 font-bold">ECO</span>
+                <span className="text-emerald-400 font-bold">ECO ZONE</span>
                 <span>PWR</span>
               </div>
               <div className="w-full h-2 rounded-full bg-zinc-900 border border-white/10 overflow-hidden flex">
@@ -552,33 +543,30 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
               </div>
             </div>
 
-            {/* Marcadores Digitais Verticais: Combustível e Arrefecimento */}
             <div className="grid grid-cols-2 gap-2 my-auto">
-              {/* Nível de Combustível com seta do bocal à esquerda ◀⛽ */}
+              {/* Combustível 45 L + Autonomia Real */}
               <div className="flex flex-col bg-sky-950/40 rounded-lg p-1.5 border border-sky-800/20">
                 <div className="flex justify-between items-center text-[8px] font-mono text-sky-300">
                   <span>◀ ⛽</span>
-                  <span className="font-bold">{Math.round(auxGauges.fuelPercent)}%</span>
+                  <span className="font-bold">{Math.round(fuelPercent)}%</span>
                 </div>
-                {/* Barra de Combustível via GPU transform scaleX */}
                 <div className="w-full h-1.5 bg-zinc-900 rounded-full mt-1 overflow-hidden">
                   <div
-                    className="w-full h-full origin-left bg-cyan-400 rounded-full"
+                    className={`w-full h-full origin-left rounded-full ${fuelPercent <= 15 ? 'bg-red-500' : 'bg-cyan-400'}`}
                     style={{ transform: `scaleX(${fuelScale})` }}
                   />
                 </div>
-                <span className="text-[7px] font-mono text-zinc-400 mt-1">
-                  Auton: {Math.round(auxGauges.fuelPercent * 6.8)} km
+                <span className="text-[7px] font-mono text-zinc-300 mt-1">
+                  Auton: {estimatedRangeKm} km
                 </span>
               </div>
 
-              {/* Temperatura do Motor (C ... H) */}
+              {/* Temperatura do Motor */}
               <div className="flex flex-col bg-sky-950/40 rounded-lg p-1.5 border border-sky-800/20">
                 <div className="flex justify-between items-center text-[8px] font-mono text-sky-300">
                   <span>🌡️</span>
                   <span className="font-bold">{Math.round(auxGauges.coolantTemp)}°C</span>
                 </div>
-                {/* Barra de Temp via GPU transform scaleX */}
                 <div className="w-full h-1.5 bg-zinc-900 rounded-full mt-1 overflow-hidden">
                   <div
                     className="w-full h-full origin-left bg-emerald-400 rounded-full"
@@ -586,14 +574,15 @@ export const ToyotaYarisRealCluster = memo(function ToyotaYarisRealCluster({
                   />
                 </div>
                 <span className="text-[7px] font-mono text-zinc-400 mt-1">
-                  {auxGauges.isTempOptimal ? 'Ideal (90°C)' : 'Aquecendo'}
+                  {auxGauges.isTempOptimal ? 'Ideal' : 'Aquec.'}
                 </span>
               </div>
             </div>
 
-            {/* Rotação real no rodapé TFT */}
-            <div className="flex justify-between items-center border-t border-sky-800/40 pt-1 text-[9px] font-mono">
-              <span className="text-zinc-400">Rotação:</span>
+            <div className="flex justify-between items-center border-t border-sky-800/40 pt-1 text-[8.5px] font-mono">
+              <span className="text-zinc-400">
+                {hasMeasuredAvgConsumption ? `Média ${avgConsumptionKmL.toFixed(1)} km/L` : 'Tanque 45L'}
+              </span>
               <span className="font-bold text-sky-200">{Math.round(clampedRpm)} RPM</span>
             </div>
           </div>

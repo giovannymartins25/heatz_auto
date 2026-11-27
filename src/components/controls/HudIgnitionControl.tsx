@@ -30,6 +30,7 @@ export const HudIgnitionControl = memo(function HudIgnitionControl({
   const storeConfig = useSimulationStore((s) => s._config)
   const effectiveVehicle = vehicle ?? storeConfig
 
+  const sessionMode = useSimulationStore((s) => s.sessionMode)
   const isRunning = useSimulationStore((s) => s.isRunning)
   const isStalled = useSimulationStore((s) => s.isStalled)
   const status = useSimulationStore((s) => s.status)
@@ -74,19 +75,22 @@ export const HudIgnitionControl = memo(function HudIgnitionControl({
   useEffect(() => () => cancelStopHold(), [])
 
   const interlockSatisfied =
+    sessionMode === 'panel' ||
     resolvedSpec.startInterlock === 'none' ||
     (resolvedSpec.startInterlock === 'brake' && brake >= 0.15) ||
     (resolvedSpec.startInterlock === 'clutch' && clutchPosition >= 0.7) ||
     (resolvedSpec.startInterlock === 'brake_or_clutch' && (brake >= 0.15 || clutchPosition >= 0.7))
 
   const interlockHint =
-    resolvedSpec.startInterlock === 'brake'
-      ? 'PISE FREIO'
-      : resolvedSpec.startInterlock === 'clutch'
-        ? 'PISE EMBR.'
-        : resolvedSpec.startInterlock === 'brake_or_clutch'
-          ? 'FREIO/EMBR'
-          : null
+    sessionMode === 'panel'
+      ? null
+      : resolvedSpec.startInterlock === 'brake'
+        ? 'PISE FREIO'
+        : resolvedSpec.startInterlock === 'clutch'
+          ? 'PISE EMBR.'
+          : resolvedSpec.startInterlock === 'brake_or_clutch'
+            ? 'FREIO/EMBR'
+            : null
 
   const showInterlockAlert =
     !isRunning &&

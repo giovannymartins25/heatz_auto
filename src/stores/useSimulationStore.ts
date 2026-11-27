@@ -59,6 +59,8 @@ import { performanceMonitor } from '@/utils/performanceMonitor'
  * Permite que todos os subsistemas integrem a 120 Hz sem perda nem quantização
  * mesmo quando a UI recebe snapshots em 35 Hz (ECO), 60 Hz (NORMAL) ou ~6.6 Hz (telemetria lenta).
  */
+export type SimulationSessionMode = 'drive' | 'panel'
+
 export type RangeEstimationSource =
   | 'out_of_fuel'
   | 'cruise_reference'
@@ -121,6 +123,7 @@ export interface PhysicsInternalState {
   lateralSpeedMs: number
   slipAngleDeg: number
   lateralAccelG: number
+  longitudinalAccelG: number
   leanAngleDeg: number
   isColliding: boolean
   collisionBoundaryName: string | null
@@ -205,6 +208,7 @@ export interface SimulationRuntimeCandidate {
  * Contexto de entrada imutável passado aos subpassos pelo integrador.
  */
 export interface SimulationSubstepContext {
+  sessionMode: SimulationSessionMode
   throttle: number
   brake: number
   handbrake: boolean
@@ -538,6 +542,7 @@ function createInitialPhysicsInternalState(
     lateralSpeedMs: 0,
     slipAngleDeg: 0,
     lateralAccelG: 0,
+    longitudinalAccelG: 0,
     leanAngleDeg: 0,
     isColliding: false,
     collisionBoundaryName: null,
@@ -609,8 +614,15 @@ function createInitialPhysicsInternalState(
 export type TransmissionMode = 'manual' | 'automatic' | 'manual_simulated'
 
 interface SimulationActions {
-  /** Inicializa a simulação com um veículo e eventuais peças equipadas */
-  init: (config: VehicleConfig, initialUpgrades?: Partial<CarUpgrades>, garageInstanceId?: string | null) => void
+  /** Inicializa a simulação com um veículo, peças equipadas e modalidade ('drive' | 'panel') */
+  init: (
+    config: VehicleConfig,
+    initialUpgrades?: Partial<CarUpgrades>,
+    garageInstanceId?: string | null,
+    sessionMode?: SimulationSessionMode,
+  ) => void
+  /** Alterna a modalidade de sessão ('drive' | 'panel') preservando combustível, odômetro e upgrades */
+  setSessionMode: (mode: SimulationSessionMode) => void
   /** Atualiza peças e upgrades equipados */
   setEquippedUpgrades: (upgrades: Partial<CarUpgrades>) => void
   /** Asa traseira aerodinâmica (Porsche / Supercarros) */
@@ -796,6 +808,7 @@ interface SimulationActions {
 }
 
 interface SimulationState {
+  sessionMode: SimulationSessionMode
   // Estado do motor
   rpm: number
   isRunning: boolean
@@ -909,6 +922,7 @@ interface SimulationState {
   lateralSpeedMs: number
   slipAngleDeg: number
   lateralAccelG: number
+  longitudinalAccelG: number
   leanAngleDeg: number
   isColliding: boolean
   collisionBoundaryName: string | null
@@ -1064,6 +1078,7 @@ const initialTiltPrefs = loadTiltPreferences()
 
 export const useSimulationStore = create<SimulationStore>((set, get) => ({
   // Estado inicial
+  sessionMode: 'drive',
   rpm: 0,
   isRunning: false,
   isStalled: false,
@@ -1154,6 +1169,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   lateralSpeedMs: 0,
   slipAngleDeg: 0,
   lateralAccelG: 0,
+  longitudinalAccelG: 0,
   leanAngleDeg: 0,
   isColliding: false,
   collisionBoundaryName: null,
@@ -1291,9 +1307,18 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   _isInitialized: false,
   _phys: createInitialPhysicsInternalState(),
 
-  init: (config: VehicleConfig, initialUpgrades?: Partial<CarUpgrades>, garageInstanceId?: string | null) => {
+  init: (
+    config: VehicleConfig,
+    initialUpgrades?: Partial<CarUpgrades>,
+    garageInstanceId?: string | null,
+    sessionMode: SimulationSessionMode = 'drive',
+  ) => {
     const prevBeforeInit = get()
-    if (prevBeforeInit._isInitialized && prevBeforeInit.garageInstanceId) {
+    if (
+      prevBeforeInit._isInitialized &&
+      prevBeforeInit.garageInstanceId &&
+      prevBeforeInit.sessionMode === 'drive'
+    ) {
       flushPendingMileageToGarage(prevBeforeInit.garageInstanceId, prevBeforeInit._phys, 0.001)
     }
 
@@ -1457,6 +1482,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _config: config,
       _isInitialized: true,
       _integrator: integrator,
+      sessionMode,
       isPaused: false,
       physicsIntegrityStatus: 'NORMAL',
       visualSpeed: 0,
@@ -1472,6 +1498,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       lateralSpeedMs: 0,
       slipAngleDeg: 0,
       lateralAccelG: 0,
+      longitudinalAccelG: 0,
       leanAngleDeg: 0,
       isColliding: false,
       collisionBoundaryName: null,
@@ -1638,9 +1665,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       lowBeamLit: true,
       highBeamLit: false,
       fogLightsLit: false,
-      isMapOpen: true,
+      isMapOpen: sessionMode === 'drive',
       mapViewportSize: 'balanced',
-      shifterLayout: !isAutoOrCvt ? 'h_pattern' : 'sequential',
+      shifterLayout: sessionMode === 'panel' ? 'sequential' : !isAutoOrCvt ? 'h_pattern' : 'sequential',
       isGearGrinding: false,
       gearGrindTrigger: 0,
       dragStage: 'idle',
@@ -1650,6 +1677,67 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _dragGreenTime: null,
       _accumulator: 0,
       _phys: initialPhys,
+    })
+  },
+
+  setSessionMode: (mode: SimulationSessionMode) => {
+    const prev = get()
+    if (prev.sessionMode === mode) return
+    if (prev.sessionMode === 'drive' && prev.garageInstanceId) {
+      flushPendingMileageToGarage(prev.garageInstanceId, prev._phys, 0.001)
+    }
+    prev._physics?.setSpeedKmh(0)
+    const syncedFuel = Math.round(prev._phys.fuelLevelLiters * 1000) / 1000
+    const syncedTripDist = Math.round(prev._phys.tripDistanceKm * 100) / 100
+    const syncedOdo = Math.round(prev._phys.odometerKm * 10) / 10
+    const nextPhys: PhysicsInternalState = {
+      ...prev._phys,
+      fuelLevelLiters: syncedFuel,
+      lastPubFuelLevelLiters: syncedFuel,
+      speedKmh: 0,
+      lastPubSpeedKmh: 0,
+      lateralSpeedMs: 0,
+      slipAngleDeg: 0,
+      lateralAccelG: 0,
+      longitudinalAccelG: 0,
+      leanAngleDeg: 0,
+      isColliding: false,
+      collisionBoundaryName: null,
+      absEngaged: false,
+      instantFuelBurnLh: mode === 'panel' ? 0 : prev._phys.instantFuelBurnLh,
+      instantConsumptionKmL: mode === 'panel' ? 0 : prev._phys.instantConsumptionKmL,
+    }
+    if (prev._integrator && prev._physics) {
+      const cand = prev._integrator.getState()
+      cand.phys = nextPhys
+      cand.physics = prev._physics.getStateSnapshot()
+      prev._integrator.setState(cand)
+    }
+    set({
+      sessionMode: mode,
+      fuelLevelLiters: syncedFuel,
+      tripDistanceKm: syncedTripDist,
+      odometerKm: syncedOdo,
+      throttle: 0,
+      throttleLock: false,
+      brake: 0,
+      handbrake: false,
+      steeringAngle: 0,
+      speed: 0,
+      visualSpeed: 0,
+      lateralSpeedMs: 0,
+      slipAngleDeg: 0,
+      lateralAccelG: 0,
+      longitudinalAccelG: 0,
+      leanAngleDeg: 0,
+      isColliding: false,
+      collisionBoundaryName: null,
+      absEngaged: false,
+      instantFuelBurnLh: mode === 'panel' ? 0 : prev.instantFuelBurnLh,
+      instantConsumptionKmL: mode === 'panel' ? 0 : prev.instantConsumptionKmL,
+      isMapOpen: mode === 'drive',
+      shifterLayout: mode === 'panel' ? 'sequential' : !prev.isAutomaticVehicle ? 'h_pattern' : 'sequential',
+      _phys: nextPhys,
     })
   },
 
@@ -1671,7 +1759,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     // Se já estiver no processo de partida (cranking), ignora para evitar reiniciar o arranque
     if (_engine.getStatus() === 'starting') return
 
-    const enforceInterlock = options?.enforceInterlock ?? false
+    const enforceInterlock = Boolean(options?.enforceInterlock) && get().sessionMode === 'drive'
     if (_ignition && !options?.alreadyAuthorizedCrank) {
       const attempt = _ignition.attemptCrank({
         brake,
@@ -1784,13 +1872,14 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   pressPushButtonIgnition: (enforceInterlock = true) => {
-    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel } = get()
+    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel, sessionMode } = get()
+    const effectiveEnforce = Boolean(enforceInterlock) && sessionMode === 'drive'
     if (!_ignition) {
       if (_engine?.getIsRunning()) {
         get().stopEngine()
         return true
       }
-      get().startEngine({ enforceInterlock })
+      get().startEngine({ enforceInterlock: effectiveEnforce })
       return true
     }
 
@@ -1800,7 +1889,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       engineStatus: _engine?.getStatus() ?? 'off',
       isEngineBlown,
       isOutOfFuel,
-      enforceInterlock,
+      enforceInterlock: effectiveEnforce,
     })
 
     if (result.shouldStopEngine) {
@@ -1855,11 +1944,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setIgnitionPosition: (pos: IgnitionPosition, enforceInterlock = true) => {
-    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel } = get()
+    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel, sessionMode } = get()
+    const effectiveEnforce = Boolean(enforceInterlock) && sessionMode === 'drive'
     if (!_ignition) return false
 
     if (pos === 'CRANK') {
-      return get().requestEngineStart(enforceInterlock)
+      return get().requestEngineStart(effectiveEnforce)
     }
 
     const result = _ignition.setPosition(pos, {
@@ -1868,7 +1958,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       engineStatus: _engine?.getStatus() ?? 'off',
       isEngineBlown,
       isOutOfFuel,
-      enforceInterlock,
+      enforceInterlock: effectiveEnforce,
     })
 
     if (result.shouldStopEngine && _engine && (_engine.getIsRunning() || _engine.getStatus() === 'starting')) {
@@ -1889,7 +1979,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   advanceIgnition: (enforceInterlock = true) => {
-    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel } = get()
+    const { _ignition, _engine, brake, clutchPosition, isEngineBlown, isOutOfFuel, sessionMode } = get()
+    const effectiveEnforce = Boolean(enforceInterlock) && sessionMode === 'drive'
     if (!_ignition) return false
 
     const result = _ignition.advanceStage({
@@ -1898,7 +1989,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       engineStatus: _engine?.getStatus() ?? 'off',
       isEngineBlown,
       isOutOfFuel,
-      enforceInterlock,
+      enforceInterlock: effectiveEnforce,
     })
 
     if (result.shouldStartEngine) {
@@ -2032,6 +2123,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setBrake: (value: number) => {
+    if (get().sessionMode === 'panel') {
+      if (get().brake !== 0) set({ brake: 0 })
+      return
+    }
     const clamped = clamp(value, 0, 1)
     // Tocar no freio (>= 10%) destrava automaticamente o acelerador travado (segurança estilo cruise control)
     if (clamped >= 0.1 && get().throttleLock) {
@@ -2590,6 +2685,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setSteeringAngle: (angle: number, source?: SteeringMethod) => {
+    if (get().sessionMode === 'panel') {
+      if (get().steeringAngle !== 0) set({ steeringAngle: 0 })
+      return
+    }
     // Volante touch virtual foi removido do mobile. Apenas tilt físico e keyboard (desktop) são aceitos.
     if (source === 'touch') return
     const safeAngle = Number.isFinite(angle) ? angle : 0
@@ -2833,8 +2932,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       return
     }
 
-    // Modo 'manual' convencional (Gol G6, CB1000R, Opala, etc.) com validação de embreagem
+    // Modo 'manual' convencional (Gol G6, CB1000R, Opala, etc.) com validação de embreagem (auto-assistida no Modo Painel)
     if (!_clutch) return
+    if (get().sessionMode === 'panel') {
+      _transmission.setClutch(1.0)
+      _clutch.setPosition(1.0)
+    }
     const result = _transmission.shiftUp(_engine.getRpm(), speed, _config.engine.maxRpm)
 
     if (result.success) {
@@ -2924,6 +3027,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       }
     }
 
+    if (get().sessionMode === 'panel') {
+      _transmission.setClutch(1.0)
+      _clutch.setPosition(1.0)
+    }
     const result = _transmission.shiftDown(_engine.getRpm(), speed, _config.engine.maxRpm)
 
     if (result.success) {
@@ -3142,11 +3249,19 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setHandbrake: (active: boolean) => {
+    if (get().sessionMode === 'panel') {
+      if (get().handbrake) set({ handbrake: false })
+      return
+    }
     set({ handbrake: active })
     HapticFeedback.light()
   },
 
   toggleHandbrake: () => {
+    if (get().sessionMode === 'panel') {
+      if (get().handbrake) set({ handbrake: false })
+      return
+    }
     set((s) => ({ handbrake: !s.handbrake }))
     HapticFeedback.light()
   },
@@ -3274,8 +3389,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       return
     }
 
-    // Validação de embreagem em câmbio manual com o veículo em movimento (>6 km/h)
-    if (!isAutomaticVehicle && speed > 6 && clutchPosition < 0.45) {
+    // Validação de embreagem em câmbio manual com o veículo em movimento (>6 km/h) — dispensada no Modo Painel (sem pedal de embreagem)
+    if (get().sessionMode !== 'panel' && !isAutomaticVehicle && speed > 6 && clutchPosition < 0.45) {
       // Sincronizador arranha violentamente!
       HapticFeedback.heavy()
       set({
@@ -3815,6 +3930,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     // Contexto de entrada imutável para os subpassos determinísticos
     const substepContext: SimulationSubstepContext = {
+      sessionMode: state.sessionMode,
       throttle: state.throttle,
       brake: state.brake,
       handbrake: state.handbrake,
@@ -4060,6 +4176,28 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             substepPhys.isKickdown = false
           } else {
             substepPhys.isKickdown = false
+            // No Modo Painel (sem pedal de embreagem), gerencia automaticamente o acoplamento em carros/motos manuais
+            if (ctx.sessionMode === 'panel') {
+              const curGear = _transmission.currentGear
+              const speedKmh = _physics.getSpeedKmh()
+              const currentRpm = _engine.getRpm()
+              if (curGear === 0 || curGear === -2) {
+                _clutch.setPosition(1.0)
+              } else if (speedKmh < 2.5 && ctx.throttle < 0.03) {
+                _clutch.setPosition(1.0)
+              } else {
+                const isMoto = Boolean(_config.info.category === 'motorcycle')
+                const slipReleaseKmh = isMoto ? 34 : 16
+                const initialSlip = isMoto ? 0.68 : 0.52
+                if (curGear === 1 && speedKmh < slipReleaseKmh) {
+                  _clutch.setPosition(Math.max(0, initialSlip - (speedKmh / slipReleaseKmh) * initialSlip))
+                } else if (currentRpm < _config.engine.idleRpm * 1.12) {
+                  _clutch.setPosition(0.58)
+                } else {
+                  _clutch.setPosition(0.0)
+                }
+              }
+            }
           }
         }
 
@@ -4185,42 +4323,51 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         _physics.setSuspensionHeight(ctx.suspensionHeight)
         _physics.setAerodynamics(ctx.rearWingPosition, ctx.isAeroWingExtended, ctx.rearWingType)
 
-        const rawBrake = Math.max(ctx.brake, directionArrestBrake, ctx.handbrake || gear === -2 ? 1 : 0)
+        const isPanelMode = ctx.sessionMode === 'panel'
+        const panelIdleHoldBrake =
+          isPanelMode && ctx.throttle < 0.02 && _physics.getSpeedKmh() < 1.8 && gear !== 0
+            ? 0.45
+            : 0
+        const rawBrake = isPanelMode
+          ? Math.max(directionArrestBrake, panelIdleHoldBrake, gear === -2 ? 1 : 0)
+          : Math.max(ctx.brake, directionArrestBrake, ctx.handbrake || gear === -2 ? 1 : 0)
         const effectiveBrake = rawBrake * substepPhys.brakeFadeFactor
         const driveTorqueAtTransmission =
-          substepPhys.pendingDirectionShift !== null
+          substepPhys.pendingDirectionShift !== null || panelIdleHoldBrake > 0
             ? 0
             : clutchState.transmittedTorque >= 0
               ? clutchState.transmittedTorque * totalTorqueMult
               : clutchState.transmittedTorque
-        const steeringAngleRad = (ctx.steeringAngle || 0) * 0.55
+        const steeringAngleRad = isPanelMode ? 0 : (ctx.steeringAngle || 0) * 0.55
         const physicsTick = _physics.tick({
           driveTorqueAtTransmission,
           gearRatio,
           finalDrive,
           frontFinalDrive: _config.transmission.frontFinalDrive,
           brake: effectiveBrake,
-          handbrake: ctx.handbrake,
+          handbrake: isPanelMode ? false : ctx.handbrake,
           deltaTime: dt,
           steeringAngleRad,
           gear,
           isRaining: ctx.isRaining,
           brakeUpgrade: ctx.brakeUpgrade,
+          stationarySimulation: isPanelMode,
         })
 
         substepPhys.positionX = physicsTick.positionX
         substepPhys.positionY = physicsTick.positionY
         substepPhys.headingDeg = physicsTick.headingDeg
-        substepPhys.lateralSpeedMs = physicsTick.lateralSpeedMs
-        substepPhys.slipAngleDeg = physicsTick.slipAngleDeg
-        substepPhys.lateralAccelG = physicsTick.lateralAccelG
-        substepPhys.leanAngleDeg = physicsTick.leanAngleDeg
-        substepPhys.isColliding = physicsTick.isColliding
-        substepPhys.collisionBoundaryName = physicsTick.collisionBoundaryName
+        substepPhys.lateralSpeedMs = isPanelMode ? 0 : physicsTick.lateralSpeedMs
+        substepPhys.slipAngleDeg = isPanelMode ? 0 : physicsTick.slipAngleDeg
+        substepPhys.lateralAccelG = isPanelMode ? 0 : physicsTick.lateralAccelG
+        substepPhys.longitudinalAccelG = isPanelMode ? 0 : physicsTick.acceleration / 9.80665
+        substepPhys.leanAngleDeg = isPanelMode ? 0 : physicsTick.leanAngleDeg
+        substepPhys.isColliding = isPanelMode ? false : physicsTick.isColliding
+        substepPhys.collisionBoundaryName = isPanelMode ? null : physicsTick.collisionBoundaryName
         substepPhys.surfaceType = physicsTick.surfaceType
         substepPhys.zoneName = physicsTick.zoneName
         substepPhys.absEngaged =
-          state.hasAbs && !state.absFault && !state.isBatteryDischarged
+          !isPanelMode && state.hasAbs && !state.absFault && !state.isBatteryDischarged
             ? physicsTick.absEngaged
             : false
         substepPhys.isAirbrakeActive = physicsTick.isAirbrakeActive
@@ -4253,19 +4400,21 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           _physics.reset()
         }
 
-        const timerStep = stepZeroToHundredTimer(substepTimer0to100, {
-          prevSpeedKmh: prevSubstepSpeed,
-          speedKmh: substepPhys.speedKmh,
-          gear,
-          throttle: ctx.throttle,
-          brake: ctx.brake,
-          handbrake: ctx.handbrake,
-          isRunning: substepPhys.isRunning,
-          deltaTime: dt,
-        })
-        substepTimer0to100 = timerStep.state
-        if (timerStep.isNewBest) {
-          useGarageStore.getState().addCredits(2500)
+        if (!isPanelMode) {
+          const timerStep = stepZeroToHundredTimer(substepTimer0to100, {
+            prevSpeedKmh: prevSubstepSpeed,
+            speedKmh: substepPhys.speedKmh,
+            gear,
+            throttle: ctx.throttle,
+            brake: ctx.brake,
+            handbrake: ctx.handbrake,
+            isRunning: substepPhys.isRunning,
+            deltaTime: dt,
+          })
+          substepTimer0to100 = timerStep.state
+          if (timerStep.isNewBest) {
+            useGarageStore.getState().addCredits(2500)
+          }
         }
 
         // 6. TractionControlSystem
@@ -4417,62 +4566,82 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           : 1.0
 
         // Sistema Real de Combustível, Consumo Dinâmico & Computador de Bordo Físico
-        const stepDistanceKm = Math.max(0, (substepPhys.speedKmh * dt) / 3600)
-        substepPhys.tripDistanceKm += stepDistanceKm
-        substepPhys.odometerKm += stepDistanceKm
-        if (substepPhys.isRunning || substepPhys.speedKmh > 0.2) {
-          substepPhys.tripDurationSec += dt
-        }
-        substepPhys.avgSpeedKmh =
-          substepPhys.tripDurationSec >= 1.0
-            ? substepPhys.tripDistanceKm / (substepPhys.tripDurationSec / 3600)
-            : 0
-
-        if (substepPhys.isRunning) {
-          const hours = dt / 3600
-          const fuelMult = ctx.fuelType === 'ethanol_e100' ? 1.34 : 1.0
-          const stageFuelFactor = stage === 1 ? 1.2 : stage === 2 ? 1.4 : stage === 3 ? 1.8 : 1.0
-          const burnPerHour = (0.85 + ctx.throttle * 22.0 + (substepPhys.rpm / _config.engine.maxRpm) * 8.5) * stageFuelFactor * fuelMult
-          const prevFuel = substepPhys.fuelLevelLiters
-          substepPhys.fuelLevelLiters = Math.max(0, substepPhys.fuelLevelLiters - burnPerHour * hours)
-          const burnedDeltaLiters = Math.max(0, prevFuel - substepPhys.fuelLevelLiters)
-          substepPhys.tripFuelUsedLiters += burnedDeltaLiters
-          substepPhys.instantFuelBurnLh = burnPerHour
-          substepPhys.instantConsumptionKmL =
-            substepPhys.speedKmh >= 2.0 && burnPerHour > 0.01
-              ? clamp(substepPhys.speedKmh / burnPerHour, 0, 99.9)
-              : 0
-
-          if (substepPhys.fuelLevelLiters <= 0.005) {
-            substepPhys.fuelLevelLiters = 0
-            substepPhys.isOutOfFuel = true
-            substepPhys.isRunning = false
-            substepPhys.isStalled = true
-            substepPhys.status = 'stalled'
-            substepPhys.instantFuelBurnLh = 0
-            substepPhys.instantConsumptionKmL = 0
-            substepPhys.liveTorqueNm = 0
-            substepPhys.livePowerHp = 0
-            _engine.stop()
-          }
-        } else {
+        // Regra estrita por modalidade:
+        // - Modo Painel ('panel'): combustível, autonomia, odômetro e estatísticas de viagem NÃO são consumidos nem alterados.
+        // - Modo Dirigir ('drive'): consumo físico real, evolução de odômetro, autonomia e médias de condução.
+        if (isPanelMode) {
           substepPhys.instantFuelBurnLh = 0
           substepPhys.instantConsumptionKmL = 0
-        }
+          if (substepPhys.fuelLevelLiters <= 0 || substepPhys.isOutOfFuel) {
+            substepPhys.fuelLevelLiters = 0
+            substepPhys.isOutOfFuel = true
+            if (substepPhys.isRunning) {
+              substepPhys.isRunning = false
+              substepPhys.isStalled = true
+              substepPhys.status = 'stalled'
+              substepPhys.liveTorqueNm = 0
+              substepPhys.livePowerHp = 0
+              _engine.stop()
+            }
+          }
+        } else {
+          const stepDistanceKm = Math.max(0, (substepPhys.speedKmh * dt) / 3600)
+          substepPhys.tripDistanceKm += stepDistanceKm
+          substepPhys.odometerKm += stepDistanceKm
+          if (substepPhys.isRunning || substepPhys.speedKmh > 0.2) {
+            substepPhys.tripDurationSec += dt
+          }
+          substepPhys.avgSpeedKmh =
+            substepPhys.tripDurationSec >= 1.0
+              ? substepPhys.tripDistanceKm / (substepPhys.tripDurationSec / 3600)
+              : 0
 
-        const consumptionSnap = computeConsumptionAndRangeSnapshot(
-          _config,
-          ctx.fuelType,
-          stage,
-          substepPhys.fuelLevelLiters,
-          substepPhys.tripDistanceKm,
-          substepPhys.tripFuelUsedLiters,
-        )
-        substepPhys.hasMeasuredAvgConsumption = consumptionSnap.hasMeasuredAvgConsumption
-        substepPhys.avgConsumptionKmL = consumptionSnap.avgConsumptionKmL
-        substepPhys.cruiseReferenceConsumptionKmL = consumptionSnap.cruiseReferenceConsumptionKmL
-        substepPhys.estimatedRangeKm = consumptionSnap.estimatedRangeKm
-        substepPhys.rangeEstimationSource = consumptionSnap.rangeEstimationSource
+          if (substepPhys.isRunning) {
+            const hours = dt / 3600
+            const fuelMult = ctx.fuelType === 'ethanol_e100' ? 1.34 : 1.0
+            const stageFuelFactor = stage === 1 ? 1.2 : stage === 2 ? 1.4 : stage === 3 ? 1.8 : 1.0
+            const burnPerHour = (0.85 + ctx.throttle * 22.0 + (substepPhys.rpm / _config.engine.maxRpm) * 8.5) * stageFuelFactor * fuelMult
+            const prevFuel = substepPhys.fuelLevelLiters
+            substepPhys.fuelLevelLiters = Math.max(0, substepPhys.fuelLevelLiters - burnPerHour * hours)
+            const burnedDeltaLiters = Math.max(0, prevFuel - substepPhys.fuelLevelLiters)
+            substepPhys.tripFuelUsedLiters += burnedDeltaLiters
+            substepPhys.instantFuelBurnLh = burnPerHour
+            substepPhys.instantConsumptionKmL =
+              substepPhys.speedKmh >= 2.0 && burnPerHour > 0.01
+                ? clamp(substepPhys.speedKmh / burnPerHour, 0, 99.9)
+                : 0
+
+            if (substepPhys.fuelLevelLiters <= 0.005) {
+              substepPhys.fuelLevelLiters = 0
+              substepPhys.isOutOfFuel = true
+              substepPhys.isRunning = false
+              substepPhys.isStalled = true
+              substepPhys.status = 'stalled'
+              substepPhys.instantFuelBurnLh = 0
+              substepPhys.instantConsumptionKmL = 0
+              substepPhys.liveTorqueNm = 0
+              substepPhys.livePowerHp = 0
+              _engine.stop()
+            }
+          } else {
+            substepPhys.instantFuelBurnLh = 0
+            substepPhys.instantConsumptionKmL = 0
+          }
+
+          const consumptionSnap = computeConsumptionAndRangeSnapshot(
+            _config,
+            ctx.fuelType,
+            stage,
+            substepPhys.fuelLevelLiters,
+            substepPhys.tripDistanceKm,
+            substepPhys.tripFuelUsedLiters,
+          )
+          substepPhys.hasMeasuredAvgConsumption = consumptionSnap.hasMeasuredAvgConsumption
+          substepPhys.avgConsumptionKmL = consumptionSnap.avgConsumptionKmL
+          substepPhys.cruiseReferenceConsumptionKmL = consumptionSnap.cruiseReferenceConsumptionKmL
+          substepPhys.estimatedRangeKm = consumptionSnap.estimatedRangeKm
+          substepPhys.rangeEstimationSource = consumptionSnap.rangeEstimationSource
+        }
 
         // Dinâmica Térmica do Motor, Termostática, Ventoinha (com Histerese) e Óleo
         const targetCoolant = _config.dashboard.coolantTempTarget ?? 88
@@ -4872,7 +5041,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const pubBrakeDiscTemp = shouldUpdateSlow ? Math.round(phys.brakeDiscTemp * 10) / 10 : state.brakeDiscTemp
     const pubBrakeFadeFactor = shouldUpdateSlow ? phys.brakeFadeFactor : state.brakeFadeFactor
     const pubNosPressure = Math.round(phys.nosPressurePercent * 10) / 10
-    if (shouldUpdateSlow) {
+    if (shouldUpdateSlow && state.sessionMode === 'drive') {
       flushPendingMileageToGarage(state.garageInstanceId, phys, 0.5)
     }
 
@@ -4936,6 +5105,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       lateralSpeedMs: phys.lateralSpeedMs,
       slipAngleDeg: phys.slipAngleDeg,
       lateralAccelG: phys.lateralAccelG,
+      longitudinalAccelG: Math.round(phys.longitudinalAccelG * 100) / 100,
       leanAngleDeg: phys.leanAngleDeg,
       isColliding: phys.isColliding,
       collisionBoundaryName: phys.collisionBoundaryName,
@@ -5079,7 +5249,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   reset: () => {
     const prevState = get()
-    if (prevState.garageInstanceId) {
+    if (prevState.garageInstanceId && prevState.sessionMode === 'drive') {
       flushPendingMileageToGarage(prevState.garageInstanceId, prevState._phys, 0.001)
     }
     const isManual = !prevState.isAutomaticVehicle
@@ -5237,6 +5407,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       _accumulator: 0,
       _isInitialized: false,
       _integrator: null,
+      sessionMode: 'drive',
       isPaused: false,
       physicsIntegrityStatus: 'NORMAL',
       visualSpeed: 0,
@@ -5252,6 +5423,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       lateralSpeedMs: 0,
       slipAngleDeg: 0,
       lateralAccelG: 0,
+      longitudinalAccelG: 0,
       leanAngleDeg: 0,
       isColliding: false,
       collisionBoundaryName: null,

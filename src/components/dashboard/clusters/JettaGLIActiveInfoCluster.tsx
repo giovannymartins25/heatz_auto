@@ -2,7 +2,6 @@ import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { clamp } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { useGarageStore } from '@/stores/useGarageStore'
 import { ClusterIndicatorIcon } from '@/components/gauges'
 import { formatZeroToHundredSeconds } from '@/systems/vehicle'
 
@@ -13,18 +12,11 @@ export interface JettaGLIActiveInfoClusterProps {
 /**
  * JettaGLIActiveInfoCluster — Active Info Display 10,25" (Digital Cockpit)
  * exclusivo do Volkswagen Jetta GLI 350 TSI 2021 (Mk7).
- *
- * Identidade visual autêntica GLI:
- * - Tela 100% digital widescreen com textura colmeia (honeycomb) sutil e linhas horizontais vermelhas GLI
- * - Dois anéis digitais segmentados (0–8.000 RPM à esquerda, 0–280 km/h à direita)
- * - Mostrador central tabular com velocidade digital, marcha ativa do DSG DQ250 (P/R/N/D1..D6/S1..S6/M1..M6),
- *   barra horizontal de pressão do turbo EA888 (BAR), modo de condução, temp. de óleo e cronômetro 0–100
- * - Barras laterais digitais de temperatura do líquido de arrefecimento (°C) e combustível (50 L)
  */
 export const JettaGLIActiveInfoCluster = memo(function JettaGLIActiveInfoCluster({
   telemetry,
 }: JettaGLIActiveInfoClusterProps) {
-  const { tachometer, speedometer, warningLights, auxGauges, shiftLight } = telemetry
+  const { tachometer, speedometer, warningLights, auxGauges, shiftLight, abs } = telemetry
 
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
@@ -38,18 +30,19 @@ export const JettaGLIActiveInfoCluster = memo(function JettaGLIActiveInfoCluster
   const leftIndicatorLit = useSimulationStore((s) => s.leftIndicatorLit)
   const rightIndicatorLit = useSimulationStore((s) => s.rightIndicatorLit)
   const headlightsMode = useSimulationStore((s) => s.headlightsMode)
-  const ignitionPosition = useSimulationStore((s) => s.ignitionPosition)
-  const isRunning = useSimulationStore((s) => s.isRunning)
-  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
+  const odometerKm = useSimulationStore((s) => s.odometerKm)
+  const estimatedRangeKm = useSimulationStore((s) => s.estimatedRangeKm)
 
-  const maxRpm = 8000
-  const redlineStart = 6500
-  const maxSpeed = 280
+  const maxRpm = tachometer.maxRpm || 8000
+  const redlineStart = tachometer.redlineStart || 6500
+  const maxSpeed = speedometer.maxSpeed || 280
 
   const rpm = clamp(Number.isFinite(tachometer.rpm) ? tachometer.rpm : 0, 0, maxRpm)
   const speed = Math.round(clamp(Number.isFinite(speedometer.speed) ? speedometer.speed : 0, 0, 320))
   const coolantTemp = Math.round(clamp(auxGauges.coolantTemp || 90, 50, 130))
-  const fuelPercent = Math.round(clamp(auxGauges.fuelLevel ?? 80, 0, 100))
+  const fuelPercent = Math.round(clamp(auxGauges.fuelPercent, 0, 100))
+
+  const isManualDsg = transmissionMode === 'manual_simulated' || gearSelectorPosition === 'M'
 
   const dsgGearLabel =
     gearSelectorPosition === 'P' || currentGear === -2
@@ -58,11 +51,10 @@ export const JettaGLIActiveInfoCluster = memo(function JettaGLIActiveInfoCluster
         ? 'R'
         : gearSelectorPosition === 'N' || currentGear === 0
           ? 'N'
-          : transmissionMode === 'automatic'
-            ? `${gearSelectorPosition === 'S' ? 'S' : 'D'}${currentGear > 0 ? currentGear : 1}`
-            : `M${currentGear > 0 ? currentGear : 1}`
+          : isManualDsg
+            ? `M${currentGear > 0 ? currentGear : 1}`
+            : `${gearSelectorPosition === 'S' ? 'S' : 'D'}${currentGear > 0 ? currentGear : 1}`
 
-  // Geometria dos anéis digitais Active Info Display (Raio 84, varredura 250° de 145° a 395°)
   const radius = 84
   const startDeg = 145
   const sweepDeg = 250
@@ -91,7 +83,7 @@ export const JettaGLIActiveInfoCluster = memo(function JettaGLIActiveInfoCluster
       list.push({ deg, label: major ? String(r / 1000) : '', major, red: r >= redlineStart })
     }
     return list
-  }, [])
+  }, [maxRpm, redlineStart])
 
   const speedTicks = useMemo(() => {
     const list: { deg: number; label: string; major: boolean }[] = []
@@ -101,7 +93,7 @@ export const JettaGLIActiveInfoCluster = memo(function JettaGLIActiveInfoCluster
       list.push({ deg, label: major ? String(s) : '', major })
     }
     return list
-  }, [])
+  }, [maxSpeed])
 
   const boostRatio = clamp((boostPressureBar + 0.8) / 2.3, 0, 1) * 100
   const modeLabel =
@@ -238,7 +230,6 @@ export const JettaGLIActiveInfoCluster = memo(function JettaGLIActiveInfoCluster
               )
             })}
 
-            {/* Centro digital do conta-giros */}
             <text x="105" y="92" fill="#71717a" fontSize="8" fontWeight="700" textAnchor="middle">
               1/min x1000
             </text>
@@ -256,7 +247,6 @@ export const JettaGLIActiveInfoCluster = memo(function JettaGLIActiveInfoCluster
               {dsgGearLabel}
             </text>
 
-            {/* Barra inferior de Temperatura */}
             <text x="68" y="176" fill="#9ca3af" fontSize="8" fontWeight="700">
               🌡 {coolantTemp}°C
             </text>
@@ -272,9 +262,8 @@ export const JettaGLIActiveInfoCluster = memo(function JettaGLIActiveInfoCluster
           </svg>
         </div>
 
-        {/* 2. PALCO CENTRAL MFD (VELOCIDADE TABULAR, DSG, BOOST E LUZES ESPIA) */}
+        {/* 2. PALCO CENTRAL MFD */}
         <div className="flex flex-col items-center justify-between rounded-xl border border-red-500/25 bg-zinc-950/90 px-2.5 py-2">
-          {/* Shift light bar */}
           <div className="mb-1 flex w-full justify-center gap-1">
             {[0.65, 0.75, 0.84, 0.91, 0.96].map((th, idx) => {
               const lit = rpm / redlineStart >= th || shiftLight.isActive
@@ -293,7 +282,6 @@ export const JettaGLIActiveInfoCluster = memo(function JettaGLIActiveInfoCluster
             })}
           </div>
 
-          {/* Velocidade digital central */}
           <div className="flex flex-col items-center leading-none">
             <span className="text-[40px] font-black tracking-tight text-white tabular-nums sm:text-[46px]">
               {speed}
@@ -301,17 +289,20 @@ export const JettaGLIActiveInfoCluster = memo(function JettaGLIActiveInfoCluster
             <span className="text-[9px] font-bold tracking-widest text-zinc-400">KM/H</span>
           </div>
 
-          {/* Seletor DSG P R N D/S M */}
-          <div className="my-1.5 flex items-center gap-1 rounded-lg border border-white/10 bg-black/80 px-2 py-0.5 text-[9.5px] font-black">
-            {(['P', 'R', 'N', 'D', 'S'] as const).map((pos) => {
+          {/* Seletor DSG P R N D S M completo */}
+          <div className="my-1.5 flex items-center gap-1 rounded-lg border border-white/10 bg-black/80 px-2 py-0.5 text-[9px] font-black">
+            {(['P', 'R', 'N', 'D', 'S', 'M'] as const).map((pos) => {
               const active =
-                (pos === 'D' && transmissionMode === 'automatic' && gearSelectorPosition === 'D') ||
-                (pos === 'S' && transmissionMode === 'automatic' && gearSelectorPosition === 'S') ||
-                (pos !== 'D' && pos !== 'S' && gearSelectorPosition === pos)
+                (pos === 'P' && (gearSelectorPosition === 'P' || currentGear === -2)) ||
+                (pos === 'R' && (gearSelectorPosition === 'R' || currentGear === -1)) ||
+                (pos === 'N' && gearSelectorPosition === 'N' && currentGear === 0) ||
+                (pos === 'M' && isManualDsg && currentGear > 0) ||
+                (pos === 'S' && !isManualDsg && gearSelectorPosition === 'S' && currentGear > 0) ||
+                (pos === 'D' && !isManualDsg && gearSelectorPosition === 'D' && currentGear > 0)
               return (
                 <span
                   key={pos}
-                  className={`rounded px-1.5 py-0.5 ${
+                  className={`rounded px-1.2 py-0.5 ${
                     active ? 'bg-red-600 text-white shadow' : 'text-zinc-500'
                   }`}
                 >
@@ -344,20 +335,25 @@ export const JettaGLIActiveInfoCluster = memo(function JettaGLIActiveInfoCluster
             {last0to100 !== null ? (
               <span className="font-bold text-emerald-400">0-100 {formatZeroToHundredSeconds(last0to100)}s</span>
             ) : (
-              <span>IGN {ignitionPosition}</span>
+              <span>⛽ {estimatedRangeKm} km</span>
             )}
-            <span className="tabular-nums">{Math.round(mileageKm).toLocaleString()} km</span>
+            <span className="tabular-nums">{Math.round(odometerKm).toLocaleString('pt-BR')} km</span>
           </div>
 
           <div className="mt-1 flex items-center justify-center gap-2">
-            <ClusterIndicatorIcon
-              kind="battery"
-              active={!isRunning && ignitionPosition !== 'OFF'}
-            />
+            <ClusterIndicatorIcon kind="battery" active={Boolean(warningLights.battery)} />
             <ClusterIndicatorIcon kind="oil" active={Boolean(warningLights.oil)} />
             <ClusterIndicatorIcon kind="checkEngine" active={Boolean(warningLights.checkEngine)} />
+            {abs.available && (
+              <ClusterIndicatorIcon
+                kind="abs"
+                active={Boolean(warningLights.absFault)}
+                flashing={Boolean(warningLights.absActive && !warningLights.absFault)}
+              />
+            )}
             <ClusterIndicatorIcon kind="tcs" active={Boolean(warningLights.tcs)} flashing={Boolean(warningLights.tcsFlash)} />
             <ClusterIndicatorIcon kind="brake" active={Boolean(warningLights.brake)} />
+            <ClusterIndicatorIcon kind="temp" active={Boolean(warningLights.temp)} />
           </div>
         </div>
 
@@ -421,15 +417,14 @@ export const JettaGLIActiveInfoCluster = memo(function JettaGLIActiveInfoCluster
               km/h · MQB
             </text>
 
-            {/* Barra inferior de Combustível (50 L) */}
-            <text x="65" y="176" fill="#9ca3af" fontSize="8" fontWeight="700">
+            <text x="60" y="176" fill="#9ca3af" fontSize="8" fontWeight="700">
               ⛽ {fuelPercent}% (50L)
             </text>
-            <rect x="65" y="181" width="80" height="5" rx="2.5" fill="#18181b" />
+            <rect x="60" y="181" width="90" height="5" rx="2.5" fill="#18181b" />
             <rect
-              x="65"
+              x="60"
               y="181"
-              width={clamp((fuelPercent / 100) * 80, 3, 80)}
+              width={clamp((fuelPercent / 100) * 90, 0, 90)}
               height="5"
               rx="2.5"
               fill={fuelPercent <= 15 ? '#ef4444' : '#f43f5e'}

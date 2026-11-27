@@ -74,6 +74,7 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
   onOpenTuning,
   onExit,
 }: MobileQuickMenuProps) {
+  const sessionMode = useSimulationStore((s) => s.sessionMode)
   const isRaining = useSimulationStore((s) => s.isRaining)
   const toggleRain = useSimulationStore((s) => s.toggleRain)
   const isMuted = useSimulationStore((s) => s.isMuted)
@@ -244,14 +245,16 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
           />
         </div>
 
-        {/* Direção Mobile — Inclinação Física & Diagnóstico Acessível (Fase 4.4.2.2) */}
-        <span className="block mb-1.5 text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
-          Direção por Inclinação do Smartphone
-        </span>
-        <div
-          className="bg-zinc-900/60 border border-white/10 rounded-2xl p-3 mb-4 space-y-3"
-          data-testid="menu-tilt-settings-section"
-        >
+        {/* Direção Mobile — Inclinação Física & Diagnóstico Acessível (exclusivo do Modo Dirigir) */}
+        {sessionMode === 'drive' && (
+          <>
+            <span className="block mb-1.5 text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
+              Direção por Inclinação do Smartphone
+            </span>
+            <div
+              className="bg-zinc-900/60 border border-white/10 rounded-2xl p-3 mb-4 space-y-3"
+              data-testid="menu-tilt-settings-section"
+            >
           {/* Alertas explícitos de compatibilidade, contexto HTTPS ou permissão */}
           {diagnostics.blockReason && (
             <div
@@ -543,7 +546,9 @@ export const MobileQuickMenu = memo(function MobileQuickMenu({
               </button>
             </div>
           </div>
-        </div>
+            </div>
+          </>
+        )}
 
         {/* Sistema & Performance */}
         <span className="block mb-1.5 text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest">

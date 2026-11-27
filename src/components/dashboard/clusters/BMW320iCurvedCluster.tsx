@@ -2,7 +2,6 @@ import { memo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { clamp } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { useGarageStore } from '@/stores/useGarageStore'
 import { ClusterIndicatorIcon } from '@/components/gauges'
 import { formatZeroToHundredSeconds } from '@/systems/vehicle'
 
@@ -13,17 +12,11 @@ export interface BMW320iCurvedClusterProps {
 /**
  * BMW320iCurvedCluster — BMW Live Cockpit Professional 12,3" (BMW Curved Display)
  * exclusivo do BMW 320i M Sport 2.0 ActiveFlex 2024 (G20 LCI RWD).
- *
- * Arquitetura visual própria BMW Operating System 8 (distinta dos mostradores circulares VW):
- * - Molduras angulares poligonais opostas em formato bumerangue/chevron características do Live Cockpit M Sport
- * - Escala esquerda ascendente de velocidade (0–260 km/h) e escala direita contra-rotativa de RPM (0–7 x1000)
- * - Emblema tricolor ///M, shift lights superiores, paleta adaptativa My Modes (Comfort, Sport, Eco Pro),
- *   indicador do câmbio automático ZF 8HP (P/R/N/D1..D8/S1..S8/M1..M8) e telemetria RWD 50/50
  */
 export const BMW320iCurvedCluster = memo(function BMW320iCurvedCluster({
   telemetry,
 }: BMW320iCurvedClusterProps) {
-  const { tachometer, speedometer, warningLights, auxGauges, shiftLight } = telemetry
+  const { tachometer, speedometer, warningLights, auxGauges, shiftLight, abs } = telemetry
 
   const drivingMode = useSimulationStore((s) => s.drivingMode)
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
@@ -31,22 +24,25 @@ export const BMW320iCurvedCluster = memo(function BMW320iCurvedCluster({
   const currentGear = useSimulationStore((s) => s.currentGear)
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
   const lateralAccelG = useSimulationStore((s) => s.lateralAccelG)
+  const livePowerHp = useSimulationStore((s) => s.livePowerHp)
+  const liveTorqueNm = useSimulationStore((s) => s.liveTorqueNm)
   const last0to100 = useSimulationStore((s) => s.last0to100)
   const leftIndicatorLit = useSimulationStore((s) => s.leftIndicatorLit)
   const rightIndicatorLit = useSimulationStore((s) => s.rightIndicatorLit)
   const headlightsMode = useSimulationStore((s) => s.headlightsMode)
-  const ignitionPosition = useSimulationStore((s) => s.ignitionPosition)
-  const isRunning = useSimulationStore((s) => s.isRunning)
-  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
+  const isLaunchControlArmed = useSimulationStore((s) => s.isLaunchControlArmed)
+  const isLaunching = useSimulationStore((s) => s.isLaunching)
+  const odometerKm = useSimulationStore((s) => s.odometerKm)
+  const estimatedRangeKm = useSimulationStore((s) => s.estimatedRangeKm)
 
-  const maxRpm = 7000
-  const redlineStart = 6500
-  const maxSpeed = 260
+  const maxRpm = tachometer.maxRpm || 7000
+  const redlineStart = tachometer.redlineStart || 6500
+  const maxSpeed = speedometer.maxSpeed || 260
 
   const rpm = clamp(Number.isFinite(tachometer.rpm) ? tachometer.rpm : 0, 0, maxRpm)
   const speed = Math.round(clamp(Number.isFinite(speedometer.speed) ? speedometer.speed : 0, 0, 300))
   const coolantTemp = Math.round(clamp(auxGauges.coolantTemp || 92, 50, 130))
-  const fuelPercent = Math.round(clamp(auxGauges.fuelLevel ?? 82, 0, 100))
+  const fuelPercent = Math.round(clamp(auxGauges.fuelPercent, 0, 100))
 
   const rpmRatio = clamp(rpm / maxRpm, 0, 1)
   const speedRatio = clamp(speed / maxSpeed, 0, 1)
@@ -58,16 +54,16 @@ export const BMW320iCurvedCluster = memo(function BMW320iCurvedCluster({
         ? 'R'
         : gearSelectorPosition === 'N' || currentGear === 0
           ? 'N'
-          : transmissionMode === 'automatic'
-            ? `${gearSelectorPosition === 'S' ? 'S' : 'D'}${currentGear > 0 ? currentGear : 1}`
-            : `M${currentGear > 0 ? currentGear : 1}`
+          : transmissionMode === 'manual_simulated' || gearSelectorPosition === 'M'
+            ? `M${currentGear > 0 ? currentGear : 1}`
+            : `${gearSelectorPosition === 'S' ? 'S' : 'D'}${currentGear > 0 ? currentGear : 1}`
 
   const modePalette =
     drivingMode === 'sport'
       ? {
           primary: '#ef4444',
           secondary: '#38bdf8',
-          badge: 'SPORT · M DYNAMIC',
+          badge: 'SPORT · M SPORT',
           border: 'border-red-500/45',
         }
       : drivingMode === 'eco'
@@ -89,7 +85,7 @@ export const BMW320iCurvedCluster = memo(function BMW320iCurvedCluster({
       className={`relative flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl border-2 ${modePalette.border} bg-gradient-to-b from-[#080d16] via-[#05080f] to-[#020408] px-3 py-2 font-mono text-white shadow-[0_0_34px_rgba(56,189,248,0.18)] select-none`}
       data-testid="cluster-bmw-320i-curved"
     >
-      {/* Topo BMW Live Cockpit Professional + Faixa Tricolor ///M */}
+      {/* Topo BMW Live Cockpit Professional + Emblema ///M + 320i */}
       <div className="mb-1 flex w-full items-center justify-between border-b border-white/10 pb-1 text-[8.5px]">
         <div className="flex items-center gap-2">
           <span
@@ -101,12 +97,12 @@ export const BMW320iCurvedCluster = memo(function BMW320iCurvedCluster({
           >
             ◀
           </span>
-          {/* Emblema ///M */}
           <div className="flex items-center gap-0.5 rounded border border-white/15 bg-black/80 px-1.5 py-0.5">
             <span className="h-2.5 w-1 -skew-x-18 bg-[#38bdf8]" />
             <span className="h-2.5 w-1 -skew-x-18 bg-[#1d4ed8]" />
             <span className="h-2.5 w-1 -skew-x-18 bg-[#ef4444]" />
-            <span className="ml-1 text-[9px] font-black italic tracking-wider text-white">M320i</span>
+            <span className="ml-1 text-[9px] font-black italic tracking-wider text-white">M</span>
+            <span className="ml-1 text-[8.5px] font-bold tracking-wider text-zinc-300">320i</span>
           </div>
           <span className="hidden text-[7.5px] font-bold tracking-widest text-zinc-400 sm:inline">
             CURVED DISPLAY 12.3&quot;
@@ -158,7 +154,13 @@ export const BMW320iCurvedCluster = memo(function BMW320iCurvedCluster({
         </div>
       </div>
 
-      {/* SVG Panorâmico Angular OS 8: Chevron Esquerdo (Velocidade) + Perspectiva Central + Chevron Direito (RPM) */}
+      {(isLaunchControlArmed || isLaunching) && (
+        <div className="mb-1 w-full rounded-lg border border-red-500/60 bg-red-600/20 py-0.5 text-center text-[9px] font-black tracking-wider text-red-200">
+          {isLaunching ? '🚀 LAUNCH CONTROL ATIVO' : '🏁 LAUNCH CONTROL ARMADO · SOLTE O FREIO'}
+        </div>
+      )}
+
+      {/* SVG Panorâmico Angular OS 8 */}
       <svg viewBox="0 0 760 205" className="w-full">
         <defs>
           <linearGradient id="bmwLeftChevron" x1="0%" y1="100%" x2="0%" y2="0%">
@@ -179,19 +181,12 @@ export const BMW320iCurvedCluster = memo(function BMW320iCurvedCluster({
           </clipPath>
         </defs>
 
-        {/* Grade sutil de horizonte BMW */}
         <line x1="250" y1="158" x2="510" y2="158" stroke="#1e293b" strokeWidth="1" />
         <line x1="335" y1="78" x2="270" y2="180" stroke={modePalette.primary} strokeOpacity="0.28" strokeWidth="2" />
         <line x1="425" y1="78" x2="490" y2="180" stroke={modePalette.primary} strokeOpacity="0.28" strokeWidth="2" />
 
         {/* 1. CHEVRON ESQUERDO: VELOCIDADE (0–260 KM/H) */}
-        <polyline
-          points="195,18 68,103 195,188"
-          fill="none"
-          stroke="#1e293b"
-          strokeWidth="16"
-          strokeLinejoin="miter"
-        />
+        <polyline points="195,18 68,103 195,188" fill="none" stroke="#1e293b" strokeWidth="16" strokeLinejoin="miter" />
         <polyline
           points="195,18 68,103 195,188"
           fill="none"
@@ -210,7 +205,6 @@ export const BMW320iCurvedCluster = memo(function BMW320iCurvedCluster({
           )
         })}
 
-        {/* Velocidade Digital M-Font */}
         <text x="195" y="98" fill="#ffffff" fontSize="50" fontWeight="900" fontStyle="italic" textAnchor="middle">
           {speed}
         </text>
@@ -218,27 +212,27 @@ export const BMW320iCurvedCluster = memo(function BMW320iCurvedCluster({
           km/h
         </text>
 
-        {/* Barra de Combustível 59L (canto inferior esquerdo) */}
-        <text x="26" y="176" fill="#94a3b8" fontSize="9" fontWeight="700">
-          ⛽ {fuelPercent}% · 59L
+        {/* Barra de Combustível 59L + Autonomia */}
+        <text x="26" y="176" fill="#94a3b8" fontSize="8.5" fontWeight="700">
+          ⛽ {fuelPercent}% · {estimatedRangeKm} km
         </text>
-        <rect x="26" y="182" width="96" height="6" rx="2" fill="#0f172a" />
+        <rect x="26" y="182" width="108" height="6" rx="2" fill="#0f172a" />
         <rect
           x="26"
           y="182"
-          width={clamp((fuelPercent / 100) * 96, 4, 96)}
+          width={clamp((fuelPercent / 100) * 108, 0, 108)}
           height="6"
           rx="2"
           fill={fuelPercent <= 15 ? '#ef4444' : '#38bdf8'}
         />
 
-        {/* 2. CENTRO LIVE COCKPIT: ZF 8HP, TRAÇÃO RWD E DADOS DINÂMICOS */}
-        <rect x="298" y="20" width="164" height="58" rx="10" fill="#090f1c" stroke="#1e293b" strokeWidth="1.5" />
-        <text x="342" y="42" fill="#64748b" fontSize="8.5" fontWeight="800" textAnchor="middle">
+        {/* 2. CENTRO LIVE COCKPIT: ZF 8HP, SPORT DISPLAYS REAIS E ODO */}
+        <rect x="292" y="18" width="176" height="62" rx="10" fill="#090f1c" stroke="#1e293b" strokeWidth="1.5" />
+        <text x="336" y="40" fill="#64748b" fontSize="8.5" fontWeight="800" textAnchor="middle">
           ZF 8HP
         </text>
         <text
-          x="342"
+          x="336"
           y="67"
           fill={modePalette.primary}
           fontSize="28"
@@ -248,38 +242,32 @@ export const BMW320iCurvedCluster = memo(function BMW320iCurvedCluster({
         >
           {zfGearLabel}
         </text>
-        <line x1="382" y1="28" x2="382" y2="70" stroke="#1e293b" strokeWidth="1" />
-        <text x="422" y="41" fill="#94a3b8" fontSize="8" fontWeight="700" textAnchor="middle">
-          TRAÇÃO RWD
+        <line x1="376" y1="26" x2="376" y2="72" stroke="#1e293b" strokeWidth="1" />
+        <text x="422" y="38" fill="#94a3b8" fontSize="8" fontWeight="700" textAnchor="middle">
+          {drivingMode === 'sport' ? 'SPORT DISPLAY' : 'B48 RWD'}
         </text>
-        <text x="422" y="57" fill="#f8fafc" fontSize="11" fontWeight="900" textAnchor="middle">
-          {boostPressureBar >= 0 ? `+${boostPressureBar.toFixed(2)}` : boostPressureBar.toFixed(2)} bar
+        <text x="422" y="54" fill="#f8fafc" fontSize="10.5" fontWeight="900" textAnchor="middle">
+          {drivingMode === 'sport'
+            ? `${Math.round(livePowerHp)} cv · ${Math.round(liveTorqueNm)} Nm`
+            : `${boostPressureBar >= 0 ? `+${boostPressureBar.toFixed(2)}` : boostPressureBar.toFixed(2)} bar`}
         </text>
-        <text x="422" y="70" fill="#38bdf8" fontSize="8" fontWeight="700" textAnchor="middle">
-          {Math.abs(lateralAccelG).toFixed(2)} G · 50:50
+        <text x="422" y="69" fill="#38bdf8" fontSize="8" fontWeight="700" textAnchor="middle">
+          {Math.abs(lateralAccelG).toFixed(2)} G · RWD
         </text>
 
-        {/* Silhueta estilizada G20 RWD na faixa central */}
-        <rect x="358" y="108" width="44" height="24" rx="6" fill="#0f172a" stroke={modePalette.primary} strokeWidth="1.5" />
-        <line x1="362" y1="128" x2="398" y2="128" stroke="#ef4444" strokeWidth="2.5" />
+        <rect x="358" y="106" width="44" height="24" rx="6" fill="#0f172a" stroke={modePalette.primary} strokeWidth="1.5" />
+        <line x1="362" y1="126" x2="398" y2="126" stroke="#ef4444" strokeWidth="2.5" />
         <text x="380" y="149" fill="#94a3b8" fontSize="8.5" fontWeight="700" textAnchor="middle">
           {last0to100 !== null
             ? `0–100 km/h: ${formatZeroToHundredSeconds(last0to100)} s`
-            : `IGN ${ignitionPosition} · B48 TURBO`}
+            : `${Math.round(livePowerHp)} cv · ${Math.round(liveTorqueNm)} Nm`}
         </text>
         <text x="380" y="186" fill="#cbd5e1" fontSize="9.5" fontWeight="800" textAnchor="middle">
-          ODO {Math.round(mileageKm).toLocaleString()} km
+          ODO {Math.round(odometerKm).toLocaleString('pt-BR')} km
         </text>
 
         {/* 3. CHEVRON DIREITO: CONTA-GIROS CONTRA-ROTATIVO M SPORT (0–7 x1000 RPM) */}
-        <polyline
-          points="565,18 692,103 565,188"
-          fill="none"
-          stroke="#1e293b"
-          strokeWidth="16"
-          strokeLinejoin="miter"
-        />
-        {/* Zona vermelha no topo do chevron direito */}
+        <polyline points="565,18 692,103 565,188" fill="none" stroke="#1e293b" strokeWidth="16" strokeLinejoin="miter" />
         <line x1="590" y1="35" x2="565" y2="18" stroke="#7f1d1d" strokeWidth="16" />
         <polyline
           points="565,18 692,103 565,188"
@@ -323,7 +311,6 @@ export const BMW320iCurvedCluster = memo(function BMW320iCurvedCluster({
           1/min x1000
         </text>
 
-        {/* Barra de Temperatura do Motor (canto inferior direito) */}
         <text x="638" y="176" fill="#94a3b8" fontSize="9" fontWeight="700">
           🌡 {coolantTemp}°C MOTOR
         </text>
@@ -340,11 +327,19 @@ export const BMW320iCurvedCluster = memo(function BMW320iCurvedCluster({
 
       {/* Rodapé de Luzes Espia BMW */}
       <div className="mt-0.5 flex w-full items-center justify-center gap-3 border-t border-white/10 pt-1">
-        <ClusterIndicatorIcon kind="battery" active={!isRunning && ignitionPosition !== 'OFF'} />
+        <ClusterIndicatorIcon kind="battery" active={Boolean(warningLights.battery)} />
         <ClusterIndicatorIcon kind="oil" active={Boolean(warningLights.oil)} />
         <ClusterIndicatorIcon kind="checkEngine" active={Boolean(warningLights.checkEngine)} />
+        {abs.available && (
+          <ClusterIndicatorIcon
+            kind="abs"
+            active={Boolean(warningLights.absFault)}
+            flashing={Boolean(warningLights.absActive && !warningLights.absFault)}
+          />
+        )}
         <ClusterIndicatorIcon kind="tcs" active={Boolean(warningLights.tcs)} flashing={Boolean(warningLights.tcsFlash)} />
         <ClusterIndicatorIcon kind="brake" active={Boolean(warningLights.brake)} />
+        <ClusterIndicatorIcon kind="temp" active={Boolean(warningLights.temp)} />
       </div>
     </div>
   )

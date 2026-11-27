@@ -16,6 +16,7 @@ import {
  * diagnóstico completo entre diferentes smartphones.
  */
 export function useDeviceTilt() {
+  const sessionMode = useSimulationStore((s) => s.sessionMode)
   const steeringMethod = useSimulationStore((s) => s.steeringMethod)
   const tiltSteeringEnabled = useSimulationStore((s) => s.tiltSteeringEnabled)
   const steeringSensitivity = useSimulationStore((s) => s.steeringSensitivity)
@@ -23,6 +24,7 @@ export function useDeviceTilt() {
   const steeringInvertDirection = useSimulationStore((s) => s.steeringInvertDirection)
   const sensorPermission = useSimulationStore((s) => s.sensorPermission)
   const setSensorPermission = useSimulationStore((s) => s.setSensorPermission)
+  const isTiltAllowedInCurrentMode = sessionMode === 'drive'
 
   const [snapshot, setSnapshot] = useState<SharedTiltSnapshot>(() =>
     sharedTiltSteering.getSnapshot(),
@@ -47,18 +49,29 @@ export function useDeviceTilt() {
     }
   }, [sensorPermission, setSensorPermission])
 
-  // Sincroniza configurações com o controlador compartilhado
+  // Sincroniza configurações com o controlador compartilhado (desativado estritamente no Modo Painel)
   useEffect(() => {
     sharedTiltSteering.syncConfig({
-      enabled: tiltSteeringEnabled && steeringMethod === 'tilt',
+      enabled: isTiltAllowedInCurrentMode && tiltSteeringEnabled && steeringMethod === 'tilt',
       sensitivity: steeringSensitivity,
       deadzoneDeg: steeringDeadzone,
       invertAxis: steeringInvertDirection,
     })
-  }, [tiltSteeringEnabled, steeringMethod, steeringSensitivity, steeringDeadzone, steeringInvertDirection])
+  }, [
+    isTiltAllowedInCurrentMode,
+    tiltSteeringEnabled,
+    steeringMethod,
+    steeringSensitivity,
+    steeringDeadzone,
+    steeringInvertDirection,
+  ])
 
-  // Assina o singleton compartilhado
+  // Assina o singleton compartilhado apenas no Modo Dirigir
   useEffect(() => {
+    if (!isTiltAllowedInCurrentMode) {
+      setSnapshot(sharedTiltSteering.getSnapshot())
+      return
+    }
     if (typeof window === 'undefined' || sensorPermission === 'unsupported' || sensorPermission === 'denied') {
       setSnapshot(sharedTiltSteering.getSnapshot())
       return
@@ -68,7 +81,7 @@ export function useDeviceTilt() {
       return
     }
     return sharedTiltSteering.subscribe(setSnapshot)
-  }, [sensorPermission, requiresPermissionPrompt])
+  }, [isTiltAllowedInCurrentMode, sensorPermission, requiresPermissionPrompt])
 
   /**
    * Solicita permissão explícita ao usuário quando exigida pelo navegador (iOS Safari/WebKit),

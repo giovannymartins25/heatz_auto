@@ -2,7 +2,6 @@ import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { clamp, mapRange } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { useGarageStore } from '@/stores/useGarageStore'
 import { ClusterIndicatorIcon } from '@/components/gauges'
 
 export interface FordFusion2012IceClusterProps {
@@ -12,17 +11,11 @@ export interface FordFusion2012IceClusterProps {
 /**
  * FordFusion2012IceCluster — Quadro de Instrumentos Analógico "Ice Blue" (3 Copos Cromados)
  * exclusivo do Ford Fusion SEL 2.5 16V 2012 (CD338).
- *
- * Características autênticas do Fusion 2010–2012:
- * - Três mostradores circulares profundos com aros cromados acetinados e iluminação azul-gelo (Ice Blue)
- * - Copo Esquerdo: Tacômetro 0–7 x1000 RPM com ponteiro translúcido azul-ciano
- * - Copo Central: Velocímetro 0–220 km/h com display VFD matriz verde-ciano inferior (PRNDM, Odômetro e Consumo)
- * - Copo Direito: Indicadores analógicos de Temperatura do Motor (C–H) e Combustível (E–F, 66 L) + luzes espia
  */
 export const FordFusion2012IceCluster = memo(function FordFusion2012IceCluster({
   telemetry,
 }: FordFusion2012IceClusterProps) {
-  const { tachometer, speedometer, warningLights, auxGauges } = telemetry
+  const { tachometer, speedometer, warningLights, auxGauges, abs } = telemetry
 
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const gearSelectorPosition = useSimulationStore((s) => s.gearSelectorPosition)
@@ -31,18 +24,17 @@ export const FordFusion2012IceCluster = memo(function FordFusion2012IceCluster({
   const rightIndicatorLit = useSimulationStore((s) => s.rightIndicatorLit)
   const headlightsMode = useSimulationStore((s) => s.headlightsMode)
   const fogLightsLit = useSimulationStore((s) => s.fogLightsLit)
-  const ignitionPosition = useSimulationStore((s) => s.ignitionPosition)
-  const isRunning = useSimulationStore((s) => s.isRunning)
-  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
+  const odometerKm = useSimulationStore((s) => s.odometerKm)
+  const estimatedRangeKm = useSimulationStore((s) => s.estimatedRangeKm)
 
-  const maxRpm = 7000
-  const redlineStart = 6500
-  const maxSpeed = 220
+  const maxRpm = tachometer.maxRpm || 7000
+  const redlineStart = tachometer.redlineStart || 6500
+  const maxSpeed = speedometer.maxSpeed || 220
 
   const rpm = clamp(Number.isFinite(tachometer.rpm) ? tachometer.rpm : 0, 0, maxRpm)
   const speed = clamp(Number.isFinite(speedometer.speed) ? speedometer.speed : 0, 0, maxSpeed)
   const coolantTemp = clamp(auxGauges.coolantTemp || 90, 50, 130)
-  const fuelPercent = clamp(auxGauges.fuelLevel ?? 80, 0, 100)
+  const fuelPercent = clamp(auxGauges.fuelPercent, 0, 100)
 
   const startAngle = -220
   const endAngle = 40
@@ -61,7 +53,7 @@ export const FordFusion2012IceCluster = memo(function FordFusion2012IceCluster({
       })
     }
     return arr
-  }, [])
+  }, [maxRpm, redlineStart])
 
   const speedMarks = useMemo(() => {
     const arr: { angle: number; label: string; major: boolean }[] = []
@@ -74,7 +66,7 @@ export const FordFusion2012IceCluster = memo(function FordFusion2012IceCluster({
       })
     }
     return arr
-  }, [])
+  }, [maxSpeed])
 
   const gearBadge =
     gearSelectorPosition === 'P' || currentGear === -2
@@ -83,7 +75,7 @@ export const FordFusion2012IceCluster = memo(function FordFusion2012IceCluster({
         ? 'R'
         : gearSelectorPosition === 'N' || currentGear === 0
           ? 'N'
-          : transmissionMode === 'manual'
+          : transmissionMode === 'manual_simulated' || gearSelectorPosition === 'M'
             ? `M${currentGear > 0 ? currentGear : 1}`
             : `D (${currentGear > 0 ? currentGear : 1})`
 
@@ -230,12 +222,12 @@ export const FordFusion2012IceCluster = memo(function FordFusion2012IceCluster({
             </text>
 
             {/* Visor VFD verde-ciano de matriz de pontos */}
-            <rect x="65" y="132" width="100" height="36" rx="4" fill="#041517" stroke="#0e7490" strokeWidth="1.2" />
-            <text x="115" y="146" fill="#22d3ee" fontSize="10.5" fontWeight="900" textAnchor="middle">
-              {gearBadge} · {Math.round(speed)} km/h
+            <rect x="57" y="130" width="116" height="40" rx="4" fill="#041517" stroke="#0e7490" strokeWidth="1.2" />
+            <text x="115" y="144" fill="#22d3ee" fontSize="10" fontWeight="900" textAnchor="middle">
+              {gearBadge} · {estimatedRangeKm} km
             </text>
-            <text x="115" y="161" fill="#67e8f9" fontSize="8.5" fontWeight="700" textAnchor="middle">
-              {Math.round(mileageKm).toLocaleString()} km
+            <text x="115" y="160" fill="#67e8f9" fontSize="8.5" fontWeight="700" textAnchor="middle">
+              ODO {Math.round(odometerKm).toLocaleString('pt-BR')} km
             </text>
 
             <g transform={`rotate(${speedAngle} 115 103)`}>
@@ -251,7 +243,6 @@ export const FordFusion2012IceCluster = memo(function FordFusion2012IceCluster({
             <circle cx="102" cy="102" r="90" fill="#070d16" stroke="#94a3b8" strokeWidth="4" />
             <circle cx="102" cy="102" r="84" fill="none" stroke="#38bdf8" strokeOpacity="0.45" strokeWidth="2" />
 
-            {/* Arco Superior: Temperatura C — H */}
             <text x="52" y="66" fill="#7dd3fc" fontSize="10" fontWeight="800">
               C
             </text>
@@ -268,7 +259,6 @@ export const FordFusion2012IceCluster = memo(function FordFusion2012IceCluster({
 
             <line x1="36" y1="102" x2="168" y2="102" stroke="#1e293b" strokeWidth="1.5" />
 
-            {/* Arco Inferior: Combustível E — F (66L) */}
             <text x="52" y="144" fill="#f87171" fontSize="10" fontWeight="800">
               E
             </text>
@@ -285,11 +275,19 @@ export const FordFusion2012IceCluster = memo(function FordFusion2012IceCluster({
           </svg>
 
           <div className="-mt-1 flex items-center justify-center gap-2">
-            <ClusterIndicatorIcon kind="battery" active={!isRunning && ignitionPosition !== 'OFF'} />
+            <ClusterIndicatorIcon kind="battery" active={Boolean(warningLights.battery)} />
             <ClusterIndicatorIcon kind="oil" active={Boolean(warningLights.oil)} />
             <ClusterIndicatorIcon kind="checkEngine" active={Boolean(warningLights.checkEngine)} />
+            {abs.available && (
+              <ClusterIndicatorIcon
+                kind="abs"
+                active={Boolean(warningLights.absFault)}
+                flashing={Boolean(warningLights.absActive && !warningLights.absFault)}
+              />
+            )}
             <ClusterIndicatorIcon kind="tcs" active={Boolean(warningLights.tcs)} flashing={Boolean(warningLights.tcsFlash)} />
             <ClusterIndicatorIcon kind="brake" active={Boolean(warningLights.brake)} />
+            <ClusterIndicatorIcon kind="temp" active={Boolean(warningLights.temp)} />
           </div>
         </div>
       </div>

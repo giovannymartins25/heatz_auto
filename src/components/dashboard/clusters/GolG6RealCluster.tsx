@@ -1,35 +1,26 @@
 import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
-import { mapRange } from '@/utils/math'
+import { clamp, mapRange } from '@/utils/math'
 import { ClusterIndicatorIcon } from '@/components/gauges'
-import { useGarageStore } from '@/stores/useGarageStore'
+import { useSimulationStore } from '@/stores/useSimulationStore'
 
 interface GolG6RealClusterProps {
   telemetry: DashboardTelemetry
 }
 
 /**
- * GolG6RealCluster — Réplica fiel do quadro de instrumentos do Volkswagen Gol G6 (Trendline / Comfortline / MSI).
- *
- * Características reais da VW:
- * - Aros cromados acetinados nos dois mostradores principais com efeito de profundidade 3D
- * - Tipografia e grafismo oficial VW DIN automotivo
- * - Agulhas vermelhas translúcidas iluminadas com miolo central preto e pino metálico
- * - Display central I-System / Maxi-DOT matriz de pontos vermelho/âmbar característico
- * - Marcadores analógicos integrados de temperatura do líquido de arrefecimento e nível de combustível
- * - Luzes de advertência originais: setas verdes, bateria, óleo, freio de mão, check engine e EPC
+ * GolG6RealCluster — Quadro de instrumentos do Volkswagen Gol G6 1.6 MSI (2016) com I-System vermelho.
  */
 export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: GolG6RealClusterProps) {
-  const {
-    tachometer,
-    speedometer,
-    gear,
-    engine,
-    warningLights,
-    auxGauges,
-    shiftLight,
-  } = telemetry
-  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
+  const { tachometer, speedometer, gear, warningLights, auxGauges, shiftLight, abs } = telemetry
+
+  const leftIndicatorLit = useSimulationStore((s) => s.leftIndicatorLit)
+  const rightIndicatorLit = useSimulationStore((s) => s.rightIndicatorLit)
+  const headlightsMode = useSimulationStore((s) => s.headlightsMode)
+  const odometerKm = useSimulationStore((s) => s.odometerKm)
+  const estimatedRangeKm = useSimulationStore((s) => s.estimatedRangeKm)
+  const avgConsumptionKmL = useSimulationStore((s) => s.avgConsumptionKmL)
+  const hasMeasuredAvgConsumption = useSimulationStore((s) => s.hasMeasuredAvgConsumption)
 
   const size = 260
   const center = size / 2
@@ -37,43 +28,41 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
   const startAngle = -215
   const endAngle = 35
 
-  // ── Ângulo do Tacômetro (0 a 7.000 RPM) ──
-  const clampedRpm = Math.min(Math.max(tachometer.rpm, 0), 7000)
-  const tachAngle = mapRange(clampedRpm, 0, 7000, startAngle, endAngle)
+  const maxRpm = tachometer.maxRpm || 7000
+  const redlineStart = tachometer.redlineStart || 6000
+  const maxSpeed = speedometer.maxSpeed || 220
 
-  // ── Ângulo do Velocímetro (0 a 220 km/h) ──
-  const clampedSpeed = Math.min(Math.max(speedometer.speed, 0), 220)
-  const speedAngle = mapRange(clampedSpeed, 0, 220, startAngle, endAngle)
+  const clampedRpm = clamp(tachometer.rpm, 0, maxRpm)
+  const tachAngle = mapRange(clampedRpm, 0, maxRpm, startAngle, endAngle)
 
-  // ── Ângulos dos Minis Marcadores Integrados (Temp e Combustível) ──
-  // Temp: 50°C (-60°) até 130°C (60°), ideal 90°C (0°)
-  const tempAngle = mapRange(auxGauges.coolantTemp, 50, 130, -50, 50)
-  // Combustível: 0% (-50°) até 100% (50°)
-  const fuelAngle = mapRange(auxGauges.fuelPercent, 0, 100, -50, 50)
+  const clampedSpeed = clamp(speedometer.speed, 0, maxSpeed)
+  const speedAngle = mapRange(clampedSpeed, 0, maxSpeed, startAngle, endAngle)
 
-  // Marcações do Tacômetro VW (0 a 7 x1000)
+  const tempAngle = mapRange(clamp(auxGauges.coolantTemp, 50, 130), 50, 130, -50, 50)
+  const fuelPercent = clamp(auxGauges.fuelPercent, 0, 100)
+  const fuelAngle = mapRange(fuelPercent, 0, 100, -50, 50)
+
   const tachMarks = useMemo(() => {
     const list: { angle: number; label: string; isMajor: boolean; isRedzone: boolean }[] = []
-    for (let r = 0; r <= 7000; r += 200) {
+    for (let r = 0; r <= maxRpm; r += 200) {
       const isMajor = r % 1000 === 0
       const isSemiMajor = r % 500 === 0
-      const angle = mapRange(r, 0, 7000, startAngle, endAngle)
+      const angle = mapRange(r, 0, maxRpm, startAngle, endAngle)
       list.push({
         angle,
         label: isMajor ? String(r / 1000) : '',
         isMajor: isMajor || isSemiMajor,
-        isRedzone: r >= 6000,
+        isRedzone: r >= redlineStart,
       })
     }
     return list
-  }, [startAngle, endAngle])
+  }, [maxRpm, redlineStart, startAngle, endAngle])
 
-  // Marcações do Velocímetro VW (0 a 220 km/h)
   const speedMarks = useMemo(() => {
     const list: { angle: number; label: string; isMajor: boolean }[] = []
-    for (let s = 0; s <= 220; s += 10) {
+    for (let s = 0; s <= maxSpeed; s += 10) {
       const isMajor = s % 20 === 0
-      const angle = mapRange(s, 0, 220, startAngle, endAngle)
+      const angle = mapRange(s, 0, maxSpeed, startAngle, endAngle)
       list.push({
         angle,
         label: isMajor ? String(s) : '',
@@ -81,35 +70,48 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
       })
     }
     return list
-  }, [startAngle, endAngle])
+  }, [maxSpeed, startAngle, endAngle])
 
   return (
-    <div className="@container relative flex flex-col items-center w-full max-w-4xl p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-zinc-950 via-zinc-900 to-black border-2 border-zinc-800 shadow-[0_20px_60px_rgba(0,0,0,0.9)] select-none">
-      {/* Moldura de topo estilo painel binnacle com textura automotiva */}
+    <div
+      data-testid="cluster-gol-g6"
+      className="@container relative flex flex-col items-center w-full max-w-4xl p-1.5 sm:p-2.5 rounded-2xl bg-gradient-to-b from-zinc-950 via-zinc-900 to-black border-2 border-zinc-800 shadow-[0_20px_60px_rgba(0,0,0,0.9)] select-none"
+    >
       <div className="absolute inset-x-8 top-0 h-1.5 bg-gradient-to-r from-transparent via-zinc-700/60 to-transparent rounded-t-full" />
 
-      {/* ── Fileira Superior: Luzes-Espia Originais VW ── */}
+      {/* Fileira Superior: Setas Reais + Luzes-Espia Originais VW */}
       <div className="flex items-center justify-between w-full max-w-xl px-3 py-0.5 mb-0.5 rounded-xl bg-zinc-950/80 border border-white/5">
-        <div className="w-5 h-4 flex items-center justify-center text-emerald-500 font-bold text-xs">
+        <div
+          className={`w-5 h-4 flex items-center justify-center font-bold text-xs transition-opacity ${
+            leftIndicatorLit ? 'text-emerald-400 opacity-100' : 'text-zinc-700 opacity-30'
+          }`}
+        >
           ◀
         </div>
 
-        {/* 6 Indicadores reais VW */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <ClusterIndicatorIcon kind="battery" active={warningLights.battery} sizeClass="w-3.5 h-3.5" />
           <ClusterIndicatorIcon kind="oil" active={warningLights.oil} sizeClass="w-3.5 h-3.5" />
+          {abs.available && (
+            <ClusterIndicatorIcon
+              kind="abs"
+              active={warningLights.absFault}
+              flashing={warningLights.absActive && !warningLights.absFault}
+              sizeClass="w-3.5 h-3.5"
+            />
+          )}
           <span
             className={`px-1 rounded text-[9.5px] font-mono font-bold transition-opacity duration-150 ${
               warningLights.brake ? 'bg-red-600 text-white opacity-100 shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'text-zinc-800 opacity-30'
             }`}
-            title="Freio de Mão"
+            title="Freio de Estacionamento"
           >
             (P)
           </span>
           <ClusterIndicatorIcon kind="checkEngine" active={warningLights.checkEngine} sizeClass="w-3.5 h-3.5" />
           <span
             className={`text-[9px] font-mono font-black tracking-tighter px-1 rounded transition-opacity duration-150 ${
-              warningLights.checkEngine || engine.status === 'STARTING'
+              warningLights.checkEngine
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 opacity-100'
                 : 'text-zinc-800 opacity-30'
             }`}
@@ -118,6 +120,11 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
             EPC
           </span>
           <ClusterIndicatorIcon kind="temp" active={warningLights.temp} sizeClass="w-3.5 h-3.5" />
+          {headlightsMode !== 'off' && (
+            <span className={`text-[8px] font-mono font-black ${headlightsMode === 'high' ? 'text-sky-400' : 'text-emerald-400'}`}>
+              ≡D
+            </span>
+          )}
           {shiftLight.isActive && (
             <span className="px-1.5 py-0.2 rounded bg-red-600 text-white text-[9px] font-mono font-black animate-pulse">
               SHIFT
@@ -125,30 +132,27 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
           )}
         </div>
 
-        <div className="w-5 h-4 flex items-center justify-center text-emerald-500 font-bold text-xs">
+        <div
+          className={`w-5 h-4 flex items-center justify-center font-bold text-xs transition-opacity ${
+            rightIndicatorLit ? 'text-emerald-400 opacity-100' : 'text-zinc-700 opacity-30'
+          }`}
+        >
           ▶
         </div>
       </div>
 
-      {/* ── Conjunto de Instrumentos: Tacômetro + I-System + Velocímetro ── */}
+      {/* Conjunto de Instrumentos: Tacômetro + I-System + Velocímetro */}
       <div className="flex items-center justify-center gap-2 sm:gap-4 w-full flex-wrap @[640px]:flex-nowrap">
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* 1. MOSTRADOR ESQUERDO: TACÔMETRO + MINI TEMP                      */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* 1. MOSTRADOR ESQUERDO: TACÔMETRO + MINI TEMP */}
         <div className="relative flex flex-col items-center">
-          <svg
-            viewBox={`0 0 ${size} ${size}`}
-            className="w-[248px] sm:w-[264px] drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
-          >
+          <svg viewBox={`0 0 ${size} ${size}`} className="w-[248px] sm:w-[264px]">
             <defs>
-              {/* Fundo do mostrador com degradê sutil VW */}
               <radialGradient id="golDialBg" cx="50%" cy="50%" r="50%">
                 <stop offset="65%" stopColor="#0a0a0c" />
                 <stop offset="90%" stopColor="#141418" />
                 <stop offset="98%" stopColor="#222228" />
                 <stop offset="100%" stopColor="#3a3a44" />
               </radialGradient>
-              {/* Aro cromado acetinado VW */}
               <linearGradient id="golChromeBezel" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="#e4e4e7" />
                 <stop offset="25%" stopColor="#71717a" />
@@ -158,26 +162,9 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
               </linearGradient>
             </defs>
 
-            {/* Aro externo cromado texturizado */}
-            <circle
-              cx={center}
-              cy={center}
-              r={radius + 20}
-              fill="none"
-              stroke="url(#golChromeBezel)"
-              strokeWidth="4.5"
-            />
-            {/* Sombra de profundidade binnacle */}
-            <circle
-              cx={center}
-              cy={center}
-              r={radius + 17}
-              fill="url(#golDialBg)"
-              stroke="#18181b"
-              strokeWidth="2"
-            />
+            <circle cx={center} cy={center} r={radius + 20} fill="none" stroke="url(#golChromeBezel)" strokeWidth="4.5" />
+            <circle cx={center} cy={center} r={radius + 17} fill="url(#golDialBg)" stroke="#18181b" strokeWidth="2" />
 
-            {/* Inscrição "1/min x 1000" característica da VW */}
             <text
               x={center}
               y={center - 36}
@@ -187,9 +174,8 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
               1/min x 1000
             </text>
 
-            {/* Arco vermelho de corte (6000 a 7000 RPM) */}
             <path
-              d={describeArc(center, center, radius - 6, mapRange(6000, 0, 7000, startAngle, endAngle), endAngle)}
+              d={describeArc(center, center, radius - 6, mapRange(redlineStart, 0, maxRpm, startAngle, endAngle), endAngle)}
               fill="none"
               stroke="#ef4444"
               strokeWidth="4"
@@ -197,7 +183,6 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
               className="opacity-90"
             />
 
-            {/* Marcações de RPM */}
             {tachMarks.map((m, i) => {
               const rad = (m.angle * Math.PI) / 180
               const innerR = m.isMajor ? radius - 15 : radius - 8
@@ -207,7 +192,6 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
               const x2 = center + outerR * Math.cos(rad)
               const y2 = center + outerR * Math.sin(rad)
 
-              // Posição do texto numérico VW
               const textR = radius - 26
               const tx = center + textR * Math.cos(rad)
               const ty = center + textR * Math.sin(rad) + 4
@@ -239,7 +223,6 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
               )
             })}
 
-            {/* ── Sub-mostrador Integrado de Temperatura da Água (Inferior) ── */}
             <g transform={`translate(${center}, ${center + 42})`}>
               <circle cx="0" cy="0" r="28" fill="#09090b" stroke="#27272a" strokeWidth="1" />
               <text x="0" y="-12" textAnchor="middle" className="fill-zinc-400 font-mono text-[7px]">
@@ -254,17 +237,13 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
               <text x="16" y="8" textAnchor="middle" className="fill-red-400 font-mono text-[7px]">
                 130
               </text>
-              {/* Agulha de Temperatura */}
               <g transform={`rotate(${tempAngle})`}>
                 <line x1="0" y1="0" x2="0" y2="-22" stroke="#ef4444" strokeWidth="1.6" strokeLinecap="round" />
                 <circle cx="0" cy="0" r="3" fill="#18181b" stroke="#71717a" strokeWidth="0.8" />
               </g>
             </g>
 
-            {/* ── Agulha Vermelha Iluminada Principal (Tacômetro) ── */}
             <g transform={`rotate(${tachAngle} ${center} ${center})`}>
-              {/* Brilho da agulha translúcida */}
-              {/* Brilho da agulha em camada SVG nativa (sem drop-shadow CSS para eliminar flicker) */}
               <line
                 x1={center}
                 y1={center}
@@ -294,7 +273,6 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
                 strokeLinecap="round"
                 opacity="0.8"
               />
-              {/* Rabicho da agulha */}
               <line
                 x1={center}
                 y1={center}
@@ -304,33 +282,29 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
                 strokeWidth="3.5"
                 strokeLinecap="round"
               />
-              {/* Miolo central preto com anel cromado VW */}
               <circle cx={center} cy={center} r="13" fill="#141416" stroke="#a1a1aa" strokeWidth="1.5" />
               <circle cx={center} cy={center} r="4" fill="#52525b" />
             </g>
           </svg>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* 2. CENTRO: COMPUTADOR DE BORDO I-SYSTEM (MAXI-DOT)                 */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* 2. CENTRO: COMPUTADOR DE BORDO I-SYSTEM VERMELHO */}
         <div className="flex flex-col items-center justify-between w-40 sm:w-48 h-56 p-3 rounded-2xl bg-zinc-950 border-2 border-zinc-800 shadow-[inset_0_2px_12px_rgba(0,0,0,0.9)]">
-          {/* Moldura da tela LCD com textura pontilhada */}
           <div className="w-full flex-1 flex flex-col justify-between items-center p-2 rounded-xl bg-gradient-to-b from-[#1a0808] to-[#250b0b] border border-red-950/60 shadow-[inset_0_0_15px_rgba(239,68,68,0.15)] text-red-500 font-mono">
-            {/* Topo do LCD: Marcha Atual e Recomendação de Troca VW */}
             <div className="flex items-center justify-between w-full border-b border-red-900/40 pb-1 text-[10px]">
               <span className="text-red-400 font-bold">MARCHA</span>
               <div className="flex items-center gap-1">
                 <span className="text-sm font-black text-red-400">{gear.label}</span>
-                {gear.label !== 'N' && gear.label !== 'R' && tachometer.rpm > 2800 && (
-                  <span className="text-[10px] text-red-300 font-bold animate-pulse">▶ {Math.min(5, (parseInt(gear.label, 10) || 1) + 1)}</span>
+                {gear.label !== 'N' && gear.label !== 'R' && tachometer.rpm > 2800 && (parseInt(gear.label, 10) || 1) < 5 && (
+                  <span className="text-[10px] text-red-300 font-bold animate-pulse">
+                    ▶ {Math.min(5, (parseInt(gear.label, 10) || 1) + 1)}
+                  </span>
                 )}
               </div>
             </div>
 
-            {/* Centro do LCD: Grande Velocímetro Digital */}
             <div className="flex flex-col items-center my-auto">
-              <span className="text-4xl sm:text-5xl font-black tracking-tight text-red-400 drop-shadow-[0_0_14px_rgba(239,68,68,0.85)] leading-none">
+              <span className="text-4xl sm:text-5xl font-black tracking-tight text-red-400 drop-shadow-[0_0_14px_rgba(239,68,68,0.85)] leading-none tabular-nums">
                 {Math.round(speedometer.speed)}
               </span>
               <span className="text-[10px] uppercase tracking-widest text-red-300 font-black mt-1">
@@ -338,54 +312,35 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
               </span>
             </div>
 
-            {/* Informações de Viagem (Trip & Consumo VW) */}
-            <div className="w-full border-t border-red-900/40 pt-1.5 flex flex-col gap-0.5 text-[9px]">
+            <div className="w-full border-t border-red-900/40 pt-1.5 flex flex-col gap-0.5 text-[8.5px]">
               <div className="flex justify-between items-center">
                 <span className="text-red-400/70">AUTONOMIA</span>
-                <span className="font-bold text-red-400">
-                  {Math.round(auxGauges.fuelPercent * 6.5)} km
+                <span className="font-bold text-red-300 tabular-nums">{estimatedRangeKm} km</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-red-400/70">
+                  {hasMeasuredAvgConsumption ? 'MÉDIA' : 'TANQUE'}
+                </span>
+                <span className="font-bold text-red-300 tabular-nums">
+                  {hasMeasuredAvgConsumption ? `${avgConsumptionKmL.toFixed(1)} km/L` : `${Math.round(fuelPercent)}% (55L)`}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-red-400/70">ODO TOTAL</span>
-                <span className="font-bold text-red-400">{Math.round(mileageKm).toLocaleString('pt-BR')} km</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-red-400/70">MOTOR</span>
-                <span className="font-bold text-red-400">{Math.round(auxGauges.coolantTemp)} °C</span>
+                <span className="text-red-400/70">ODO</span>
+                <span className="font-bold text-red-300 tabular-nums">
+                  {Math.round(odometerKm).toLocaleString('pt-BR')} km
+                </span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* 3. MOSTRADOR DIREITO: VELOCÍMETRO + MINI COMBUSTÍVEL              */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* 3. MOSTRADOR DIREITO: VELOCÍMETRO + MINI COMBUSTÍVEL (55L) */}
         <div className="relative flex flex-col items-center">
-          <svg
-            viewBox={`0 0 ${size} ${size}`}
-            className="w-[248px] sm:w-[264px] drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
-          >
-            {/* Aro externo cromado */}
-            <circle
-              cx={center}
-              cy={center}
-              r={radius + 20}
-              fill="none"
-              stroke="url(#golChromeBezel)"
-              strokeWidth="4.5"
-            />
-            {/* Fundo do mostrador */}
-            <circle
-              cx={center}
-              cy={center}
-              r={radius + 17}
-              fill="url(#golDialBg)"
-              stroke="#18181b"
-              strokeWidth="2"
-            />
+          <svg viewBox={`0 0 ${size} ${size}`} className="w-[248px] sm:w-[264px]">
+            <circle cx={center} cy={center} r={radius + 20} fill="none" stroke="url(#golChromeBezel)" strokeWidth="4.5" />
+            <circle cx={center} cy={center} r={radius + 17} fill="url(#golDialBg)" stroke="#18181b" strokeWidth="2" />
 
-            {/* Inscrição "km/h" central */}
             <text
               x={center}
               y={center - 36}
@@ -395,7 +350,6 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
               km/h
             </text>
 
-            {/* Marcações de Velocidade VW */}
             {speedMarks.map((m, i) => {
               const rad = (m.angle * Math.PI) / 180
               const innerR = m.isMajor ? radius - 15 : radius - 8
@@ -421,12 +375,7 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
                     opacity={m.isMajor ? 0.95 : 0.45}
                   />
                   {m.label && (
-                    <text
-                      x={tx}
-                      y={ty}
-                      textAnchor="middle"
-                      className="font-mono text-xs font-bold fill-white"
-                    >
+                    <text x={tx} y={ty} textAnchor="middle" className="font-mono text-xs font-bold fill-white">
                       {m.label}
                     </text>
                   )}
@@ -434,7 +383,6 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
               )
             })}
 
-            {/* ── Sub-mostrador Integrado de Nível de Combustível (Inferior) ── */}
             <g transform={`translate(${center}, ${center + 42})`}>
               <circle cx="0" cy="0" r="28" fill="#09090b" stroke="#27272a" strokeWidth="1" />
               <text x="0" y="-12" textAnchor="middle" className="fill-zinc-400 font-mono text-[7px]">
@@ -449,16 +397,13 @@ export const GolG6RealCluster = memo(function GolG6RealCluster({ telemetry }: Go
               <text x="16" y="8" textAnchor="middle" className="fill-zinc-200 font-mono text-[7px] font-bold">
                 1/1
               </text>
-              {/* Agulha de Combustível */}
               <g transform={`rotate(${fuelAngle})`}>
                 <line x1="0" y1="0" x2="0" y2="-22" stroke="#ef4444" strokeWidth="1.6" strokeLinecap="round" />
                 <circle cx="0" cy="0" r="3" fill="#18181b" stroke="#71717a" strokeWidth="0.8" />
               </g>
             </g>
 
-            {/* ── Agulha Vermelha Iluminada Principal (Velocímetro) ── */}
             <g transform={`rotate(${speedAngle} ${center} ${center})`}>
-              {/* Brilho da agulha em camada SVG nativa (sem drop-shadow CSS para eliminar flicker) */}
               <line
                 x1={center}
                 y1={center}
@@ -521,4 +466,3 @@ function polarToCartesian(cx: number, cy: number, r: number, deg: number) {
     y: cy + r * Math.sin(rad),
   }
 }
-

@@ -2,7 +2,6 @@ import { memo, useMemo } from 'react'
 import type { DashboardTelemetry } from '@/systems/dashboard'
 import { clamp, mapRange } from '@/utils/math'
 import { useSimulationStore } from '@/stores/useSimulationStore'
-import { useGarageStore } from '@/stores/useGarageStore'
 import { ClusterIndicatorIcon } from '@/components/gauges'
 import { formatZeroToHundredSeconds } from '@/systems/vehicle'
 
@@ -13,42 +12,36 @@ export interface FordFusion2019SmartGaugeClusterProps {
 /**
  * FordFusion2019SmartGaugeCluster — Painel Duplo Digital "SmartGauge with EcoGuide"
  * exclusivo do Ford Fusion Titanium 2.0 EcoBoost AWD 2019 (CD391).
- *
- * Arquitetura autêntica Ford Titanium 2019:
- * - Velocímetro central 0–260 km/h com aro cromado, ponteiro branco translúcido e seletor rotativo e-Shifter (P R N D S)
- * - Tela TFT Esquerda de 4,2": Conta-giros digital (0–7 x1000 RPM), pressão EcoBoost (BAR), Temperatura e Tanque de 68 L
- * - Tela TFT Direita de 4,2": Monitor gráfico em tempo real do sistema **Intelligent AWD** sob demanda
- *   (exibindo a repartição dinâmica de torque entre eixo dianteiro e eixo traseiro sem modos 4WD Lock/Low)
  */
 export const FordFusion2019SmartGaugeCluster = memo(function FordFusion2019SmartGaugeCluster({
   telemetry,
 }: FordFusion2019SmartGaugeClusterProps) {
-  const { tachometer, speedometer, warningLights, auxGauges } = telemetry
+  const { tachometer, speedometer, warningLights, auxGauges, abs } = telemetry
 
   const transmissionMode = useSimulationStore((s) => s.transmissionMode)
   const drivingMode = useSimulationStore((s) => s.drivingMode)
   const gearSelectorPosition = useSimulationStore((s) => s.gearSelectorPosition)
   const currentGear = useSimulationStore((s) => s.currentGear)
   const boostPressureBar = useSimulationStore((s) => s.boostPressureBar)
-  const throttle = useSimulationStore((s) => s.throttle)
-  const awdRearCoupling = useSimulationStore((s) => s._physics?.getStateSnapshot().awdRearCoupling ?? 0.08)
+  const frontTorqueSplitPercent = useSimulationStore((s) => s.frontTorqueSplitPercent)
+  const rearTorqueSplitPercent = useSimulationStore((s) => s.rearTorqueSplitPercent)
+  const torqueSplitSource = useSimulationStore((s) => s.torqueSplitSource)
   const last0to100 = useSimulationStore((s) => s.last0to100)
   const leftIndicatorLit = useSimulationStore((s) => s.leftIndicatorLit)
   const rightIndicatorLit = useSimulationStore((s) => s.rightIndicatorLit)
   const headlightsMode = useSimulationStore((s) => s.headlightsMode)
   const fogLightsLit = useSimulationStore((s) => s.fogLightsLit)
-  const ignitionPosition = useSimulationStore((s) => s.ignitionPosition)
-  const isRunning = useSimulationStore((s) => s.isRunning)
-  const mileageKm = useGarageStore((s) => s.getActiveCar()?.mileageKm ?? 0)
+  const odometerKm = useSimulationStore((s) => s.odometerKm)
+  const estimatedRangeKm = useSimulationStore((s) => s.estimatedRangeKm)
 
-  const maxRpm = 7000
-  const redlineStart = 6200
-  const maxSpeed = 260
+  const maxRpm = tachometer.maxRpm || 7000
+  const redlineStart = tachometer.redlineStart || 6200
+  const maxSpeed = speedometer.maxSpeed || 260
 
   const rpm = clamp(Number.isFinite(tachometer.rpm) ? tachometer.rpm : 0, 0, maxRpm)
   const speed = clamp(Number.isFinite(speedometer.speed) ? speedometer.speed : 0, 0, maxSpeed)
   const coolantTemp = Math.round(clamp(auxGauges.coolantTemp || 90, 50, 130))
-  const fuelPercent = Math.round(clamp(auxGauges.fuelLevel ?? 82, 0, 100))
+  const fuelPercent = Math.round(clamp(auxGauges.fuelPercent, 0, 100))
 
   const startAngle = -220
   const endAngle = 40
@@ -65,15 +58,7 @@ export const FordFusion2019SmartGaugeCluster = memo(function FordFusion2019Smart
       })
     }
     return arr
-  }, [])
-
-  // Repartição real do Intelligent AWD sob demanda (VehiclePhysics: rearShare = clamp(awdRearCoupling * 0.50, 0.04, 0.44))
-  const rearSharePct = isRunning && currentGear > 0 && throttle > 0.02
-    ? Math.round(clamp(awdRearCoupling * 50, 4, 44))
-    : 0
-  const frontSharePct = isRunning && currentGear > 0 && throttle > 0.02
-    ? 100 - rearSharePct
-    : 0
+  }, [maxSpeed])
 
   const activeGearBadge =
     gearSelectorPosition === 'P' || currentGear === -2
@@ -82,8 +67,8 @@ export const FordFusion2019SmartGaugeCluster = memo(function FordFusion2019Smart
         ? 'R'
         : gearSelectorPosition === 'N' || currentGear === 0
           ? 'N'
-          : transmissionMode === 'manual'
-            ? `S${currentGear > 0 ? currentGear : 1}`
+          : transmissionMode === 'manual_simulated' || gearSelectorPosition === 'M'
+            ? `M${currentGear > 0 ? currentGear : 1}`
             : `${gearSelectorPosition === 'S' ? 'S' : 'D'}${currentGear > 0 ? currentGear : 1}`
 
   return (
@@ -146,7 +131,6 @@ export const FordFusion2019SmartGaugeCluster = memo(function FordFusion2019Smart
             </span>
           </div>
 
-          {/* Barra segmentada vertical/horizontal de RPM */}
           <div className="my-1.5 space-y-1">
             <div className="flex h-6 items-end gap-0.5 rounded bg-black/50 p-1">
               {Array.from({ length: 20 }).map((_, idx) => {
@@ -174,7 +158,6 @@ export const FordFusion2019SmartGaugeCluster = memo(function FordFusion2019Smart
             </div>
           </div>
 
-          {/* Pressão EcoBoost GTDI */}
           <div>
             <div className="flex justify-between text-[7.5px] font-bold">
               <span className="text-sky-300">2.0 ECOBOOST</span>
@@ -190,7 +173,6 @@ export const FordFusion2019SmartGaugeCluster = memo(function FordFusion2019Smart
             </div>
           </div>
 
-          {/* Barras inferiores de Temperatura e Combustível (68 L) */}
           <div className="mt-1.5 grid grid-cols-2 gap-1.5 border-t border-white/10 pt-1 text-[7.5px]">
             <div>
               <span className="block text-slate-400">🌡 {coolantTemp}°C</span>
@@ -206,7 +188,7 @@ export const FordFusion2019SmartGaugeCluster = memo(function FordFusion2019Smart
               <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-slate-900">
                 <div
                   className={`h-full ${fuelPercent <= 15 ? 'bg-red-500' : 'bg-cyan-400'}`}
-                  style={{ width: `${clamp(fuelPercent, 4, 100)}%` }}
+                  style={{ width: `${clamp(fuelPercent, 0, 100)}%` }}
                 />
               </div>
             </div>
@@ -270,34 +252,43 @@ export const FordFusion2019SmartGaugeCluster = memo(function FordFusion2019Smart
           </svg>
 
           <div className="-mt-1 flex items-center justify-center gap-2">
-            <ClusterIndicatorIcon kind="battery" active={!isRunning && ignitionPosition !== 'OFF'} />
+            <ClusterIndicatorIcon kind="battery" active={Boolean(warningLights.battery)} />
             <ClusterIndicatorIcon kind="oil" active={Boolean(warningLights.oil)} />
             <ClusterIndicatorIcon kind="checkEngine" active={Boolean(warningLights.checkEngine)} />
+            {abs.available && (
+              <ClusterIndicatorIcon
+                kind="abs"
+                active={Boolean(warningLights.absFault)}
+                flashing={Boolean(warningLights.absActive && !warningLights.absFault)}
+              />
+            )}
             <ClusterIndicatorIcon kind="tcs" active={Boolean(warningLights.tcs)} flashing={Boolean(warningLights.tcsFlash)} />
             <ClusterIndicatorIcon kind="brake" active={Boolean(warningLights.brake)} />
+            <ClusterIndicatorIcon kind="temp" active={Boolean(warningLights.temp)} />
           </div>
         </div>
 
-        {/* 3. TELA TFT DIREITA 4,2": MONITOR INTELLIGENT AWD SOB DEMANDA */}
+        {/* 3. TELA TFT DIREITA 4,2": MONITOR INTELLIGENT AWD CENTRALIZADO */}
         <div className="flex h-full flex-col justify-between rounded-xl border border-sky-400/30 bg-[#07111e] p-2 shadow-inner">
           <div className="flex items-center justify-between border-b border-sky-500/20 pb-1 text-[8px]">
             <span className="font-black text-sky-300">INTELLIGENT AWD</span>
-            <span className="text-[7px] text-cyan-200">AUTO ON-DEMAND</span>
+            <span className="text-[6.8px] text-cyan-200">
+              {torqueSplitSource === 'measured_axle_torque' ? 'TRAÇÃO ATIVA' : 'STANDBY 96/4'}
+            </span>
           </div>
 
-          {/* Gráfico das 4 rodas com barras de torque por eixo */}
           <div className="my-1 flex flex-col gap-1.5 rounded-lg border border-white/10 bg-black/45 p-1.5 text-[7.5px]">
             <div>
               <div className="flex justify-between font-bold">
                 <span className="text-slate-300">EIXO DIANTEIRO</span>
-                <span className="text-sky-300 tabular-nums">{frontSharePct}%</span>
+                <span className="text-sky-300 tabular-nums">{frontTorqueSplitPercent}%</span>
               </div>
               <div className="mt-0.5 grid grid-cols-2 gap-1.5">
                 <div className="h-2 overflow-hidden rounded bg-slate-900">
-                  <div className="h-full bg-sky-400 transition-all duration-100" style={{ width: `${frontSharePct}%` }} />
+                  <div className="h-full bg-sky-400 transition-all duration-100" style={{ width: `${frontTorqueSplitPercent}%` }} />
                 </div>
                 <div className="h-2 overflow-hidden rounded bg-slate-900">
-                  <div className="h-full bg-sky-400 transition-all duration-100" style={{ width: `${frontSharePct}%` }} />
+                  <div className="h-full bg-sky-400 transition-all duration-100" style={{ width: `${frontTorqueSplitPercent}%` }} />
                 </div>
               </div>
             </div>
@@ -305,14 +296,14 @@ export const FordFusion2019SmartGaugeCluster = memo(function FordFusion2019Smart
             <div>
               <div className="flex justify-between font-bold">
                 <span className="text-slate-300">EIXO TRASEIRO (RDM)</span>
-                <span className="text-cyan-300 tabular-nums">{rearSharePct}%</span>
+                <span className="text-cyan-300 tabular-nums">{rearTorqueSplitPercent}%</span>
               </div>
               <div className="mt-0.5 grid grid-cols-2 gap-1.5">
                 <div className="h-2 overflow-hidden rounded bg-slate-900">
-                  <div className="h-full bg-cyan-300 transition-all duration-100" style={{ width: `${Math.min(100, rearSharePct * 2)}%` }} />
+                  <div className="h-full bg-cyan-300 transition-all duration-100" style={{ width: `${rearTorqueSplitPercent}%` }} />
                 </div>
                 <div className="h-2 overflow-hidden rounded bg-slate-900">
-                  <div className="h-full bg-cyan-300 transition-all duration-100" style={{ width: `${Math.min(100, rearSharePct * 2)}%` }} />
+                  <div className="h-full bg-cyan-300 transition-all duration-100" style={{ width: `${rearTorqueSplitPercent}%` }} />
                 </div>
               </div>
             </div>
@@ -320,9 +311,9 @@ export const FordFusion2019SmartGaugeCluster = memo(function FordFusion2019Smart
 
           <div className="flex items-center justify-between border-t border-white/10 pt-1 text-[7.5px] text-slate-300">
             <span>
-              {last0to100 !== null ? `0-100 ${formatZeroToHundredSeconds(last0to100)}s` : `IGN ${ignitionPosition}`}
+              {last0to100 !== null ? `0-100 ${formatZeroToHundredSeconds(last0to100)}s` : `⛽ ${estimatedRangeKm} km`}
             </span>
-            <span className="font-bold tabular-nums">{Math.round(mileageKm).toLocaleString()} km</span>
+            <span className="font-bold tabular-nums">{Math.round(odometerKm).toLocaleString('pt-BR')} km</span>
           </div>
         </div>
       </div>

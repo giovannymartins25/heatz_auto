@@ -1,6 +1,6 @@
 import { memo } from 'react'
 
-export type ClusterWarningKey = 'checkEngine' | 'oil' | 'battery' | 'brake' | 'tcs' | 'temp'
+export type ClusterWarningKey = 'checkEngine' | 'oil' | 'battery' | 'brake' | 'tcs' | 'temp' | 'abs'
 
 interface ClusterIndicatorIconProps {
   kind: ClusterWarningKey
@@ -14,9 +14,10 @@ const DEFAULT_TITLES: Record<ClusterWarningKey, { active: string; inactive: stri
   checkEngine: { active: 'Alerta de Injeção / Motor', inactive: 'Injeção OK' },
   oil: { active: 'Pressão de Óleo Baixa', inactive: 'Pressão de Óleo Normal' },
   battery: { active: 'Bateria / Alternador Inativo', inactive: 'Sistema de Carga OK' },
-  brake: { active: 'Freio Acionado', inactive: 'Freio Liberado' },
+  brake: { active: 'Freio de Estacionamento Acionado', inactive: 'Freio de Estacionamento Liberado' },
   tcs: { active: 'TCS / ESP Desativado ou Intervindo', inactive: 'TCS Ativo' },
-  temp: { active: 'Sobreaquecimento', inactive: 'Temperatura Normal' },
+  temp: { active: 'Superaquecimento do Motor', inactive: 'Temperatura Normal' },
+  abs: { active: 'Anomalia ou Atuação do ABS', inactive: 'ABS em Prontidão' },
 }
 
 /**
@@ -31,12 +32,12 @@ export const ClusterIndicatorIcon = memo(function ClusterIndicatorIcon({
 }: ClusterIndicatorIconProps) {
   const isLit = active || flashing
   const colorClass = flashing
-    ? 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.95)] animate-ping opacity-100'
+    ? 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.95)] animate-pulse opacity-100'
     : !isLit
-    ? 'text-zinc-600 opacity-30'
-    : kind === 'checkEngine' || kind === 'tcs'
-    ? 'text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.85)] opacity-100'
-    : 'text-red-500 drop-shadow-[0_0_6px_rgba(239,68,68,0.85)] opacity-100'
+      ? 'text-zinc-600 opacity-30'
+      : kind === 'checkEngine' || kind === 'tcs' || kind === 'abs'
+        ? 'text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.85)] opacity-100'
+        : 'text-red-500 drop-shadow-[0_0_6px_rgba(239,68,68,0.85)] opacity-100'
 
   const label = title ?? (isLit ? DEFAULT_TITLES[kind].active : DEFAULT_TITLES[kind].inactive)
 
@@ -49,7 +50,34 @@ export const ClusterIndicatorIcon = memo(function ClusterIndicatorIcon({
       {kind === 'brake' ? (
         <svg className={`${sizeClass} fill-none stroke-current stroke-2`} viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="8" />
-          <path strokeLinecap="round" d="M3 8a10 10 0 0 0 0 8M21 8a10 10 0 0 1 0 8M12 9v3.5M12 15.5v.5" />
+          <path strokeLinecap="round" d="M3 8a10 10 0 0 0 0 8M21 8a10 10 0 0 1 0 8" />
+          <text
+            x="12"
+            y="15"
+            textAnchor="middle"
+            fontSize="8.5"
+            fontWeight="900"
+            fill="currentColor"
+            stroke="none"
+          >
+            P
+          </text>
+        </svg>
+      ) : kind === 'abs' ? (
+        <svg className={`${sizeClass} fill-none stroke-current stroke-2`} viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="8" />
+          <path strokeLinecap="round" d="M3 8a10 10 0 0 0 0 8M21 8a10 10 0 0 1 0 8" />
+          <text
+            x="12"
+            y="14.5"
+            textAnchor="middle"
+            fontSize="6.2"
+            fontWeight="900"
+            fill="currentColor"
+            stroke="none"
+          >
+            ABS
+          </text>
         </svg>
       ) : (
         <svg className={`${sizeClass} fill-current`} viewBox="0 0 24 24">
@@ -57,7 +85,7 @@ export const ClusterIndicatorIcon = memo(function ClusterIndicatorIcon({
             <path d="M7 4V2H17V4H20C21.1 4 22 4.9 22 6V9H20V16H18V18H16V20H14V22H10V20H8V18H6V16H4V9H2V6C2 4.9 2.9 4 4 4H7M6 6V14H8V16H10V18H14V16H16V14H18V6H6M8 8H16V10H8V8Z" />
           )}
           {kind === 'oil' && (
-            <path d="M19.5 9.5C20.3 9.5 21 10.2 21 11V13.5C21 14.3 20.3 15 19.5 15H17.5V17C17.5 17.8 16.8 18.5 16 18.5H5C4.2 18.5 3.5 17.8 3.5 17V12C3.5 11.2 4.2 10.5 5 10.5H7.5V7C7.5 6.2 8.2 5.5 9 5.5H13C13.8 5.5 14.5 6.2 14.5 7V10.5H16.5C17.3 10.5 18 11.2 18 12V13.5H19.5V11C19.5 10.2 18.8 9.5 18 9.5H17.5V8H19.5C20.3 8 21 8.7 21 9.5M5 12V17H16V12H5Z" />
+            <path d="M19.5 9.5C20.3 9.5 21 10.2 21 11V13.5C20.3 15 19.5 15 19.5 15H17.5V17C17.5 17.8 16.8 18.5 16 18.5H5C4.2 18.5 3.5 17.8 3.5 17V12C3.5 11.2 4.2 10.5 5 10.5H7.5V7C7.5 6.2 8.2 5.5 9 5.5H13C13.8 5.5 14.5 6.2 14.5 7V10.5H16.5C17.3 10.5 18 11.2 18 12V13.5H19.5V11C19.5 10.2 18.8 9.5 18 9.5H17.5V8H19.5C20.3 8 21 8.7 21 9.5M5 12V17H16V12H5Z" />
           )}
           {kind === 'battery' && (
             <path d="M16 4H19V7H22V19H2V7H5V4H8V7H16V4M4 9V17H20V9H4M6 12H10V14H6V12M14 12H18V14H14V12Z" />
@@ -73,4 +101,3 @@ export const ClusterIndicatorIcon = memo(function ClusterIndicatorIcon({
     </div>
   )
 })
-

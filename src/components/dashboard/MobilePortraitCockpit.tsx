@@ -258,6 +258,7 @@ export const MobilePortraitCockpit = memo(function MobilePortraitCockpit({
             hasTurbo={hasTurbo}
             showAftermarketBoostGauge={showAftermarketBoostGauge}
             boostPressureBar={boostPressureBar}
+            onBack={onBack}
           />
         )}
       </main>

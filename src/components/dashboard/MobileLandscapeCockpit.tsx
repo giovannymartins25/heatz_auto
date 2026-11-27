@@ -296,6 +296,7 @@ export const MobileLandscapeCockpit = memo(function MobileLandscapeCockpit({
               hasTurbo={hasTurbo}
               showAftermarketBoostGauge={showAftermarketBoostGauge}
               boostPressureBar={boostPressureBar}
+              onBack={onBack}
             />
           )}
         </main>

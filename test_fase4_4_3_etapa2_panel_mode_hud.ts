@@ -66,8 +66,13 @@ function stepSeconds(seconds: number) {
   }
 }
 
-console.log('\n=== ETAPA 2.1 — ARQUITETURA DO PANEL MODE DIRIGÍVEL (ZERO ESTADO PARALELO, ZERO MAPA/MINIMAPA) ===')
+console.log('\n=== ETAPA 2.1 — ARQUITETURA DO PANEL MODE E DRIVING MODE (ATUALIZADO PELO CONTRATO DA ETAPA 3) ===')
 {
+  // Nota de evolução contratual (Fase 4.4.3 — Etapa 3):
+  // Na Etapa 3, o Modo Painel (?mode=cluster / sessionMode='panel') foi redefinido como Simulador Independente
+  // de Painel e Aceleração (Cluster Hero no topo, Multimídia e Controles dedicados abaixo, Telemetria + Acelerador
+  // sem deslocamento espacial e sem freio/embreagem/freio de mão/inclinação), enquanto o Modo Dirigir preserva
+  // 100% da condução completa sobre a mesma useSimulationStore.
   const dashSrc = fs.readFileSync(
     path.join(REPO, 'src', 'components', 'dashboard', 'VehicleDashboard.tsx'),
     'utf8',
@@ -91,16 +96,14 @@ console.log('\n=== ETAPA 2.1 — ARQUITETURA DO PANEL MODE DIRIGÍVEL (ZERO ESTA
 
   const panelExec = panelSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '')
 
-  // 1. Não há mais retorno prematuro que descarte pedais, freio de mão, câmbio ou inclinação em VehicleDashboard
   assert(
-    !dashSrc.includes('if (entryMode === \'cluster\') {\n    return (\n      <PanelModeInteriorView') &&
-      dashSrc.includes("const isDriveMode = entryMode !== 'cluster'") &&
+    dashSrc.includes("const isDriveMode = entryMode !== 'cluster'") &&
+      dashSrc.includes("const targetSessionMode = entryMode === 'cluster' ? 'panel' : 'drive'") &&
       portraitSrc.includes("const isDriveMode = entryMode !== 'cluster'") &&
       landscapeSrc.includes("const isDriveMode = entryMode !== 'cluster'"),
-    'Desktop, Mobile Portrait e Mobile Landscape compartilham a mesma árvore de condução entre Dirigir e Painel',
+    'VehicleDashboard seleciona sessionMode autoritativo ("drive" vs "panel") na mesma useSimulationStore',
   )
 
-  // 2. Mapa principal, minimapa e modal de mapa são estritamente condicionados a isDriveMode nos 3 layouts
   assert(
     dashSrc.includes('{isDriveMode && isMapOpen && (') &&
       dashSrc.includes('{isDriveMode && <HudMinimap variant="desktop" />}') &&
@@ -113,7 +116,6 @@ console.log('\n=== ETAPA 2.1 — ARQUITETURA DO PANEL MODE DIRIGÍVEL (ZERO ESTA
     'DrivingMapViewport, HudMinimap e WorldMapModal são estritamente omitidos quando entryMode === "cluster"',
   )
 
-  // 3. PanelModeInteriorView não importa nem instancia segunda store, física, mapa, minimapa ou guias de pista
   assert(
     !panelExec.includes('DrivingMapViewport') &&
       !panelExec.includes('HudMinimap') &&
@@ -125,45 +127,44 @@ console.log('\n=== ETAPA 2.1 — ARQUITETURA DO PANEL MODE DIRIGÍVEL (ZERO ESTA
     'PanelModeInteriorView não cria simulação paralela, console falso de bancada, mapa, minimapa ou guias de pista',
   )
 
-  // 4. Ordem espacial obrigatória em todos os 3 blocos de layout de PanelModeInteriorView:
-  //    panel-mode-controls-region (ex-GPS) ANTES de panel-mode-cluster-region ANTES de panel-mode-multimedia-region
+  // Na Etapa 3, em todos os 3 layouts de PanelModeInteriorView, o Cluster é o elemento visual principal (hero)
+  // vindo ANTES da Multimídia, dos Controles e do Deck de Telemetria + Acelerador.
   for (const layoutId of ['mobile_portrait', 'mobile_landscape', 'desktop'] as const) {
     const startIdx = panelSrc.indexOf(`data-layout="${layoutId}"`)
     const nextIdx = panelSrc.indexOf('data-testid="panel-mode-interior-root"', startIdx + 1)
     const block = panelSrc.slice(startIdx, nextIdx > startIdx ? nextIdx : undefined)
-    const idxControls = block.indexOf('data-testid="panel-mode-controls-region"')
     const idxCluster = block.indexOf('data-testid="panel-mode-cluster-region"')
     const idxMultimedia = block.indexOf('data-testid="panel-mode-multimedia-region"')
+    const idxControls = block.indexOf('data-testid="panel-mode-controls-region"')
+    const idxAccelDeck = block.indexOf('data-testid="panel-mode-accelerator-deck"')
     assert(
-      idxControls > 0 && idxCluster > idxControls && idxMultimedia > idxCluster,
-      `[Layout ${layoutId}] ordem espacial correta: Controles (ex-GPS) -> Cluster centralizado -> Multimídia abaixo`,
+      idxCluster > 0 && idxMultimedia > idxCluster && idxControls > idxCluster && idxAccelDeck > idxCluster,
+      `[Layout ${layoutId}] hierarquia Etapa 3 correta: Hero Cluster principal -> Multimídia & Controles dedicados -> Telemetria + Acelerador`,
     )
   }
 
-  // 5. Pedais habilitados mesmo antes da partida (permitindo pisar no freio/embreagem para startInterlock em ambos os modos)
   assert(
     !pedalsSrc.includes('disabled={!isRunning}') && pedalsSrc.includes('disabled={false}'),
-    'Pedals.tsx permite acionar freio e embreagem antes da partida para satisfazer startInterlock real',
+    'Pedals.tsx permite acionar freio e embreagem antes da partida para satisfazer startInterlock real no Modo Dirigir',
   )
 }
 
-console.log('\n=== ETAPA 2.2 — CONDUÇÃO REAL COMPLETA NO PANEL MODE (AUTOMÁTICO, MANUAL + EMBREAGEM, MOTO E TILT) ===')
+console.log('\n=== ETAPA 2.2 — CONDUÇÃO REAL COMPLETA NO DRIVING MODE (AUTOMÁTICO, MANUAL + EMBREAGEM, MOTO E TILT) ===')
 {
   const sim = useSimulationStore.getState()
 
-  // 2.2.A — Automático Start/Stop com interlock de freio (Porsche 911 Turbo S) + Inclinação do Celular
+  // 2.2.A — Automático Start/Stop com interlock de freio (Porsche 911 Turbo S) + Inclinação do Celular no Driving Mode
   const porsche = loadVehicle('porsche-gt3')
   sim.reset()
-  sim.init(porsche)
+  sim.init(porsche, undefined, null, 'drive')
 
-  // Partida real exigindo pedal de freio + soltura de freio de mão + engate de D + aceleração + inclinação
   sim.setHandbrake(true)
   sim.setBrake(0.85)
   sim.pressPushButtonIgnition(true)
   stepSeconds(0.65)
   assert(
     useSimulationStore.getState().isRunning && useSimulationStore.getState().ignitionPosition === 'ON',
-    '[Panel Mode · Porsche] ignição Start/Stop com pedal de freio liga o motor na simulação principal',
+    '[Driving Mode · Porsche] ignição Start/Stop com pedal de freio liga o motor na simulação principal',
   )
 
   sim.setBrake(0)
@@ -181,10 +182,9 @@ console.log('\n=== ETAPA 2.2 — CONDUÇÃO REAL COMPLETA NO PANEL MODE (AUTOMÁ
       stPorsche.steeringAngle > 0.05 &&
       stPorsche.headingDeg > 1.5 &&
       stPorsche._phys.tripDistanceKm > 0.02,
-    `[Panel Mode · Porsche] conduz, troca marcha, esterça por inclinação e desloca no mundo real (v=${stPorsche.speed.toFixed(1)} km/h, marcha=${stPorsche.currentGear}, heading=${stPorsche.headingDeg.toFixed(1)}°)`,
+    `[Driving Mode · Porsche] conduz, troca marcha, esterça por inclinação e desloca no mundo real (v=${stPorsche.speed.toFixed(1)} km/h, marcha=${stPorsche.currentGear}, heading=${stPorsche.headingDeg.toFixed(1)}°)`,
   )
 
-  // Freio de mão e freio de serviço reduzem velocidade normalmente
   const speedBeforeBrake = stPorsche.speed
   sim.setThrottle(0)
   sim.setBrake(0.9)
@@ -192,13 +192,13 @@ console.log('\n=== ETAPA 2.2 — CONDUÇÃO REAL COMPLETA NO PANEL MODE (AUTOMÁ
   stepSeconds(1.2)
   assert(
     useSimulationStore.getState().speed < speedBeforeBrake - 20,
-    `[Panel Mode · Porsche] freio de serviço + freio de mão desaceleram fisicamente (${speedBeforeBrake.toFixed(1)} -> ${useSimulationStore.getState().speed.toFixed(1)} km/h)`,
+    `[Driving Mode · Porsche] freio de serviço + freio de mão desaceleram fisicamente (${speedBeforeBrake.toFixed(1)} -> ${useSimulationStore.getState().speed.toFixed(1)} km/h)`,
   )
 
-  // 2.2.B — Manual com Embreagem e Chave Física (Honda CB1000R — sem multimídia)
+  // 2.2.B — Manual com Embreagem e Chave Física (Honda CB1000R)
   const cb1000r = loadVehicle('cb1000r')
   sim.reset()
-  sim.init(cb1000r)
+  sim.init(cb1000r, undefined, null, 'drive')
   sharedTiltSteering.resetCalibration()
   sim.setSteeringAngle(0, 'tilt')
 
@@ -207,21 +207,21 @@ console.log('\n=== ETAPA 2.2 — CONDUÇÃO REAL COMPLETA NO PANEL MODE (AUTOMÁ
   stepSeconds(0.65)
   sim.releaseIgnitionKey()
   sim.setThrottle(0.85)
-  stepSeconds(0.35) // Sobe giro antes de soltar manete de embreagem
-  sim.shiftUp() // 1ª marcha
+  stepSeconds(0.35)
+  sim.shiftUp()
   for (const c of [0.6, 0.35, 0.15, 0]) {
     sim.setClutch(c)
     stepSeconds(0.25)
   }
   stepSeconds(1.6)
   sim.setClutch(1.0)
-  sim.shiftUp() // 2ª marcha
+  sim.shiftUp()
   sim.setClutch(0)
   stepSeconds(1.2)
   const stMoto = useSimulationStore.getState()
   assert(
     stMoto.isRunning && stMoto.currentGear === 2 && stMoto.speed > 25,
-    `[Panel Mode · CB1000R] motocicleta manual com embreagem parte na chave, engata 1ª->2ª e acelera (${stMoto.speed.toFixed(1)} km/h)`,
+    `[Driving Mode · CB1000R] motocicleta manual com embreagem parte na chave, engata 1ª->2ª e acelera (${stMoto.speed.toFixed(1)} km/h)`,
   )
 }
 

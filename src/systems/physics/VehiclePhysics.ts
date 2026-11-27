@@ -38,6 +38,8 @@ export interface PhysicsTickInput {
   gear?: number                     // marcha engatada (-1 para ré)
   isRaining?: boolean               // condição climática de chuva
   brakeUpgrade?: 'stock' | 'sport'  // upgrade de freios esportivos (Brembo)
+  /** Simulação estacionária (Modo Painel): calcula giro/inércia longitudinal sem deslocamento 2D nem colisões */
+  stationarySimulation?: boolean
   /** Override opcional de atrito por eixo (split-mu) para testes controlados de aderência assimétrica */
   frontSurfaceFrictionOverride?: number
   rearSurfaceFrictionOverride?: number
@@ -1470,82 +1472,101 @@ export class VehiclePhysics {
       this.slipAngleRad = Math.atan2(this.lateralSpeedMs, Math.max(0.5, this.speedMs))
     }
 
-    this.headingRad += headingDelta
-    // Normaliza heading no intervalo [-pi, pi]
-    while (this.headingRad > Math.PI) this.headingRad -= 2 * Math.PI
-    while (this.headingRad < -Math.PI) this.headingRad += 2 * Math.PI
+    if (input.stationarySimulation) {
+      // Modo Painel (Simulador Estacionário): zero deslocamento espacial 2D, zero esterçamento, zero consulta/colisão no mundo
+      this.steeringAngleRad = 0
+      this.yawRate = 0
+      this.lateralSpeedMs = 0
+      this.lateralAccelMs2 = 0
+      this.slipAngleRad = 0
+      this.leanAngleRad = 0
+      this.isColliding = false
+      this.collisionBoundaryName = null
+      this.currentSurface = 'asphalt'
+      this.baseSurfaceFriction = 1.0
+      this.surfaceFriction =
+        this.manualFrictionOverride !== null
+          ? this.manualFrictionOverride
+          : this.computeCompositeFriction(1.0, 'asphalt', Boolean(isRaining))
+      this.rollingCoeff = 0.015
+    } else {
+      this.headingRad += headingDelta
+      // Normaliza heading no intervalo [-pi, pi]
+      while (this.headingRad > Math.PI) this.headingRad -= 2 * Math.PI
+      while (this.headingRad < -Math.PI) this.headingRad += 2 * Math.PI
 
-    // Velocidade vetorial no referencial do mundo (Norte = +Y, Leste = +X)
-    const vDirectional = isReverse ? -this.speedMs : this.speedMs
-    const sinH = Math.sin(this.headingRad)
-    const cosH = Math.cos(this.headingRad)
-    let vWorldX = vDirectional * sinH + this.lateralSpeedMs * cosH
-    let vWorldY = vDirectional * cosH - this.lateralSpeedMs * sinH
+      // Velocidade vetorial no referencial do mundo (Norte = +Y, Leste = +X)
+      const vDirectional = isReverse ? -this.speedMs : this.speedMs
+      const sinH = Math.sin(this.headingRad)
+      const cosH = Math.cos(this.headingRad)
+      let vWorldX = vDirectional * sinH + this.lateralSpeedMs * cosH
+      let vWorldY = vDirectional * cosH - this.lateralSpeedMs * sinH
 
-    this.positionX += vWorldX * deltaTime
-    this.positionY += vWorldY * deltaTime
+      this.positionX += vWorldX * deltaTime
+      this.positionY += vWorldY * deltaTime
 
-    // 10. Consulta de Superfície e Colisão Vetorial com Barreiras e Obstáculos do WorldMap
-    let mapQuery = WorldMap.query(this.positionX, this.positionY, Boolean(isRaining), vehicleRadius)
-    this.isColliding = false
-    this.collisionBoundaryName = null
+      // 10. Consulta de Superfície e Colisão Vetorial com Barreiras e Obstáculos do WorldMap
+      let mapQuery = WorldMap.query(this.positionX, this.positionY, Boolean(isRaining), vehicleRadius)
+      this.isColliding = false
+      this.collisionBoundaryName = null
 
-    // Até 2 passes de resolução para cantos entre barreiras/blocos
-    for (let pass = 0; pass < 2 && mapQuery.collision.isColliding; pass++) {
-      const col = mapQuery.collision
-      this.isColliding = true
-      this.collisionBoundaryName = col.boundaryName ?? 'Barreira'
+      // Até 2 passes de resolução para cantos entre barreiras/blocos
+      for (let pass = 0; pass < 2 && mapQuery.collision.isColliding; pass++) {
+        const col = mapQuery.collision
+        this.isColliding = true
+        this.collisionBoundaryName = col.boundaryName ?? 'Barreira'
 
-      // Afasta o veículo da barreira pelo vetor normal de penetração
-      this.positionX += col.normalX * (col.penetrationDepth + 0.01)
-      this.positionY += col.normalY * (col.penetrationDepth + 0.01)
+        // Afasta o veículo da barreira pelo vetor normal de penetração
+        this.positionX += col.normalX * (col.penetrationDepth + 0.01)
+        this.positionY += col.normalY * (col.penetrationDepth + 0.01)
 
-      // Projeção da velocidade do mundo sobre a normal da barreira
-      const vDotN = vWorldX * col.normalX + vWorldY * col.normalY
-      if (vDotN < 0) {
-        // Impacto inelástico com leve restituição (0.12) e amortecimento tangencial por atrito no muro
-        const restitution = 0.12
-        const wallFrictionDamping = 0.72
-        vWorldX = (vWorldX - (1 + restitution) * vDotN * col.normalX) * wallFrictionDamping
-        vWorldY = (vWorldY - (1 + restitution) * vDotN * col.normalY) * wallFrictionDamping
+        // Projeção da velocidade do mundo sobre a normal da barreira
+        const vDotN = vWorldX * col.normalX + vWorldY * col.normalY
+        if (vDotN < 0) {
+          // Impacto inelástico com leve restituição (0.12) e amortecimento tangencial por atrito no muro
+          const restitution = 0.12
+          const wallFrictionDamping = 0.72
+          vWorldX = (vWorldX - (1 + restitution) * vDotN * col.normalX) * wallFrictionDamping
+          vWorldY = (vWorldY - (1 + restitution) * vDotN * col.normalY) * wallFrictionDamping
 
-        // Reprojeção para o referencial do chassi (longitudinal + lateral)
-        const nextVx = vWorldX * sinH + vWorldY * cosH
-        const nextVy = vWorldX * cosH - vWorldY * sinH
+          // Reprojeção para o referencial do chassi (longitudinal + lateral)
+          const nextVx = vWorldX * sinH + vWorldY * cosH
+          const nextVy = vWorldX * cosH - vWorldY * sinH
 
-        this.speedMs = isReverse ? Math.max(0, -nextVx) : Math.max(0, nextVx)
-        if (this.speedMs < 0.25) {
-          this.speedMs = 0
-          this.motionDirection = 0
+          this.speedMs = isReverse ? Math.max(0, -nextVx) : Math.max(0, nextVx)
+          if (this.speedMs < 0.25) {
+            this.speedMs = 0
+            this.motionDirection = 0
+          }
+          this.lateralSpeedMs = nextVy * 0.45
+          if (Math.abs(this.lateralSpeedMs) < 0.05) this.lateralSpeedMs = 0
+          this.yawRate *= 0.35
+          this.wheelSpeedMs = this.speedMs
         }
-        this.lateralSpeedMs = nextVy * 0.45
-        if (Math.abs(this.lateralSpeedMs) < 0.05) this.lateralSpeedMs = 0
-        this.yawRate *= 0.35
-        this.wheelSpeedMs = this.speedMs
+
+        mapQuery = WorldMap.query(this.positionX, this.positionY, Boolean(isRaining), vehicleRadius)
       }
 
-      mapQuery = WorldMap.query(this.positionX, this.positionY, Boolean(isRaining), vehicleRadius)
+      // Guarda de integridade numérica (garante zero NaN/Infinity no estado 2D)
+      if (!Number.isFinite(this.positionX)) this.positionX = WorldMap.SPAWN_X
+      if (!Number.isFinite(this.positionY)) this.positionY = WorldMap.SPAWN_Y
+      if (!Number.isFinite(this.headingRad)) this.headingRad = 0
+      if (!Number.isFinite(this.speedMs)) this.speedMs = 0
+      if (!Number.isFinite(this.lateralSpeedMs)) this.lateralSpeedMs = 0
+      if (!Number.isFinite(this.yawRate)) this.yawRate = 0
+      if (!Number.isFinite(this.lateralAccelMs2)) this.lateralAccelMs2 = 0
+      if (!Number.isFinite(this.slipAngleRad)) this.slipAngleRad = 0
+      if (!Number.isFinite(this.leanAngleRad)) this.leanAngleRad = 0
+
+      this.currentSurface = mapQuery.surface.type
+      this.currentZoneName = mapQuery.zoneName
+      this.baseSurfaceFriction = mapQuery.surface.friction
+      this.surfaceFriction =
+        this.manualFrictionOverride !== null
+          ? this.manualFrictionOverride
+          : this.computeCompositeFriction(this.baseSurfaceFriction, this.currentSurface, Boolean(isRaining))
+      this.rollingCoeff = mapQuery.surface.rollingResistance
     }
-
-    // Guarda de integridade numérica (garante zero NaN/Infinity no estado 2D)
-    if (!Number.isFinite(this.positionX)) this.positionX = WorldMap.SPAWN_X
-    if (!Number.isFinite(this.positionY)) this.positionY = WorldMap.SPAWN_Y
-    if (!Number.isFinite(this.headingRad)) this.headingRad = 0
-    if (!Number.isFinite(this.speedMs)) this.speedMs = 0
-    if (!Number.isFinite(this.lateralSpeedMs)) this.lateralSpeedMs = 0
-    if (!Number.isFinite(this.yawRate)) this.yawRate = 0
-    if (!Number.isFinite(this.lateralAccelMs2)) this.lateralAccelMs2 = 0
-    if (!Number.isFinite(this.slipAngleRad)) this.slipAngleRad = 0
-    if (!Number.isFinite(this.leanAngleRad)) this.leanAngleRad = 0
-
-    this.currentSurface = mapQuery.surface.type
-    this.currentZoneName = mapQuery.zoneName
-    this.baseSurfaceFriction = mapQuery.surface.friction
-    this.surfaceFriction =
-      this.manualFrictionOverride !== null
-        ? this.manualFrictionOverride
-        : this.computeCompositeFriction(this.baseSurfaceFriction, this.currentSurface, Boolean(isRaining))
-    this.rollingCoeff = mapQuery.surface.rollingResistance
 
     // 11. Calcular rotação do eixo primário da transmissão
     const wheelAngularVelocity = this.wheelSpeedMs / this.wheelRadius
